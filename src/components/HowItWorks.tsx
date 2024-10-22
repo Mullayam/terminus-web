@@ -10,36 +10,33 @@ interface FeatureProps {
 const features: FeatureProps[] = [
   {
     icon: <MedalIcon />,
-    title: "Accessibility",
+    title: "Simple Setup",
     description:
-      "Lorem ipsum dolor sit amet, consectetur adipisicing elit. Illum quas provident cum",
+      "Getting started is fast and easy. Set up your environment in just a few minutes using our intuitive configuration tools. Once you’ve cloned the repository and configured your settings, you’re ready to invite collaborators and start working together in real time.",
   },
   {
     icon: <MapIcon />,
-    title: "Community",
+    title: "Real-Time Collaboration",
     description:
-      "Lorem ipsum dolor sit amet, consectetur adipisicing elit. Illum quas provident cum",
+      "Once a session is initiated, invite team members to join you in the terminal. Assign them read or write permissions to control their level of interaction. As everyone works together, each command and change is reflected instantly across all users, creating a smooth and synchronous experience.",
   },
   {
     icon: <PlaneIcon />,
-    title: "Scalability",
+    title: "Secure by Design",
     description:
-      "Lorem ipsum dolor sit amet, consectetur adipisicing elit. Illum quas provident cum",
+      "Security is at the core of our platform. Every terminal session and SFTP operation is encrypted end-to-end, and sensitive data like SSH keys and access tokens are stored securely in our key vault. We also enforce rate limiting, session timeouts, and log all access activities for full transparency",
   },
   {
     icon: <GiftIcon />,
-    title: "Gamification",
+    title: "Built with Security in Mind",
     description:
-      "Lorem ipsum dolor sit amet, consectetur adipisicing elit. Illum quas provident cum",
+      "With encryption, rate limiting, and secure key management, your sessions are protected at every step. We enforce session timeouts and maintain access logs for transparency.",
   },
 ];
 
 export const HowItWorks = () => {
   return (
-    <section
-      id="howItWorks"
-      className="container text-center py-24 sm:py-32"
-    >
+    <section id="howItWorks" className="container text-center py-24 sm:py-32">
       <h2 className="text-3xl md:text-4xl font-bold ">
         How It{" "}
         <span className="bg-gradient-to-b from-primary/60 to-primary text-transparent bg-clip-text">
@@ -48,16 +45,12 @@ export const HowItWorks = () => {
         Step-by-Step Guide
       </h2>
       <p className="md:w-3/4 mx-auto mt-4 mb-8 text-xl text-muted-foreground">
-        Lorem ipsum dolor sit amet consectetur, adipisicing elit. Veritatis
-        dolor pariatur sit!
+        {/* add some text here */}
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
         {features.map(({ icon, title, description }: FeatureProps) => (
-          <Card
-            key={title}
-            className="bg-muted/50"
-          >
+          <Card key={title} className="bg-muted/50">
             <CardHeader>
               <CardTitle className="grid gap-4 place-items-center">
                 {icon}
