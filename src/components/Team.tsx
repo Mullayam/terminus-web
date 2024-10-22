@@ -7,14 +7,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Facebook, Instagram, Linkedin } from "lucide-react";
-import owner from "../assets/owner.jpeg";
+import { Facebook, Instagram, Linkedin, Github } from "lucide-react";
+// import owner from "../assets/owner.jpeg";
+import { useEffect, useState } from "react";
 
 interface TeamProps {
   imageUrl: string;
   name: string;
   position: string;
   socialNetworks: SociaNetworkslProps[];
+  bio: string;
 }
 
 interface SociaNetworkslProps {
@@ -22,29 +24,26 @@ interface SociaNetworkslProps {
   url: string;
 }
 
-const teamList: TeamProps[] = [
-  {
-    imageUrl: owner,
-    name: "Mulayam Singh",
-    position: "Backend | Full Stack Developer",
-    socialNetworks: [
-      {
-        name: "Linkedin",
-        url: "https://www.linkedin.com/in/mullayam06/",
-      },
-      {
-        name: "Facebook",
-        url: "https://www.facebook.com/",
-      },
-      {
-        name: "Instagram",
-        url: "https://www.instagram.com/",
-      },
-    ],
-  },
-];
+// const teamList: TeamProps[] = [
+//   {
+//     imageUrl: owner,
+//     name: "Mulayam Singh",
+//     position: "Backend | Full Stack Developer",
+//     socialNetworks: [
+//       {
+//         name: "Linkedin",
+//         url: "https://www.linkedin.com/in/mullayam06/",
+//       },
+//       {
+//         name: "Github",
+//         url: "",
+//       },
+//     ],
+//   },
+// ];
 
 export const Team = () => {
+  const [teamsState, setTeamsState] = useState<TeamProps[]>([]);
   const socialIcon = (iconName: string) => {
     switch (iconName) {
       case "Linkedin":
@@ -55,8 +54,43 @@ export const Team = () => {
 
       case "Instagram":
         return <Instagram size="20" />;
+      case "Github":
+        return <Github size="20" />;
     }
   };
+
+  //  fetch the teams github data
+
+  async function fetchFromGithub() {
+    const urls: string[] = [
+      "https://api.github.com/users/Mullayam",
+      "https://api.github.com/users/rudrodip",
+      "https://api.github.com/users/ruru-m07",
+      "https://api.github.com/users/shubhexists",
+    ];
+    urls.map(async (url, _) => {
+      const response = await fetch(url);
+      const data = await response.json();
+      console.log(data);
+
+      setTeamsState((set) => {
+        return [
+          ...set,
+          {
+            name: data.login,
+            imageUrl: data.avatar_url,
+            position: "Developer",
+            socialNetworks: [{ name: "Github", url: data.html_url }],
+            bio: data.bio,
+          },
+        ];
+      });
+    });
+  }
+
+  useEffect(() => {
+    fetchFromGithub();
+  }, []);
 
   return (
     <section id="team" className="container py-24 sm:py-32">
@@ -69,8 +103,8 @@ export const Team = () => {
 
       <p className="mt-4 mb-10 text-xl text-muted-foreground"></p>
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 gap-y-10">
-        {teamList.map(
-          ({ imageUrl, name, position, socialNetworks }: TeamProps) => (
+        {teamsState.map(
+          ({ imageUrl, name, position, socialNetworks, bio }: TeamProps) => (
             <Card
               key={name}
               className="bg-muted/50 relative mt-8 flex flex-col justify-center items-center"
@@ -88,10 +122,7 @@ export const Team = () => {
               </CardHeader>
 
               <CardContent className="text-center pb-2">
-                <p>
-                  enthusiastic and passionate Developer with the ability to
-                  learn new technologies.
-                </p>
+                <p>{bio}</p>
               </CardContent>
 
               <CardFooter>

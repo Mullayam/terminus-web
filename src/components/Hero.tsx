@@ -15,10 +15,10 @@ export const Hero = () => {
             </span>{" "}
           </h1>{" "}
           <h2 className="inline">
+            Collaboration Terminal with{" "}
             <span className="inline bg-gradient-to-r from-[#61DAFB] via-[#1fc0f1] to-[#03a3d7] text-transparent bg-clip-text">
-              Collaboration
+              AI Assistance.
             </span>{" "}
-            Terminal with AI Assistance.
           </h2>
         </main>
 
