@@ -1,9 +1,9 @@
 import App from "@/App";
-import { Dashboard } from "@/components/layout/DashboardLayout";
 import SelectService from "@/pages";
 import ProtectedLayout from "@/pages/layout";
 import SFTP from "@/pages/sftp";
 import SSH from "@/pages/ssh";
+import { Terminal2 } from "@/pages/ssh/terminal2";
 import { createBrowserRouter } from "react-router-dom";
 export const router = createBrowserRouter([
     {
@@ -15,6 +15,10 @@ export const router = createBrowserRouter([
     {
         path: "about",
         element: <div>About</div>,
+    },
+    {
+        path: "/ssh/test",
+        element: <Terminal2 />,
     },
     {
         path: "/ssh",
@@ -34,6 +38,7 @@ export const router = createBrowserRouter([
                 path: "sftp",
                 element: <SFTP />,
             },
+          
         ]
     },
     {

@@ -1,4 +1,3 @@
-import { LogoIcon } from "./Icons";
 
 export const Footer = () => {
   return (
@@ -12,8 +11,7 @@ export const Footer = () => {
             href="/"
             className="font-bold text-xl flex"
           >
-            <LogoIcon />
-            ShadcnUI/React
+            Terminus Web
           </a>
         </div>
 
@@ -28,26 +26,7 @@ export const Footer = () => {
               Github
             </a>
           </div>
-
-          <div>
-            <a
-              rel="noreferrer noopener"
-              href="#"
-              className="opacity-60 hover:opacity-100"
-            >
-              Twitter
-            </a>
-          </div>
-
-          <div>
-            <a
-              rel="noreferrer noopener"
-              href="#"
-              className="opacity-60 hover:opacity-100"
-            >
-              Dribbble
-            </a>
-          </div>
+        
         </div>
 
         <div className="flex flex-col gap-2">
@@ -83,7 +62,7 @@ export const Footer = () => {
           </div>
         </div>
 
-        <div className="flex flex-col gap-2">
+        {/* <div className="flex flex-col gap-2">
           <h3 className="font-bold text-lg">About</h3>
           <div>
             <a
@@ -114,20 +93,10 @@ export const Footer = () => {
               FAQ
             </a>
           </div>
-        </div>
+        </div> */}
 
         <div className="flex flex-col gap-2">
-          <h3 className="font-bold text-lg">Community</h3>
-          <div>
-            <a
-              rel="noreferrer noopener"
-              href="#"
-              className="opacity-60 hover:opacity-100"
-            >
-              Youtube
-            </a>
-          </div>
-
+          <h3 className="font-bold text-lg">Community</h3>        
           <div>
             <a
               rel="noreferrer noopener"
@@ -138,29 +107,19 @@ export const Footer = () => {
             </a>
           </div>
 
-          <div>
-            <a
-              rel="noreferrer noopener"
-              href="#"
-              className="opacity-60 hover:opacity-100"
-            >
-              Twitch
-            </a>
-          </div>
+         
         </div>
       </section>
 
       <section className="container pb-14 text-center">
         <h3>
-          &copy; 2024 Landing page made by{" "}
-          <a
-            rel="noreferrer noopener"
-            target="_blank"
-            href="https://www.linkedin.com/in/leopoldo-miranda/"
+          &copy; {new Date().getFullYear()} Crafted & Powered by {" "}
+          <span
+           
             className="text-primary transition-all border-primary hover:border-b-2"
           >
-            Leo Miranda
-          </a>
+           Team Ionix | Enjoys
+          </span>
         </h3>
       </section>
     </footer>

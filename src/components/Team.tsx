@@ -24,22 +24,7 @@ interface SociaNetworkslProps {
   url: string;
 }
 
-// const teamList: TeamProps[] = [
-//   {
-//     imageUrl: owner,
-//     name: "Mulayam Singh",
-//     position: "Backend | Full Stack Developer",
-//     socialNetworks: [
-//       {
-//         name: "Linkedin",
-//         url: "https://www.linkedin.com/in/mullayam06/",
-//       },
-//       {
-//         name: "Github",
-//         url: "",
-//       },
-//     ],
-//   },
+ 
 // ];
 
 export const Team = () => {
@@ -68,10 +53,10 @@ export const Team = () => {
       "https://api.github.com/users/ruru-m07",
       "https://api.github.com/users/shubhexists",
     ];
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     urls.map(async (url, _) => {
       const response = await fetch(url);
-      const data = await response.json();
-      console.log(data);
+      const data = await response.json();    
 
       setTeamsState((set) => {
         return [

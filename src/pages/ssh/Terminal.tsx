@@ -1,8 +1,7 @@
 import "@xterm/xterm/css/xterm.css";
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Terminal } from '@xterm/xterm';
-// import { useSockets } from '@/hooks/use-sockets';
-// import { SOCKET_TERMINAL_EVENTS } from '@/lib/sockets/socket-constants';
+import { useSockets } from '@/hooks/use-sockets';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -10,13 +9,13 @@ import { ImageAddon } from '@xterm/addon-image';
 import { SearchAddon } from '@xterm/addon-search';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
-import { socket } from "@/lib/sockets";
 import { SocketEventConstants } from "@/lib/sockets/event-constants";
 
-const XTerminal = () => {
+const XTerminal = ({backgroundColor="#181818"}:{backgroundColor?:string}) => {
   const terminalRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const isRendered = useRef(false); 
+  const {socket}= useSockets()
   useEffect(() => {
     if (isRendered.current) return;
     if (!terminalRef.current) return;
@@ -32,7 +31,7 @@ const XTerminal = () => {
       cols: 100,
       fontFamily: 'monospace',
       theme: {
-        background: "#181818",
+        background: backgroundColor,
         cursor: "#f1fa8c",
       },
     });
@@ -49,7 +48,6 @@ const XTerminal = () => {
     term.open(terminalRef.current);
     term.write('Hi User, Welcome to the Web Terminal!');
 
-
     term.onData(async (input) => {
       socket.emit(SocketEventConstants.SSH_EMIT_INPUT, input);
     });
@@ -60,11 +58,7 @@ const XTerminal = () => {
     });
 
   }, [socket]);
-  return (
-    <React.Fragment>      
-      <div ref={terminalRef} id="terminal" style={{ position: 'relative' }} className='w-full h-full' />     
-    </React.Fragment>
-  )
+  return  <div ref={terminalRef} id="terminal" style={{ position: 'relative' }} className='w-full h-full' />     
 }
 
 export default XTerminal
