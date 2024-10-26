@@ -1,4 +1,4 @@
-import { Bell, Terminal, Folder, Settings } from 'lucide-react';
+import { Terminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -14,9 +14,6 @@ export function Sidebar() {
 
   const navItems: NavItem[] = [
     { icon: Terminal, label: 'Terminal', },
-    // { icon: Bell, label: 'Notifications' },
-    // { icon: Folder, label: 'Files' },
-    // { icon: Settings, label: 'Settings' }
   ];
 
   return (

@@ -26,7 +26,7 @@ const SocketContextProvider = ({ children }: PropsWithChildren) => {
             })
         })
         appSocket.on("disconnect", () => {
-            setIsConnected(false)             
+            setIsConnected(false)         
         })       
         appSocket.on("connection_error", () => setIsConnected(false));
         appSocket.connected && setIsConnected(true)

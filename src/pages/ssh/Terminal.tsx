@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef } from 'react';
 import { Terminal } from '@xterm/xterm';
@@ -28,7 +29,7 @@ const XTerminal = ({backgroundColor="#181818"}:{backgroundColor?:string}) => {
       fontSize: 14,
       cursorWidth: 1,
       rows: 40,
-      cols: 100,
+      cols: 200,
       fontFamily: 'monospace',
       theme: {
         background: backgroundColor,
