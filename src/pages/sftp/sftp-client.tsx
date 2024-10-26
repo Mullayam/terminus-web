@@ -1,54 +1,170 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-"use client"
-import { useState } from "react"
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
+import { useEffect, useState } from "react"
 import { FilePane } from "./components/FilePane"
+import { useSockets } from "@/hooks/use-sockets"
+import { SocketEventConstants } from "@/lib/sockets/event-constants"
+import { useToast } from '@/hooks/use-toast';
+import { SFTP_FILES_LIST } from "./components/interface";
 
-// Mock data for file listings
-const localFiles = [
-  { name: "OneDriveTemp", dateModified: "8/28/2024, 3:04 PM", size: "--", kind: "folder" },
-  { name: "PerfLogs", dateModified: "5/7/2022, 10:54 AM", size: "--", kind: "folder" },
-  { name: "Program Files", dateModified: "10/4/2024, 9:28 PM", size: "--", kind: "folder" },
-  { name: "Program Files (x86)", dateModified: "9/7/2024, 7:56 PM", size: "--", kind: "folder" },
-  { name: "ProgramData", dateModified: "10/8/2024, 10:35 PM", size: "--", kind: "folder" },
-  { name: "Python27", dateModified: "9/22/2024, 6:31 PM", size: "--", kind: "folder" },
-  { name: "Users", dateModified: "8/28/2024, 2:54 PM", size: "--", kind: "folder" },
-  { name: "Windows", dateModified: "10/9/2024, 11:55 AM", size: "--", kind: "folder" },
-  { name: "$WINRE_BACKUP_PARTITION.MARKER", dateModified: "8/30/2024, 4:41 PM", size: "0 Bytes", kind: "MARKER" },
-  { name: "appverifUI.dll", dateModified: "4/1/2024, 11:01 PM", size: "108.95 kB", kind: "dll" },
+const mockFiles = [
+  {
+    "type": "d",
+    "name": "air-rest-api",
+    "size": 4096,
+    "modifyTime": 1729799923000,
+    "accessTime": 1729959469000,
+    "rights": {
+      "user": "rwx",
+      "group": "rx",
+      "other": "rx"
+    },
+    "owner": 1000,
+    "group": 1001,
+    "longname": "drwxr-xr-x    7 mullayam mullayam     4096 Oct 25 01:28 air-rest-api"
+  },
+  {
+    "type": "d",
+    "name": ".cache",
+    "size": 4096,
+    "modifyTime": 1728772262000,
+    "accessTime": 1728772264000,
+    "rights": {
+      "user": "rwx",
+      "group": "",
+      "other": ""
+    },
+    "owner": 1000,
+    "group": 1001,
+    "longname": "drwx------    8 mullayam mullayam     4096 Oct 13 04:01 .cache"
+  },
+  {
+    "type": "-",
+    "name": ".sudo_as_admin_successful",
+    "size": 0,
+    "modifyTime": 1724842082000,
+    "accessTime": 1725268982000,
+    "rights": {
+      "user": "rw",
+      "group": "r",
+      "other": "r"
+    },
+    "owner": 1000,
+    "group": 1001,
+    "longname": "-rw-r--r--    1 mullayam mullayam        0 Aug 28 16:18 .sudo_as_admin_successful"
+  },
+  {
+    "type": "-",
+    "name": ".gitconfig",
+    "size": 82,
+    "modifyTime": 1729710728000,
+    "accessTime": 1729959470000,
+    "rights": {
+      "user": "rw",
+      "group": "r",
+      "other": "r"
+    },
+    "owner": 1000,
+    "group": 1001,
+    "longname": "-rw-r--r--    1 mullayam mullayam       82 Oct 24 00:42 .gitconfig"
+  },
+  {
+    "type": "d",
+    "name": ".mvm",
+    "size": 4096,
+    "modifyTime": 1728404070000,
+    "accessTime": 1728404008000,
+    "rights": {
+      "user": "rwx",
+      "group": "rx",
+      "other": "rx"
+    },
+    "owner": 1000,
+    "group": 1001,
+    "longname": "drwxr-xr-x    3 mullayam mullayam     4096 Oct  8 21:44 .mvm"
+  },
+  {
+    "type": "d",
+    "name": ".bun",
+    "size": 4096,
+    "modifyTime": 1726122010000,
+    "accessTime": 1726122010000,
+    "rights": {
+      "user": "rwx",
+      "group": "rx",
+      "other": "rx"
+    },
+    "owner": 1000,
+    "group": 1001,
+    "longname": "drwxr-xr-x    3 mullayam mullayam     4096 Sep 12 11:50 .bun"
+  },
+  {
+    "type": "d",
+    "name": "sss",
+    "size": 4096,
+    "modifyTime": 1728925702000,
+    "accessTime": 1729793630000,
+    "rights": {
+      "user": "rwx",
+      "group": "rx",
+      "other": "rx"
+    },
+    "owner": 1000,
+    "group": 1001,
+    "longname": "drwxr-xr-x    8 mullayam mullayam     4096 Oct 14 22:38 sss"
+  },
+  {
+    "type": "d",
+    "name": "node-mail-pro",
+    "size": 4096,
+    "modifyTime": 1726128144000,
+    "accessTime": 1727036460000,
+    "rights": {
+      "user": "rwx",
+      "group": "rx",
+      "other": "rx"
+    },
+    "owner": 1000,
+    "group": 1001,
+    "longname": "drwxr-xr-x    6 mullayam mullayam     4096 Sep 12 13:32 node-mail-pro"
+  }
 ]
-
-const remoteFiles = [
-  { name: "..", dateModified: "", size: "--", kind: "folder" },
-  { name: "test", dateModified: "8/25/2024, 9:37 PM", size: "--", kind: "folder" },
-  { name: "saveit", dateModified: "7/22/2024, 11:03 AM", size: "--", kind: "folder" },
-  { name: "redberyl-pwa", dateModified: "7/24/2024, 2:27 PM", size: "--", kind: "folder" },
-  { name: "products", dateModified: "7/1/2024, 7:05 PM", size: "--", kind: "folder" },
-  { name: "snap", dateModified: "10/1/2024, 5:30 AM", size: "--", kind: "folder" },
-  { name: "haraka", dateModified: "8/19/2024, 11:04 PM", size: "--", kind: "folder" },
-  { name: "smtp-server-with-mailbox", dateModified: "6/24/2024, 12:31 PM", size: "--", kind: "folder" },
-  { name: "node-mail-pro", dateModified: "9/12/2024, 1:55 PM", size: "--", kind: "folder" },
-  { name: "cozinco", dateModified: "5/2/2024, 2:09 PM", size: "--", kind: "folder" },
-  { name: "sterm", dateModified: "10/14/2024, 9:28 PM", size: "48.95 MB", kind: "file" },
-]
-
-
 
 export default function SFTPClient() {
   const [transferProgress, setTransferProgress] = useState(0)
+  const [currentDir, setCurrentDir] = useState("")
+  const [remoteFiles, setRemoteFiles] = useState<Partial<SFTP_FILES_LIST[]>>([])
+  const { socket, isSSH_Connected } = useSockets()
+  const { toast } = useToast()
 
+ 
+  useEffect(() => {
+    if (isSSH_Connected) {
+      socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: './' })
+      socket.on(SocketEventConstants.SFTP_FILES_LIST, (data: any) => {
+        setRemoteFiles(data.files)
+        setCurrentDir(data.currentDir)
+      })
+    }
+
+    return () => {
+      socket.off(SocketEventConstants.SFTP_FILES_LIST)
+      socket.on(SocketEventConstants.ERROR, (data: string) => {
+        toast({
+          title: 'SFTP Error',
+          description: data,
+          variant: 'destructive',
+        })
+      });
+    }
+  }, [socket, isSSH_Connected])
   return (
     <div className="flex flex-col h-screen bg-background text-foreground">
-      <ResizablePanelGroup direction="horizontal" className="flex-grow">
-        <ResizablePanel defaultSize={50}>
-          <FilePane title="Local" files={localFiles} path="C: > /" />
-        </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={50}>
-          <FilePane title="SaveIt" files={remoteFiles} path="home > ubuntu" />
-        </ResizablePanel>
-      </ResizablePanelGroup>
+      <FilePane
+        title="WSL"
+        files={remoteFiles}
+        path={currentDir}        
+      />
       <div className="p-2 bg-primary/5 text-sm">
         <div className="flex justify-between items-center">
           <span>appverifUI.dll</span>
