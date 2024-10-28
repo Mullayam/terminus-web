@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { Suspense } from 'react'
-import SFTPClient from "@/pages/sftp/sftp-client";
+import SFTPClient from "@/pages/sftp/components/sftp-client";
 import { useSockets } from '@/hooks/use-sockets';
 import { useNavigate } from 'react-router-dom';
 
@@ -12,7 +12,7 @@ const SFTP = () => {
     if (!isSSH_Connected) {
       navigate('/ssh')  // Navigate to /ssh if not connected
     }
-    
+   
   }, [isSSH_Connected, navigate])
   return (
     <div>

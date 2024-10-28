@@ -8,18 +8,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Progress } from '@/components/ui/progress';
 import { X, Upload, File, Check } from 'lucide-react';
 
-export default function EnhancedFileUploadPopup() {
+export default function EnhancedFileUploadPopup({ children }: any) {
   const [files, setFiles] = useState<Array<File & { progress?: number; uploaded?: boolean }>>([]);
   const [open, setOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    console.log('Accepted files:', acceptedFiles);
     setFiles((prevFiles) => [
       ...prevFiles,
       ...acceptedFiles.map((file) => {
-        console.log('File object:', file);
-        console.log('File name:', file.name);
+
         return {
           ...file,
           progress: 0,
@@ -61,8 +59,8 @@ export default function EnhancedFileUploadPopup() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline">Upload Files</Button>
+      <DialogTrigger>
+        {children}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
@@ -71,9 +69,8 @@ export default function EnhancedFileUploadPopup() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}>
           <div
             {...getRootProps()}
-            className={`p-10 border-2 border-dashed rounded-lg text-center cursor-pointer transition-all ${
-              isDragActive ? 'border-primary bg-primary/10' : 'border-gray-300'
-            }`}
+            className={`p-10 border-2 border-dashed rounded-lg text-center cursor-pointer transition-all ${isDragActive ? 'border-primary bg-primary/10' : 'border-gray-300'
+              }`}
             style={{
               background: isDragActive ? 'linear-gradient(145deg, rgba(59,130,246,0.1) 0%, rgba(147,51,234,0.1) 100%)' : 'white',
               borderImage: isDragActive ? 'linear-gradient(145deg, #3b82f6 0%, #9333ea 100%) 1' : 'none',

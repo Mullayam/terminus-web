@@ -8,6 +8,7 @@ import { SidebarContent } from './Sidebar';
 import {ReconnectButton} from "./ReconnectButton";
 import ServerStatus from './ServerStatus';
 import { useSockets } from '@/hooks/use-sockets'
+import { NavLink } from 'react-router-dom';
 
 
 export function Dashboard({ children }: { children: React.ReactNode }) {
@@ -27,7 +28,7 @@ export function Dashboard({ children }: { children: React.ReactNode }) {
         <div className="flex h-screen bg-[#0A0A0A] text-white font-sans">
             {/* Sidebar for desktop */}
             <div className="hidden md:flex w-64 bg-[#111111] py-6 px-4 flex-col">
-                <h1 className="text-xl font-bold mb-8 ml-5">TerminusWeb</h1>
+              <NavLink to="/"><h1 className="text-xl font-bold">TerminusWeb</h1></NavLink>
                 <SidebarContent
                     sidebarItems={sidebarItems}
                     isProfileOpen={isProfileOpen}

@@ -84,8 +84,9 @@ const SSH = () => {
             handleSSHConnection?.();
             form.reset();
         });
-        socket.on(SocketEventConstants.SSH_DISCONNECTED, () => {
-            handleSSHConnection?.();
+        socket.on("disconnect", () => {
+            handleSSHConnection?.(false);
+            navigate('/ssh/connect');
         });
         socket.on(SocketEventConstants.ERROR, (data:string) => {
             toast({
@@ -94,7 +95,7 @@ const SSH = () => {
                 variant: 'destructive',
             })
         });
-         
+        
         
         return () => {
             socket.off(SocketEventConstants.SSH_READY);
