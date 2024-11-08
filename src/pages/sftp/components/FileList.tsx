@@ -65,8 +65,17 @@ export function FileList({ files, currentDir }: {
       header: "Name",
       cell: ({ row }) => (
         <div className="p-2 flex space-x-2 cursor-pointer"
-          onClick={() => handleDirectoryChange((row.getValue("name")))}
+          onClick={row.original.type === "d" ? () => handleDirectoryChange((row.getValue("name"))) : () => {
+            toast({
+              title: "Not A Valid Directory",
+              description: "Live Editing Feature Comming Soon",
+              variant: "destructive",
+
+
+            })
+          }}
         >
+
           {row.original.type === "d" ? (
             <Folder size={18} strokeWidth={1.5} />
           ) : (
@@ -162,12 +171,8 @@ export function FileList({ files, currentDir }: {
 
   const handleContextClickAction = (action: RIGHT_CLICK_ACTIONS, fileName: SFTP_FILES_LIST) => {
     switch (action) {
-      case "copy":
-        displayMesasge("copy file: " + fileName)
-        break;
       case "rename":
         displayMesasge("rename file: " + fileName)
-
         break;
       case "move":
         displayMesasge("move file: " + fileName)
@@ -180,6 +185,9 @@ export function FileList({ files, currentDir }: {
         break;
       case "refresh":
         SocketEmitters.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: currentDir })
+        break;
+      case "createFolder":
+        displayMesasge("createFolder file: " + fileName)
         break;
       case "createFile":
         displayMesasge("createFile file: " + fileName)
@@ -196,8 +204,8 @@ export function FileList({ files, currentDir }: {
     data: files.sort((a, b) => (a.type === "d" && b.type !== "d" ? -1 : 1)),
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onRowSelectionChange: setRowSelection,
     state: {
@@ -236,8 +244,9 @@ export function FileList({ files, currentDir }: {
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row: any) => (
+
+            {table.getCoreRowModel().rows?.length ? (
+              table.getCoreRowModel().rows.map((row: any) => (
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
@@ -258,53 +267,49 @@ export function FileList({ files, currentDir }: {
                           <ContextMenuSeparator />
                           <ContextMenuItem inset disabled onClick={() => handleContextClickAction("edit", row.original)}>
                             Edit
-                            <ContextMenuShortcut>⌘[</ContextMenuShortcut>
+                            
                           </ContextMenuItem>
+                         
                           <ContextMenuItem inset className="cursor-pointer" onClick={() => handleContextClickAction("refresh", row.original)}>
                             Refresh
-                            <ContextMenuShortcut>⌘[</ContextMenuShortcut>
-                          </ContextMenuItem>
-                          <ContextMenuItem inset className="cursor-pointer" onClick={() => handleContextClickAction("copy", row.original)}>
-                            Copy
-                            <ContextMenuShortcut >⌘]</ContextMenuShortcut>
-                          </ContextMenuItem>
+                                                </ContextMenuItem>
+                          
                           <ContextMenuItem inset className="cursor-pointer" onClick={() => handleContextClickAction("move", row.original)}>
                             Move
-                            <ContextMenuShortcut>⌘R</ContextMenuShortcut>
+                            
                           </ContextMenuItem>
+
                           <ContextMenuItem inset className="cursor-pointer text-red-600">
                             <CusotmDialog trigger={"Delete"}>
                               <DeleteFolderDialog folderName={row.getValue('name')} onDelete={() => { }} />
                             </CusotmDialog>
-                            <ContextMenuShortcut>⌘R</ContextMenuShortcut>
+                           
                           </ContextMenuItem>
 
                           <ContextMenuItem inset className="cursor-pointer" >
                             <CusotmDialog trigger={"Rename"}>
                               <NewFolderDialog />
                             </CusotmDialog>
-                            <ContextMenuShortcut>⌘R</ContextMenuShortcut>
                           </ContextMenuItem>
                           <ContextMenuItem inset className="cursor-pointer" onClick={() => handleContextClickAction("download", row.original)}>
                             Download
-                            <ContextMenuShortcut>⌘R</ContextMenuShortcut>
                           </ContextMenuItem>
                           <EnhancedFileUploadPopup>
                             <CustomTextMenu text={"Upload"} />
                           </EnhancedFileUploadPopup>
-                          <ContextMenuItem inset className="cursor-pointer" onClick={() => handleContextClickAction("properties", row.original)}>
-                            Properties
-                            <ContextMenuShortcut>⌘R</ContextMenuShortcut>
-                          </ContextMenuItem>
+                              {
+                                row.original.type === "d" &&
+                                <ContextMenuItem inset className="cursor-pointer" onClick={() => handleContextClickAction("properties", row.original)}>
+                                  Properties
+                                </ContextMenuItem>
+                              }
                           <ContextMenuItem inset className="cursor-pointer" onClick={() => handleContextClickAction("createFolder", row.original)}>
                             New Folder
-                            <ContextMenuShortcut>⌘R</ContextMenuShortcut>
                           </ContextMenuItem>
                           <ContextMenuItem inset className="cursor-pointer" onClick={() => handleContextClickAction("createFile", row.original)}>
                             New File
-                            <ContextMenuShortcut>⌘R</ContextMenuShortcut>
+                            {/* <ContextMenuShortcut>⌘R</ContextMenuShortcut> */}
                           </ContextMenuItem>
-
                         </ContextMenuContent>
                       </ContextMenu>
                     </TableCell>
@@ -326,6 +331,9 @@ export function FileList({ files, currentDir }: {
         {/* <NewFolderDialog /> */}
 
         {/* <FilePermissions/> */}
+
+
+
       </div>
     </div>
 

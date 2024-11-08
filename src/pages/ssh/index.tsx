@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useSockets } from '@/hooks/use-sockets';
 import { useNavigate } from 'react-router-dom';
+import { TerminalLayout } from './terminal2';
 
 const formSchema = z
     .object({
@@ -41,11 +42,22 @@ type FormValues = z.infer<typeof formSchema>;
 const SSH = () => {
     const { toast } = useToast();
     const navigate = useNavigate();
+    // const [tabs, setTabs] = useState([{ id: 1 }]);
+    // const [activeTab, setActiveTab] = useState<number>(0);
 
     const { isSSH_Connected, handleSSHConnection } = useSockets();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
 
+    // const addTab = () => {
+    //     setTabs([...tabs, { id: tabs.length + 1 }]);
+    //     setActiveTab(tabs.length);
+    // };
+
+    // const removeTab = (index: number) => {
+    //     setTabs(tabs.filter((tab, i) => i !== index));
+    //     setActiveTab(index > 0 ? index - 1 : 0);
+    // };
     const [value, setValue] = useState({
         host: '',
         username: '',
@@ -88,66 +100,64 @@ const SSH = () => {
             handleSSHConnection?.(false);
             navigate('/ssh/connect');
         });
-        socket.on(SocketEventConstants.ERROR, (data:string) => {
+        socket.on(SocketEventConstants.ERROR, (data: string) => {
             toast({
                 title: 'SFTP Error',
                 description: data,
                 variant: 'destructive',
             })
         });
-        
-        
+
+
         return () => {
             socket.off(SocketEventConstants.SSH_READY);
             socket.off(SocketEventConstants.SSH_DISCONNECTED);
         };
-    }, [form, handleSSHConnection]);
+    }, [form, handleSSHConnection, navigate, toast]);
 
     useEffect(() => {
         if (!isSSH_Connected) {
             navigate('/ssh/connect');
         }
     }, [isSSH_Connected, navigate]);
-    
-    const handleReset = () => {
-        form.reset();
-    };
+
+ 
     return (
         <div>
+
             {isLoading && <FullScreenLoader />}
             {isSSH_Connected ? (
                 <>
-                    <XTerminal />
-                    <div className="bg-gray-900 text-gray-200 p-1 text-xs text-right">
-                        Status:{' '}
-                        {isSSH_Connected ? (
-                            <div className="inline-flex items-center">
-                                <span className="size-2 inline-block bg-green-500 rounded-full me-2"></span>
-                                <span className="text-gray-200 dark:text-neutral-200">Connected</span>
-                            </div>
-                        ) : (
-                            <div className="inline-flex items-center">
-                                <span className="size-2 inline-block bg-red-500 rounded-full me-2"></span>
-                                <span className="text-gray-200 dark:text-neutral-200">Disconnected</span>
-                            </div>
-                        )}
+                    <TerminalLayout>
+                        <XTerminal backgroundColor='#1a1b26' />
+                    </TerminalLayout>
+                    <div className="flex justify-between items-start flex-wrap mt-4 px-4  text-xs">
+                        <div className="flex flex-row text- gap-4">
+                            <span>Public IPs: <a href={`http://${value.host}`} className="inline-block text-gray-200 dark:text-neutral-200 hover:underline" >{value.host} </a></span>
+                            <span>Username: {value.username}</span>
+                        </div>
+                        <div className="bg-gray-900 text-gray-200 p-1 text-xs text-right">
+                            Status:{' '}
+                            {isSSH_Connected ? (
+                                <div className="inline-flex items-center">
+                                    <span className="size-2 inline-block bg-green-500 rounded-full me-2"></span>
+                                    <span className="text-gray-200 dark:text-neutral-200">Connected</span>
+                                </div>
+                            ) : (
+                                <div className="inline-flex items-center">
+                                    <span className="size-2 inline-block bg-red-500 rounded-full me-2"></span>
+                                    <span className="text-gray-200 dark:text-neutral-200">Disconnected</span>
+                                </div>
+                            )}
+                        </div>
                     </div>
+
                     <Alert>
                         <AlertDescription>
                             SSH connection established successfully!Do No Refresh the page , otherwise the connection will be lost
                         </AlertDescription>
                     </Alert>
-                    <div className="flex justify-between items-start flex-wrap mt-4 px-4">
-                        <div className="flex flex-col text-xs">
-                            <span>Public IPs: {value.host}</span>
-                            <span>Username: {value.username}</span>
-                        </div>
-                        <div className="mt-4 sm:mt-0">
-                            <button onClick={handleReset} className="bg-blue-500 text-white py-1 px-3 rounded hover:bg-blue-600">
-                                Reset
-                            </button>
-                        </div>
-                    </div>
+
                 </>
             ) : (
                 <SSHConnectionForm<typeof form> form={form} handleSubmit={handleSubmit} isLoading={isLoading} />

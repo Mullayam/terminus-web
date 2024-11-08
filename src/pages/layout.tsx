@@ -11,7 +11,7 @@ const ProtectedLayout = () => {
     }
   }, [isSSH_Connected, navigate]);
   return (
-    <Dashboard>
+    <Dashboard>     
       <Outlet />
     </Dashboard>
   );

@@ -58,7 +58,7 @@ export function Dashboard({ children }: { children: React.ReactNode }) {
                 </header>
 
                 {/* Content area */}
-                <main className="flex-1 p-6 md:p-8 overflow-auto">
+                <main className="flex-1 overflow-auto">
                     {children}
                     {!isConnected && <ReconnectButton />}                   
                 </main>

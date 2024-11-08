@@ -8,17 +8,16 @@ const SFTP = () => {
   const { isSSH_Connected } = useSockets()
   const navigate = useNavigate()
   React.useEffect(() => {
-    
+
     if (!isSSH_Connected) {
-      navigate('/ssh')  // Navigate to /ssh if not connected
+      navigate('/ssh')  
+      return
     }
-   
   }, [isSSH_Connected, navigate])
   return (
     <div>
       <Suspense fallback={<div>Loading...</div>}>
         {isSSH_Connected && <SFTPClient />}
-        <SFTPClient />
       </Suspense>
     </div>
   )

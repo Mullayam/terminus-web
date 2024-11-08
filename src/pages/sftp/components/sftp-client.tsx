@@ -16,11 +16,14 @@ function SFTPClient() {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast()
   const handleSetCurrentDir = (path?: string) => {
+    setLoading(true)
     if (!path) {
       socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: homeDir })
+      setLoading(false)
       return
     }
     socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: path })
+    setLoading(false)
   }
   const handleSetLoading = (input: boolean) => {
     setLoading(input)
@@ -36,7 +39,7 @@ function SFTPClient() {
         })
       })
       socket.emit(SocketEventConstants.SFTP_GET_FILE)
-      socket.on(SocketEventConstants.SFTP_FILES_LIST, (data: any) => {
+      socket.on(SocketEventConstants.SFTP_FILES_LIST, (data: any) => {    
         setRemoteFiles(data.files)
         setCurrentDir(data.currentDir)
         setHomeDir(data.workingDir)
@@ -54,7 +57,7 @@ function SFTPClient() {
       socket.off(SocketEventConstants.ERROR)
       socket.off(SocketEventConstants.FILE_UPLOADED)
     }
-  }, [socket, isSSH_Connected])
+  }, [socket, isSSH_Connected, toast])
   return (
     <FilePane
       title="WSL"

@@ -18,7 +18,7 @@ interface TopBarProps {
 export function TopBar({ onToggleSidebar, isCommandList, onToggleCommandList }: TopBarProps) {
   const [activeTab, setActiveTab] = useState('1');
   const [tabs] = useState<Tab[]>([
-    { id: '1', title: 'SaveIt' },
+    { id: '1', title: 'ttest' },
     { id: '2', title: 'Terminal' },
     { id: '3', title: 'Tasks' }
   ]);

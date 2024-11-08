@@ -11,6 +11,7 @@ import { ApiCore } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 
 export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoading, loading }: any) {
+    const splitedPath = path.split("/") as string[];
     const [filteredFiles, setFilteredFiles] = useState(files);
     const [transferProgress, setTransferProgress] = useState(0)
     const [dragOver, setDragOver] = useState(false);
@@ -18,7 +19,6 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
     const [uploadFileSize, setUploadFileSize] = useState(0);
     const [uploadSpeed, setUploadSpeed] = useState('');
     const [remainingTime, setRemainingTime] = useState('');
-
     const handleDragOver = (e: any) => {
         e.preventDefault();
         setDragOver(true);
@@ -77,25 +77,24 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
     };
 
     useEffect(() => {
-
+        setFilteredFiles(files);
         setTimeout(() => handleSetLoading(false), 1000);
-    }, [handleSetLoading]);
+    }, [files, handleSetLoading]);
 
     return (
         <div className="flex flex-col h-full">
             <div className="flex justify-between items-center p-2 bg-primary/10">
                 <div className="flex items-center space-x-2">
-                    <span className="font-semibold">{title}</span>
+                    <span className="font-semibold">SFTP {title}</span>
                     <div className="flex items-center space-x-1 text-sm text-muted-foreground">
                         <span>
-                            {!loading ? path : <Skeleton className="h-6 w-96 bg-gray-400" />}
-                            {/* {!loading ? path.split("/").map((item: any) =>
+                            {!loading ? splitedPath.map((item: any) =>
                                 <React.Fragment key={item}>
                                     <span
                                         key={item}
-                                        className="hover:underline cursor-pointer "
-                                        onClick={() => handleSetCurrentDir(item)}>{item}</span>{"/"}</React.Fragment>)
-                                : <Skeleton className="h-6 w-96 bg-gray-400" />} */}
+                                        className={`hover:underline cursor-pointer hover:text-green-600 ${item === splitedPath[splitedPath.length - 1] ? "font-semibold text-green-400" : ""}`}
+                                        onClick={() => handleSetCurrentDir(splitedPath.slice(0, splitedPath.indexOf(item) + 1).join("/"))}>{item}</span>{"/"}</React.Fragment>)
+                                : <Skeleton className="h-6 w-96 bg-gray-400" />}
                         </span>
                     </div>
                 </div>
@@ -116,13 +115,13 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
                     </Button>
                 </div>
             </div>
-            <ScrollArea className="flex-grow relative h-[620px]" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+            <ScrollArea className="flex-grow relative h-[720px]" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
                 {loading ? (
                     <div className="absolute inset-0 bg-black opacity-75 flex items-center justify-center">
                         <div className="text-white font-semibold">Loading...</div>
                     </div>
                 ) : (
-                    <FileList files={files} currentDir={path} />
+                    <FileList files={filteredFiles} currentDir={path} />
                 )}
                 {dragOver && (
                     <div className="absolute inset-0 bg-black opacity-75 flex items-center justify-center">
@@ -141,7 +140,6 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
                             <span>
                                 {`${(transferProgress * uploadFileSize / 100 / 1024).toFixed(1)} kB/${(uploadFileSize / 1024).toFixed(1)} kB, ${uploadSpeed}, ${remainingTime}`}
                             </span>
-                            {/* <span>58.6 kB/108.9 kB, 58.6 kB/s, about ~1 second remaining</span> */}
                         </div>
                         <div className="w-full bg-primary/80 rounded-full h-1.5 mt-1">
                             <div

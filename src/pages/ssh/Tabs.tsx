@@ -1,5 +1,5 @@
 import { useState } from "react";
-import XTerminal from "./ssh/Terminal";
+import XTerminal from "./Terminal";
 
 const TerminalTabs = () => {
   const [tabs, setTabs] = useState([{ id: 1, title: "Terminal 1" }]); // Initial tab
