@@ -2,15 +2,17 @@
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
 
-export function CusotmDialog({ children, trigger }: { trigger: any, children: React.ReactNode }) {
+export function CusotmDialog({ children, open }: { open: boolean, children: React.ReactNode }) {
   return (
-    <Dialog>
-      <DialogTrigger>
-        {trigger}
+    <Dialog open={open}>
+      <DialogTrigger asChild>
+        {children}
       </DialogTrigger>
+      <DialogTitle>Are you sure absolutely sure?</DialogTitle>
       <DialogContent className="sm:max-w-[450px]">
         {children}
       </DialogContent>

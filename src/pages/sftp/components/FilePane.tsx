@@ -2,23 +2,35 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Filter, HomeIcon, MoreVertical, Search } from "lucide-react";
+import { Filter, HomeIcon, MoreVertical, RefreshCwIcon, Search } from "lucide-react";
 import { FileList } from "./FileList";
 import React, { useState, useEffect } from "react";
 import { SFTP_FILES_LIST } from "./interface";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiCore } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
+import { socket } from "@/lib/sockets";
+import { SocketEventConstants } from "@/lib/sockets/event-constants";
+import { FilterDropdown } from "./FilterDropdown";
 
-export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoading, loading }: any) {
+export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoading, loading, hasError }: any) {
     const splitedPath = path.split("/") as string[];
     const [filteredFiles, setFilteredFiles] = useState(files);
     const [transferProgress, setTransferProgress] = useState(0)
     const [dragOver, setDragOver] = useState(false);
+    const [showHiddenFiles, setShowHiddenFiles] = useState<boolean>(false);
     const [uploadFileName, setUploadFileName] = useState<string | null>(null);
     const [uploadFileSize, setUploadFileSize] = useState(0);
     const [uploadSpeed, setUploadSpeed] = useState('');
     const [remainingTime, setRemainingTime] = useState('');
+    const handleHiddenFilesFilter = () => {
+        setShowHiddenFiles(!showHiddenFiles);
+        if (!showHiddenFiles) {
+            setFilteredFiles(files)
+            return
+        }
+        setFilteredFiles(files.filter((file: SFTP_FILES_LIST) => !file.name.startsWith(".")));
+    }
     const handleDragOver = (e: any) => {
         e.preventDefault();
         setDragOver(true);
@@ -75,12 +87,16 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
             );
         }
     };
+    const handleRetrySFTPConnect = () => {
+        handleSetLoading(true)
+        socket.emit(SocketEventConstants.SFTP_CONNECT)
 
+    }
     useEffect(() => {
-        setFilteredFiles(files);
+        setFilteredFiles(files.filter((file: SFTP_FILES_LIST) => !file.name.startsWith(".")));
         setTimeout(() => handleSetLoading(false), 1000);
     }, [files, handleSetLoading]);
-
+ 
     return (
         <div className="flex flex-col h-full">
             <div className="flex justify-between items-center p-2 bg-primary/10">
@@ -98,7 +114,11 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
                         </span>
                     </div>
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2">                 
+                    {hasError ? 
+                    <RefreshCwIcon className="h-4 w-4 cursor-pointer" onClick={handleRetrySFTPConnect} /> :
+                    <RefreshCwIcon className="h-4 w-4 cursor-pointer" onClick={()=> socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: path })} />
+                }
                     <HomeIcon className="h-4 w-4 cursor-pointer" onClick={() => handleSetCurrentDir("")} />
                     <Search className="h-4 w-4" />
                     <Input
@@ -110,9 +130,28 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
                     <Button variant="ghost" size="icon" className="h-8 w-8">
                         <Filter className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreVertical className="h-4 w-4" />
-                    </Button>
+                    <FilterDropdown
+                        menu={[
+                            {
+                                label: `${showHiddenFiles ? "Hide" : "Show"} Hidden Files`,
+                                action: () => handleHiddenFilesFilter(),
+                            },
+                            {
+                                label: "New File",
+                                action: () => console.log(""),
+                            },
+                            {
+                                label: "New Folder",
+                                action: () => console.log(""),
+                            }
+
+                        ]}
+                    >
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="h-4 w-4" />
+                        </Button>
+                    </FilterDropdown>
+
                 </div>
             </div>
             <ScrollArea className="flex-grow relative h-[720px]" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>

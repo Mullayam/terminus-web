@@ -1,9 +1,11 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { X } from 'lucide-react';
+import { SFTP_FILES_LIST } from './interface';
+import { convertToPermissions } from '@/lib/utils';
 
-interface PermissionFormData {
-  path: string;
+export interface PermissionFormData {
+
   owner: {
     read: boolean;
     write: boolean;
@@ -19,40 +21,36 @@ interface PermissionFormData {
     write: boolean;
     execute: boolean;
   };
-  user: string;
-  group: string;
+
 }
 
-export function FilePermissions() {
-  const { register, handleSubmit } = useForm<PermissionFormData>({
+export function FilePermissions({ data }: { data: SFTP_FILES_LIST }) {
+  const perm = convertToPermissions(data.rights)
+  const { register, handleSubmit } = useForm<PermissionFormData & {
+    user: string | number,
+    group: string | number
+  }>({
     defaultValues: {
-      path: '/home/ubuntu',
-      owner: { read: true, write: true, execute: true },
-      groups: { read: true, write: true, execute: true },
-      others: { read: true, write: false, execute: true },
-      user: 'ubuntu',
-      group: 'ubuntu'
+      ...perm,
+      user: data.owner,
+      group: data.group
     }
   });
-
-  const onSubmit = (data: PermissionFormData) => {
-    console.log(data);
-  };
+ 
+  
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+    <div className="   flex items-center justify-center p-4 animate-in fade-in duration-200">
       <div className="w-full p-8 max-w-md bg-[#1c1e26] rounded-lg shadow-xl animate-in slide-in-from-bottom-4 duration-300">
 
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold">Edit permissions</h2>
-          <button className="text-gray-400 hover:text-gray-200">
-            <X size={20} />
-          </button>
+          <h2 className="text-xl font-semibold">{
+            data.type === "d" ? "Folder" : "File"
+          } Permissions</h2>
+         
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)}>
-          <div className="mb-6">
-            <div className="text-sm text-gray-400 mb-2">{'/home/ubuntu'}</div>
+        <div className="mb-6">             
 
             <div className="space-y-4">
               <div>
@@ -112,14 +110,6 @@ export function FilePermissions() {
               </div>
             </div>
           </div>
-
-          <button
-            type="submit"
-            className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-2 px-4 rounded transition-colors"
-          >
-            Save
-          </button>
-        </form>
       </div>
     </div>
   );

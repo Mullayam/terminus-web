@@ -64,3 +64,31 @@ html {
     }
   }
 }
+.xterm {
+ 
+  /* Set scrollbar width for Webkit browsers */
+  scrollbar-width: thin;
+  scrollbar-color: #535391 #1e1e1e; /* Thumb color, Track color */
+}
+
+/* Webkit-based browsers (e.g., Chrome, Safari) */
+.xterm::-webkit-scrollbar {
+  border-radius: 2px;
+  width: 8px; /* Adjust width as needed */
+}
+
+.xterm::-webkit-scrollbar-track {
+  background: #1e1e1e; /* Track color */
+}
+
+.xterm::-webkit-scrollbar-thumb {
+  background-color: #007acc; /* Thumb color */
+  border-radius: 4px; /* Optional: makes the thumb rounded */
+  border: 1px solid #1e1e1e; /* Optional: adds a border */
+}
+.suggestion-box {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.5;
+}

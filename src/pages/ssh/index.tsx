@@ -100,9 +100,10 @@ const SSH = () => {
             handleSSHConnection?.(false);
             navigate('/ssh/connect');
         });
-        socket.on(SocketEventConstants.ERROR, (data: string) => {
+        socket.on(SocketEventConstants.SSH_EMIT_ERROR, (data: string) => {
+            setIsLoading(false);
             toast({
-                title: 'SFTP Error',
+                title: 'SSH Error',
                 description: data,
                 variant: 'destructive',
             })
@@ -121,7 +122,7 @@ const SSH = () => {
         }
     }, [isSSH_Connected, navigate]);
 
- 
+
     return (
         <div>
 
@@ -131,12 +132,12 @@ const SSH = () => {
                     <TerminalLayout>
                         <XTerminal backgroundColor='#1a1b26' />
                     </TerminalLayout>
-                    <div className="flex justify-between items-start flex-wrap mt-4 px-4  text-xs">
-                        <div className="flex flex-row text- gap-4">
+                    <div className="flex justify-between items-start flex-wrap px-4 py-1 border-t text-xs bg-[#1a1b26]">
+                        <div className="flex flex-row  gap-4">
                             <span>Public IPs: <a href={`http://${value.host}`} className="inline-block text-gray-200 dark:text-neutral-200 hover:underline" >{value.host} </a></span>
                             <span>Username: {value.username}</span>
                         </div>
-                        <div className="bg-gray-900 text-gray-200 p-1 text-xs text-right">
+                        <div className=" text-gray-200   text-xs text-right">
                             Status:{' '}
                             {isSSH_Connected ? (
                                 <div className="inline-flex items-center">
@@ -151,8 +152,7 @@ const SSH = () => {
                             )}
                         </div>
                     </div>
-
-                    <Alert>
+                    <Alert   className='my-4'>
                         <AlertDescription>
                             SSH connection established successfully!Do No Refresh the page , otherwise the connection will be lost
                         </AlertDescription>

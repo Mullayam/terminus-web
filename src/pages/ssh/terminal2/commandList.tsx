@@ -18,14 +18,14 @@ const commands = [
 
 export function CommandList() {
   return (
-    <div className="w-80 border-l border-gray-800 bg-[#1e1f2e] flex flex-col min-h-0">
+    <div className="border-l border-gray-800 bg-[#1e1f2e] flex flex-col">
       <div className="p-4">
         <Input
           placeholder="Search commands..."
           className="bg-[#24253a] border-gray-700"
         />
       </div>
-      <ScrollArea className="flex-1">
+      <ScrollArea className="h-[450px]">
         <div className="p-4 pt-0">
           {commands.map((cmd, index) => (
             <div key={index}>
