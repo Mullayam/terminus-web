@@ -1,6 +1,5 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
-import { X } from 'lucide-react';
 import { SFTP_FILES_LIST } from './interface';
 import { convertToPermissions } from '@/lib/utils';
 
@@ -26,7 +25,7 @@ export interface PermissionFormData {
 
 export function FilePermissions({ data }: { data: SFTP_FILES_LIST }) {
   const perm = convertToPermissions(data.rights)
-  const { register, handleSubmit } = useForm<PermissionFormData & {
+  const { register } = useForm<PermissionFormData & {
     user: string | number,
     group: string | number
   }>({

@@ -1,17 +1,12 @@
 import React from 'react';
 import { FileIcon, Clock, User, Users, HardDrive } from 'lucide-react';
 import { RootObject } from './FileList';
+import { formatBytes } from '@/lib/utils';
 
 interface SystemInfoProps {
   data: RootObject | null;
 }
 
-const formatBytes = (bytes: number): string => {
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-  if (bytes === 0) return '0 Bytes';
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${sizes[i]}`;
-};
 
 const formatDate = (timestamp: number): string => {
   return new Date(timestamp).toLocaleString();
@@ -19,7 +14,7 @@ const formatDate = (timestamp: number): string => {
 
 export function StatsInfoCard({ data }: SystemInfoProps) {
   return (
-    <div className=" rounded-xl shadow-lg p-6 max-w-2xl mx-auto">
+    <div className=" rounded-xl p-6 max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-semibold text-gray-200">System Information</h2>
         <FileIcon className="h-6 w-6 text-blue-500" />

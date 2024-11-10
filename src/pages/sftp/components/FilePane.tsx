@@ -2,7 +2,7 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Filter, HomeIcon, MoreVertical, RefreshCwIcon, Search } from "lucide-react";
+import { Filter, HomeIcon, MoreVertical, RefreshCwIcon, Search, Upload } from "lucide-react";
 import { FileList } from "./FileList";
 import React, { useState, useEffect } from "react";
 import { SFTP_FILES_LIST } from "./interface";
@@ -162,12 +162,24 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
                 ) : (
                     <FileList files={filteredFiles} currentDir={path} />
                 )}
-                {dragOver && (
-                    <div className="absolute inset-0 bg-black opacity-75 flex items-center justify-center">
-                        <div className="bg-gray-900 text-white p-4 rounded-lg">
-                            <p>Drop file to upload</p>
-                        </div>
+                {dragOver && (                   
+                    <div
+                    className={`absolute inset-0 border-2 border-dashed rounded-lg p-8 absolute inset-0 bg-black opacity-90 flex items-center justify-center transition-all duration-200 ease-in-out  `}
+                   
+                  >
+                    <input
+                      type="file"
+                      multiple
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                       
+                    />
+                    
+                    <div className="text-center">
+                      <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                      <p className="mt-2 text-gray-200 font-semibold">Drop your files here</p>
+                      <p className="mt-1 text-gray-500">File Will Upload to <b>{path}</b></p>
                     </div>
+                  </div>
                 )}
             </ScrollArea>
 

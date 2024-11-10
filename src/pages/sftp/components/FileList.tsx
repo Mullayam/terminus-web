@@ -24,7 +24,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { formatPermissions } from "@/lib/utils";
+import { formatBytes, formatPermissions } from "@/lib/utils";
 import EnhancedFileUploadPopup from "@/components/FileUpload";
 import { SocketEventConstants } from "@/lib/sockets/event-constants";
 import { socket } from "@/lib/sockets";
@@ -101,7 +101,7 @@ export function FileList({ files, currentDir }: {
     {
       accessorKey: "size",
       header: "Size",
-      cell: ({ row }) => <div className="p-2 cursor-pointer">{row.getValue("size")} bytes</div>,
+      cell: ({ row }) => <div className="p-2 cursor-pointer">{formatBytes(row.getValue("size"))}</div>,
     },
     {
       accessorKey: "modifyTime",
