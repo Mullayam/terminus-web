@@ -9,8 +9,8 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
- 
-export function FilterDropdown({ children, menu }: { children: React.ReactNode, menu: { label: string, action: () => void }[] }) {
+
+export function FilterDropdown({ children, menu }: { children: React.ReactNode, menu: { label: string, action: () => void, disabled?: boolean }[] }) {
 
     return (
         <DropdownMenu >
@@ -24,8 +24,9 @@ export function FilterDropdown({ children, menu }: { children: React.ReactNode, 
                 {menu.map((item, i) => (
                     <DropdownMenuCheckboxItem
                         key={i}
-                       onClick={item.action}
-                       className="cursor-pointer"
+                        onClick={item.action}
+                        disabled={item?.disabled}
+                        className="cursor-pointer"
                     >
                         {item.label}
                     </DropdownMenuCheckboxItem>

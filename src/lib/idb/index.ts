@@ -6,7 +6,10 @@ const STORE_NAME = 'myStore';
 
 
 // Define the structure of the database schema
-interface MyDBSchema extends IDBDatabase { }
+interface MyDBSchema extends IDBDatabase { 
+    id:number,
+    test:string
+}
 
 // Singleton pattern to ensure only one instance of the database connection
 let dbPromise: Promise<IDBPDatabase<MyDBSchema>> | null = null;
@@ -26,10 +29,13 @@ const initDB = async (): Promise<IDBPDatabase<MyDBSchema>> => {
 };
 
 // Add data to the store
-export const addData = async  <T extends Record<string, any>>(dataItem: T): Promise<void> => {
+export const addData = async  <T extends Record<string, any>>(id:string,dataItem: T): Promise<void> => {
     const db = await initDB();
     const tx = db.transaction(STORE_NAME, 'readwrite');
-    await tx.store.add(dataItem);
+    await tx.store.add({
+        id,
+        ...dataItem
+    });
     await tx.done;
 };
 
@@ -48,10 +54,10 @@ export const getDataById = async <T extends Record<string, any>>(id: number): Pr
 };
 
 // Update data by ID
-export const updateData = async <T extends Record<string, any>>(dataItem: T): Promise<void> => {
+export const updateData = async <T extends Record<string, any>>(dataItem: T,key:string): Promise<void> => {
     const db = await initDB();
     const tx = db.transaction(STORE_NAME, 'readwrite');
-    await tx.store.put(dataItem);
+    await tx.store.put(dataItem,key);
     await tx.done;
 };
 

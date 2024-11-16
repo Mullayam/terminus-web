@@ -2,19 +2,20 @@
 
 import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent,CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { UseFormReturn } from "react-hook-form"
+import { Checkbox } from "@/components/ui/checkbox"
 
 
 
 export default function SSHConnectionForm<FormValues>({ form, handleSubmit, isLoading,
 }: {
-  form: UseFormReturn<any,any,any>,
+  form: UseFormReturn<any, any, any>,
   handleSubmit: (data: FormValues) => Promise<void>
   isLoading: boolean,
 }) {
@@ -144,6 +145,43 @@ export default function SSHConnectionForm<FormValues>({ form, handleSubmit, isLo
                   </TabsContent>
                 </Tabs>
               )}
+              <FormField
+                control={form.control}
+                name="saveCredentials"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>
+                        Save connection details in Brower for future use
+                      </FormLabel>                      
+                    </div>
+                  </FormItem>
+                )}
+              />
+             {
+              form.watch("saveCredentials") && (
+                <FormField
+                control={form.control}
+                name="localName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Local Name</FormLabel>
+                    <FormControl>
+                      <Input  {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+             
+              )
+             }
               <Button type="submit" disabled={isLoading}>
                 {isLoading ? (
                   <>

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { WebglAddon } from '@xterm/addon-webgl';
@@ -16,11 +16,14 @@ export const TerminalComponent: React.FC = () => {
   const terminalRef = useRef<HTMLDivElement | null>(null);
   const terminal = useRef<Terminal | null>(null);
   const fitAddon = useRef<FitAddon | null>(null);
-  const { sessionId } = useParams<{ sessionId: string }>();
+  const { sessionid } = useParams<{ sessionid: string }>();
+  const [permissions, setPermissions] = useState<{ read: boolean, write: boolean }>({ read: false, write: false });
+
   const { socket } = useSockets();
   useEffect(() => {
-    socket.emit(SocketEventConstants.join_terminal, sessionId);
+    socket.emit(SocketEventConstants.join_terminal, sessionid);
     if (!terminal.current) {
+
       terminal.current = new Terminal({
         cursorBlink: true,
         cursorStyle: 'block',
@@ -28,7 +31,7 @@ export const TerminalComponent: React.FC = () => {
         fontSize: 14,
         cursorWidth: 1,
         rows: 40,
-        cols: 130,
+        cols: 150,
         fontFamily: 'monospace',
         theme: {
           background: '#1a1b26',
@@ -51,17 +54,24 @@ export const TerminalComponent: React.FC = () => {
       socket.on(SocketEventConstants.SSH_EMIT_DATA, (data: string) => {
         terminal.current?.write(data);
       });
+      socket.on('updatedPermissions', (newPermissions) => {
+        setPermissions(newPermissions);
+      });
       terminal.current.onData((input) => {
-        socket.emit(SocketEventConstants.terminal_input, input);
+        if (permissions && permissions.write) {
+          socket.emit(SocketEventConstants.terminal_input, input);          
+        }
       });
     }
-
+    socket.on(SocketEventConstants.terminal_output, (data: string) => { 
+      terminal.current?.write(data);
+    });
     return () => {
       socket.disconnect();
       terminal.current?.dispose();
     };
-  }, [sessionId, socket]);
-
+  }, [sessionid, socket,permissions]);
+ 
   return <div ref={terminalRef} style={{ height: '100%', width: '100%' }} />;
 };
 

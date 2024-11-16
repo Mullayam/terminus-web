@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
+import { useCommandStore } from '@/store';
 
 const commands = [
   { name: 'New Snippet', command: '' },
@@ -17,6 +18,7 @@ const commands = [
 ];
 
 export function CommandList() {
+const { setCommand } =  useCommandStore()
   return (
     <div className="border-l border-gray-800 bg-[#1e1f2e] flex flex-col">
       <div className="p-4">
@@ -25,12 +27,14 @@ export function CommandList() {
           className="bg-[#24253a] border-gray-700"
         />
       </div>
-      <ScrollArea className="h-[450px]">
+      <ScrollArea className="h-full">
         <div className="p-4 pt-0">
           {commands.map((cmd, index) => (
             <div key={index}>
               <Button
                 variant="ghost"
+                onClick={() => setCommand(cmd.command,"single")}
+                onDoubleClick={() => setCommand(cmd.command,"double")}
                 className="w-full justify-start text-left mb-1 text-gray-300 hover:text-white hover:bg-[#24253a]"
               >
                 <Terminal className="h-4 w-4 mr-2" />

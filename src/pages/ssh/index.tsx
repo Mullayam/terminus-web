@@ -12,8 +12,10 @@ import { FullScreenLoader } from '@/components/loader';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useSockets } from '@/hooks/use-sockets';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { TerminalLayout } from './terminal2';
+import { addData, getDataById, updateData } from '@/lib/idb';
+import { useStore } from '@/store';
 
 const formSchema = z
     .object({
@@ -23,6 +25,8 @@ const formSchema = z
         password: z.string().optional(),
         privateKeyText: z.string().optional(),
         privateKeyFile: z.instanceof(File).optional(),
+        saveCredentials: z.boolean(),
+        localName: z.string().optional(),
     })
     .refine(
         (data) => {
@@ -38,31 +42,19 @@ const formSchema = z
         }
     );
 
-type FormValues = z.infer<typeof formSchema>;
+export type FormValues = z.infer<typeof formSchema>;
 const SSH = () => {
     const { toast } = useToast();
+    const store = useStore()
     const navigate = useNavigate();
-    // const [tabs, setTabs] = useState([{ id: 1 }]);
-    // const [activeTab, setActiveTab] = useState<number>(0);
-
+    const location = useLocation()
     const { isSSH_Connected, handleSSHConnection } = useSockets();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
-
-    // const addTab = () => {
-    //     setTabs([...tabs, { id: tabs.length + 1 }]);
-    //     setActiveTab(tabs.length);
-    // };
-
-    // const removeTab = (index: number) => {
-    //     setTabs(tabs.filter((tab, i) => i !== index));
-    //     setActiveTab(index > 0 ? index - 1 : 0);
-    // };
     const [value, setValue] = useState({
         host: '',
         username: '',
     });
-
     const form = useForm<FormValues>({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -71,6 +63,8 @@ const SSH = () => {
             authMethod: 'password',
             password: '',
             privateKeyText: '',
+            saveCredentials: false,
+            localName: '',
         },
     });
 
@@ -78,21 +72,31 @@ const SSH = () => {
         setIsLoading(true);
         setError('');
         setValue(data);
+        if (data.saveCredentials) {
+            if (!await getDataById(data.host)) {
+                addData<FormValues>(data.host, data);
+            }
+            else {
+                updateData<FormValues>(data, data.host);
+            }
+        }
         try {
             socket.emit(SocketEventConstants.SSH_CONNECT, data);
-        } catch (err) {
+        } catch (err:any) {
             setError(err instanceof Error ? err.message : 'An unexpected error occurred');
             setIsLoading(false);
             toast({
                 title: 'Socket Connection Error',
-                description: error,
+                description:  error,
                 variant: 'destructive',
             });
         }
     };
     useEffect(() => {
-        socket.on(SocketEventConstants.SSH_READY, () => {
+
+        socket.on(SocketEventConstants.SSH_READY, ({uid, sessionId}: {uid: string, sessionId: string}) => {
             setIsLoading(false);
+            store.addTab({ sessionId,uid, data: { host: value.host, username: value.username } });
             handleSSHConnection?.();
             form.reset();
         });
@@ -109,23 +113,23 @@ const SSH = () => {
             })
         });
 
-
         return () => {
             socket.off(SocketEventConstants.SSH_READY);
             socket.off(SocketEventConstants.SSH_DISCONNECTED);
         };
-    }, [form, handleSSHConnection, navigate, toast]);
+    }, [form, handleSSHConnection, navigate, store, toast, value]);
 
     useEffect(() => {
         if (!isSSH_Connected) {
             navigate('/ssh/connect');
         }
-    }, [isSSH_Connected, navigate]);
-
+        if (location.state) {
+            form.reset(location.state);
+        }
+    }, [form, isSSH_Connected, location.state, navigate,]);
 
     return (
         <div>
-
             {isLoading && <FullScreenLoader />}
             {isSSH_Connected ? (
                 <>
@@ -134,8 +138,8 @@ const SSH = () => {
                     </TerminalLayout>
                     <div className="flex justify-between items-start flex-wrap px-4 py-1 border-t text-xs bg-[#1a1b26]">
                         <div className="flex flex-row  gap-4">
-                            <span>Public IPs: <a href={`http://${value.host}`} className="inline-block text-gray-200 dark:text-neutral-200 hover:underline" >{value.host} </a></span>
-                            <span>Username: {value.username}</span>
+                            <span>Public IPs: <a href={`http://${store.tabs[store.activeTab].data.host}`} className="inline-block text-gray-200 dark:text-neutral-200 hover:underline" >{(store.tabs[store.activeTab].data.host)} </a></span>
+                            <span>Username: {store.tabs[store.activeTab].data.username}</span>
                         </div>
                         <div className=" text-gray-200   text-xs text-right">
                             Status:{' '}
@@ -152,7 +156,7 @@ const SSH = () => {
                             )}
                         </div>
                     </div>
-                    <Alert   className='my-4'>
+                    <Alert className='my-4'>
                         <AlertDescription>
                             SSH connection established successfully!Do No Refresh the page , otherwise the connection will be lost
                         </AlertDescription>

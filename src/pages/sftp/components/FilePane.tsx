@@ -96,9 +96,9 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
         setFilteredFiles(files.filter((file: SFTP_FILES_LIST) => !file.name.startsWith(".")));
         setTimeout(() => handleSetLoading(false), 1000);
     }, [files, handleSetLoading]);
- 
+
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
             <div className="flex justify-between items-center p-2 bg-primary/10">
                 <div className="flex items-center space-x-2">
                     <span className="font-semibold">SFTP {title}</span>
@@ -114,11 +114,11 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
                         </span>
                     </div>
                 </div>
-                <div className="flex items-center space-x-2">                 
-                    {hasError ? 
-                    <RefreshCwIcon className="h-4 w-4 cursor-pointer" onClick={handleRetrySFTPConnect} /> :
-                    <RefreshCwIcon className="h-4 w-4 cursor-pointer" onClick={()=> socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: path })} />
-                }
+                <div className="flex items-center space-x-2">
+                    {hasError ?
+                        <RefreshCwIcon className="h-4 w-4 cursor-pointer" onClick={handleRetrySFTPConnect} /> :
+                        <RefreshCwIcon className="h-4 w-4 cursor-pointer" onClick={() => socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: path })} />
+                    }
                     <HomeIcon className="h-4 w-4 cursor-pointer" onClick={() => handleSetCurrentDir("")} />
                     <Search className="h-4 w-4" />
                     <Input
@@ -133,16 +133,39 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
                     <FilterDropdown
                         menu={[
                             {
+                                label: "Connect New SFTP",
+                                action: () => console.log(""),
+                               
+                            },
+                            {
                                 label: `${showHiddenFiles ? "Hide" : "Show"} Hidden Files`,
                                 action: () => handleHiddenFilesFilter(),
+                                disabled:true
                             },
                             {
                                 label: "New File",
                                 action: () => console.log(""),
+                                disabled:true
                             },
                             {
                                 label: "New Folder",
                                 action: () => console.log(""),
+                                disabled:true
+                            },
+                            {
+                                label: "Upload",
+                                action: () => console.log(""),
+                                disabled:true
+                            },
+                            {
+                                label: "Download Dir Zip",
+                                action: () => console.log(""),
+                                disabled:true
+                            },
+                            {
+                                label: "Refresh",
+                                action: () => console.log(""),
+                                disabled:true
                             }
 
                         ]}
@@ -154,7 +177,7 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
 
                 </div>
             </div>
-            <ScrollArea className="flex-grow relative h-[720px]" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+            <ScrollArea className="flex-grow relative h-[720px]">
                 {loading ? (
                     <div className="absolute inset-0 bg-black opacity-75 flex items-center justify-center">
                         <div className="text-white font-semibold">Loading...</div>
@@ -162,24 +185,23 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
                 ) : (
                     <FileList files={filteredFiles} currentDir={path} />
                 )}
-                {dragOver && (                   
+                {dragOver && (
                     <div
-                    className={`absolute inset-0 border-2 border-dashed rounded-lg p-8 absolute inset-0 bg-black opacity-90 flex items-center justify-center transition-all duration-200 ease-in-out  `}
-                   
-                  >
-                    <input
-                      type="file"
-                      multiple
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                       
-                    />
-                    
-                    <div className="text-center">
-                      <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                      <p className="mt-2 text-gray-200 font-semibold">Drop your files here</p>
-                      <p className="mt-1 text-gray-500">File Will Upload to <b>{path}</b></p>
+                        className={`absolute inset-0 border-2 border-dashed rounded-lg p-8  opacity-95 bg-black flex items-center justify-center transition-all duration-200 ease-in-out`}
+                    >
+                        <input
+                            type="file"
+                            multiple
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+
+                        />
+
+                        <div className="text-center">
+                            <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                            <p className="mt-2 text-gray-200 font-semibold">Drop your files here</p>
+                            <p className="mt-1 text-gray-500">File Will Upload to <b>{path}</b></p>
+                        </div>
                     </div>
-                  </div>
                 )}
             </ScrollArea>
 
