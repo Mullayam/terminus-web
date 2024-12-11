@@ -35,6 +35,7 @@ import { ContextModal } from "@/components/ui/context-modal";
 import { FilePermissions } from "./edit-permission";
 import { StatsInfoCard } from "./StatsInfoCards";
 import { ApiCore } from "@/lib/api";
+import { useDialogState, useLoadingState } from "@/store";
 export type FileOperations = "file" | "folder" | "rename" | "move"
 
 export interface RootObject {
@@ -58,9 +59,9 @@ export function FileList({ files, currentDir }: {
 }) {
   const { toast } = useToast()
   const [rowSelection, setRowSelection] = useState({})
+ const{setLoading} =  useLoadingState()
   const [stats, setStats] = useState<null | RootObject>(null)
-
-
+  const { openDialog, setOpenDialog } = useDialogState()
   const displayMesasge = (description: string) => {
     toast({
       title: "Success",
@@ -70,6 +71,7 @@ export function FileList({ files, currentDir }: {
   }
 
   const handleDirectoryChange = (path: string) => {
+    setLoading(true)
     socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: `${currentDir}/${path}` })
   }
   const columns: ColumnDef<SFTP_FILES_LIST>[] = [
@@ -189,7 +191,7 @@ export function FileList({ files, currentDir }: {
         type: data.type === "d" ? "dir" : "file",
         name: data.name
       })
-      
+
       if (!response.ok) {
         throw new Error("Failed to download file");
       }
@@ -197,14 +199,13 @@ export function FileList({ files, currentDir }: {
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.href = url;  
+      link.href = url;
       link.setAttribute('download', data.name);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      console.log(error)
       toast({
         title: "Error",
         description: (error as Error).message,
@@ -215,6 +216,7 @@ export function FileList({ files, currentDir }: {
   }
   const handleContextClickAction = async (action: RIGHT_CLICK_ACTIONS, data: SFTP_FILES_LIST) => {
     const fullPath = `${currentDir}/${data.name}`
+
     switch (action) {
       case "rename":
         displayMesasge("rename file: " + data)
@@ -229,6 +231,7 @@ export function FileList({ files, currentDir }: {
           SocketEmitters.emit(SocketEventConstants.SFTP_DELETE_FILE, { path: fullPath })
         }
         handleRefreshSftp()
+        setOpenDialog(false)
         break;
       case "properties":
         SocketEmitters.emit(SocketEventConstants.SFTP_FILE_STATS, { path: fullPath })
@@ -244,7 +247,6 @@ export function FileList({ files, currentDir }: {
         break;
       default:
         break;
-
     }
   }
   const table = useReactTable({
@@ -321,7 +323,8 @@ export function FileList({ files, currentDir }: {
                 >
                   {row.getVisibleCells().map((cell: any) => (
 
-                    <ContextModal
+                    <ContextModal key={cell.id}
+
                       trigger={<TableCell key={cell.id}>
                         {flexRender(
                           cell.column.columnDef.cell,
@@ -329,7 +332,7 @@ export function FileList({ files, currentDir }: {
                         )}
                       </TableCell>}
                       title={row.getValue('name')}
-                      contextItems={[
+                      contextItems={[                         
                         {
                           label: 'Edit',
                           action: () => console.log('Editing user:'),
@@ -338,11 +341,9 @@ export function FileList({ files, currentDir }: {
                         {
                           label: 'Refresh',
                           action: () => handleContextClickAction("refresh", row.original),
-
                         },
                         {
                           label: 'Rename',
-                          action: () => handleContextClickAction("refresh", row.original),
                           content: <NewFolderDialog type="rename" data={row.original} onClick={handleCreateFileOrDir} />,
                         },
                         {
@@ -361,10 +362,6 @@ export function FileList({ files, currentDir }: {
                         {
                           label: 'New Folder',
                           content: <NewFolderDialog type="folder" data={row.original} onClick={handleCreateFileOrDir} />,
-                        },
-                        {
-                          label: 'Upload',
-                          content: <EnhancedFileUploadPopup />,
                         },
                         {
                           label: 'Download',

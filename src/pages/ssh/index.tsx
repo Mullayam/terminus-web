@@ -16,6 +16,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { TerminalLayout } from './terminal2';
 import { addData, getDataById, updateData } from '@/lib/idb';
 import { useStore } from '@/store';
+import { uuid_v4 } from '@/lib/utils';
 
 const formSchema = z
     .object({
@@ -51,6 +52,7 @@ const SSH = () => {
     const { isSSH_Connected, handleSSHConnection } = useSockets();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const [logs, setLogs] = useState<{ [key: string]: string[] }>({});
     const [value, setValue] = useState({
         host: '',
         username: '',
@@ -81,26 +83,28 @@ const SSH = () => {
             }
         }
         try {
+            const userData = { uid: Math.random().toString(36).slice(2), sessionId: uuid_v4() }
+            store.addTab({ ...userData, data: { host: value.host, username: value.username } });
             socket.emit(SocketEventConstants.SSH_CONNECT, data);
-        } catch (err:any) {
+        } catch (err: any) {
             setError(err instanceof Error ? err.message : 'An unexpected error occurred');
             setIsLoading(false);
             toast({
                 title: 'Socket Connection Error',
-                description:  error,
+                description: error,
                 variant: 'destructive',
             });
         }
     };
     useEffect(() => {
 
-        socket.on(SocketEventConstants.SSH_READY, ({uid, sessionId}: {uid: string, sessionId: string}) => {
+        socket.on(SocketEventConstants.SSH_READY, ({ uid, sessionId }: { uid: string, sessionId: string }) => {
             setIsLoading(false);
-            store.addTab({ sessionId,uid, data: { host: value.host, username: value.username } });
             handleSSHConnection?.();
             form.reset();
         });
         socket.on("disconnect", () => {
+            localStorage.clear()
             handleSSHConnection?.(false);
             navigate('/ssh/connect');
         });
@@ -112,10 +116,18 @@ const SSH = () => {
                 variant: 'destructive',
             })
         });
-
+        // socket.on(SocketEventConstants.SSH_EMIT_LOGS, ({uid,info}:{uid:string,info:string}) => {
+        //     logs[uid] = [...(logs[uid] || []), info];
+        //     setLogs(logs);
+        // });
+        socket.on(SocketEventConstants.SSH_BANNER, (data: string) => console.log(data));
+        socket.on(SocketEventConstants.SSH_TCP_CONNECTION, (data: string) => console.log(data))
         return () => {
             socket.off(SocketEventConstants.SSH_READY);
             socket.off(SocketEventConstants.SSH_DISCONNECTED);
+            socket.off(SocketEventConstants.SSH_EMIT_LOGS);
+            socket.off(SocketEventConstants.SSH_BANNER);
+            socket.off(SocketEventConstants.SSH_TCP_CONNECTION)
         };
     }, [form, handleSSHConnection, navigate, store, toast, value]);
 
@@ -127,7 +139,6 @@ const SSH = () => {
             form.reset(location.state);
         }
     }, [form, isSSH_Connected, location.state, navigate,]);
-
     return (
         <div>
             {isLoading && <FullScreenLoader />}
@@ -141,8 +152,7 @@ const SSH = () => {
                             <span>Public IPs: <a href={`http://${store.tabs[store.activeTab].data.host}`} className="inline-block text-gray-200 dark:text-neutral-200 hover:underline" >{(store.tabs[store.activeTab].data.host)} </a></span>
                             <span>Username: {store.tabs[store.activeTab].data.username}</span>
                         </div>
-                        <div className=" text-gray-200   text-xs text-right">
-                            Status:{' '}
+                        <div className=" text-gray-200 text-xs text-right">
                             {isSSH_Connected ? (
                                 <div className="inline-flex items-center">
                                     <span className="size-2 inline-block bg-green-500 rounded-full me-2"></span>

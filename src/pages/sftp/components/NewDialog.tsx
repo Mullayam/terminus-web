@@ -26,7 +26,7 @@ export function NewFolderDialog({ data, type, onClick }: { data: SFTP_FILES_LIST
       onClick(data.name, type, input.folderName)
       return
     }
-    
+
   };
 
   return (

@@ -11,6 +11,7 @@ import { ContextMenuLabel } from "@radix-ui/react-context-menu";
 import { Separator } from "./separator";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { DialogTitle } from "@/components/ui/dialog";
+import { useDialogState } from "@/store";
 
 interface ContextMenuItemType {
   label: string;
@@ -34,10 +35,9 @@ export function ContextModal({
   title,
   contextItems,
 }: ContextModalProps) {
+  const  {openDialog, setOpenDialog} =useDialogState()
   const [open, setOpen] = React.useState(false);
-  const [selectedContent, setSelectedContent] =
-    React.useState<React.ReactNode>(null);
-
+  const [selectedContent, setSelectedContent] = React.useState<React.ReactNode>(null);
   return (
     <>
       <ContextMenu>
@@ -70,12 +70,11 @@ export function ContextModal({
         </ContextMenuContent>
       </ContextMenu>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open}  onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-[500px] bg-[#1c1e26]" aria-describedby={title}>
           <VisuallyHidden.Root>            
             <DialogTitle>{title}</DialogTitle>
-          </VisuallyHidden.Root>
-
+          </VisuallyHidden.Root>         
           {selectedContent}
         </DialogContent>
       </Dialog>

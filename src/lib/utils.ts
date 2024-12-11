@@ -12,6 +12,26 @@ export function formatPermissions(rights: { user: string; group: string; other: 
 
   return `-${mapPermissions(rights.user)}${mapPermissions(rights.group)}${mapPermissions(rights.other)}`;
 }
+export function uuid_v4() {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
+      /[xy]/g,
+      function (c) {
+          var r = (Math.random() * 16) | 0,
+              v = c == "x" ? r : (r & 0x3) | 0x8;
+          return v.toString(16);
+      }
+  );
+}
+export function extractPath(filePath:string) {
+  if (typeof filePath !== 'string') {
+      throw new Error('Invalid input: Expected a string');
+  }
+  const lastIndex = filePath.lastIndexOf('/');
+  if (lastIndex === -1) {
+      return '';  
+  }
+  return filePath.substring(0, lastIndex);
+}
 export const convertToPermissions = (permissions: {
   group: string
   other: string

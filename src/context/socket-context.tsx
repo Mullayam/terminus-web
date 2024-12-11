@@ -2,6 +2,7 @@
 import { useToast } from "@/hooks/use-toast";
 import { socket as appSocket } from "@/lib/sockets";
 import { SocketListener } from "@/lib/sockets/listeners";
+import { useStore } from "@/store";
 import React, { PropsWithChildren } from "react";
 import { Socket } from "socket.io-client";
 export const SocketContext = React.createContext<{
@@ -13,6 +14,7 @@ const listeners = new SocketListener()
 const SocketContextProvider = ({ children }: PropsWithChildren) => {
     const { toast } = useToast()
     const [isConnected, setIsConnected] = React.useState(appSocket.connected);
+   const {defaultTab } =useStore()
     const [isSSH_Connected, setIsSSH_Connected] = React.useState(false)
     const handleSSHConnection = (data =true) => {
         setIsSSH_Connected(data)
@@ -27,6 +29,7 @@ const SocketContextProvider = ({ children }: PropsWithChildren) => {
         })
         appSocket.on("disconnect", () => {
             setIsConnected(false)
+            defaultTab()
         })
         appSocket.on("connection_error", () => setIsConnected(false));
         appSocket.connected && setIsConnected(true)

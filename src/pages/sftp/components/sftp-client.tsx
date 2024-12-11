@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { memo, useEffect, useState } from "react"
+import { memo, useEffect, useId, useState } from "react"
 import { FilePane } from "./FilePane"
 import { useSockets } from "@/hooks/use-sockets"
 import { SocketEventConstants } from "@/lib/sockets/event-constants"
@@ -9,9 +9,12 @@ import { SFTP_FILES_LIST } from "./interface";
 
 
 function SFTPClient() {
+ 
   const [currentDir, setCurrentDir] = useState("")
   const [homeDir, setHomeDir] = useState("")
   const [isError, setIsError] = useState(false)
+  //  const{setLoading} =  useLoadingState()
+
   const [remoteFiles, setRemoteFiles] = useState<Partial<SFTP_FILES_LIST[]>>([])
   const { socket, isSSH_Connected } = useSockets()
   const [loading, setLoading] = useState(true);
@@ -29,7 +32,6 @@ function SFTPClient() {
   const handleSetLoading = (input: boolean) => {
     setLoading(input)
   }
-
   useEffect(() => {
     if (isSSH_Connected) {
       socket.on(SocketEventConstants.FILE_UPLOADED, (data: string) => {
@@ -38,14 +40,16 @@ function SFTPClient() {
           description: 'File uploaded successfully at ' + data,
           variant: 'default',
         })
+        socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: currentDir })
+
       })
       socket.emit(SocketEventConstants.SFTP_GET_FILE)
- 
 
       socket.on(SocketEventConstants.SFTP_FILES_LIST, (data: any) => {
-        setRemoteFiles(data.files)
+        setRemoteFiles(JSON.parse(data.files))
         setCurrentDir(data.currentDir)
         setHomeDir(data.workingDir)
+
       })
     }
     socket.on(SocketEventConstants.ERROR, (data: string) => {
@@ -64,6 +68,7 @@ function SFTPClient() {
         variant: 'default',
       })
     });
+
     return () => {
       socket.off(SocketEventConstants.SFTP_FILES_LIST)
       socket.off(SocketEventConstants.ERROR)

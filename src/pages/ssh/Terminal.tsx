@@ -18,7 +18,7 @@ import { SocketEventConstants } from '@/lib/sockets/event-constants';
 import { useNavigate } from 'react-router-dom';
 import { useCommandStore, useStore } from '@/store';
 const sound = `data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjMyLjEwNAAAAAAAAAAAAAAA//tQxAADB8AhSmxhIIEVCSiJrDCQBTcu3UrAIwUdkRgQbFAZC1CQEwTJ9mjRvBA4UOLD8nKVOWfh+UlK3z/177OXrfOdKl7pyn3Xf//WreyTRUoAWgBgkOAGbZHBgG1OF6zM82DWbZaUmMBptgQhGjsyYqc9ae9XFz280948NMBWInljyzsNRFLPWdnZGWrddDsjK1unuSrVN9jJsK8KuQtQCtMBjCEtImISdNKJOopIpBFpNSMbIHCSRpRR5iakjTiyzLhchUUBwCgyKiweBv/7UsQbg8isVNoMPMjAAAA0gAAABEVFGmgqK`
-const audio = new Audio(sound)
+
 // https://github.com/xtermjs/xterm.js/blob/master/demo/client.ts
 const XTerminal = ({ backgroundColor = '#181818' }: { backgroundColor?: string }) => {
   const terminalRef = useRef<HTMLDivElement | null>(null);
@@ -53,7 +53,6 @@ const XTerminal = ({ backgroundColor = '#181818' }: { backgroundColor?: string }
       cursorBlink: true,
       cursorStyle: 'block',
       allowProposedApi: true,
-      fontSize: 14,
       cursorWidth: 1,
       rows: 40,
       cols: 150,
@@ -79,29 +78,40 @@ const XTerminal = ({ backgroundColor = '#181818' }: { backgroundColor?: string }
     term.open(terminalRef.current);
     fitAddon.fit();
 
-    termRef.current.open(terminalRef.current);
-    term.onData(async (input) => {
-      socket.emit(SocketEventConstants.SSH_EMIT_INPUT, { sessionId:tabs[activeTab].sessionId, input });
+    const savedBuffer = localStorage.getItem(activeTab.toString());
+    if (savedBuffer) {
+      // term.input(savedBuffer);
+    }
+
+    term.onData(async (input) => {       
+      socket.emit(SocketEventConstants.SSH_EMIT_INPUT,input);
     });
     new LigaturesAddon().activate(term);
     term.onKey(() => {
+      const audio = new Audio(sound)
+     
       audio.play();
     })
     term.onResize((size) => {
       socket.emit(SocketEventConstants.SSH_EMIT_RESIZE, size)
     })
 
-    socket.on(SocketEventConstants.SSH_EMIT_DATA, (data:{ sessionId: string, input: string } ) => {
-      // if (tabs[activeTab-1].sessionId === data.sessionId) {
-        term.write(data.input);
-        term.scrollToBottom();
-      // }
+    socket.on(SocketEventConstants.SSH_EMIT_DATA, (data:string) => { 
+        term.write(data);
+        term.scrollToBottom();    
+        const currentBuffer = localStorage.getItem(activeTab.toString()) || "";
+        localStorage.setItem(activeTab.toString(), currentBuffer + data); 
     });
-  }, [socket, navigate,activeTab]);
+  
+
+  }, [socket, navigate, activeTab]);
+
   window.addEventListener('resize', () => {
     fitAddon.fit();
   });
+
   useEffect(() => {
+
     if (clickType) {
       termRef.current?.input(command)
     }

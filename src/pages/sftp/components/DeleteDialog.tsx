@@ -14,8 +14,6 @@ export function DeleteFolderDialog({ folderName, onDelete, type }: DeleteFolderD
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl text-white font-medium">Do you want to delete {folderName} {type === "d" ? "folder" : "file"}?</h2>
           </div>
-
-         
           <div className="flex justify-end space-x-3">
 
             <button

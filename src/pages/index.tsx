@@ -17,7 +17,7 @@ export interface HostsObject {
 const SelectService = () => {
   const [hosts, setHosts] = useState<HostsObject[]>([])
 
-  useEffect(() => {    
+  useEffect(() => {
     getAllData<HostsObject>().then(data => setHosts(data))
   }, [])
   return (

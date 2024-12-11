@@ -1,11 +1,21 @@
 import { __config } from "./config";
+import { extractPath } from "./utils";
 
 const API_URL = __config.API_URL + "/api/upload";
 export class ApiCore {
-    static async uploadFile(file: File, path: string) {
+
+    static async uploadFile(file: File & { path?: string } | Array<File & { path?: string }>, path: string) {
+        let dir = path
         const formData = new FormData();
-        formData.append("file", file);
-        formData.append("path", path);
+        if (Array.isArray(file)) {
+            file.forEach((f, index) => {
+                formData.append(`file[${index}]`, f);
+                dir = extractPath(path + f.path)
+            });
+        } else {
+            formData.append("file", file); // Append a single file
+        }
+        formData.append("path", dir);
 
         const response = await fetch(API_URL, {
             method: "POST",
@@ -34,8 +44,8 @@ export class ApiCore {
                 name
             })
         });
-    
-       
+
+
         return response;
     }
 }
