@@ -48,7 +48,7 @@ export const useStore = create<Store>()((set) => ({
     addTab: (data: any) => set((state) => {
         return {
             ...state,
-            tabs: [...state.tabs, { id: state.tabs.length + 1, title: `Terminal ${state.tabs.length + 1}`, uid: data.uid, sessionId: data.sessionId, data: data.data }],
+            tabs: [...state.tabs, { id: new Date().getTime(), title: `Terminal ${state.tabs.length + 1}`, uid: data.uid, sessionId: data.sessionId, data: data.data }],
         }
     }
     ),

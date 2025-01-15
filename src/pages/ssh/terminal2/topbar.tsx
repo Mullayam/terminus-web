@@ -5,6 +5,8 @@ import { SideBarSheet } from './sidebarSheet';
 import { useStore } from '@/store';
 import { HostDialog } from './hostDialog';
 import React from 'react';
+import { useSockets } from '@/hooks/use-sockets';
+import { SocketEventConstants } from '@/lib/sockets/event-constants';
 
 export interface Tab {
   id: number;
@@ -19,7 +21,11 @@ interface TopBarProps {
 export function TopBar({ onToggleSidebar }: TopBarProps) {
   const store = useStore();
   const [open, setOpen] = React.useState(false)
-
+  const {socket}=useSockets()
+const handleRemoveTab = (index: number) => {
+  socket.emit(SocketEventConstants.SSH_DISCONNECTED,store.tabs[index].uid)
+  store.removeTab(index)
+}
   return (
     <div className="flex flex-col border-b border-gray-800 bg-[#1a1b26] shrink-0">
       <div className="h-12 flex items-center px-4">
@@ -48,7 +54,7 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
               >
                 Terminal {index + 1}
                 {store.tabs.length > 1 && (
-                  <span onClick={() => store.removeTab(index)} className="ml-2 text-red-500 cursor-pointer">
+                  <span onClick={() => handleRemoveTab(index)} className="ml-2 text-red-500 cursor-pointer">
                     ✕
                   </span>
                 )}

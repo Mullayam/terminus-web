@@ -83,26 +83,34 @@ const XTerminal = ({ backgroundColor = '#181818' }: { backgroundColor?: string }
       // term.input(savedBuffer);
     }
 
-    term.onData(async (input) => {       
-      socket.emit(SocketEventConstants.SSH_EMIT_INPUT,input);
+    term.onData(async (input) => {
+      socket.emit(SocketEventConstants.SSH_EMIT_INPUT, {
+        uid: tabs[activeTab].uid,
+        input
+      });
     });
     new LigaturesAddon().activate(term);
     term.onKey(() => {
       const audio = new Audio(sound)
-     
+
       audio.play();
     })
     term.onResize((size) => {
-      socket.emit(SocketEventConstants.SSH_EMIT_RESIZE, size)
+      socket.emit(SocketEventConstants.SSH_EMIT_RESIZE, {
+        uid: tabs[activeTab].uid,
+        size
+      })
     })
 
-    socket.on(SocketEventConstants.SSH_EMIT_DATA, (data:string) => { 
-        term.write(data);
-        term.scrollToBottom();    
+    socket.on(SocketEventConstants.SSH_EMIT_DATA, ({ uid, input }) => {
+      if (uid === tabs[activeTab].uid) {
+        term.write(input);
+        term.scrollToBottom();
         const currentBuffer = localStorage.getItem(activeTab.toString()) || "";
-        localStorage.setItem(activeTab.toString(), currentBuffer + data); 
+        localStorage.setItem(activeTab.toString(), currentBuffer + input);
+      }
     });
-  
+
 
   }, [socket, navigate, activeTab]);
 

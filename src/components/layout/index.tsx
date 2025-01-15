@@ -8,7 +8,7 @@ const index = () => {
     return (
         <div>
             <div className="flex justify-between items-center mb-8">                
-                <EnhancedFileUploadPopup /> {/* Replace the Button with EnhancedFileUploadPopup */}
+              
             </div>
             <div className="bg-[#111111] rounded-lg overflow-hidden shadow-lg">
                 <table className="w-full">

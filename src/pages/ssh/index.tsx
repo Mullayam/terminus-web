@@ -85,7 +85,10 @@ const SSH = () => {
         try {
             const userData = { uid: Math.random().toString(36).slice(2), sessionId: uuid_v4() }
             store.addTab({ ...userData, data: { host: value.host, username: value.username } });
-            socket.emit(SocketEventConstants.SSH_CONNECT, data);
+            socket.emit(SocketEventConstants.SSH_CONNECT, {
+                info: userData,
+                config: data
+            });
         } catch (err: any) {
             setError(err instanceof Error ? err.message : 'An unexpected error occurred');
             setIsLoading(false);
@@ -98,7 +101,7 @@ const SSH = () => {
     };
     useEffect(() => {
 
-        socket.on(SocketEventConstants.SSH_READY, ({ uid, sessionId }: { uid: string, sessionId: string }) => {
+        socket.on(SocketEventConstants.SSH_READY, () => {
             setIsLoading(false);
             handleSSHConnection?.();
             form.reset();
