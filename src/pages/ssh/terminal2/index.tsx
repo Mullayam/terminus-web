@@ -17,7 +17,6 @@ export function TerminalLayout({ children }: { children: React.ReactNode }) {
                 {!location.pathname.includes("/ssh/terminal") && (
                     <TopBar
                         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-
                     />
                 )}
                 <div className="flex flex-1">

@@ -11,6 +11,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { useSockets } from '@/hooks/use-sockets';
 import { useParams } from 'react-router-dom';
 import { SocketEventConstants } from '@/lib/sockets/event-constants';
+import { sound } from '@/lib/utils';
 
 export const TerminalComponent: React.FC = () => {
   const terminalRef = useRef<HTMLDivElement | null>(null);
@@ -18,7 +19,6 @@ export const TerminalComponent: React.FC = () => {
   const fitAddon = useRef<FitAddon | null>(null);
   const { sessionid } = useParams<{ sessionid: string }>();
   const [permissions, setPermissions] = useState<{ read: boolean, write: boolean }>({ read: false, write: false });
-
   const { socket } = useSockets();
   useEffect(() => {
     socket.emit(SocketEventConstants.join_terminal, sessionid);
@@ -52,6 +52,7 @@ export const TerminalComponent: React.FC = () => {
       }  
 
       socket.on(SocketEventConstants.SSH_EMIT_DATA, (data: string) => {
+       
         terminal.current?.write(data);
       });
       socket.on('updatedPermissions', (newPermissions) => {
@@ -63,6 +64,7 @@ export const TerminalComponent: React.FC = () => {
         }
       });
     }
+  
     socket.on(SocketEventConstants.terminal_output, (data: string) => { 
       terminal.current?.write(data);
     });

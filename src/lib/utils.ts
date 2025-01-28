@@ -2,6 +2,12 @@ import { PermissionFormData } from "@/pages/sftp/components/edit-permission";
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 
+  // Source: https://freesound.org/people/altemark/sounds/45759/
+    // This sound is released under the Creative Commons Attribution 3.0 Unported
+    // (CC BY 3.0) license. It was created by 'altemark'. No modifications have been
+    // made, apart from the conversion to base64.
+export const sound = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjMyLjEwNAAAAAAAAAAAAAAA//tQxAADB8AhSmxhIIEVCSiJrDCQBTcu3UrAIwUdkRgQbFAZC1CQEwTJ9mjRvBA4UOLD8nKVOWfh+UlK3z/177OXrfOdKl7pyn3Xf//WreyTRUoAWgBgkOAGbZHBgG1OF6zM82DWbZaUmMBptgQhGjsyYqc9ae9XFz280948NMBWInljyzsNRFLPWdnZGWrddDsjK1unuSrVN9jJsK8KuQtQCtMBjCEtImISdNKJOopIpBFpNSMbIHCSRpRR5iakjTiyzLhchUUBwCgyKiweBv/7UsQbg8isVNoMPMjAAAA0gAAABEVFGmgqK////9bP/6XCykxBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq'
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
@@ -14,21 +20,21 @@ export function formatPermissions(rights: { user: string; group: string; other: 
 }
 export function uuid_v4() {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
-      /[xy]/g,
-      function (c) {
-          var r = (Math.random() * 16) | 0,
-              v = c == "x" ? r : (r & 0x3) | 0x8;
-          return v.toString(16);
-      }
+    /[xy]/g,
+    function (c) {
+      var r = (Math.random() * 16) | 0,
+        v = c == "x" ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    }
   );
 }
-export function extractPath(filePath:string) {
+export function extractPath(filePath: string) {
   if (typeof filePath !== 'string') {
-      throw new Error('Invalid input: Expected a string');
+    throw new Error('Invalid input: Expected a string');
   }
   const lastIndex = filePath.lastIndexOf('/');
   if (lastIndex === -1) {
-      return '';  
+    return '';
   }
   return filePath.substring(0, lastIndex);
 }

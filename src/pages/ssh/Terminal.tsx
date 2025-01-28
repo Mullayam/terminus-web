@@ -17,7 +17,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { SocketEventConstants } from '@/lib/sockets/event-constants';
 import { useNavigate } from 'react-router-dom';
 import { useCommandStore, useStore } from '@/store';
-const sound = `data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjMyLjEwNAAAAAAAAAAAAAAA//tQxAADB8AhSmxhIIEVCSiJrDCQBTcu3UrAIwUdkRgQbFAZC1CQEwTJ9mjRvBA4UOLD8nKVOWfh+UlK3z/177OXrfOdKl7pyn3Xf//WreyTRUoAWgBgkOAGbZHBgG1OF6zM82DWbZaUmMBptgQhGjsyYqc9ae9XFz280948NMBWInljyzsNRFLPWdnZGWrddDsjK1unuSrVN9jJsK8KuQtQCtMBjCEtImISdNKJOopIpBFpNSMbIHCSRpRR5iakjTiyzLhchUUBwCgyKiweBv/7UsQbg8isVNoMPMjAAAA0gAAABEVFGmgqK`
+import { sound } from '@/lib/utils';
 
 // https://github.com/xtermjs/xterm.js/blob/master/demo/client.ts
 const XTerminal = ({ backgroundColor = '#181818' }: { backgroundColor?: string }) => {
@@ -27,8 +27,9 @@ const XTerminal = ({ backgroundColor = '#181818' }: { backgroundColor?: string }
   const { socket } = useSockets();
   const navigate = useNavigate()
   const fitAddon = new FitAddon();
-  const { command, clickType } = useCommandStore()
+  const { command, clickType,setCommand } = useCommandStore()
   const { tabs, activeTab } = useStore();
+  const defaultBellSound = new Audio(sound);
   function getSearchOptions(): ISearchOptions {
     return {
       regex: (document.getElementById('regex') as HTMLInputElement).checked,
@@ -77,7 +78,7 @@ const XTerminal = ({ backgroundColor = '#181818' }: { backgroundColor?: string }
 
     term.open(terminalRef.current);
     fitAddon.fit();
-
+    
     const savedBuffer = localStorage.getItem(activeTab.toString());
     if (savedBuffer) {
       // term.input(savedBuffer);
@@ -91,9 +92,7 @@ const XTerminal = ({ backgroundColor = '#181818' }: { backgroundColor?: string }
     });
     new LigaturesAddon().activate(term);
     term.onKey(() => {
-      const audio = new Audio(sound)
-
-      audio.play();
+      defaultBellSound.play();
     })
     term.onResize((size) => {
       socket.emit(SocketEventConstants.SSH_EMIT_RESIZE, {
@@ -119,9 +118,9 @@ const XTerminal = ({ backgroundColor = '#181818' }: { backgroundColor?: string }
   });
 
   useEffect(() => {
-
     if (clickType) {
       termRef.current?.input(command)
+      setCommand('', 'single')
     }
 
   }, [clickType])
