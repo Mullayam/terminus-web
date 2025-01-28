@@ -158,7 +158,7 @@ export default function SSHConnectionForm<FormValues>({ form, handleSubmit, isLo
                     </FormControl>
                     <div className="space-y-1 leading-none">
                       <FormLabel>
-                        Save connection details in Brower for future use
+                        Save connection details in Browser for future use
                       </FormLabel>                      
                     </div>
                   </FormItem>

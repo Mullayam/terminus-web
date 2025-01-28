@@ -24,9 +24,9 @@ export function HostCard({ info }: HostCardProps) {
                 <h3 className="text-white font-medium">{info.localName || info.host}</h3>
                 <p className="text-slate-400 text-sm">ssh,{info.username}</p>
             </div>
-            <button onClick={() => deleteDB(info.host)} className="text-slate-400 hover:text-white transition-colors">
+            {/* <button onClick={() => deleteDB(info.host)} className="text-slate-400 hover:text-white transition-colors">
                 <Trash />
-            </button>
+            </button> */}
         </div>
     );
 }

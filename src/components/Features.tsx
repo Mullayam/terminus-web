@@ -16,6 +16,7 @@ interface FeatureProps {
   title: string;
   description: string;
   image: string;
+  is_upcomming?: boolean;
 }
 
 const features: FeatureProps[] = [
@@ -24,6 +25,7 @@ const features: FeatureProps[] = [
     description:
       "Work together in real-time terminal sessions, supporting multiple users with role-based permissions. Collaborate seamlessly with concurrent access and enjoy session recording for later review.",
     image: terminal,
+    is_upcomming: true,
   },
   {
     title: "Secure SFTP Integration",
@@ -36,18 +38,24 @@ const features: FeatureProps[] = [
     description:
       "Enhance your workflow with context-aware code suggestions and error detection powered by AI. Our assistant analyzes command history to provide you with insights and best practices.",
     image: ai,
+    is_upcomming: true,
+
   },
   {
     title: "Key Vault Management",
     description:
-      "Keep your credentials safe with secure SSH key management and encrypted storage. Handle access tokens efficiently, all while ensuring top-tier encryption at rest.",
+      "Keep your credentials safe with secure SSH key management and encrypted Browser Based storage (IndexDB). Handle access tokens efficiently, all while ensuring top-tier encryption at rest.",
     image: key,
+    is_upcomming: false,
+
   },
   {
     title: "Multi-User Sessions",
     description:
       "Our platform allows multiple users to join the same session, collaborate on code, and execute commands simultaneously. This feature is perfect for pair programming, team debugging, or real-time infrastructure management, fostering a truly collaborative environment.",
     image: multiUser,
+    is_upcomming: true,
+
   },
 ];
 
@@ -80,10 +88,12 @@ export const Features = () => {
       </div>
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {features.map(({ title, description, image }: FeatureProps) => (
+        {features.map(({ title, description, image, is_upcomming }: FeatureProps) => (
           <Card key={title}>
             <CardHeader>
-              <CardTitle>{title}</CardTitle>
+              <CardTitle>{title} {is_upcomming && <Badge variant="secondary" className="text-sm">
+                Upcomming
+              </Badge>}</CardTitle>
             </CardHeader>
 
             <CardContent>{description}</CardContent>
