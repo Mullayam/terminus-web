@@ -38,7 +38,7 @@ const SelectService = () => {
           </Card>
         </NavLink>
 
-        <NavLink to="/ssh/sftp" className="group">
+        <NavLink to="/ssh/only-sftp" className="group">
           <Card className="transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
             <CardHeader className="space-y-1">
               <CardTitle className="text-2xl flex items-center space-x-2">

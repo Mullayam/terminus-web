@@ -1,20 +1,23 @@
 import { Terminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
+
+import { useSidebarState } from '@/store/sidebarStore';
 
 interface NavItem {
   icon: typeof Terminal;
-  label: string;
+  label: 'Terminal' | 'SFTP';
   color?: string;
 }
 
 export function Sidebar() {
-  const [activeItem, setActiveItem] = useState('Terminal');
+  const { activeItem, setActiveItem } = useSidebarState()
+  const [navItems, setNavItems] = useState<NavItem[]>([
+    { icon: Terminal, label: 'Terminal' },
+  ]);
 
-  const navItems: NavItem[] = [
-    { icon: Terminal, label: 'Terminal', },
-  ];
+
 
   return (
     <div className="w-16 flex flex-col items-center py-4 border-r border-gray-800 bg-[#1a1b26] shrink-0">
@@ -27,7 +30,7 @@ export function Sidebar() {
             "mb-4 relative group",
             activeItem === item.label && "bg-[#24253a]"
           )}
-          onClick={() => setActiveItem(item.label)}
+          onClick={() => setActiveItem(item.label as any)}
         >
           <item.icon
             className={cn(
@@ -35,7 +38,7 @@ export function Sidebar() {
               item.color || "text-gray-400",
               activeItem === item.label && "text-orange-500"
             )}
-          />    
+          />
         </Button>
       ))}
     </div>

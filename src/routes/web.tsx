@@ -42,9 +42,12 @@ export const router = createBrowserRouter([
             
             {
                 path: "sftp",
-                element: <SFTP />,
+                element: <SFTP only_sftp={true}/>,
             },
-
+            {
+                path: "only-sftp",
+                element: <SFTP only_sftp={false}/>,
+            },
         ]
     },
     {

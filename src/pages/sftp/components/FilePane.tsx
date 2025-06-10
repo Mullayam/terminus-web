@@ -9,11 +9,13 @@ import { SFTP_FILES_LIST } from "./interface";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiCore } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
-import { socket } from "@/lib/sockets";
+
 import { SocketEventConstants } from "@/lib/sockets/event-constants";
 import { FilterDropdown } from "./FilterDropdown";
 import EnhancedFileUploadPopup from "@/components/FileUpload";
 import { Progress } from "@/components/ui/progress";
+import { useSFTPContext } from "../SftpClient";
+import PathBreadcrumb from "./PathBreadcrumb";
 interface FileUploadProgress {
     percentage: string;
     transferred: {
@@ -38,6 +40,7 @@ interface FileUploadProgress {
 }
 export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoading, loading, hasError }: any) {
     const splitedPath = path.split("/") as string[];
+    const { socket } = useSFTPContext()
     const [filteredFiles, setFilteredFiles] = useState(files);
     const [dragOver, setDragOver] = useState(false);
     const [open, setOpen] = useState(false);
@@ -108,14 +111,14 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
         }
     };
     const handleRetrySFTPConnect = () => {
-        handleSetLoading(true)
-        socket.emit(SocketEventConstants.SFTP_CONNECT)
+        // handleSetLoading(true)
+        // socket!.emit(SocketEventConstants.SFTP_CONNECT)
     }
     useEffect(() => {
-        socket.on(SocketEventConstants.FILE_UPLOADED_PROGRESS, (data: FileUploadProgress) => {
+        socket!.on(SocketEventConstants.FILE_UPLOADED_PROGRESS, (data: FileUploadProgress) => {
             setFileUploadProgress(data)
         })
-        socket.on(SocketEventConstants.FILE_UPLOADED, () => {
+        socket!.on(SocketEventConstants.FILE_UPLOADED, () => {
             setUploadFileName(null)
             setFileUploadProgress(null)
         })
@@ -123,7 +126,7 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
         setTimeout(() => files.length > 0 && handleSetLoading(false), 1000);
 
     }, [files, handleSetLoading]);
- 
+
     return (
         <>
             <EnhancedFileUploadPopup
@@ -137,8 +140,8 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
             <div className="flex flex-col h-[720px]" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
                 <div className="flex justify-between items-center p-2 bg-primary/10">
                     <div className="flex items-center space-x-2">
-                        <span className="font-semibold">SFTP {title}</span>
-                        <div className="flex items-center space-x-1 text-sm text-muted-foreground">
+                        <span className="font-semibold">{title}</span>
+                        {/* <div className="flex items-center space-x-1 text-sm text-muted-foreground">
                             <span>
                                 {!loading ? splitedPath.map((item: any) =>
                                     <React.Fragment key={item}>
@@ -148,13 +151,19 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
                                             onClick={() => handleSetCurrentDir(splitedPath.slice(0, splitedPath.indexOf(item) + 1).join("/"))}>{item}</span>{"/"}</React.Fragment>)
                                     : <Skeleton className="h-6 w-96 bg-gray-400" />}
                             </span>
-                        </div>
+                        </div> */}
+                        <PathBreadcrumb
+                        handleSetCurrentDir={handleSetCurrentDir}
+                        loading={loading}
+                        fetchFolderSuggestions={async(path: string) => ["", "a", "b", "c","root","snap"]}
+                        currentPath={path}
+                        />
                     </div>
                     <div className="flex items-center space-x-2">
 
                         {hasError ?
                             <RefreshCwIcon className="h-4 w-4 cursor-pointer" onClick={handleRetrySFTPConnect} /> :
-                            <RefreshCwIcon className="h-4 w-4 cursor-pointer" onClick={() => socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: path })} />
+                            <RefreshCwIcon className="h-4 w-4 cursor-pointer" onClick={() => socket!.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: path })} />
                         }
 
                         {!loading &&
@@ -191,7 +200,7 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
                                         {
                                             label: "Upload File/Folder",
                                             action: () => setOpen(true),
-                                        },                                        
+                                        },
                                         {
                                             label: "Download Current Dir Zip",
                                             action: () => console.log(""),
@@ -199,7 +208,7 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
                                         },
                                         {
                                             label: "Refresh",
-                                            action: () => socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: path }),
+                                            action: () => socket!.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: path }),
 
                                         }
 

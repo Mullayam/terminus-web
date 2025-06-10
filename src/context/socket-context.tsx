@@ -1,24 +1,23 @@
 "use client"
 import { useToast } from "@/hooks/use-toast";
 import { socket as appSocket } from "@/lib/sockets";
+import { SocketEventConstants } from "@/lib/sockets/event-constants";
 import { SocketListener } from "@/lib/sockets/listeners";
-import { useStore } from "@/store";
+
 import React, { PropsWithChildren } from "react";
 import { Socket } from "socket.io-client";
 export const SocketContext = React.createContext<{
-    socket: Socket, handleSSHConnection?: (data?: boolean) => void,
-    isSSH_Connected: boolean,
+    socket: Socket,
+    isSftpConnected: boolean,
     isConnected: boolean
-}>({ socket: appSocket, isConnected: false, isSSH_Connected: false });
+}>({ socket: appSocket, isConnected: false, isSftpConnected: false });
 const listeners = new SocketListener()
 const SocketContextProvider = ({ children }: PropsWithChildren) => {
     const { toast } = useToast()
     const [isConnected, setIsConnected] = React.useState(appSocket.connected);
-   const {defaultTab } =useStore()
-    const [isSSH_Connected, setIsSSH_Connected] = React.useState(false)
-    const handleSSHConnection = (data =true) => {
-        setIsSSH_Connected(data)
-    }
+
+    const [isSftpConnected, setIsSftpConnected] = React.useState(false)
+
     React.useEffect(() => {
         appSocket.once("connect", () => {
             setIsConnected(true)
@@ -29,7 +28,9 @@ const SocketContextProvider = ({ children }: PropsWithChildren) => {
         })
         appSocket.on("disconnect", () => {
             setIsConnected(false)
-            defaultTab()
+        })
+        appSocket.on(SocketEventConstants.SFTP_READY, () => {
+            setIsSftpConnected(true)
         })
         appSocket.on("connection_error", () => setIsConnected(false));
         appSocket.connected && setIsConnected(true)
@@ -38,10 +39,10 @@ const SocketContextProvider = ({ children }: PropsWithChildren) => {
         return () => {
             listeners.socketRemoveListeners(appSocket)
         }
-    }, [isConnected, toast,])
+    }, [isConnected,isSftpConnected])
 
     return (
-        <SocketContext.Provider value={{ socket: appSocket, isConnected, isSSH_Connected, handleSSHConnection }}>
+        <SocketContext.Provider value={{ socket: appSocket, isConnected, isSftpConnected: isSftpConnected }}>
             {children}
         </SocketContext.Provider>
     )

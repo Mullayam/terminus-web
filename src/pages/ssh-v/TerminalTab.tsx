@@ -23,7 +23,7 @@ import { RefreshCcw } from 'lucide-react';
 interface Props {
     sessionId: string;
 }
-const formSchema = z
+export const formSchema = z
     .object({
         host: z.string().min(1, 'Host is required'),
         port: z.number().min(1, 'Port is required').default(22),
@@ -49,7 +49,16 @@ const formSchema = z
         }
     );
 export type FormValues = z.infer<typeof formSchema>;
-
+export const DEFAULT_FORM_VALUES: FormValues = {
+    host: '',
+    port: 22,
+    username: '',
+    authMethod: 'password',
+    password: '',
+    privateKeyText: '',
+    saveCredentials: false,
+    localName: '',
+}
 export default function TerminalTab({ sessionId }: Props) {
     const { setActiveTabData, activeTabData } = useStore()
     const [isLoading, setIsLoading] = useState(false)
@@ -62,16 +71,7 @@ export default function TerminalTab({ sessionId }: Props) {
 
     const form = useForm<FormValues>({
         resolver: zodResolver(formSchema),
-        defaultValues: {
-            host: '',
-            port: 22,
-            username: '',
-            authMethod: 'password',
-            password: '',
-            privateKeyText: '',
-            saveCredentials: false,
-            localName: '',
-        },
+        defaultValues: DEFAULT_FORM_VALUES
     });
 
 
@@ -149,7 +149,6 @@ export default function TerminalTab({ sessionId }: Props) {
         })
         socket.on("disconnect", () => {
             updateStatus(sessionId, 'disconnected', 'Disconnected from server');
-
         });
         socket.on('connect_error', (error) => {
             console.log('Socket connection error:', error);

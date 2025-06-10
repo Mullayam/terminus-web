@@ -10,9 +10,9 @@ export function TerminalLayout({ children }: { children: React.ReactNode }) {
 
     return (
         <div className="flex bg-[#1a1b26] text-white overflow-hidden">
-            <div className="hidden lg:flex">
+            {/* <div className="hidden lg:flex">
                 {isSidebarOpen && <Sidebar />}
-            </div>
+            </div> */}
             <div className="flex-1 flex flex-col">
                 {!location.pathname.includes("/ssh/terminal") && (
                     <TopBar

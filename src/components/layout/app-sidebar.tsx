@@ -1,9 +1,5 @@
 import * as React from "react"
-import {
-  Settings2,
-  SquareTerminal,
-} from "lucide-react"
-import { FilesIcon, } from 'lucide-react';
+
 import { NavMain } from "./nav-main"
 // import { NavUser } from "./nav-user"
 import { TeamSwitcher } from "./team-switcher"
@@ -23,55 +19,21 @@ const data = {
     avatar: "/avatars/shadcn.jpg",
   },
 
-  navMain: [
-    {
-      title: "SSH",
-      url: "/ssh/connect",
-      icon: SquareTerminal,
-      isActive: true,
-    },
-    {
-      title: "SFTP",
-      url: "/ssh/sftp",
-      icon: FilesIcon,
-      isActive: false,
 
-    },
-    // {
-    //   title: "Settings",
-    //   url: "/ssh/settings",
-    //   icon: Settings2,
-    //   items: [
-    //     {
-    //       title: "General",
-    //       url: "#",
-    //     },
-    //     {
-    //       title: "Team",
-    //       url: "#",
-    //     },
-    //     {
-    //       title: "Billing",
-    //       url: "#",
-    //     },
-    //     {
-    //       title: "Limits",
-    //       url: "#",
-    //     },
-    //   ],
-    // },
-  ],
+ 
+
 
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
         <TeamSwitcher />
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
+        <NavMain />
       </SidebarContent>
       <SidebarFooter>
         {/* <NavUser user={data.user} /> */}

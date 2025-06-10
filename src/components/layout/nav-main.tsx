@@ -1,5 +1,9 @@
 import { ChevronRight, type LucideIcon } from "lucide-react"
-
+import {
+  Settings2,
+  SquareTerminal,
+} from "lucide-react"
+import { FilesIcon, } from 'lucide-react';
 import {
   Collapsible,
   CollapsibleContent,
@@ -16,26 +20,53 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
 import { NavLink } from "react-router-dom"
+import { useEffect, useState } from "react";
+import { useSSHStore } from "@/store/sshStore";
 
-export function NavMain({
-  items,
-}: {
-  items: {
-    title: string
-    url: string
-    icon?: LucideIcon
-    isActive?: boolean
-    items?: {
-      title: string
-      url: string
-    }[]
-  }[]
-}) {
+export function NavMain() {
+  const { sessions, activeTabId } = useSSHStore()
+  const [navItems, setNavItems] = useState([
+    {
+      title: "SSH",
+      url: "/ssh/connect",
+      icon: SquareTerminal,
+      isActive: true,
+      state: false
+    },
+    {
+      title: "More",
+      url: "#",
+      icon: Settings2,
+      items: [
+        {
+          title: "Github",
+          url: "#",
+        },
+      ],
+    },
+  ]);
+
+
+  useEffect(() => {
+    if (sessions && activeTabId && sessions[activeTabId]) {
+      const mySession = sessions[activeTabId]
+      const sftpItem = navItems.some((item) => item.title !== "SFTP")
+      sftpItem && mySession.sftp_enabled && setNavItems([...navItems, {
+        title: "SFTP",
+        url: "/ssh/sftp",
+        icon: FilesIcon,
+        isActive: false,
+        state: mySession.sftp_enabled
+      }])
+
+    }
+  }, [sessions, activeTabId])
+
   return (
     <SidebarGroup>
       <SidebarGroupLabel>Platform</SidebarGroupLabel>
       <SidebarMenu>
-        {items.map((item) => (
+        {navItems.map((item) => (
           <Collapsible
             key={item.title}
             asChild
@@ -44,17 +75,19 @@ export function NavMain({
           >
             <SidebarMenuItem>
               <CollapsibleTrigger asChild>
-                <NavLink to={item.url}>
+                <NavLink to={item.url} state={{
+                  sftp_enabled: item.state
+                }}>
                   <SidebarMenuButton tooltip={item.title}>
                     {item.icon && <item.icon />}
                     {item.title}
-                    {item.items && <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />}
+                    {item?.items && <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />}
 
                   </SidebarMenuButton>
                 </NavLink>
               </CollapsibleTrigger>
               {
-                item.items && (
+                item?.items && (
                   <CollapsibleContent>
                     <SidebarMenuSub>
                       {item.items?.map((subItem) => (
