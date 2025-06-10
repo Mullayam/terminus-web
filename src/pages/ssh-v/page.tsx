@@ -85,7 +85,7 @@ export default function NewSSH() {
 
     return (
         <div className='w-full'>
-            {tabs.length === 0 && hosts.length > 0 && (
+            {tabs.length === 0 && (
                 <div className="p-8">
                     <div className="flex justify-between items-center mb-4">
                         <h2 className="text-white text-xl font-semibold">Hosts</h2>
@@ -99,7 +99,8 @@ export default function NewSSH() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {hosts.map((host, index) => (
+
+                        {hosts.length > 0 && hosts.map((host, index) => (
                             <HostCard
                                 key={index}
                                 index={index}

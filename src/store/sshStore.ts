@@ -8,7 +8,8 @@ interface SSHSession {
   username: string;
   status: 'disconnected' | 'connected' | 'connecting' | 'error';
   error?: string;
-  socket?: null|Socket;
+  socket?: null | Socket;
+  sftp_enabled: boolean
 }
 
 interface SSHTab {
@@ -23,6 +24,7 @@ interface SSHStore {
   activeTabId?: string;
   addSession: (session: SSHSession) => void;
   updateStatus: (sessionId: string, status: SSHSession['status'], error?: string) => void;
+  updateSftpStatus: (sessionId: string, status: boolean) => void;
   removeSession: (sessionId: string) => void;
   setActiveTab: (tabId: string) => void;
   addTab: (tab: SSHTab) => void;
@@ -33,6 +35,7 @@ export const useSSHStore = create<SSHStore>((set) => ({
   sessions: {},
   tabs: [],
   activeTabId: undefined,
+  sftp_enabled: false,
   addSession: (session) =>
     set((state) => ({
       sessions: {
@@ -51,6 +54,18 @@ export const useSSHStore = create<SSHStore>((set) => ({
         },
       };
     }),
+  updateSftpStatus: (sessionId, status) =>
+    set((state) => {
+      const session = state.sessions[sessionId];
+      if (!session) return state;
+      return {
+        sessions: {
+          ...state.sessions,
+          [sessionId]: { ...session, sftp_enabled: status, },
+        },
+      };
+    }),
+
   removeSession: (sessionId) =>
     set((state) => {
       const { [sessionId]: _, ...rest } = state.sessions;

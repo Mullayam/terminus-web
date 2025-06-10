@@ -1,11 +1,7 @@
-// sshStore.ts
-import { socket } from '@/lib/sockets';
 import { create } from 'zustand';
 
 interface TerminalLogsStore {
-  logs: Record<string, string[]>; // sessionId -> array of log lines
-  // socket: Record<string, string[]>; // sessionId -> array of log lines
-
+  logs: Record<string, string[]>; 
   addLogLine: (sessionId: string, line: string) => void;
   clearLogs: (sessionId: string) => void;
 }

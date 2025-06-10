@@ -23,7 +23,7 @@ export default function SSHConnectionForm<T>({ form, handleSubmit, isLoading,
   isLoading: boolean,
 }) {
 
-  const { removeTab, activeTabId, tabs, setActiveTab } = useSSHStore()
+  const { removeTab, activeTabId, tabs, setActiveTab, sessions } = useSSHStore()
 
   const [showPassword, setShowPassword] = useState(false);
 
@@ -54,7 +54,7 @@ export default function SSHConnectionForm<T>({ form, handleSubmit, isLoading,
                     <FormControl>
                       <Input placeholder="e.g. example.com or 192.168.1.1" {...field} />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className="text-xs text-orange-300" />
                   </FormItem>
                 )}
               />
@@ -67,7 +67,8 @@ export default function SSHConnectionForm<T>({ form, handleSubmit, isLoading,
                     <FormControl>
                       <Input placeholder="Enter your username" {...field} />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className="text-xs text-orange-300" />
+
                   </FormItem>
                 )}
               />
@@ -97,7 +98,8 @@ export default function SSHConnectionForm<T>({ form, handleSubmit, isLoading,
                         </FormItem>
                       </RadioGroup>
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className="text-xs text-orange-300" />
+
                   </FormItem>
                 )}
               />
@@ -152,7 +154,8 @@ export default function SSHConnectionForm<T>({ form, handleSubmit, isLoading,
                               {...field}
                             />
                           </FormControl>
-                          <FormMessage />
+                          <FormMessage className="text-xs text-orange-300" />
+
                         </FormItem>
                       )}
                     />
@@ -209,7 +212,8 @@ export default function SSHConnectionForm<T>({ form, handleSubmit, isLoading,
                         <FormControl>
                           <Input  {...field} />
                         </FormControl>
-                        <FormMessage />
+                        <FormMessage className="text-xs text-orange-300" />
+
                       </FormItem>
                     )}
                   />
@@ -232,6 +236,12 @@ export default function SSHConnectionForm<T>({ form, handleSubmit, isLoading,
             </form>
           </Form>
         </CardContent>
+        {activeTabId && sessions[activeTabId] && sessions[activeTabId].status === 'error' && (
+          <div className="flex items-center text-red-400 justify-between p-4">
+            Error: {sessions[activeTabId]?.error}
+          </div>
+        )}
+
       </Card>
     </div>
   )

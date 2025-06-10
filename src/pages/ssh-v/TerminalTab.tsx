@@ -15,7 +15,8 @@ import XTerminal from './components/Terminal';
 import { FullScreenLoader } from '@/components/loader';
 import InfoBadge from './components/InfoBadge';
 import { TerminalLayout } from './components/terminal2';
-import { HostsObject } from '..';
+import { RefreshCcw } from 'lucide-react';
+
 
 
 
@@ -53,13 +54,11 @@ export default function TerminalTab({ sessionId }: Props) {
     const { setActiveTabData, activeTabData } = useStore()
     const [isLoading, setIsLoading] = useState(false)
     const socketRef = useRef<Socket | null>(null);
-
-
-    const { tabs, activeTabId, sessions, addSession } = useSSHStore()
-
+    const { tabs, sessions, addSession, updateStatus, updateSftpStatus } = useSSHStore()
 
 
 
+    const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const form = useForm<FormValues>({
         resolver: zodResolver(formSchema),
@@ -89,8 +88,11 @@ export default function TerminalTab({ sessionId }: Props) {
             host: data.host,
             username: data.username,
             sessionId: sessionId,
-            status: 'connecting'
+            status: 'connecting',
+            socket: socketRef.current,
+            sftp_enabled: false
         })
+
         setActiveTabData(data);
         socketRef.current?.emit(SocketEventConstants.SSH_START_SESSION, JSON.stringify(data));
         setIsLoading(true);
@@ -100,40 +102,66 @@ export default function TerminalTab({ sessionId }: Props) {
     React.useEffect(() => {
         const session = sessions[sessionId]
 
-        if (!session?.socket) {
+        let socket = null
+        if (session && !session?.socket) {
             session.socket = io('http://localhost:7145', {
-                query: { sessionId }
+                query: { sessionId },
+                autoConnect: true,
+                reconnection: false,
+
+            });
+            socket = session.socket
+        } else {
+            socket = io('http://localhost:7145', {
+                query: { sessionId },
+                autoConnect: true,
+                reconnection: false,
             });
         }
         if (!socketRef.current) {
-            socketRef.current = session.socket
+            socketRef.current = socket
         }
-        const socket = session.socket;
+
 
         const handleSSHReady = (data: string) => {
-            const updatedSession = {
-                ...sessions[sessionId],
-                status: 'connected',
-                error: data,
-                socket
-            };
-            addSession(updatedSession as any);
+
+            updateStatus(sessionId, 'connected', data)
             setIsLoading(false);
         };
 
         const handleSSHError = (data: string) => {
-            sessions[sessionId].status = 'error';
-            sessions[sessionId].error = data;
-            addSession(sessions[sessionId]);
+            updateStatus(sessionId, 'error', data)
             setIsLoading(false);
         };
+        const handleSFTPStatus = (data: string) => {
+            updateSftpStatus(sessionId, true)
 
+        }
         socket.on(SocketEventConstants.SSH_READY, handleSSHReady);
+        socket.on(SocketEventConstants.SFTP_READY, handleSFTPStatus);
         socket.on(SocketEventConstants.SSH_EMIT_ERROR, handleSSHError);
 
+        socket.on("connect", () => {
+            if (reconnectTimeoutRef.current) {
+                clearTimeout(reconnectTimeoutRef.current);
+                reconnectTimeoutRef.current = null;
+            }
+        })
+        socket.on("disconnect", () => {
+            updateStatus(sessionId, 'disconnected', 'Disconnected from server');
+
+        });
+        socket.on('connect_error', (error) => {
+            console.log('Socket connection error:', error);
+            updateStatus(sessionId, 'error', `Connection error: ${error.message}`);
+
+        });
         return () => {
             socket.off(SocketEventConstants.SSH_READY, handleSSHReady);
             socket.off(SocketEventConstants.SSH_EMIT_ERROR, handleSSHError);
+            socket.off("connect");
+            socket.off("connect_error");
+            socket.off("disconnect");
         };
     }, [sessionId]);
 
@@ -144,29 +172,30 @@ export default function TerminalTab({ sessionId }: Props) {
             setActiveTabData(null);
             return
         }
-
     }, [])
 
     return (
         <div>
             {isLoading && <FullScreenLoader />}
-            {sessions[sessionId].status === 'connected' && socketRef.current ?
+            {sessions[sessionId]?.status === 'connected' && socketRef.current ?
                 <>
                     <TerminalLayout>
                         <XTerminal sessionId={sessionId} socket={socketRef.current} />
                     </TerminalLayout>
 
-                    {tabs.length !== 0 && activeTabId && (
+                    {tabs.length !== 0 && sessions[sessionId] && (
                         <>
                             <div className="flex justify-between items-start flex-wrap px-4 py-1 border-t text-xs bg-[#1a1b26]">
                                 <div className="flex flex-row  gap-4">
-                                    <span>Public IPs: <a href={`http://${sessions[activeTabId].host}`}
+                                    <span>Public IPs: <a href={`http://${sessions[sessionId].host}`}
                                         target="_blank" rel="noopener noreferrer" className="inline-block text-gray-200 dark:text-neutral-200 hover:underline" >
-                                        {sessions[activeTabId].host} </a></span>
-                                    <span>Username: {sessions[activeTabId].username}</span>
+                                        {sessions[sessionId].host} </a></span>
+                                    <span>Username: {sessions[sessionId].username}</span>
+                                    <span>SFTP:  {sessions[sessionId].sftp_enabled ? 'Enabled' : 'Disabled'} </span>
                                 </div>
-                                <div className=" text-gray-200 text-xs text-right">
-                                    <InfoBadge status={sessions[activeTabId].status} />
+                                <div className=" text-gray-200 text-xs text-right flex flex-row gap-4">
+                                    {!socketRef.current?.connected && <RefreshCcw className='w-4 h-4' />}
+                                    <InfoBadge status={sessions[sessionId].status} />
                                 </div>
                             </div>
                         </>
