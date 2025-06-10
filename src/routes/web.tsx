@@ -3,8 +3,10 @@ import SelectService from "@/pages";
 import ProtectedLayout from "@/pages/layout";
 import SFTP from "@/pages/sftp";
 import { TerminalComponent } from "@/pages/shared-terminal";
-import SSH from "@/pages/ssh";
-import { TerminalLayout } from "@/pages/ssh/terminal2";
+import { TerminalLayout } from "@/pages/ssh-v/components/terminal2";
+
+import NewSSH from "@/pages/ssh-v/page";
+
 import { createBrowserRouter } from "react-router-dom";
 export const router = createBrowserRouter([
     {
@@ -35,9 +37,9 @@ export const router = createBrowserRouter([
 
             {
                 path: "connect",
-                element: <SSH />,
+                element: <NewSSH />,
             },
-
+            
             {
                 path: "sftp",
                 element: <SFTP />,

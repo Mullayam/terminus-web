@@ -47,7 +47,7 @@ export const getAllData = async  <T extends Record<string, any>>(): Promise<T[]>
 };
 
 // Retrieve a single item by ID
-export const getDataById = async <T extends Record<string, any>>(id: number): Promise<T | undefined> => {
+export const getDataById = async <T extends Record<string, any>>(id: string): Promise<T | undefined> => {
     const db = await initDB();
     const tx = db.transaction(STORE_NAME, 'readonly');
     return await tx.store.get(id);

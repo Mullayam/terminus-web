@@ -1,13 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import * as React from "react"
-import { Plus, Search, Server,  } from "lucide-react"
+import { Plus, Search, Server, } from "lucide-react"
+import { v4 as uuidv4 } from 'uuid';
 
 
 import { getAllData } from "@/lib/idb"
 import { SocketEventConstants } from "@/lib/sockets/event-constants"
 import { socket } from "@/lib/sockets"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { useStore } from "@/store";
+import { useSSHStore } from "@/store/sshStore";
+import { useCustomEvent } from "@/hooks/use-events";
 interface HostsList {
     id: string;
     host: string;
@@ -20,6 +24,8 @@ interface HostsList {
 }
 export function HostDialog({ open, setOpen }: { open: boolean, setOpen: React.Dispatch<React.SetStateAction<boolean>> }) {
     const [hosts, setHosts] = React.useState<HostsList[]>([])
+    const { addTab, tabs } = useSSHStore()
+    const { emit } = useCustomEvent("NEW_SSH_CLIENT")
 
     const [searchQuery, setSearchQuery] = React.useState('');
     React.useEffect(() => {
@@ -36,19 +42,22 @@ export function HostDialog({ open, setOpen }: { open: boolean, setOpen: React.Di
         document.addEventListener("keydown", down)
         return () => document.removeEventListener("keydown", down)
     }, [setOpen])
-    const connectSSH = (index: number) => {
 
-        const sshConfig = {
-            host: hosts[index].host,
-            username: hosts[index].username,
-            authMethod: hosts[index].authMethod,
-            password: hosts[index].password,
-            privateKeyText: hosts[index].privateKeyText
-        }
-        socket.emit(SocketEventConstants.SSH_CONNECT, sshConfig);
+    const addNewTab = () => {
+        const id = uuidv4();
+        addTab({
+            id,
+            title: `Terminal ${tabs.length + 1}`,
+            sessionId: id,
+        });
         setOpen(false)
-
-    }
+    };
+    const filteredHosts = hosts.filter((host) => {
+        return (
+            host.host.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            host.localName.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+    })
     return (
         <>
             <Dialog open={open} onOpenChange={setOpen}>
@@ -65,8 +74,8 @@ export function HostDialog({ open, setOpen }: { open: boolean, setOpen: React.Di
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                             />
-                            <div className="px-3 py-1 border-l border-gray-700">
-                                <div className="flex items-center gap-2 text-sm text-gray-400">
+                            <div className="px-3 py-1 border-l border-gray-700" onClick={addNewTab}>
+                                <div className="flex items-center gap-2 text-sm text-gray-400" >
                                     <Plus className="w-4 h-4" />
                                 </div>
                             </div>
@@ -74,11 +83,14 @@ export function HostDialog({ open, setOpen }: { open: boolean, setOpen: React.Di
                         {/* Hosts List */}
                         <div>
                             <h2 className="text-sm font-medium mb-2 text-gray-300">{hosts.length > 0 ? "Quick Connect" : 'You have no hosts'} </h2>
-                            <div className="space-y-1">                                 
-                                {hosts.map((host: any, index: number) => (
+                            <div className="space-y-1">
+                                {filteredHosts.map((host: any, index: number) => (
                                     <div
                                         key={host.id}
-                                        onClick={() => connectSSH(index)}
+                                        onClick={() => {
+                                            emit(index)
+                                            setOpen(false)
+                                        }}
                                         className="flex items-center gap-3 p-2 hover:bg-[#2a2f42] rounded-lg cursor-pointer transition-colors"
                                     >
                                         <div className={`w-2 h-2 rounded-full ${host.color}`} /> <Server />
@@ -93,7 +105,6 @@ export function HostDialog({ open, setOpen }: { open: boolean, setOpen: React.Di
 
                 </DialogContent>
             </Dialog>
-
         </>
     )
 }

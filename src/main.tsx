@@ -8,9 +8,7 @@ import SocketContextProvider from "./context/socket-context.tsx";
 ReactDOM.createRoot(document.getElementById("root")!).render(
   // <React.StrictMode>
   <ThemeProvider>
-    <SocketContextProvider>
-      <RouterProvider router={router} />
-    </SocketContextProvider>
+    <RouterProvider router={router} />
   </ThemeProvider>
 
   // </React.StrictMode>

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { Loader2 } from "lucide-react"
+import { Loader2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -10,20 +10,37 @@ import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { UseFormReturn } from "react-hook-form"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Eye, EyeOff } from 'lucide-react';
+import { useState } from "react"
+import { useSSHStore } from "@/store/sshStore"
 
 
 
-export default function SSHConnectionForm<FormValues>({ form, handleSubmit, isLoading,
+export default function SSHConnectionForm<T>({ form, handleSubmit, isLoading,
 }: {
   form: UseFormReturn<any, any, any>,
-  handleSubmit: (data: FormValues) => Promise<void>
+  handleSubmit: (data: any) => Promise<void>
   isLoading: boolean,
 }) {
+
+  const { removeTab, activeTabId, tabs, setActiveTab } = useSSHStore()
+
+  const [showPassword, setShowPassword] = useState(false);
+
   return (
     <div className="flex items-center justify-center p-4">
       <Card className="w-full max-w-lg">
-        <CardHeader>
+        <CardHeader className="space-y-1 flex flex-row items-center justify-between">
+
           <CardTitle>SSH Connection Form</CardTitle>
+          <Button size={"icon"} variant={"outline"} onClick={() => {
+            activeTabId && removeTab(activeTabId)
+            setActiveTab((tabs.length - 1) > 0 ? (tabs.length - 1).toString() : "")
+          }} className="rounded-full ">
+            <X className="w-6 h-6 cursor-pointer" />
+
+          </Button>
+
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -92,7 +109,24 @@ export default function SSHConnectionForm<FormValues>({ form, handleSubmit, isLo
                     <FormItem>
                       <FormLabel>Password</FormLabel>
                       <FormControl>
-                        <Input type="password" placeholder="Enter your password" {...field} />
+                        <div className="relative">
+                          <Input
+                            type={showPassword ? "text" : "password"}
+                            placeholder="Enter your password"
+                            {...field}
+                          />
+                          <button
+                            type="button"
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                            onClick={() => setShowPassword(!showPassword)}
+                          >
+                            {showPassword ? (
+                              <EyeOff className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                            ) : (
+                              <Eye className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                            )}
+                          </button>
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -159,29 +193,29 @@ export default function SSHConnectionForm<FormValues>({ form, handleSubmit, isLo
                     <div className="space-y-1 leading-none">
                       <FormLabel>
                         Save connection details in Browser for future use
-                      </FormLabel>                      
+                      </FormLabel>
                     </div>
                   </FormItem>
                 )}
               />
-             {
-              form.watch("saveCredentials") && (
-                <FormField
-                control={form.control}
-                name="localName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Local Name</FormLabel>
-                    <FormControl>
-                      <Input  {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-             
-              )
-             }
+              {
+                form.watch("saveCredentials") && (
+                  <FormField
+                    control={form.control}
+                    name="localName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Local Name</FormLabel>
+                        <FormControl>
+                          <Input  {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                )
+              }
               <Button type="submit" disabled={isLoading}>
                 {isLoading ? (
                   <>
@@ -191,6 +225,9 @@ export default function SSHConnectionForm<FormValues>({ form, handleSubmit, isLo
                 ) : (
                   "Connect"
                 )}
+              </Button>
+              <Button type="button" onClick={() => form.reset()} className="ml-2 bg-blue-500">
+                Reset
               </Button>
             </form>
           </Form>

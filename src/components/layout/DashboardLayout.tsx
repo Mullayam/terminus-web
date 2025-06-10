@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { ReconnectButton } from "./ReconnectButton";
+
 import ServerStatus from './ServerStatus';
-import { useSockets } from '@/hooks/use-sockets';
+
 import { AppSidebar } from "./app-sidebar"
 
 import {
@@ -11,8 +11,8 @@ import {
 } from "@/components/ui/sidebar"
 
 
+
 export function Dashboard({ children }: { children: React.ReactNode }) {
-    const { isConnected } = useSockets();
     return (
 
         <SidebarProvider>
@@ -28,7 +28,7 @@ export function Dashboard({ children }: { children: React.ReactNode }) {
                 </header>
                 <div className="flex flex-1 flex-col   pt-0 bg-[#0A0A0A]">
                     {children}
-                    {!isConnected && <ReconnectButton />}
+
                 </div>
             </SidebarInset>
         </SidebarProvider>
