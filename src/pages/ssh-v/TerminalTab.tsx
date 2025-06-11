@@ -18,6 +18,7 @@ import TerminalLayout from './components/terminal2';
 import { RefreshCcw } from 'lucide-react';
 import { useIdleReconnect } from '@/hooks/useIdleReconnect';
 import { useSessionDisconnect } from '@/hooks/useSessionDisconnect';
+import { __config } from '@/lib/config';
 
 
 
@@ -107,7 +108,7 @@ export default function TerminalTab({ sessionId }: Props) {
             socket = session.socket
             socketRef.current = session.socket
         } else {
-            socket = io('http://localhost:7145', {
+            socket = io(__config.API_URL, {
                 query: { sessionId },
                 autoConnect: true,
             });
