@@ -13,6 +13,7 @@ import { DEFAULT_FORM_VALUES, formSchema, FormValues } from "@/pages/ssh-v/Termi
 import { zodResolver } from "@hookform/resolvers/zod";
 import { addData, getDataById, updateData } from "@/lib/idb";
 import { Progress } from "@/components/ui/progress";
+import { ShowProgressBar, ShowProgressBarProps } from "./DownloadProgress";
 
 
 function OnlySFTPClient() {
@@ -55,6 +56,9 @@ function OnlySFTPClient() {
 
     setLoading(true);
     socket?.emit(SocketEventConstants.SFTP_CONNECT, JSON.stringify(data));
+  }
+  const downloadCancel = (path: string) => {
+    socket.emit(SocketEventConstants.CANCEL_DOWNLOADING, path)
   }
   useEffect(() => {
     socket.on(SocketEventConstants.SFTP_CURRENT_PATH, (cwd: string) => {
@@ -146,7 +150,10 @@ function OnlySFTPClient() {
                 </div>
                 <Progress value={parseInt(file.percent)} className="h-1.5 w-full" />
               </div>
-
+              // <ShowProgressBar
+              //   download={file} onCancel={() => downloadCancel(file.name)}
+              //   index={Object.keys(downloadProgress).indexOf(key)}
+              // />
             ))}
           </div>
         )}
