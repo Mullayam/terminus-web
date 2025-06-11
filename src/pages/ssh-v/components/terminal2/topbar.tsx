@@ -4,10 +4,11 @@ import { cn } from '@/lib/utils';
 import { SideBarSheet } from './sidebarSheet';
 
 import { HostDialog } from './hostDialog';
-import  { useState } from 'react';
+import { useState } from 'react';
 
 
 import { useSSHStore } from '@/store/sshStore';
+import { useTerminalStore } from '../../../../store/terminalStore';
 
 export interface Tab {
   id: number;
@@ -31,7 +32,7 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
     setActiveTab
   } = useSSHStore();
 
-
+  const { removeLog } = useTerminalStore()
   const activeTab = tabs.find((tab) => tab.id === activeTabId);
   const current = activeTab ? sessions[activeTab.sessionId] : undefined;
 
@@ -44,7 +45,7 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
   const handleRemoveTab = (tabId: string) => {
     const currentActiveTab = tabs.find((tab) => tab.id === tabId);
     const current = currentActiveTab ? sessions[currentActiveTab.sessionId] : undefined;
-    
+
 
     removeTab(tabId);
     if (current?.sessionId) {
@@ -53,10 +54,10 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
   }
   const disconnect = (sessionId: string, id: string) => {
     if (current?.sessionId) {
-      console.log('🔌 Disconnecting:', sessionId);
       updateStatus(sessionId, 'disconnected');
       removeSession(sessionId);
       removeTab(id);
+      removeLog(sessionId)
     }
   };
 
@@ -108,8 +109,8 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
             ))}
 
             {tabs.length < 8 && (
-              <Button variant={"outline"}             
-              onClick={() => setOpen(true)}
+              <Button variant={"outline"}
+                onClick={() => setOpen(true)}
                 className={"p-3 h-8  rounded-full transition-colors text-gray-400 hover:text-gray-300"}>
                 <Plus className="h-4 w-4" />
               </Button>

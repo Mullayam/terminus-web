@@ -14,8 +14,11 @@ import { LigaturesAddon } from "@xterm/addon-ligatures";
 import { ISearchOptions, SearchAddon } from "@xterm/addon-search";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
+
+// import { AttachAddon } from '@xterm/addon-attach';
+
 import { SocketEventConstants } from "@/lib/sockets/event-constants";
-import { useNavigate } from "react-router-dom";
+
 import { useCommandStore, useStore } from "@/store";
 import { sound } from "@/lib/utils";
 import { io, Socket } from "socket.io-client";
@@ -66,10 +69,8 @@ const XTerminal = ({
   }
 
   useEffect(() => {
-    if (isRendered.current) return;
     if (!terminalRef.current) return;
 
-    isRendered.current = true;
     const term = new Terminal({
       cursorBlink: true,
       cursorStyle: "block",
@@ -83,9 +84,10 @@ const XTerminal = ({
         cursor: "#f1fa8c",
       },
     });
+
     termRef.current = term;
     const fitAddon = new FitAddon();
-
+    fitAddonRef.current = fitAddon;
 
     const searchAddon = new SearchAddon();
     term.loadAddon(new WebglAddon());
@@ -95,57 +97,59 @@ const XTerminal = ({
     term.loadAddon(new CanvasAddon());
     term.loadAddon(new ClipboardAddon());
     term.loadAddon(new WebLinksAddon());
-    term.loadAddon(new WebLinksAddon());
     term.loadAddon(fitAddon);
     term.loadAddon(searchAddon);
+
     term.open(terminalRef.current);
 
-    fitAddonRef.current = fitAddon;
-    fitAddon.fit();
-
     new LigaturesAddon().activate(term);
-    const session = sessions[sessionId]
+
+    const session = sessions[sessionId];
     if (!session?.socket) {
       term.write("\x1b[32mConnecting...\r\n\x1b[0m");
     }
 
-    term.onData(async (input) => {
+    term.onData((input) => {
       socket.emit(SocketEventConstants.SSH_EMIT_INPUT, input);
     });
+
     term.onKey(() => {
       defaultBellSound.play();
     });
+
     term.onResize((size) => {
       socket.emit(SocketEventConstants.SSH_EMIT_RESIZE, size);
     });
+
+    const handleResize = () => {
+      fitAddon.fit();
+    };
+
     socket.on(SocketEventConstants.SSH_EMIT_DATA, (input: string) => {
       term.write(input);
-      addLogLine(sessionId, input);
-
       term.scrollToBottom();
+      addLogLine(sessionId, input);
     });
-    // Handle window resize
-    const handleResize = () => {
+
+    window.addEventListener("resize", handleResize);
+    requestAnimationFrame(() => {
       if (fitAddonRef.current) {
         fitAddonRef.current.fit();
       }
-    };
-    window.addEventListener("resize", handleResize);
-    const originalWrite = term.write.bind(term);
+    });
 
-
-    if (session) {
-      const t = logs[sessionId]
-      t && t.length && term.write(t.join(""));
-
+    const t = logs[sessionId];
+    if (t?.length) {
+      term.write(t.join(""));
     }
-    return () => {
-      socket.off(SocketEventConstants.SSH_EMIT_DATA);
-      window.removeEventListener("resize", handleResize);
-      termRef.current?.dispose();
-    };
 
-  }, [socket, sessionId]);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      socket.off(SocketEventConstants.SSH_EMIT_DATA);
+      term.dispose(); // allow clean re-init
+      termRef.current = null;
+    };
+  }, [sessionId, socket]); // Remove `sessions` from deps — it's causing unnecessary remounts
 
   useEffect(() => {
     if (clickType) {

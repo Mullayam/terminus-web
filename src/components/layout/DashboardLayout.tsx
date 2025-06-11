@@ -28,7 +28,6 @@ export function Dashboard({ children }: { children: React.ReactNode }) {
                 </header>
                 <div className="flex flex-1 flex-col   pt-0 bg-[#0A0A0A]">
                     {children}
-
                 </div>
             </SidebarInset>
         </SidebarProvider>

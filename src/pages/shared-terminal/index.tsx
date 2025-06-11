@@ -13,7 +13,7 @@ import { useParams } from 'react-router-dom';
 import { SocketEventConstants } from '@/lib/sockets/event-constants';
 import { sound } from '@/lib/utils';
 
-export const TerminalComponent: React.FC = () => {
+ const TerminalComponent: React.FC = () => {
   const terminalRef = useRef<HTMLDivElement | null>(null);
   const terminal = useRef<Terminal | null>(null);
   const fitAddon = useRef<FitAddon | null>(null);
@@ -77,3 +77,4 @@ export const TerminalComponent: React.FC = () => {
   return <div ref={terminalRef} style={{ height: '100%', width: '100%' }} />;
 };
 
+export default TerminalComponent;

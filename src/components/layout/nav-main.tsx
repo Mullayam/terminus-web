@@ -28,7 +28,7 @@ export function NavMain() {
   const [navItems, setNavItems] = useState([
     {
       title: "SSH",
-      url: "/ssh/connect",
+      url: "/ssh",
       icon: SquareTerminal,
       isActive: true,
       state: false

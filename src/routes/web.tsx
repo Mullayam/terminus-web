@@ -1,11 +1,17 @@
+import { lazy } from "react";
 import App from "@/App";
 import SelectService from "@/pages";
 import ProtectedLayout from "@/pages/layout";
-import SFTP from "@/pages/sftp";
-import { TerminalComponent } from "@/pages/shared-terminal";
-import { TerminalLayout } from "@/pages/ssh-v/components/terminal2";
 
-import NewSSH from "@/pages/ssh-v/page";
+
+
+// const NewSSH = lazy(() => import("@/pages/ssh-v/page"));
+import NewSSH from '@/pages/ssh-v/page';
+const SFTP = lazy(() => import("@/pages/sftp"));
+const TerminalComponent = lazy(() => import("@/pages/shared-terminal"));
+const TerminalLayout = lazy(() => import("@/pages/ssh-v/components/terminal2"));
+
+
 
 import { createBrowserRouter } from "react-router-dom";
 export const router = createBrowserRouter([
@@ -39,14 +45,14 @@ export const router = createBrowserRouter([
                 path: "connect",
                 element: <NewSSH />,
             },
-            
+
             {
                 path: "sftp",
-                element: <SFTP only_sftp={true}/>,
+                element: <SFTP only_sftp={true} />,
             },
             {
                 path: "only-sftp",
-                element: <SFTP only_sftp={false}/>,
+                element: <SFTP only_sftp={false} />,
             },
         ]
     },

@@ -57,7 +57,8 @@ export default function NewSSH() {
             sessionId: id,
             host: data.host,
             username: data.username,
-            status: 'connecting'
+            status: 'connecting',
+            sftp_enabled: false
         })
 
         addTab({

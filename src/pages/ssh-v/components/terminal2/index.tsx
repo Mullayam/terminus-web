@@ -3,7 +3,7 @@ import React from "react";
 import { TopBar } from "./topbar";
 import { useLocation } from "react-router-dom";
 
-export function TerminalLayout({ children }: { children: React.ReactNode }) {
+export default function  TerminalLayout({ children }: { children: React.ReactNode }) {
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
     const location = useLocation()
 

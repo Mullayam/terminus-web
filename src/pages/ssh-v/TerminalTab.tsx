@@ -14,8 +14,10 @@ import { useSSHStore } from '../../store/sshStore';
 import XTerminal from './components/Terminal';
 import { FullScreenLoader } from '@/components/loader';
 import InfoBadge from './components/InfoBadge';
-import { TerminalLayout } from './components/terminal2';
+import TerminalLayout from './components/terminal2';
 import { RefreshCcw } from 'lucide-react';
+import { useIdleReconnect } from '@/hooks/useIdleReconnect';
+import { useSessionDisconnect } from '@/hooks/useSessionDisconnect';
 
 
 
@@ -60,14 +62,12 @@ export const DEFAULT_FORM_VALUES: FormValues = {
     localName: '',
 }
 export default function TerminalTab({ sessionId }: Props) {
-    const { setActiveTabData, activeTabData } = useStore()
     const [isLoading, setIsLoading] = useState(false)
+    const startTracking = useIdleReconnect()
+    const { disconnect } = useSessionDisconnect()
+    const { setActiveTabData, activeTabData } = useStore()
+    const { tabs, sessions, addSession, updateStatus, updateSftpStatus, activeTabId } = useSSHStore()
     const socketRef = useRef<Socket | null>(null);
-    const { tabs, sessions, addSession, updateStatus, updateSftpStatus } = useSSHStore()
-
-
-
-    const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const form = useForm<FormValues>({
         resolver: zodResolver(formSchema),
@@ -103,28 +103,24 @@ export default function TerminalTab({ sessionId }: Props) {
         const session = sessions[sessionId]
 
         let socket = null
-        if (session && !session?.socket) {
-            session.socket = io('http://localhost:7145', {
-                query: { sessionId },
-                autoConnect: true,
-                reconnection: false,
-
-            });
+        if (session && session?.socket) {
             socket = session.socket
+            socketRef.current = session.socket
         } else {
             socket = io('http://localhost:7145', {
                 query: { sessionId },
                 autoConnect: true,
-                reconnection: false,
             });
+            socketRef.current = socket;
+            if (session) {
+                session.socket = socket;
+            }
         }
-        if (!socketRef.current) {
-            socketRef.current = socket
-        }
+
 
 
         const handleSSHReady = (data: string) => {
-
+            console.log("Ready")
             updateStatus(sessionId, 'connected', data)
             setIsLoading(false);
         };
@@ -135,34 +131,32 @@ export default function TerminalTab({ sessionId }: Props) {
         };
         const handleSFTPStatus = (data: string) => {
             updateSftpStatus(sessionId, true)
-
         }
+        const handleCLoseSession = () => disconnect(sessionId, activeTabId!)
+        const closeIdleTabSession = startTracking(handleCLoseSession);
+
         socket.on(SocketEventConstants.SSH_READY, handleSSHReady);
         socket.on(SocketEventConstants.SFTP_READY, handleSFTPStatus);
         socket.on(SocketEventConstants.SSH_EMIT_ERROR, handleSSHError);
+        socket.on('connect', () => console.log('Connected'));
+        socket.on('disconnect', () => console.log('Disconnected'));
+        socket.on('connect_error', (error) => console.error('Error:', error));
 
-        socket.on("connect", () => {
-            if (reconnectTimeoutRef.current) {
-                clearTimeout(reconnectTimeoutRef.current);
-                reconnectTimeoutRef.current = null;
-            }
-        })
-        socket.on("disconnect", () => {
-            updateStatus(sessionId, 'disconnected', 'Disconnected from server');
-        });
-        socket.on('connect_error', (error) => {
-            console.log('Socket connection error:', error);
-            updateStatus(sessionId, 'error', `Connection error: ${error.message}`);
 
-        });
         return () => {
+
             socket.off(SocketEventConstants.SSH_READY, handleSSHReady);
+            socket.off(SocketEventConstants.SFTP_READY, handleSFTPStatus);
             socket.off(SocketEventConstants.SSH_EMIT_ERROR, handleSSHError);
             socket.off("connect");
             socket.off("connect_error");
             socket.off("disconnect");
-        };
+            closeIdleTabSession()
+        }
+
+
     }, [sessionId]);
+
 
 
     React.useEffect(() => {

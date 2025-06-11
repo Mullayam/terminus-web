@@ -153,10 +153,10 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
                             </span>
                         </div> */}
                         <PathBreadcrumb
-                        handleSetCurrentDir={handleSetCurrentDir}
-                        loading={loading}
-                        fetchFolderSuggestions={async(path: string) => ["", "a", "b", "c","root","snap"]}
-                        currentPath={path}
+                            handleSetCurrentDir={handleSetCurrentDir}
+                            loading={loading}
+                            fetchFolderSuggestions={async (path: string) => ["Comming Soon , till Then wait, hahahah"]}
+                            currentPath={path}
                         />
                     </div>
                     <div className="flex items-center space-x-2">
