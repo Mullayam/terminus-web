@@ -1,22 +1,36 @@
-import { Terminal } from 'lucide-react';
+import { FilesIcon, Terminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 import { useSidebarState } from '@/store/sidebarStore';
+import { useSSHStore } from "@/store/sshStore";
 
 interface NavItem {
   icon: typeof Terminal;
   label: 'Terminal' | 'SFTP';
   color?: string;
+  state: boolean
 }
 
 export function Sidebar() {
+  const { sessions, activeTabId } = useSSHStore()
   const { activeItem, setActiveItem } = useSidebarState()
   const [navItems, setNavItems] = useState<NavItem[]>([
-    { icon: Terminal, label: 'Terminal' },
+    { icon: Terminal, label: 'Terminal', state: true },
   ]);
+  useEffect(() => {
+    if (sessions && activeTabId && sessions[activeTabId]) {
+      const mySession = sessions[activeTabId]
+      const sftpItem = navItems.some((item) => item.label !== "SFTP")
+      sftpItem && mySession.sftp_enabled && setNavItems([...navItems, {
+        label: "SFTP",
+        icon: FilesIcon,
+        state: mySession.sftp_enabled
+      }])
 
+    }
+  }, [sessions, activeTabId])
 
 
   return (

@@ -1,4 +1,4 @@
-import { ChevronRight, type LucideIcon } from "lucide-react"
+import { ChevronRight } from "lucide-react"
 import {
   Settings2,
   SquareTerminal,
@@ -20,18 +20,23 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
 import { NavLink } from "react-router-dom"
-import { useEffect, useState } from "react";
-import { useSSHStore } from "@/store/sshStore";
 
 export function NavMain() {
-  const { sessions, activeTabId } = useSSHStore()
-  const [navItems, setNavItems] = useState([
+
+  const navItems = [
     {
       title: "SSH",
       url: "/ssh",
       icon: SquareTerminal,
       isActive: true,
-      state: false
+
+    },
+    {
+      title: "SFTP",
+      url: "/ssh/sftp",
+      icon: FilesIcon,
+      isActive: false,
+
     },
     {
       title: "More",
@@ -44,23 +49,10 @@ export function NavMain() {
         },
       ],
     },
-  ]);
+  ]
 
 
-  useEffect(() => {
-    if (sessions && activeTabId && sessions[activeTabId]) {
-      const mySession = sessions[activeTabId]
-      const sftpItem = navItems.some((item) => item.title !== "SFTP")
-      sftpItem && mySession.sftp_enabled && setNavItems([...navItems, {
-        title: "SFTP",
-        url: "/ssh/sftp",
-        icon: FilesIcon,
-        isActive: false,
-        state: mySession.sftp_enabled
-      }])
 
-    }
-  }, [sessions, activeTabId])
 
   return (
     <SidebarGroup>
@@ -75,9 +67,7 @@ export function NavMain() {
           >
             <SidebarMenuItem>
               <CollapsibleTrigger asChild>
-                <NavLink to={item.url} state={{
-                  sftp_enabled: item.state
-                }}>
+                <NavLink to={item.url}>
                   <SidebarMenuButton tooltip={item.title}>
                     {item.icon && <item.icon />}
                     {item.title}

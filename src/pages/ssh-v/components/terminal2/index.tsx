@@ -16,12 +16,11 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
                 {isSidebarOpen && <Sidebar />}
             </div>
             <div className="flex-1 flex flex-col">
-                {!location.pathname.includes("/ssh/terminal") && (
+                {location.pathname.includes("/ssh/terminal") && (
                     <TopBar
                         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
                         onToggleRightSidebar={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
                         isRightSidebarOpen={isRightSidebarOpen}
-
                     />
                 )}
                 <div className="flex flex-1">
