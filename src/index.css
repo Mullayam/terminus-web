@@ -65,7 +65,6 @@ html {
   }
 }
 .xterm {
- 
   /* Set scrollbar width for Webkit browsers */
   scrollbar-width: thin;
   scrollbar-color: #535391 #1e1e1e; /* Thumb color, Track color */
@@ -86,9 +85,16 @@ html {
   border-radius: 4px; /* Optional: makes the thumb rounded */
   border: 1px solid #1e1e1e; /* Optional: adds a border */
 }
-.suggestion-box {
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  overflow: hidden;
-  font-size: 14px;
-  line-height: 1.5;
+/* Apply green scrollbar only to elements with .scrollbar-green */
+.scrollbar-green::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-green::-webkit-scrollbar-thumb {
+  background-color: #42bf71;
+  border-radius: 4px;
+}
+
+.scrollbar-green::-webkit-scrollbar-track {
+  background-color: #2a2b36;
 }

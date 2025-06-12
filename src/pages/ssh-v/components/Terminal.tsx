@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
 import "@xterm/xterm/css/xterm.css";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -19,11 +19,13 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 
 import { SocketEventConstants } from "@/lib/sockets/event-constants";
 
-import { useCommandStore, useStore } from "@/store";
+import { useCommandStore } from "@/store";
 import { sound } from "@/lib/utils";
-import { io, Socket } from "socket.io-client";
-import { useTerminalStore } from '@/store/terminalStore';
-import { useSSHStore } from '../../../store/sshStore';
+import { Socket } from "socket.io-client";
+import { useTerminalStore } from "@/store/terminalStore";
+import { useSSHStore } from "@/store/sshStore";
+import AISuggestionBox from "./terminal2/suggestion-box";
+import useAudio from "@/hooks/useAudio";
 
 // https://github.com/xtermjs/xterm.js/blob/master/demo/client.ts
 const XTerminal = ({
@@ -35,16 +37,27 @@ const XTerminal = ({
   sessionId: string;
   backgroundColor?: string;
 }) => {
-  const { logs, addLogLine } = useTerminalStore()
+  const { play } = useAudio(sound)
+  const isRendered = useRef(false);
+  const { sessions } = useSSHStore();
+  const [suggestionPos, setSuggestionPos] = useState({ top: 0, left: 0 });
+  const [isVisible, setIsVisible] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [commandBuffer, setCommandBuffer] = useState<string>("");
+  const { logs, addLogLine } = useTerminalStore();
+  const { allCommands, recentCommands } = useCommandStore();
   const terminalRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
-  const isRendered = useRef(false);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const { sessions } = useSSHStore()
+  const { command, clickType, setCommand, addRecentCommand } = useCommandStore();
 
-  const { command, clickType, setCommand } = useCommandStore();
-  const defaultBellSound = new Audio(sound);
+  const filteredSuggestions = useMemo(() => {
 
+    if (commandBuffer == "") {
+      return suggestions
+    }
+    return suggestions.filter((command) => command.includes(commandBuffer));
+  }, [commandBuffer])
   function getSearchOptions(): ISearchOptions {
     return {
       regex: (document.getElementById("regex") as HTMLInputElement).checked,
@@ -67,6 +80,22 @@ const XTerminal = ({
         : undefined,
     };
   }
+  const updateSuggestionBox = () => {
+    const textarea = terminalRef.current?.querySelector(
+      ".xterm-helper-textarea"
+    ) as HTMLTextAreaElement | null;
+    const terminalRect = terminalRef.current?.getBoundingClientRect();
+
+    if (textarea && terminalRect) {
+      const left = parseFloat(textarea.style.left);
+      const top = parseFloat(textarea.style.top);
+
+      setSuggestionPos({
+        left: left,
+        top: top + 20,
+      });
+    }
+  };
 
   useEffect(() => {
     if (!terminalRef.current) return;
@@ -113,14 +142,15 @@ const XTerminal = ({
       socket.emit(SocketEventConstants.SSH_EMIT_INPUT, input);
     });
 
-    term.onKey(() => {
-      defaultBellSound.play();
-    });
-
     term.onResize((size) => {
       socket.emit(SocketEventConstants.SSH_EMIT_RESIZE, size);
     });
 
+
+    const t = logs[sessionId];
+    if (t?.length) {
+      term.write(t.join(""));
+    }
     const handleResize = () => {
       fitAddon.fit();
     };
@@ -132,38 +162,126 @@ const XTerminal = ({
     });
 
     window.addEventListener("resize", handleResize);
-    requestAnimationFrame(() => {
-      if (fitAddonRef.current) {
-        fitAddonRef.current.fit();
-      }
-    });
+    // requestAnimationFrame(() => {
+    //   if (fitAddonRef.current) {
+    //     fitAddonRef.current.fit();
+    //   }
+    // });
 
-    const t = logs[sessionId];
-    if (t?.length) {
-      term.write(t.join(""));
-    }
-
+    setSuggestions(
+      Array.from(new Set(allCommands
+        .map((c) => c.command.toLocaleLowerCase())
+        .concat(recentCommands)))
+    );
     return () => {
       window.removeEventListener("resize", handleResize);
       socket.off(SocketEventConstants.SSH_EMIT_DATA);
-      term.dispose(); // allow clean re-init
+      term.dispose();
       termRef.current = null;
     };
-  }, [sessionId, socket]); // Remove `sessions` from deps — it's causing unnecessary remounts
+  }, [sessionId, socket]);
 
   useEffect(() => {
-    if (clickType) {
+    const handleKey = ({
+      key,
+      domEvent,
+    }: {
+      key: string;
+      domEvent: KeyboardEvent;
+    }) => {
+
+      const isEnter = domEvent.key === "Enter";
+      const isBackspace = domEvent.key === "Backspace";
+      const isPrintable =
+        domEvent.key.length === 1 &&
+        !domEvent.ctrlKey &&
+        !domEvent.metaKey &&
+        !domEvent.altKey;
+      if (domEvent.ctrlKey && domEvent.code === "Space") {
+        domEvent.preventDefault();
+        setIsVisible(true)
+      }
+      if (isEnter) {
+        const trimmed = commandBuffer.trim();
+        if (trimmed.length > 0) {
+
+          setSuggestions(prev => [...prev, trimmed])
+          addRecentCommand(trimmed);
+        }
+        setCommandBuffer("");
+        setIsVisible(false);
+        return;
+      }
+
+      if (isBackspace) {
+        const updated = commandBuffer.slice(0, -1);
+        setCommandBuffer(updated);
+        setIsVisible(
+          updated.trim() !== "" &&
+          suggestions.some((cmd) => cmd.includes(updated))
+        );
+        return;
+      }
+
+      if (isPrintable) {
+        const updated = commandBuffer + key;
+        setCommandBuffer(updated);
+        setIsVisible(
+          updated.trim() !== "" &&
+          suggestions.some((cmd) => cmd.includes(updated))
+        );
+      }
+    };
+
+    const disposeOnCursorMove = termRef.current?.onCursorMove(updateSuggestionBox);
+    const disposeOnKey = termRef.current?.onKey(handleKey);
+    const disposeBell = termRef.current?.onBell(() => {
+      play();
+    });
+
+    const disposeTitle = termRef.current?.onTitleChange((title) => {
+      document.title = `Terminal: ${title}`;
+    });
+
+    return () => {
+      disposeOnCursorMove?.dispose?.();
+      disposeOnKey?.dispose?.();
+      disposeBell?.dispose?.();
+      disposeTitle?.dispose?.();
+
+    };
+  }, [commandBuffer]);
+
+  useEffect(() => {
+    if (clickType === "single") {
       termRef.current?.input(command);
+      setIsVisible(false);
       setCommand("", "single");
+    } else {
+      termRef.current?.input(`${command}\r`);
+      setCommand("", "double");
     }
-  }, [clickType]);
+  }, [command]);
 
   return (
-    <div
-      ref={terminalRef}
-      id="terminal"
-      style={{ width: "100%", height: "100%" }}
-    />
+    <div className="relative w-full h-full">
+      <div
+        ref={terminalRef}
+        id="terminal"
+        style={{ width: "100%", height: "100%" }}
+      />
+
+      {/* Suggestion box positioned relative to .xterm-helper-textarea */}
+
+      <AISuggestionBox
+        suggestionPos={suggestionPos}
+        isVisible={isVisible}
+        suggestions={filteredSuggestions}
+        terminalHeight={terminalRef.current?.offsetHeight || 600}
+        terminalWidth={terminalRef.current?.offsetWidth || 800}
+        setSuggestions={setSuggestions}
+      />
+    </div>
   );
 };
 

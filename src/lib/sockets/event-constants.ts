@@ -9,6 +9,7 @@ export enum SocketEventConstants {
   terminal_output = "@@terminal_output",
   terminal_input = "@@terminal_input",
   join_terminal = "@@join_terminal",
+  session_not_found = "@@session_not_found",
 
 
   SSH_START_SESSION = "@@SSH_START_SESSION",

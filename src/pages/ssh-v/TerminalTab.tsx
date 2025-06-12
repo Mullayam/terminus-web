@@ -136,6 +136,10 @@ export default function TerminalTab({ sessionId }: Props) {
         const handleCLoseSession = () => disconnect(sessionId, activeTabId!)
         const closeIdleTabSession = startTracking(handleCLoseSession);
 
+        const storeHandshakeLogs = (data: string) => {
+            //  console.log(data)   
+        }
+        socket.on(SocketEventConstants.SSH_EMIT_LOGS, storeHandshakeLogs);
         socket.on(SocketEventConstants.SSH_READY, handleSSHReady);
         socket.on(SocketEventConstants.SFTP_READY, handleSFTPStatus);
         socket.on(SocketEventConstants.SSH_EMIT_ERROR, handleSSHError);
@@ -146,6 +150,7 @@ export default function TerminalTab({ sessionId }: Props) {
 
         return () => {
 
+            socket.off(SocketEventConstants.SSH_EMIT_LOGS, storeHandshakeLogs);
             socket.off(SocketEventConstants.SSH_READY, handleSSHReady);
             socket.off(SocketEventConstants.SFTP_READY, handleSFTPStatus);
             socket.off(SocketEventConstants.SSH_EMIT_ERROR, handleSSHError);
@@ -157,9 +162,6 @@ export default function TerminalTab({ sessionId }: Props) {
 
 
     }, [sessionId]);
-
-
-
     React.useEffect(() => {
         if (activeTabData !== null) {
             form.reset(activeTabData);
@@ -187,9 +189,20 @@ export default function TerminalTab({ sessionId }: Props) {
                                     <span>Username: {sessions[sessionId].username}</span>
                                     <span>SFTP:  {sessions[sessionId].sftp_enabled ? 'Enabled' : 'Disabled'} </span>
                                 </div>
+                                <div className="flex flex-row gap-4">
+                                    <div>
+                                        Socket: {socketRef.current?.connected ? <span
+                                            className={`size-2 inline-block rounded-full me-2 bg-green-500`}
+                                        ></span> : <span
+                                            className={`size-2 inline-block rounded-full me-2 bg-red-500`}
+                                        ></span>}</div>
+                                    <div className='cursor-pointer' onClick={() =>  window.navigator.clipboard.writeText(sessionId)}>
+                                        Session:  {sessionId}
+                                    </div>
+                                </div>
                                 <div className=" text-gray-200 text-xs text-right flex flex-row gap-4">
-                                    {!socketRef.current?.connected && <RefreshCcw className='w-4 h-4' />}
-                                    <InfoBadge status={sessions[sessionId].status} />
+                                    {!socketRef.current?.connected && <RefreshCcw className='w-4 h-4 animate-spin' />}
+                                    <InfoBadge status={socketRef.current?.connected ? sessions[sessionId].status : 'disconnected'} />
                                 </div>
                             </div>
                         </>

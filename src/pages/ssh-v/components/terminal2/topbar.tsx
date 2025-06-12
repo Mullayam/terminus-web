@@ -1,14 +1,14 @@
 import { Menu, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { SideBarSheet } from './sidebarSheet';
+
 
 import { HostDialog } from './hostDialog';
 import { useState } from 'react';
 
 
 import { useSSHStore } from '@/store/sshStore';
-import { useTerminalStore } from '../../../../store/terminalStore';
+import { useTerminalStore } from '@/store/terminalStore';
 
 export interface Tab {
   id: number;
@@ -17,10 +17,12 @@ export interface Tab {
 
 interface TopBarProps {
   onToggleSidebar: () => void;
+  onToggleRightSidebar: () => void;
+  isRightSidebarOpen: boolean
 
 }
 
-export function TopBar({ onToggleSidebar }: TopBarProps) {
+export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOpen }: TopBarProps) {
   const [open, setOpen] = useState(false)
   const {
     sessions,
@@ -118,9 +120,14 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
 
           </div>
         </div>
-        <div className="flex items-center space-x-4 mx-4">
-          <SideBarSheet />
+        <div
+          className={`flex items-center space-x-4 cursor-pointer text-gray-400 hover:text-gray-300 transition-all duration-300 ease-in-out`}
+          style={{ marginRight: isRightSidebarOpen ? '24rem' : '1rem' }} // 96 = 24rem, 4 = 1rem
+          onClick={onToggleRightSidebar}
+        >
+          <Menu className="h-4 w-4 text-gray-400" />
         </div>
+
         <HostDialog open={open} setOpen={setOpen} />
       </div>
     </div>

@@ -9,11 +9,11 @@ import ProtectedLayout from "@/pages/layout";
 import NewSSH from '@/pages/ssh-v/page';
 const SFTP = lazy(() => import("@/pages/sftp"));
 const TerminalComponent = lazy(() => import("@/pages/shared-terminal"));
-const TerminalLayout = lazy(() => import("@/pages/ssh-v/components/terminal2"));
 
 
 
 import { createBrowserRouter } from "react-router-dom";
+import SocketContextProvider from "@/context/socket-context";
 export const router = createBrowserRouter([
     {
         path: "/",
@@ -27,9 +27,11 @@ export const router = createBrowserRouter([
     },
     {
         path: "/ssh/terminal/:sessionid",
-        element: <TerminalLayout>
-            <TerminalComponent />
-        </TerminalLayout>,
+        element: (
+            <SocketContextProvider>
+                <TerminalComponent />
+            </SocketContextProvider>
+        ),
     },
     {
         path: "/ssh",
