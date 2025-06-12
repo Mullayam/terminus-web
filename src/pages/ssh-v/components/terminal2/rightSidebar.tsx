@@ -1,9 +1,10 @@
 import { useTabStore } from "@/store/rightSidebarTabStore";
-import React, { useRef, useEffect } from "react";
+
 import { CommandList } from "./commandList";
-import { X } from "lucide-react";
+
 import TerminalShare from "./share";
 import TabContainer from "./tabContainer";
+import SettingsTab from "./settingsTab";
 
 interface RightSidebarProps {
     onClose: () => void;
@@ -23,7 +24,7 @@ export function RightSidebar({
             case 'sharing':
                 return <TerminalShare />;
             case 'settings':
-
+                return <SettingsTab />;
             default:
                 return <CommandList />;
         }

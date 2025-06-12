@@ -17,13 +17,12 @@ export default function TabContainer({ children }: TabContainerProps) {
   const { activeTab, setActiveTab } = useTabStore();
 
   return (
-    <div className="h-full flex flex-col  border-l border-[#1a1b28]">
+    <div className="h-full flex flex-col border-l border-[#1a1b28]">
       {/* Tab Navigation */}
-      <div className="flex border-b  border-[#1f2031] ">
+      <div className="flex border-b  border-gray-700 ">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
-
           return (
             <button
               key={tab.id}
