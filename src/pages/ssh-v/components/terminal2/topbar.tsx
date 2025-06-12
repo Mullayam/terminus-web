@@ -9,6 +9,7 @@ import { useState } from 'react';
 
 import { useSSHStore } from '@/store/sshStore';
 import { useTerminalStore } from '@/store/terminalStore';
+import { useSidebarState } from '@/store/sidebarStore';
 
 export interface Tab {
   id: number;
@@ -35,6 +36,8 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
   } = useSSHStore();
 
   const { removeLog } = useTerminalStore()
+  const { activeItem } = useSidebarState()
+
   const activeTab = tabs.find((tab) => tab.id === activeTabId);
   const current = activeTab ? sessions[activeTab.sessionId] : undefined;
 
@@ -120,13 +123,15 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
 
           </div>
         </div>
-        <div
+        {activeItem === "Terminal" && <div
           className={`flex items-center space-x-4 cursor-pointer text-gray-400 hover:text-gray-300 transition-all duration-300 ease-in-out`}
           style={{ marginRight: isRightSidebarOpen ? '24rem' : '1rem' }} // 96 = 24rem, 4 = 1rem
           onClick={onToggleRightSidebar}
         >
           <Menu className="h-4 w-4 text-gray-400" />
         </div>
+        }
+
 
         <HostDialog open={open} setOpen={setOpen} />
       </div>
