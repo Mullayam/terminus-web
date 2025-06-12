@@ -15,14 +15,12 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
             <div className="hidden lg:flex">
                 {isSidebarOpen && <Sidebar />}
             </div>
-            <div className="flex-1 flex flex-col">
-                {location.pathname.includes("/ssh/terminal") && (
+            <div className="flex-1 flex flex-col">               
                     <TopBar
                         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
                         onToggleRightSidebar={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
                         isRightSidebarOpen={isRightSidebarOpen}
-                    />
-                )}
+                    />            
                 <div className="flex flex-1">
                     <div className="w-full lg:flex">
                         {children}
