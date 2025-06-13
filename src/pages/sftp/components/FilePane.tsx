@@ -16,28 +16,9 @@ import EnhancedFileUploadPopup from "@/components/FileUpload";
 import { Progress } from "@/components/ui/progress";
 import { useSFTPContext } from "../SftpClient";
 import PathBreadcrumb from "./PathBreadcrumb";
-interface FileUploadProgress {
-    percentage: string;
-    transferred: {
-        size: string;
-        unit: string;
-    };
-    length: {
-        size: string;
-        unit: string;
-    };
-    remaining: {
-        size: string;
-        unit: string;
-    };
-    eta: number;
-    runtime: number;
-    delta: number;
-    speed: {
-        speed: string;
-        unit: string;
-    };
-}
+import { ShowProgressBar } from "./DownloadProgress";
+import { DownloadProgressType } from "./only-sftp-client";
+
 export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoading, loading, hasError }: any) {
     const splitedPath = path.split("/") as string[];
     const { socket } = useSFTPContext()
@@ -49,7 +30,7 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
     const [showHiddenFiles, setShowHiddenFiles] = useState<boolean>(false);
     const [uploadFileName, setUploadFileName] = useState<string | null>(null);
 
-    const [fileUploadProgress, setFileUploadProgress] = useState<FileUploadProgress | null>(null);
+    const [fileUploadProgress, setFileUploadProgress] = useState<DownloadProgressType | null>(null);
     const handleHiddenFilesFilter = () => {
         setShowHiddenFiles(!showHiddenFiles);
         if (!showHiddenFiles) {
@@ -115,8 +96,9 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
         // socket!.emit(SocketEventConstants.SFTP_CONNECT)
     }
     useEffect(() => {
-        socket!.on(SocketEventConstants.FILE_UPLOADED_PROGRESS, (data: FileUploadProgress) => {
+        socket!.on(SocketEventConstants.FILE_UPLOADED_PROGRESS, (data: DownloadProgressType) => {
             setFileUploadProgress(data)
+
         })
         socket!.on(SocketEventConstants.FILE_UPLOADED, () => {
             setUploadFileName(null)
@@ -254,23 +236,33 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
                         </div>
                     )}
                 </ScrollArea>
+
+
                 {
                     uploadFileName && fileUploadProgress && (
-                        <div className="p-2 bg-gray-900 text-sm">
-                            <div className="flex justify-between items-center">
-                                <span>{uploadFileName}</span>
+                        // <div className="p-2 bg-gray-900 text-sm">
+                        //     <div className="flex justify-between items-center">
+                        //         <span>{uploadFileName}</span>
 
-                                <span>
-                                    {fileUploadProgress.percentage},
-                                    Transferred:{fileUploadProgress.transferred?.size}{fileUploadProgress.transferred?.unit} {" - "}
-                                    Total: {fileUploadProgress.length?.size}{fileUploadProgress.length?.unit}{" - "}
-                                    Speed: {fileUploadProgress.speed?.speed}{fileUploadProgress.speed?.unit}{" - "}
-                                    Remaining:{fileUploadProgress.remaining?.size}{fileUploadProgress.remaining?.unit}{" - "}
-                                    ETA: {fileUploadProgress.eta} seconds
-                                </span>
-                            </div>
-                            <Progress value={parseInt(fileUploadProgress.percentage)} className="h-1.5 w-full" />
-                        </div>
+                        //         <span>
+                        //             {fileUploadProgress.percentage},
+                        //             Transferred:{fileUploadProgress.transferred?.size}{fileUploadProgress.transferred?.unit} {" - "}
+                        //             Total: {fileUploadProgress.length?.size}{fileUploadProgress.length?.unit}{" - "}
+                        //             Speed: {fileUploadProgress.speed?.speed}{fileUploadProgress.speed?.unit}{" - "}
+                        //             Remaining:{fileUploadProgress.remaining?.size}{fileUploadProgress.remaining?.unit}{" - "}
+                        //             ETA: {fileUploadProgress.eta} seconds
+                        //         </span>
+                        //     </div>
+                        //     <Progress value={parseInt(fileUploadProgress.percentage)} className="h-1.5 w-full" />
+                        // </div>
+                        <ShowProgressBar
+                            index={1}
+                            download={fileUploadProgress}
+                            onCancel={() => {
+                                socket!.emit(SocketEventConstants.CANCEL_UPLOADING, { fileName: uploadFileName });
+                            }}
+
+                        />
                     )
                 }
             </div>

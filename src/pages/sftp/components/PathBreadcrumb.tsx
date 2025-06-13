@@ -84,11 +84,11 @@ export default function PathBreadcrumb({
                             onChange={(e) => setTempPath(e.target.value)}
                             onBlur={handleInputBlur}
                             onKeyDown={handleInputKeyDown}
-                            className="border px-2 py-1 rounded w-96 text-green-600 bg-background"
+                            className="border px-2 py-1 font-mono whitespace-nowrap rounded w-96 text-green-600 bg-background "
                         />
                     ) :
                         <div className='flex items-center  justify-center gap-4'>
-                            <div>
+                            <div className='border p-1 bg-[#2a2b36] rounded-lg font-mono whitespace-nowrap '>
                                 {
                                     splitedPath.map((item: string, index: number) => {
                                         const fullPath = splitedPath.slice(0, index + 1).join('/');
@@ -96,8 +96,7 @@ export default function PathBreadcrumb({
                                             <React.Fragment key={fullPath}>
                                                 <span
                                                     onClick={() => handleSetCurrentDir(`/${fullPath}`)}
-
-                                                    className={`hover:underline cursor-pointer hover:text-green-600 ${index === splitedPath.length - 1 ? 'font-semibold text-green-400' : ''
+                                                    className={`hover:underline cursor-pointer   hover:text-green-600 ${index === splitedPath.length - 1 ? 'font-semibold text-green-400' : ''
                                                         }`}
                                                 >
                                                     {item}
@@ -122,12 +121,13 @@ export default function PathBreadcrumb({
 
             {/* Autocomplete Suggestions */}
             {editMode && showSuggestions && suggestions.length > 0 && (
-                <div className="absolute z-50 mt-1 w-96 bg-neutral-600 shadow-md rounded border border-gray-300 max-h-60 overflow-y-auto">
+                <div className="absolute z-50 mt-1 w-96    bg-[#1a1b26] border border-[#2c2d3c] rounded-lg text-green-400  p-2  max-h-60 overflow-y-auto">
                     {suggestions.map((suggestion) => (
                         <div
                             key={suggestion}
                             onClick={() => handleSuggestionClick(suggestion)}
-                            className="px-3 py-2 hover:bg-green-100 cursor-pointer"
+                            className="group flex justify-between items-center font-mono whitespace-nowrap overflow-hidden hover:bg-[#2a2b36] px-2 py-1 rounded text-xs transition-colors duration-150 border-b border-[#2a2b36] last:border-b-0 text-green-400 hover:text-green-300 cursor-pointer"
+
                         >
                             {suggestion}
                         </div>

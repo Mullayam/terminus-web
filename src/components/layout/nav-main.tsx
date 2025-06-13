@@ -33,14 +33,14 @@ export function NavMain() {
     },
     {
       title: "SFTP",
-      url: "/ssh/sftp",
+      url: "/ssh/only-sftp",
       icon: FilesIcon,
       isActive: false,
 
     },
     {
       title: "More",
-      url: "#",
+      url: "https://github.com/Mullayam/terminus-web",
       icon: Settings2,
       items: [
         {

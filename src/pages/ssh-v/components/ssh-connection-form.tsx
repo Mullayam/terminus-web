@@ -16,11 +16,12 @@ import { useSSHStore } from "@/store/sshStore"
 
 
 
-export default function SSHConnectionForm<T>({ form, handleSubmit, isLoading,
+export default function SSHConnectionForm<T>({ form, handleSubmit, isLoading, children
 }: {
   form: UseFormReturn<any, any, any>,
   handleSubmit: (data: any) => Promise<void>
   isLoading: boolean,
+  children?: React.ReactNode
 }) {
 
   const { removeTab, activeTabId, tabs, setActiveTab, sessions } = useSSHStore()
@@ -33,13 +34,16 @@ export default function SSHConnectionForm<T>({ form, handleSubmit, isLoading,
         <CardHeader className="space-y-1 flex flex-row items-center justify-between">
 
           <CardTitle>SSH Connection Form</CardTitle>
-          <Button size={"icon"} variant={"outline"} onClick={() => {
-            activeTabId && removeTab(activeTabId)
-            setActiveTab((tabs.length - 1) > 0 ? (tabs.length - 1).toString() : "")
-          }} className="rounded-full ">
-            <X className="w-6 h-6 cursor-pointer" />
+          {
+            children ? children : <Button size={"icon"} variant={"outline"} onClick={() => {
+              activeTabId && removeTab(activeTabId)
+              setActiveTab((tabs.length - 1) > 0 ? (tabs.length - 1).toString() : "")
+            }} className="rounded-full ">
+              <X className="w-6 h-6 cursor-pointer" />
 
-          </Button>
+            </Button>
+          }
+
 
         </CardHeader>
         <CardContent>

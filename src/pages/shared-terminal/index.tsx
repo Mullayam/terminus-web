@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
 import "@xterm/xterm/css/xterm.css";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -19,15 +19,13 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 
 import { SocketEventConstants } from "@/lib/sockets/event-constants";
 
-import { useCommandStore, } from "@/store";
-import { sound } from "@/lib/utils";
 
-import { useSockets } from '../../hooks/use-sockets';
+import { useSockets } from '@/hooks/use-sockets';
 import { useParams } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
-import { AlertCircleIcon, RefreshCcw } from "lucide-react";
+import { RefreshCcw } from "lucide-react";
 import InfoBadge from "../ssh-v/components/InfoBadge";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
 
 
 // https://github.com/xtermjs/xterm.js/blob/master/demo/client.ts
@@ -35,13 +33,12 @@ const XTerminal = () => {
 
   const terminalRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
-
+  const [permissions, setPermissions] = useState("400");
   const fitAddonRef = useRef<FitAddon | null>(null);
   const { socket } = useSockets()
   const { sessionid } = useParams();
 
-  const { command, clickType, setCommand } = useCommandStore();
-  const defaultBellSound = new Audio(sound);
+
 
   function getSearchOptions(): ISearchOptions {
     return {
@@ -106,18 +103,17 @@ const XTerminal = () => {
 
 
     term.onData((input) => {
-      toast({
-        title: "Permission Denied",
-        description: "You don't have permission to run this command",
-        variant: "destructive",
+      if (permissions === "400") {
+        return toast({
+          title: "Permission Denied",
+          description: "You don't have permission to run this command",
+          variant: "destructive",
+        })
+      }
 
-      })
-      // socket.emit(SocketEventConstants.terminal_input, input);
+      socket.emit(SocketEventConstants.terminal_input, input);
     });
 
-    // term.onKey(() => {
-    //   // defaultBellSound.play();
-    // });
 
 
 
@@ -145,19 +141,59 @@ const XTerminal = () => {
         description: "The session you are looking for is not found",
         variant: "destructive",
       })
-
     })
+    socket.on(SocketEventConstants.session_info, (input: string) => {
+      term.write(`\x1b[31m${input}\r\n\x1b[0m`);
+      toast({
+        title: "Session Info",
+        description: input,
+        variant: "destructive",
+      })
+    })
+    socket.on(SocketEventConstants.SSH_DISCONNECTED, (input: string) => {
+      term.write(`\x1b[31m${input}\r\n\x1b[0m`);
+      toast({
+        title: "Session Disconnected",
+        description: input,
+        variant: "destructive",
+      })
+    })
+    socket.on(SocketEventConstants.SESSIONN_END, (input: string) => {
+      term.write(`\x1b[31m${input}\r\n\x1b[0m`);
+      toast({
+        title: "Session Terminated",
+        description: input,
+        variant: "destructive",
+      })
+    })
+    socket?.on(SocketEventConstants.SSH_PERMISSIONS, (input: string) => {
+      const data = JSON.parse(input) as {
+        socketId: string,
+        permissions: string,
+        sessionId: string
+      };
+      setPermissions(data.permissions)
+      if (data.permissions === "777") {
 
-
+        return toast({ title: "Permissions updated successfully", description: "You have full access to the terminal" })
+      }
+      toast({ title: "Permissions updated successfully", description: "You  can't write to the terminal" })
+    })
     return () => {
       window.removeEventListener("resize", handleResize);
       socket.off(SocketEventConstants.terminal_output);
       socket.off(SocketEventConstants.session_not_found);
+      socket.off(SocketEventConstants.session_info);
+      socket.off(SocketEventConstants.SESSIONN_END);
+      socket.off(SocketEventConstants.SSH_DISCONNECTED);
+      socket.off(SocketEventConstants.SSH_PERMISSIONS);
       term.dispose();
       termRef.current = null;
     };
   }, [sessionid]);
-
+  // useEffect(() => {
+    
+  // }, [permissions])
 
   return (
     <React.Fragment>

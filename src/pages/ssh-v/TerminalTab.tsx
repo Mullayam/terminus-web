@@ -8,7 +8,7 @@ import { SocketEventConstants } from '@/lib/sockets/event-constants';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import SSHConnectionForm from './components/ssh-connection-form';
-import { addData, getDataById, updateData } from '@/lib/idb';
+import { idb } from '@/lib/idb';
 
 import { useSSHStore } from '../../store/sshStore';
 import XTerminal from './components/Terminal';
@@ -19,6 +19,7 @@ import { RefreshCcw } from 'lucide-react';
 import { useIdleReconnect } from '@/hooks/useIdleReconnect';
 import { useSessionDisconnect } from '@/hooks/useSessionDisconnect';
 import { __config } from '@/lib/config';
+import { useTerminalStore } from '@/store/terminalStore';
 
 
 
@@ -64,9 +65,12 @@ export const DEFAULT_FORM_VALUES: FormValues = {
 }
 export default function TerminalTab({ sessionId }: Props) {
     const [isLoading, setIsLoading] = useState(false)
+    const [hostId, setHostId] = useState<string | null>(null)
     const startTracking = useIdleReconnect()
     const { disconnect } = useSessionDisconnect()
     const { setActiveTabData, activeTabData } = useStore()
+    const { addSharedSession, addPermissions, deletePermission, deleteSharedSession } = useTerminalStore()
+
     const { tabs, sessions, addSession, updateStatus, updateSftpStatus, activeTabId } = useSSHStore()
     const socketRef = useRef<Socket | null>(null);
 
@@ -78,12 +82,18 @@ export default function TerminalTab({ sessionId }: Props) {
 
     const handleSubmit = async (data: FormValues) => {
         if (data.saveCredentials) {
-            if (!await getDataById(data.host)) {
-                addData(data.host, data);
-            }
-            else {
-                updateData(data, data.host);
-            }
+            const randomId = Math.random().toString(36).substring(2, 9);
+            idb.has("hosts", hostId||"").then((exists) => {
+                if (!exists) {
+                    idb.addNestedItem("hosts", randomId, {
+                        id: randomId,
+                        ...data,
+                    });
+                } else {
+                    idb.updateItem("hosts", hostId!, data as any);
+                }
+            })
+
         }
         addSession({
             host: data.host,
@@ -97,6 +107,7 @@ export default function TerminalTab({ sessionId }: Props) {
         setActiveTabData(data);
         socketRef.current?.emit(SocketEventConstants.SSH_START_SESSION, JSON.stringify(data));
         setIsLoading(true);
+       hostId && setHostId(null)
 
     }
 
@@ -139,6 +150,17 @@ export default function TerminalTab({ sessionId }: Props) {
         const storeHandshakeLogs = (data: string) => {
             //  console.log(data)   
         }
+        const handleDeleteSession = (socketId: string) => {
+            deletePermission(activeTabId!, socketId)
+            deleteSharedSession(activeTabId!, socketId)
+        }
+        const handleAddSession = ({ socketId, socketIds }: { socketId: string, socketIds: string[] }) => {
+            addSharedSession(activeTabId!, socketIds)
+            addPermissions(activeTabId!, socketId, '400')
+        }
+
+        socket.on(SocketEventConstants.session_info, handleAddSession)
+        socket.on(SocketEventConstants.SSH_DISCONNECTED, handleDeleteSession);
         socket.on(SocketEventConstants.SSH_EMIT_LOGS, storeHandshakeLogs);
         socket.on(SocketEventConstants.SSH_READY, handleSSHReady);
         socket.on(SocketEventConstants.SFTP_READY, handleSFTPStatus);
@@ -149,11 +171,12 @@ export default function TerminalTab({ sessionId }: Props) {
 
 
         return () => {
-
+            socket.off(SocketEventConstants.SSH_DISCONNECTED, handleDeleteSession);
             socket.off(SocketEventConstants.SSH_EMIT_LOGS, storeHandshakeLogs);
             socket.off(SocketEventConstants.SSH_READY, handleSSHReady);
             socket.off(SocketEventConstants.SFTP_READY, handleSFTPStatus);
             socket.off(SocketEventConstants.SSH_EMIT_ERROR, handleSSHError);
+            socket.off(SocketEventConstants.session_info, handleAddSession);
             socket.off("connect");
             socket.off("connect_error");
             socket.off("disconnect");
@@ -165,6 +188,7 @@ export default function TerminalTab({ sessionId }: Props) {
     React.useEffect(() => {
         if (activeTabData !== null) {
             form.reset(activeTabData);
+            setHostId(activeTabData.id)
             setActiveTabData(null);
             return
         }
@@ -196,7 +220,7 @@ export default function TerminalTab({ sessionId }: Props) {
                                         ></span> : <span
                                             className={`size-2 inline-block rounded-full me-2 bg-red-500`}
                                         ></span>}</div>
-                                    <div className='cursor-pointer' onClick={() =>  window.navigator.clipboard.writeText(sessionId)}>
+                                    <div className='cursor-pointer' onClick={() => window.navigator.clipboard.writeText(sessionId)}>
                                         Session:  {sessionId}
                                     </div>
                                 </div>

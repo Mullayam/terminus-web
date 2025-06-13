@@ -1,4 +1,4 @@
-import { Avatar } from "@/components/ui/avatar";
+
 import { Button } from "@/components/ui/button";
 import {
     Select,
@@ -8,30 +8,39 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { } from "lucide-react";
-import { Share, Users, Plus, Play, Pause, Square, Clock, Globe, Copy, Share2, Check } from 'lucide-react';
+import { Users, Play, Pause, Square, Globe, Copy, Check } from 'lucide-react';
 
-import { Badge } from "@/components/ui/badge";
+
 import { SocketEventConstants } from "@/lib/sockets/event-constants";
 import { useEffect, useState } from "react";
 import { useSSHStore } from "@/store/sshStore";
 import { useTerminalStore } from '@/store/terminalStore';
 import { toast } from "@/hooks/use-toast";
+type SocketPermission = '400' | '700' | '777';
+
 const TerminalShare = () => {
     const { sessions, activeTabId } = useSSHStore()
-    const { sessionInfo, addSharedSession } = useTerminalStore()
+    const { sessionInfo, addPermissions } = useTerminalStore()
     const [isCopied, setIsCopied] = useState(false)
-
+    const [selectedSocketId, setSelectedSocketId] = useState<string | null>(null)
+    const info = sessionInfo?.shared_sessions[activeTabId!]
     const socket = sessions[activeTabId!].socket
     const handleCreateShareTerminalClick = () => {
-        socket?.emit(SocketEventConstants.CreateTerminal, activeTabId);
-
+        handleCopySessionLink();
+        toast({
+            title: "Terminal shared",
+            description: "Terminal shared successfully",
+        })
     }
-    const handleCreateSession = (e: React.FormEvent) => {
-        e.preventDefault();
-
-    };
-
-    const handleCopySessionLink = (sessionId: string) => {
+    const updateSessionSettings = (socketId: string, type: "pause" | "kick") => {
+        const data = {
+            socketId,
+            sessionId: activeTabId!,
+            type
+        }
+        socket?.emit(SocketEventConstants.SSH_SESSION, JSON.stringify(data))
+    }
+    const handleCopySessionLink = () => {
         const link = `${window.location.origin}/ssh/terminal/${activeTabId}`;
         navigator.clipboard.writeText(link);
         setIsCopied(true);
@@ -41,98 +50,78 @@ const TerminalShare = () => {
         return () => clearTimeout(timer);
 
     };
+    const updateSessionPermission = (socketId: string, permissions: SocketPermission) => {
 
-    const getStatusColor = (status: 'active' | 'paused' | 'ended') => {
-        switch (status) {
-            case 'active': return 'text-green-600 bg-green-100';
-            case 'paused': return 'text-yellow-600 bg-yellow-100';
-            case 'ended': return 'text-gray-600 bg-gray-100';
-            default: return 'text-gray-600 bg-gray-100';
-        }
-    };
+        const data = {
+            socketId,
+            permissions,
+            sessionId: activeTabId!
+        };
+        socket?.emit(SocketEventConstants.SSH_PERMISSIONS, JSON.stringify(data))
+    }
 
-    const getStatusIcon = (status: 'active' | 'paused' | 'ended') => {
-        switch (status) {
-            case 'active': return Play;
-            case 'paused': return Pause;
-            case 'ended': return Square;
-            default: return Square;
-        }
-    };
-
-    const formatTimeAgo = (date: Date) => {
-        const now = new Date();
-        const diff = now.getTime() - date.getTime();
-        const minutes = Math.floor(diff / (1000 * 60));
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-
-        if (minutes < 60) return `${minutes}m ago`;
-        if (hours < 24) return `${hours}h ago`;
-        return `${Math.floor(hours / 24)}d ago`;
-    };
 
     useEffect(() => {
-        socket?.on(SocketEventConstants.join_terminal, () => {
-            addSharedSession(activeTabId!)
-            toast({
-                title: "Terminal shared",
-                description: "Terminal shared successfully",
-            })
+        socket?.on(SocketEventConstants.SSH_PERMISSIONS, (input: string) => {
+            const data = JSON.parse(input) as {
+                socketId: string,
+                permissions: SocketPermission,
+                sessionId: string
+            };
+            addPermissions(activeTabId!, data.socketId, data.permissions)
+            toast({ title: "Permissions updated successfully" })
         })
+
+
+
         return () => {
-            socket?.off(SocketEventConstants.join_terminal);
+
+            socket?.off(SocketEventConstants.SSH_PERMISSIONS);
         }
-    }, [socket])
+    }, [socket, activeTabId])
     return (
         <div className="p-4">
-
             <div className="flex flex-col w-full">
-                {sessionInfo?.shared_sessions?.includes(activeTabId!) ? (
+                {info?.socketIds.length > 0 ? (
                     <div className="flex flex-col">
-                        <h3 className="text-lg font-semibold text-gray-300">Terminal Sharing sessions </h3>
+                        <h3 className="text-lg font-semibold text-gray-300">Terminal Sharing sessions
+                            {info?.socketIds.length > 0 ? info?.socketIds.length : 0}
+                        </h3>
 
-                        {sessionInfo?.shared_sessions.map((session) => {
+                        {info?.socketIds.map((session) => {
                             return (
                                 <div
+                                    onClick={() => setSelectedSocketId(session)}
                                     key={session}
                                     className="bg-transparent rounded-lg p-4 border border-gray-200 hover:border-blue-300 transition-colors"
                                 >
 
-                                    <div className="space-y-2">
-                                        <div className="flex items-center space-x-1 text-gray-600">
-                                            <Users size={12} />
-                                            {/* <span>{session} participant{session.participants !== 1 ? 's' : ''}</span> */}
-                                        </div>
-
-                                        <div className="bg-transparent rounded p-2">
-                                            <div className="flex items-center justify-between">
-                                                <code className="text-xs text-gray-600 font-mono truncate flex-1 mr-2">
-                                                    {session}
-                                                </code>
-                                                <button
-                                                    onClick={() => handleCopySessionLink(session)}
-                                                    className={`p-1 rounded transition-colors ${isCopied
-                                                        ? 'bg-green-100 text-green-600'
-                                                        : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
-                                                        }`}
-                                                >
-                                                    {isCopied ? <Check size={12} /> : <Copy size={12} />}
-                                                </button>
-                                            </div>
+                                    <div className="bg-transparent rounded p-2">
+                                        <div className="flex items-center justify-between">
+                                            <code className="text-xs text-gray-600 font-mono truncate flex-1 mr-2">
+                                                {session}
+                                            </code>
+                                            <button
+                                                onClick={handleCopySessionLink}
+                                                className={`p-1 rounded transition-colors ${isCopied
+                                                    ? 'bg-green-100 text-green-600'
+                                                    : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+                                                    }`}
+                                            >
+                                                {isCopied ? <Check size={12} /> : <Copy size={12} />}
+                                            </button>
                                         </div>
 
                                         <div className="flex space-x-2 pt-1">
-                                            {/* {session.status === 'active' && ( */}
-                                            <button className="flex-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 py-1 px-2 rounded text-xs font-medium transition-colors">
+
+                                            <button
+                                                onClick={() => updateSessionSettings(session, "pause")}
+                                                className="flex-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 py-1 px-2 rounded text-xs font-medium transition-colors">
                                                 Pause
                                             </button>
-                                            {/* )} */}
-                                            {/* {session.status === 'paused' && ( */}
-                                            <button className="flex-1 bg-green-100 hover:bg-green-200 text-green-700 py-1 px-2 rounded text-xs font-medium transition-colors">
-                                                Resume
-                                            </button>
-                                            {/* )} */}
-                                            <button className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 py-1 px-2 rounded text-xs font-medium transition-colors">
+                                            <button
+                                                onClick={() => updateSessionSettings(session, "kick")}
+                                                className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 py-1 px-2 rounded text-xs font-medium transition-colors">
                                                 End
                                             </button>
                                         </div>
@@ -163,34 +152,29 @@ const TerminalShare = () => {
 
                 )}
             </div>
-
-
-            {sessionInfo?.shared_sessions?.includes(activeTabId!) && (
+            {selectedSocketId && (
                 <div className="space-y-4">
                     <div className="space-y-2">
                         <label className="text-sm text-slate-400">
                             Viewers permissions:
                         </label>
                         <Select
-                            disabled
                             defaultValue="view"
-                            onValueChange={(value) => {
-
-                            }}
+                            onValueChange={(value) => updateSessionPermission(selectedSocketId, value as any)}
                         >
                             <SelectTrigger
                                 className="w-full bg-slate-800 text-gray-200 border-slate-700"
-                                defaultValue={"read"}
+                                defaultValue={"400"}
                             >
                                 <SelectValue placeholder="Select permission" />
                             </SelectTrigger>
-                            <SelectContent defaultValue={"read"}>
-                                <SelectItem value="read">view only</SelectItem>
-                                <SelectItem value="write">can edit</SelectItem>
+                            <SelectContent defaultValue={"400"}>
+                                <SelectItem value="400">can view</SelectItem>
+                                <SelectItem value="777">can edit</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
- 
+
                 </div>
             )}
         </div>

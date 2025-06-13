@@ -1,16 +1,9 @@
 import { getStatusColor, formatBytes, formatSpeed } from '@/lib/utils';
 import { Archive, File, FileText, Image, Music, Video, X } from "lucide-react";
 import { useEffect, useState } from "react";
-export interface ShowProgressBarProps {
-    name: string;
-    type: 'document' | 'image' | 'audio' | 'video' | 'zip' | 'file';
-    downloaded: number;
-    totalSize: number;
-    progress: number;
-    // speed: number;
-    status: 'downloading' | 'completed' | 'paused' | 'error';
+import { DownloadProgressType } from './only-sftp-client';
 
-}
+
 const getFileIcon = (type: string) => {
     switch (type) {
         case 'document': return <FileText className="w-4 h-4" />;
@@ -21,8 +14,13 @@ const getFileIcon = (type: string) => {
         default: return <File className="w-4 h-4" />;
     }
 };
-export function ShowProgressBar({ download, onCancel, index }: { download: ShowProgressBarProps; onCancel: (id: string) => void; index: number }) {
-    const progressPercentage = Math.round(download.progress);
+export function ShowProgressBar({ download, onCancel, index }:
+    {
+        download: DownloadProgressType;
+        onCancel: () => void; index: number
+    }
+) {
+    const progressPercentage = Math.round(download.percent);
     const isCompleted = download.status === 'completed';
     const isError = download.status === 'error';
     const [isVisible, setIsVisible] = useState(false);
@@ -45,7 +43,7 @@ export function ShowProgressBar({ download, onCancel, index }: { download: ShowP
 
     const handleRemove = () => {
         setIsRemoving(true);
-        setTimeout(() => onCancel(download.name), 300);
+
     };
 
     return (
@@ -66,7 +64,7 @@ export function ShowProgressBar({ download, onCancel, index }: { download: ShowP
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center space-x-2 flex-1 min-w-0">
                     <div className={`p-1.5 rounded-md ${isCompleted ? 'bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-400' : isError ? 'bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-400' : 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-400'}`}>
-                        {getFileIcon(download.type)}
+                        {getFileIcon("file")}
                     </div>
                     <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
@@ -80,7 +78,7 @@ export function ShowProgressBar({ download, onCancel, index }: { download: ShowP
                         {isCompleted ? '✓' : isError ? '✗' : `${progressPercentage}%`}
                     </span>
                     <button
-                        onClick={handleRemove}
+                        onClick={onCancel}
                         className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200"
                         title={isCompleted ? "Dismiss" : "Cancel download"}
                     >
@@ -106,14 +104,14 @@ export function ShowProgressBar({ download, onCancel, index }: { download: ShowP
             {/* Status Info */}
             <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
                 <span>
-                    {formatBytes(download.downloaded)} / {formatBytes(download.totalSize)}
+                    {formatBytes(+download.transferred)} / {formatBytes(+download.totalSize)}
                 </span>
 
-                {download.status === 'downloading' && (
+                {download.status === 'downloading'|| download.status === 'uploading' && (
                     <span className="flex items-center space-x-1">
-                        {/* <span>{formatSpeed(download.speed)}</span> */}
+                        <span>{download.speed.speed}{download.speed.unit}</span>
                         <span>•</span>
-                        {/* <span>{Math.round((download.totalSize - download.downloaded) / download.speed / 60)}m left</span> */}
+                        <span>{download.eta}s left</span>
                     </span>
                 )}
 

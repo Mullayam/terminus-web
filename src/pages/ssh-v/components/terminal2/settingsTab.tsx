@@ -1,5 +1,5 @@
-import React from 'react';
-import { Palette, Bell, Save, Type, Monitor, Sun, Moon } from 'lucide-react';
+
+import { Palette,  Save, Type, Monitor, Sun, Moon } from 'lucide-react';
 import { useTabStore } from '@/store/rightSidebarTabStore';
 import { Badge } from '@/components/ui/badge';
 
@@ -31,7 +31,7 @@ export default function SettingsTab() {
     <div className="space-y-6 text-neutral-200">
       {/* Header */}
       <div>
-        <h3 className="text-lg font-semibold text-white">Settings</h3>
+        <h3 className="text-lg font-semibold text-white">Dummy Settings</h3>
         <p className="text-sm text-neutral-400">Customize your experience</p>
       </div>
 

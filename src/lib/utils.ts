@@ -71,10 +71,15 @@ export const formatSpeed = (bytesPerSecond: number): string => {
 
 export const getStatusColor = (status: string) => {
   switch (status) {
-    case 'downloading': return 'bg-blue-500';
+    case 'downloading':
+    case 'uploading':
+      return 'bg-blue-500';
     case 'completed': return 'bg-green-500';
     case 'paused': return 'bg-yellow-500';
-    case 'error': return 'bg-red-500';
+    case 'abort':
+    case 'aborted':
+    case 'error':
+      return 'bg-red-500';
     default: return 'bg-gray-500';
   }
 };

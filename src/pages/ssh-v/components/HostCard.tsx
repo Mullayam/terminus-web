@@ -1,7 +1,7 @@
-import { deleteDB } from 'idb';
 import { useNavigate } from 'react-router-dom';
 import { HostsObject } from '../..';
 import { Trash } from 'lucide-react';
+import { idb } from '@/lib/idb';
 
 interface HostCardProps {
     info: HostsObject,
@@ -26,9 +26,9 @@ export function HostCard({ info, onClick,index }: HostCardProps) {
                 <h3 className="text-white font-medium">{info.localName || info.host}</h3>
                 <p className="text-slate-400 text-sm">ssh,{info.username}</p>
             </div>
-            {/* <button onClick={() => deleteDB(info.host)} className="text-slate-400 hover:text-white transition-colors">
+            <button onClick={() => idb.deleteItem("hosts",info.id)} className="text-red-400 hover:text-red transition-colors">
                 <Trash />
-            </button> */}
+            </button>
         </div>
     );
 }

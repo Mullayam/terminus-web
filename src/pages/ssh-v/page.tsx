@@ -1,32 +1,33 @@
-import React, { useEffect, useState } from 'react';
+
 import TerminalTab from './TerminalTab';
 import { useSSHStore } from '@/store/sshStore';
-import { getAllData } from '@/lib/idb';
-import { HostCard } from './components/HostCard';
-
 import { v4 as uuid } from 'uuid'
-import { useStore } from '@/store';
-import { Button } from '@/components/ui/button';
+
+import StoredHosts from './components/storedHosts';
 import { useCustomEvent } from '@/hooks/use-events';
 import { HostsObject } from '..';
-export default function NewSSH() {
-    const store = useStore()
+import { useEffect, useState } from 'react';
+import { idb } from '@/lib/idb';
+import { useStore } from '@/store';
 
+export default function NewSSH() {
     const { tabs, activeTabId, addSession, addTab, setActiveTab } = useSSHStore()
     const [hosts, setHosts] = useState<HostsObject[]>([])
     const { listen: listenNewConnectionClick } = useCustomEvent("NEW_SSH_CLIENT")
+    const store = useStore()
 
     const handleClickOnHostCard = async (index: any) => {
         let data = hosts[index]
         if (!data) {
-            await getAllData<any>().then(data => {
-                data = data[index]
+            idb.getAllItems("hosts").then((data) => {
+                if (data) {
+                    setHosts(data as any)
+                }
             })
-
         }
 
-        const id = uuid()
 
+        const id = uuid()
 
         const generateUniqueTitle = (baseHost: string) => {
             const existingTitles = tabs.map(tab => tab.title)
@@ -69,50 +70,20 @@ export default function NewSSH() {
 
         store.setActiveTabData(data);
     }
-    const handleNewConnectionClick = () => {
-        const id = uuid()
-        addTab({
-            id,
-            title: `Terminal ${tabs.length + 1}`,
-            sessionId: id
-        })
-        setActiveTab(id)
-    }
+
     useEffect(() => {
-        getAllData<any>().then(data => setHosts(data))
+        idb.getAllItems("hosts").then((data) => {
+            if (data) {
+                setHosts(data as any)
+            }
+        })
+
         const unsubscribe = listenNewConnectionClick(handleClickOnHostCard)
         return unsubscribe
     }, [hosts])
-
     return (
         <div className='w-full'>
-            {tabs.length === 0 && (
-                <div className="p-8">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-white text-xl font-semibold">Hosts</h2>
-                        <Button
-                            variant={"ghost"}
-                            onClick={handleNewConnectionClick} // Optional handler
-                            className="text-sm text-blue-400 hover:underline"
-                        >
-                            New Connection
-                        </Button>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-
-                        {hosts.length > 0 && hosts.map((host, index) => (
-                            <HostCard
-                                key={index}
-                                index={index}
-                                info={host}
-                                onClick={handleClickOnHostCard}
-                            />
-                        ))}
-                    </div>
-                </div>
-
-            )}
+            {tabs.length === 0 && <StoredHosts hosts={hosts} handleClickOnHostCard={handleClickOnHostCard} />}
             {tabs.map((tab) => (
                 tab.id === activeTabId ? <TerminalTab key={tab.id} sessionId={tab.sessionId} /> : null
             ))}

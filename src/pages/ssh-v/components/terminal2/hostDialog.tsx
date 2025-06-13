@@ -5,9 +5,8 @@ import { Plus, Search, Server, } from "lucide-react"
 import { v4 as uuidv4 } from 'uuid';
 
 
-import { getAllData } from "@/lib/idb"
-import { SocketEventConstants } from "@/lib/sockets/event-constants"
-import { socket } from "@/lib/sockets"
+import { idb } from "@/lib/idb"
+
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { useStore } from "@/store";
 import { useSSHStore } from "@/store/sshStore";
@@ -29,8 +28,10 @@ export function HostDialog({ open, setOpen }: { open: boolean, setOpen: React.Di
 
     const [searchQuery, setSearchQuery] = React.useState('');
     React.useEffect(() => {
-        getAllData().then((data: any[]) => {
-            setHosts(data)
+        idb.getAllItems("hosts").then((data: any[]) => {
+            if (data) {
+                setHosts(data)
+            }
         })
         const down = (e: KeyboardEvent) => {
             if (e.key === "j" && (e.metaKey || e.ctrlKey)) {

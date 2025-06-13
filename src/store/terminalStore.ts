@@ -1,31 +1,38 @@
-import { HostsObject } from "@/pages";
 import { create } from "zustand";
+import { socket } from '../lib/sockets/index';
+
+type PermissionType = '400' | '700' | '777';
 
 type SharedSessionsType = {
-  shared_sessions: string[];
-  permissions: Record<string, string>;
+  shared_sessions: Record<
+    string,
+    {
+      socketIds: string[];
+      permissions: Record<string, PermissionType>;
+    }
+  >;
 };
 
 interface TerminalLogsStore {
   logs: Record<string, string[]>;
+
   sessionInfo: SharedSessionsType;
 
   addLogLine: (sessionId: string, line: string) => void;
   clearLogs: (sessionId: string) => void;
   removeLog: (sessionId: string) => void;
 
-  addSharedSession: (socketId: string) => void;
-  deleteSharedSession: (socketId: string) => void;
+  addSharedSession: (sessionId: string, socketId: string[]) => void;
+  deleteSharedSession: (sessionId: string, socketId: string) => void;
 
-  addPermissions: (sessionId: string, permission: string) => void;
-  deletePermission: (sessionId: string) => void;
+  addPermissions: (sessionId: string, socketId: string, permission: PermissionType) => void;
+  deletePermission: (sessionId: string, socketId: string) => void;
 }
 
 export const useTerminalStore = create<TerminalLogsStore>((set) => ({
   logs: {},
   sessionInfo: {
-    shared_sessions: [],
-    permissions: {},
+    shared_sessions: {},
   },
 
   addLogLine: (sessionId, line) =>
@@ -51,49 +58,94 @@ export const useTerminalStore = create<TerminalLogsStore>((set) => ({
       return { logs: newLogs };
     }),
 
-  addSharedSession: (socketId) =>
+  addSharedSession: (sessionId, socketIds) =>
     set((state) => {
-      const exists = state.sessionInfo.shared_sessions.includes(socketId);
+      const session = state.sessionInfo.shared_sessions[sessionId] || {
+        socketIds: [],
+        permissions: {},
+      };
+
       return {
         sessionInfo: {
           ...state.sessionInfo,
-          shared_sessions: exists
-            ? state.sessionInfo.shared_sessions
-            : [...state.sessionInfo.shared_sessions, socketId],
+          shared_sessions: {
+            ...state.sessionInfo.shared_sessions,
+            [sessionId]: {
+              ...session,
+              socketIds,
+            },
+          },
         },
       };
     }),
 
-  deleteSharedSession: (socketId) =>
-    set((state) => ({
-      sessionInfo: {
-        ...state.sessionInfo,
-        shared_sessions: state.sessionInfo.shared_sessions.filter(
-          (id) => id !== socketId
-        ),
-      },
-    })),
 
-  addPermissions: (sessionId, permission) =>
-    set((state) => ({
-      sessionInfo: {
-        ...state.sessionInfo,
-        permissions: {
-          ...state.sessionInfo.permissions,
-          [sessionId]: permission,
-        },
-      },
-    })),
-
-  deletePermission: (sessionId) =>
+  deleteSharedSession: (sessionId, socketId) =>
     set((state) => {
-      const newPermissions = { ...state.sessionInfo.permissions };
-      delete newPermissions[sessionId];
+      const session = state.sessionInfo.shared_sessions[sessionId];
+      if (!session) return {};
+
+      const updatedSocketIds = session.socketIds.filter((id) => id !== socketId);
+
       return {
         sessionInfo: {
           ...state.sessionInfo,
-          permissions: newPermissions,
+          shared_sessions: {
+            ...state.sessionInfo.shared_sessions,
+            [sessionId]: {
+              ...session,
+              socketIds: updatedSocketIds,
+            },
+          },
         },
       };
     }),
+
+  addPermissions: (sessionId, socketId, permission) =>
+    set((state) => {
+      const session = state.sessionInfo.shared_sessions[sessionId];
+      if (!session) return {};
+
+      const updatedPermissions = {
+        ...session.permissions,
+        [socketId]: permission,
+      };
+
+
+      return {
+        sessionInfo: {
+          ...state.sessionInfo,
+          shared_sessions: {
+            ...state.sessionInfo.shared_sessions,
+            [sessionId]: {
+              ...session,
+              permissions: updatedPermissions,
+            },
+          },
+        },
+      };
+    }),
+
+  deletePermission: (sessionId, socketId) =>
+    set((state) => {
+      const session = state.sessionInfo.shared_sessions[sessionId];
+      if (!session) return {};
+
+      const updatedPermissions = { ...session.permissions };
+      delete updatedPermissions[socketId];
+
+      return {
+        sessionInfo: {
+          ...state.sessionInfo,
+          shared_sessions: {
+            ...state.sessionInfo.shared_sessions,
+            [sessionId]: {
+              ...session,
+              permissions: updatedPermissions,
+            },
+          },
+        },
+      };
+    }),
+
 }));
