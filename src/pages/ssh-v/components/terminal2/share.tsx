@@ -28,8 +28,8 @@ const TerminalShare = () => {
     const handleCreateShareTerminalClick = () => {
         handleCopySessionLink();
         toast({
-            title: "Terminal shared",
-            description: "Terminal shared successfully",
+            title: "Shared Terminal URL Copied",
+            description: "Paste URL in browser tab",
         })
     }
     const updateSessionSettings = (socketId: string, type: "pause" | "kick") => {
