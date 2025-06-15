@@ -50,6 +50,7 @@ const XTerminal = ({
   const termRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const { command, clickType, setCommand, addRecentCommand } = useCommandStore();
+  let lastPromptPrefix = '';
 
   const filteredSuggestions = useMemo(() => {
 
@@ -58,6 +59,43 @@ const XTerminal = ({
     }
     return suggestions.filter((command) => command.includes(commandBuffer));
   }, [commandBuffer])
+
+  function getRemainingSuggestion(input: string, suggestion: string) {
+    if (suggestion.startsWith(input)) {
+      return suggestion.slice(input.length);
+    }
+    return suggestion;
+  }
+
+  function capturePrompt() {
+    const buffer = termRef.current?.buffer.active;
+    if (buffer) {
+
+      const line = buffer.getLine(buffer.cursorY - 1);
+      const text = line?.translateToString(true) ?? '';
+
+      const match = text.match(/^(.*?[#$>] )/);
+      if (match) {
+        lastPromptPrefix = match[1];
+        console.log('Detected prompt:', lastPromptPrefix);
+      }
+    }
+
+  }
+
+  function getCurrentCommandInput() {
+    const buffer = termRef.current?.buffer.active;
+    if (buffer) {
+      const line = buffer.getLine(buffer.cursorY);
+      const lineText = line?.translateToString(true) ?? '';
+      if (lineText.startsWith(lastPromptPrefix)) {
+        return lineText.slice(lastPromptPrefix.length);
+      }
+      return lineText;
+    }
+    return '';
+  }
+
   function getSearchOptions(): ISearchOptions {
     return {
       regex: (document.getElementById("regex") as HTMLInputElement).checked,
@@ -96,7 +134,9 @@ const XTerminal = ({
       });
     }
   };
-
+  const handleFocus = () => {
+    termRef.current?.focus();
+  };
   useEffect(() => {
     if (!terminalRef.current) return;
 
@@ -253,14 +293,17 @@ const XTerminal = ({
   }, [commandBuffer]);
 
   useEffect(() => {
+    const toAppend = getRemainingSuggestion(commandBuffer, command);
+
     if (clickType === "single") {
-      termRef.current?.input(command);
+      termRef.current?.input(toAppend);
       setIsVisible(false);
       setCommand("", "single");
     } else {
-      termRef.current?.input(`${command}\r`);
+      termRef.current?.input(`${toAppend}\r`);
       setCommand("", "double");
     }
+    handleFocus();
   }, [command]);
 
   return (
