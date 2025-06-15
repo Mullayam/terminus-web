@@ -26,6 +26,7 @@ import { useTerminalStore } from "@/store/terminalStore";
 import { useSSHStore } from "@/store/sshStore";
 import AISuggestionBox from "./terminal2/suggestion-box";
 import useAudio from "@/hooks/useAudio";
+import { get } from "http";
 
 // https://github.com/xtermjs/xterm.js/blob/master/demo/client.ts
 const XTerminal = ({
@@ -40,16 +41,21 @@ const XTerminal = ({
   const { play } = useAudio(sound)
   const isRendered = useRef(false);
   const { sessions } = useSSHStore();
-  const [suggestionPos, setSuggestionPos] = useState({ top: 0, left: 0 });
+
+  const termRef = useRef<Terminal | null>(null);
+  const { logs, addLogLine } = useTerminalStore();
+  const fitAddonRef = useRef<FitAddon | null>(null);
   const [isVisible, setIsVisible] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const terminalRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchAddonRef = useRef<SearchAddon | null>(null);
+  const { allCommands, recentCommands } = useCommandStore();
+  const [suggestionPos, setSuggestionPos] = useState({ top: 0, left: 0 });
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [commandBuffer, setCommandBuffer] = useState<string>("");
-  const { logs, addLogLine } = useTerminalStore();
-  const { allCommands, recentCommands } = useCommandStore();
-  const terminalRef = useRef<HTMLDivElement | null>(null);
-  const termRef = useRef<Terminal | null>(null);
-  const fitAddonRef = useRef<FitAddon | null>(null);
   const { command, clickType, setCommand, addRecentCommand } = useCommandStore();
+
   let lastPromptPrefix = '';
 
   const filteredSuggestions = useMemo(() => {
@@ -60,6 +66,22 @@ const XTerminal = ({
     return suggestions.filter((command) => command.includes(commandBuffer));
   }, [commandBuffer])
 
+
+  const handleSearchNext = () => {
+    const query = searchInputRef.current?.value || '';
+    searchAddonRef.current?.findNext(query, {
+      decorations: getSearchOptions()
+    });
+  };
+
+  const handleSearchPrev = () => {
+    const query = searchInputRef.current?.value || '';
+    searchAddonRef.current?.findPrevious(query, {
+      decorations: getSearchOptions()
+
+    });
+  };
+
   function getRemainingSuggestion(input: string, suggestion: string) {
     if (suggestion.startsWith(input)) {
       return suggestion.slice(input.length);
@@ -69,6 +91,7 @@ const XTerminal = ({
 
   function capturePrompt() {
     const buffer = termRef.current?.buffer.active;
+
     if (buffer) {
 
       const line = buffer.getLine(buffer.cursorY - 1);
@@ -82,7 +105,17 @@ const XTerminal = ({
     }
 
   }
-
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.ctrlKey && e.key === 'f') {
+      e.preventDefault();
+      setShowSearch(true);
+      setTimeout(() => searchInputRef.current?.focus(), 50);
+    } else if (e.key === 'Escape') {
+      searchAddonRef.current?.clearDecorations();
+      searchAddonRef.current?.clearActiveDecoration();
+      setShowSearch(false);
+    }
+  };
   function getCurrentCommandInput() {
     const buffer = termRef.current?.buffer.active;
     if (buffer) {
@@ -96,27 +129,15 @@ const XTerminal = ({
     return '';
   }
 
-  function getSearchOptions(): ISearchOptions {
+  function getSearchOptions(): ISearchOptions["decorations"] {
     return {
-      regex: (document.getElementById("regex") as HTMLInputElement).checked,
-      wholeWord: (document.getElementById("whole-word") as HTMLInputElement)
-        .checked,
-      caseSensitive: (
-        document.getElementById("case-sensitive") as HTMLInputElement
-      ).checked,
-      decorations: (
-        document.getElementById("highlight-all-matches") as HTMLInputElement
-      ).checked
-        ? {
-          matchBackground: "#232422",
-          matchBorder: "#555753",
-          matchOverviewRuler: "#555753",
-          activeMatchBackground: "#ef2929",
-          activeMatchBorder: "#ffffff",
-          activeMatchColorOverviewRuler: "#ef2929",
-        }
-        : undefined,
-    };
+      matchBackground: "#FFA50080",         // semi-transparent orange
+      matchBorder: "#FFA500",               // solid orange border
+      matchOverviewRuler: "#FFA500",        // ruler stripe
+      activeMatchBackground: "#FF8C00",     // darker orange
+      activeMatchBorder: "#FFFFFF",         // white border for active
+      activeMatchColorOverviewRuler: "#FF8C00",
+    }
   }
   const updateSuggestionBox = () => {
     const textarea = terminalRef.current?.querySelector(
@@ -158,7 +179,10 @@ const XTerminal = ({
     const fitAddon = new FitAddon();
     fitAddonRef.current = fitAddon;
 
-    const searchAddon = new SearchAddon();
+    const searchAddon = new SearchAddon({
+      highlightLimit: 1000,
+
+    });
     term.loadAddon(new WebglAddon());
     term.loadAddon(new ImageAddon());
     term.loadAddon(new SerializeAddon());
@@ -170,6 +194,7 @@ const XTerminal = ({
     term.loadAddon(searchAddon);
 
     term.open(terminalRef.current);
+    searchAddonRef.current = searchAddon;
 
     new LigaturesAddon().activate(term);
 
@@ -180,6 +205,9 @@ const XTerminal = ({
 
     term.onData((input) => {
       socket.emit(SocketEventConstants.SSH_EMIT_INPUT, input);
+      if (input === '\r') {
+        capturePrompt();
+      }
     });
 
     term.onResize((size) => {
@@ -237,6 +265,19 @@ const XTerminal = ({
         !domEvent.ctrlKey &&
         !domEvent.metaKey &&
         !domEvent.altKey;
+      if (domEvent.ctrlKey && domEvent.key === 'f') {
+        domEvent.preventDefault();
+        setShowSearch(true);
+        setTimeout(() => searchInputRef.current?.focus(), 50);
+      }
+
+
+      if (domEvent.key === 'Escape') {
+        searchAddonRef.current?.clearDecorations();
+        searchAddonRef.current?.clearActiveDecoration();
+        setShowSearch(false);
+      }
+
       if (domEvent.ctrlKey && domEvent.code === "Space") {
         domEvent.preventDefault();
         setIsVisible(true)
@@ -275,19 +316,16 @@ const XTerminal = ({
 
     const disposeOnCursorMove = termRef.current?.onCursorMove(updateSuggestionBox);
     const disposeOnKey = termRef.current?.onKey(handleKey);
-    const disposeBell = termRef.current?.onBell(() => {
-      play();
-    });
+    const disposeBell = termRef.current?.onBell(() => play());
+    const disposeTitle = termRef.current?.onTitleChange((title) => document.title = `Terminal: ${title}`);
 
-    const disposeTitle = termRef.current?.onTitleChange((title) => {
-      document.title = `Terminal: ${title}`;
-    });
-
+    window.addEventListener('keydown', handleKeyDown);
     return () => {
       disposeOnCursorMove?.dispose?.();
       disposeOnKey?.dispose?.();
       disposeBell?.dispose?.();
       disposeTitle?.dispose?.();
+      window.removeEventListener('keydown', handleKeyDown);
 
     };
   }, [commandBuffer]);
@@ -308,11 +346,39 @@ const XTerminal = ({
 
   return (
     <div className="relative w-full h-full">
+
       <div
         ref={terminalRef}
         id="terminal"
         style={{ width: "100%", height: "100%" }}
       />
+      {showSearch && (
+        <div className="absolute top-2 right-2 bg-[#181818] shadow-md border border-none rounded px-2 py-1 flex items-center gap-2 z-10">
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search..."
+
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSearchNext();
+              if (e.key === 'Escape') setShowSearch(false);
+            }}
+            className="px-2 py-1 border bg-[#181818] text-green-400 border-gray-300 rounded w-48"
+          />
+          <button
+            onClick={handleSearchNext}
+            className="text-sm bg-blue-600 text-green-400 px-2 py-1 rounded"
+          >
+            Find
+          </button>
+          <button
+            onClick={handleSearchPrev}
+            className="text-sm bg-blue-600 text-green-400 px-2 py-1 rounded"
+          >
+            Prev
+          </button>
+        </div>
+      )}
 
       {/* Suggestion box positioned relative to .xterm-helper-textarea */}
 

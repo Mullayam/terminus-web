@@ -151,6 +151,7 @@ export default function TerminalTab({ sessionId }: Props) {
             //  console.log(data)   
         }
         const handleDeleteSession = (socketId: string) => {
+            console.log("first")
             deletePermission(activeTabId!, socketId)
             deleteSharedSession(activeTabId!, socketId)
         }

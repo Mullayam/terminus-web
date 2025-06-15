@@ -10,7 +10,11 @@ import { useState } from 'react';
 import { useSSHStore } from '@/store/sshStore';
 import { useTerminalStore } from '@/store/terminalStore';
 import { useSidebarState } from '@/store/sidebarStore';
-
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 export interface Tab {
   id: number;
   title: string;
@@ -123,6 +127,23 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
 
           </div>
         </div>
+        <Popover>
+          <PopoverTrigger asChild>
+            <small className='text-gray-400 mx-2 cursor-pointer'>Shortcuts</small>
+
+          </PopoverTrigger>
+          <PopoverContent className="w-80 right-4">
+            <p className="font-medium text-gray-400 mb-2">Shortcuts</p>
+            <div className="flex flex-col space-y-1 text-sm text-gray-400">
+              <small><kbd className="font-semibold">Ctrl + F</kbd> — Find</small>
+              <small><kbd className="font-semibold">Escape</kbd> — Close Find</small>
+              <small><kbd className="font-semibold">Ctrl + C</kbd> — Copy</small>
+              <small><kbd className="font-semibold">Ctrl + V</kbd> — Paste</small>
+
+            </div>
+
+          </PopoverContent>
+        </Popover>
         {activeItem === "Terminal" && <div
           className={`flex items-center space-x-4 cursor-pointer text-gray-400 hover:text-gray-300 transition-all duration-300 ease-in-out`}
           style={{ marginRight: isRightSidebarOpen ? '24rem' : '1rem' }} // 96 = 24rem, 4 = 1rem

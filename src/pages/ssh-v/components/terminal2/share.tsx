@@ -115,12 +115,18 @@ const TerminalShare = () => {
                                         <div className="flex space-x-2 pt-1">
 
                                             <button
-                                                onClick={() => updateSessionSettings(session, "pause")}
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    updateSessionSettings(session, "pause")
+                                                }}
                                                 className="flex-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 py-1 px-2 rounded text-xs font-medium transition-colors">
                                                 Pause
                                             </button>
                                             <button
-                                                onClick={() => updateSessionSettings(session, "kick")}
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    updateSessionSettings(session, "kick")
+                                                }}
                                                 className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 py-1 px-2 rounded text-xs font-medium transition-colors">
                                                 End
                                             </button>

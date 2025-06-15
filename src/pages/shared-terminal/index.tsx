@@ -37,30 +37,33 @@ const XTerminal = () => {
   const fitAddonRef = useRef<FitAddon | null>(null);
   const { socket } = useSockets()
   const { sessionid } = useParams();
+  const [showSearch, setShowSearch] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchAddonRef = useRef<SearchAddon | null>(null);
 
+  const handleSearchNext = () => {
+    const query = searchInputRef.current?.value || '';
+    searchAddonRef.current?.findNext(query, {
+      decorations: getSearchOptions()
+    });
+  };
 
+  const handleSearchPrev = () => {
+    const query = searchInputRef.current?.value || '';
+    searchAddonRef.current?.findPrevious(query, {
+      decorations: getSearchOptions()
 
-  function getSearchOptions(): ISearchOptions {
+    });
+  };
+  function getSearchOptions(): ISearchOptions['decorations'] {
     return {
-      regex: (document.getElementById("regex") as HTMLInputElement).checked,
-      wholeWord: (document.getElementById("whole-word") as HTMLInputElement)
-        .checked,
-      caseSensitive: (
-        document.getElementById("case-sensitive") as HTMLInputElement
-      ).checked,
-      decorations: (
-        document.getElementById("highlight-all-matches") as HTMLInputElement
-      ).checked
-        ? {
-          matchBackground: "#232422",
-          matchBorder: "#555753",
-          matchOverviewRuler: "#555753",
-          activeMatchBackground: "#ef2929",
-          activeMatchBorder: "#ffffff",
-          activeMatchColorOverviewRuler: "#ef2929",
-        }
-        : undefined,
-    };
+      matchBackground: "#FFA50080",         // semi-transparent orange
+      matchBorder: "#FFA500",               // solid orange border
+      matchOverviewRuler: "#FFA500",        // ruler stripe
+      activeMatchBackground: "#FF8C00",     // darker orange
+      activeMatchBorder: "#FFFFFF",         // white border for active
+      activeMatchColorOverviewRuler: "#FF8C00",
+    }
   }
 
   useEffect(() => {
@@ -191,9 +194,45 @@ const XTerminal = () => {
       termRef.current = null;
     };
   }, [sessionid]);
-  // useEffect(() => {
-    
-  // }, [permissions])
+  useEffect(() => {
+    const handleKey = ({
+      key,
+      domEvent,
+    }: {
+      key: string;
+      domEvent: KeyboardEvent;
+    }) => {
+
+      const isEnter = domEvent.key === "Enter";
+      const isBackspace = domEvent.key === "Backspace";
+      const isPrintable =
+        domEvent.key.length === 1 &&
+        !domEvent.ctrlKey &&
+        !domEvent.metaKey &&
+        !domEvent.altKey;
+      if (domEvent.ctrlKey && domEvent.key === 'f') {
+        domEvent.preventDefault();
+        setShowSearch(true);
+        setTimeout(() => searchInputRef.current?.focus(), 50);
+      }
+
+
+      if (domEvent.key === 'Escape') {
+        searchAddonRef.current?.clearDecorations();
+        searchAddonRef.current?.clearActiveDecoration();
+        setShowSearch(false);
+      }
+
+    };
+
+
+    const disposeOnKey = termRef.current?.onKey(handleKey);
+
+    return () => {
+      disposeOnKey?.dispose();
+    };
+
+  }, [])
 
   return (
     <React.Fragment>
@@ -202,6 +241,33 @@ const XTerminal = () => {
         id="terminal"
         style={{ width: "100%", height: "100%", border: "1px solid #333" }}
       />
+      {showSearch && (
+        <div className="absolute top-2 right-2 bg-[#181818] shadow-md border border-none rounded px-2 py-1 flex items-center gap-2 z-10">
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search..."
+
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSearchNext();
+              if (e.key === 'Escape') setShowSearch(false);
+            }}
+            className="px-2 py-1 border bg-[#181818] text-green-400 border-gray-300 rounded w-48"
+          />
+          <button
+            onClick={handleSearchNext}
+            className="text-sm bg-blue-600 text-green-400 px-2 py-1 rounded"
+          >
+            Find
+          </button>
+          <button
+            onClick={handleSearchPrev}
+            className="text-sm bg-blue-600 text-green-400 px-2 py-1 rounded"
+          >
+            Prev
+          </button>
+        </div>
+      )}
       <div className="flex justify-between items-start flex-wrap px-4 py-1 border-t text-xs bg-[#1a1b26]">
         <div className="flex flex-row  gap-4">
           <span

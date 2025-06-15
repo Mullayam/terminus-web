@@ -1,4 +1,4 @@
-import { FilesIcon, Terminal } from 'lucide-react';
+import { FilesIcon, KeyIcon, Terminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import React, { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -55,6 +55,16 @@ export function Sidebar() {
           />
         </Button>
       ))}
+      <Button
+      
+      variant="ghost"
+      size="icon"
+      className={cn(
+        "mb-4 relative group")}
+
+      >
+        <KeyIcon />
+      </Button>
     </div>
   );
 }
