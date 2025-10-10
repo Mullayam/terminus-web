@@ -100,7 +100,7 @@ const XTerminal = ({
       const match = text.match(/^(.*?[#$>] )/);
       if (match) {
         lastPromptPrefix = match[1];
-        console.log('Detected prompt:', lastPromptPrefix);
+
       }
     }
 
@@ -128,6 +128,31 @@ const XTerminal = ({
     }
     return '';
   }
+  const handleContextMenu = async (e: MouseEvent) => {
+    e.preventDefault();
+
+    const selection = termRef.current?.getSelection()?.trim();
+
+    if (selection) {
+
+      await navigator.clipboard.writeText(selection);
+      termRef.current?.clearSelection();
+      termRef.current?.input(selection);
+
+    } else {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          termRef.current?.paste(text);
+
+        }
+      } catch (err) {
+
+
+      }
+    }
+  };
+
 
   function getSearchOptions(): ISearchOptions["decorations"] {
     return {
@@ -318,7 +343,8 @@ const XTerminal = ({
     const disposeOnKey = termRef.current?.onKey(handleKey);
     const disposeBell = termRef.current?.onBell(() => play());
     const disposeTitle = termRef.current?.onTitleChange((title) => document.title = `Terminal: ${title}`);
-
+    const el = terminalRef.current!;
+    el.addEventListener("contextmenu", handleContextMenu);
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       disposeOnCursorMove?.dispose?.();
@@ -326,6 +352,7 @@ const XTerminal = ({
       disposeBell?.dispose?.();
       disposeTitle?.dispose?.();
       window.removeEventListener('keydown', handleKeyDown);
+      el.removeEventListener("contextmenu", handleContextMenu);
 
     };
   }, [commandBuffer]);

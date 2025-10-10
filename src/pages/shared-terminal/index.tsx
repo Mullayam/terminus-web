@@ -25,6 +25,7 @@ import { useParams } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { RefreshCcw } from "lucide-react";
 import InfoBadge from "../ssh-v/components/InfoBadge";
+import { useTerminalStore } from "@/store/terminalStore";
 
 
 
@@ -40,7 +41,7 @@ const XTerminal = () => {
   const [showSearch, setShowSearch] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchAddonRef = useRef<SearchAddon | null>(null);
-
+  const { addLogLine, logs } = useTerminalStore()
   const handleSearchNext = () => {
     const query = searchInputRef.current?.value || '';
     searchAddonRef.current?.findNext(query, {
@@ -103,7 +104,10 @@ const XTerminal = () => {
 
     new LigaturesAddon().activate(term);
 
-
+    const t = logs[sessionid];
+    if (t?.length) {
+      term.write(t.join(""));
+    }
 
     term.onData((input) => {
       if (permissions === "400") {
@@ -125,9 +129,9 @@ const XTerminal = () => {
     };
 
     socket.on(SocketEventConstants.terminal_output, (input: string) => {
-
       term.write(input);
       term.scrollToBottom();
+      addLogLine(sessionid, input);
     });
 
     window.addEventListener("resize", handleResize);

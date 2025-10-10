@@ -15,18 +15,18 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
             <div className="hidden lg:flex">
                 {isSidebarOpen && <Sidebar />}
             </div>
-            <div className="flex-1 flex flex-col">               
-                    <TopBar
-                        onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-                        onToggleRightSidebar={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
-                        isRightSidebarOpen={isRightSidebarOpen}
-                    />            
+            <div className="flex-1 flex flex-col">
+                <TopBar
+                    onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+                    onToggleRightSidebar={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
+                    isRightSidebarOpen={isRightSidebarOpen}
+                />
                 <div className="flex flex-1">
                     <div className="w-full lg:flex">
                         {children}
                     </div>
                 </div>
-             <RightSidebar isRightSidebarOpen={isRightSidebarOpen} onClose={() => setIsRightSidebarOpen(false)} />
+                <RightSidebar isRightSidebarOpen={isRightSidebarOpen} onClose={() => setIsRightSidebarOpen(false)} />
             </div>
             {/* Message for mobile and small devices */}
             <div className="lg:hidden flex items-center justify-center w-full h-full bg-[#1a1b26] text-center p-4">

@@ -24,10 +24,16 @@ export default function SSHConnectionForm<T>({ form, handleSubmit, isLoading, ch
   children?: React.ReactNode
 }) {
 
-  const { removeTab, activeTabId, tabs, setActiveTab, sessions } = useSSHStore()
+  const { removeTab, activeTabId, tabs, setActiveTab, sessions, removeSession } = useSSHStore()
 
   const [showPassword, setShowPassword] = useState(false);
-
+  const handleCloseForm = () => {
+    if (activeTabId) {
+      removeSession(activeTabId)
+      removeTab(activeTabId)
+    }
+    setActiveTab(tabs.filter((tab) => tab.id === activeTabId).length > 1 ? tabs[tabs.length - 1]?.id : tabs[0]?.id)
+  }
   return (
     <div className="flex items-center justify-center p-4">
       <Card className="w-full max-w-lg">
@@ -35,10 +41,7 @@ export default function SSHConnectionForm<T>({ form, handleSubmit, isLoading, ch
 
           <CardTitle>SSH Connection Form</CardTitle>
           {
-            children ? children : <Button size={"icon"} variant={"outline"} onClick={() => {
-              activeTabId && removeTab(activeTabId)
-              setActiveTab((tabs.length - 1) > 0 ? (tabs.length - 1).toString() : "")
-            }} className="rounded-full ">
+            children ? children : <Button size={"icon"} variant={"outline"} onClick={handleCloseForm} className="rounded-full ">
               <X className="w-6 h-6 cursor-pointer" />
 
             </Button>

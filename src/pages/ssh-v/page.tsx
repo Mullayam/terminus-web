@@ -72,6 +72,7 @@ export default function NewSSH() {
     }
 
     useEffect(() => {
+
         idb.getAllItems("hosts").then((data) => {
             if (data) {
                 setHosts(data as any)
@@ -79,10 +80,11 @@ export default function NewSSH() {
         })
 
         const unsubscribe = listenNewConnectionClick(handleClickOnHostCard)
-        return unsubscribe
-    }, [hosts])
+        return () => unsubscribe()
+    }, [hosts, activeTabId])
     return (
         <div className='w-full'>
+
             {tabs.length === 0 && <StoredHosts hosts={hosts} handleClickOnHostCard={handleClickOnHostCard} />}
             {tabs.map((tab) => (
                 tab.id === activeTabId ? <TerminalTab key={tab.id} sessionId={tab.sessionId} /> : null

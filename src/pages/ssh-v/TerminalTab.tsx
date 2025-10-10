@@ -83,7 +83,7 @@ export default function TerminalTab({ sessionId }: Props) {
     const handleSubmit = async (data: FormValues) => {
         if (data.saveCredentials) {
             const randomId = Math.random().toString(36).substring(2, 9);
-            idb.has("hosts", hostId||"").then((exists) => {
+            idb.has("hosts", hostId || "").then((exists) => {
                 if (!exists) {
                     idb.addNestedItem("hosts", randomId, {
                         id: randomId,
@@ -107,7 +107,7 @@ export default function TerminalTab({ sessionId }: Props) {
         setActiveTabData(data);
         socketRef.current?.emit(SocketEventConstants.SSH_START_SESSION, JSON.stringify(data));
         setIsLoading(true);
-       hostId && setHostId(null)
+        hostId && setHostId(null)
 
     }
 
@@ -128,8 +128,6 @@ export default function TerminalTab({ sessionId }: Props) {
                 session.socket = socket;
             }
         }
-
-
 
         const handleSSHReady = (data: string) => {
             console.log("Ready")
@@ -185,14 +183,16 @@ export default function TerminalTab({ sessionId }: Props) {
         }
 
 
-    }, [sessionId]);
+    }, [sessionId, activeTabId]);
     React.useEffect(() => {
+        
         if (activeTabData !== null) {
             form.reset(activeTabData);
             setHostId(activeTabData.id)
             setActiveTabData(null);
             return
         }
+
     }, [])
 
     return (
