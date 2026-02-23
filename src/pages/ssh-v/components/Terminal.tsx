@@ -191,8 +191,8 @@ const XTerminal = ({
       cursorStyle: "block",
       allowProposedApi: true,
       cursorWidth: 1,
-      rows: 40,
-      cols: 150,
+      // rows: 40,
+      // cols: 150,
       fontFamily: "monospace",
       theme: {
         background: backgroundColor,
@@ -219,6 +219,12 @@ const XTerminal = ({
     term.loadAddon(searchAddon);
 
     term.open(terminalRef.current);
+      requestAnimationFrame(() => {
+      if (fitAddonRef.current) {
+        fitAddonRef.current.fit();
+        socket.emit(SocketEventConstants.SSH_EMIT_RESIZE, { cols: term.cols, rows: term.rows});
+      }
+    });
     searchAddonRef.current = searchAddon;
 
     new LigaturesAddon().activate(term);
@@ -255,11 +261,7 @@ const XTerminal = ({
     });
 
     window.addEventListener("resize", handleResize);
-    // requestAnimationFrame(() => {
-    //   if (fitAddonRef.current) {
-    //     fitAddonRef.current.fit();
-    //   }
-    // });
+  
 
     setSuggestions(
       Array.from(new Set(allCommands
