@@ -10,6 +10,7 @@ import { useState } from 'react';
 import { useSSHStore } from '@/store/sshStore';
 import { useTerminalStore } from '@/store/terminalStore';
 import { useSidebarState } from '@/store/sidebarStore';
+import { useSessionTheme } from '@/hooks/useSessionTheme';
 import {
   Popover,
   PopoverContent,
@@ -29,6 +30,7 @@ interface TopBarProps {
 
 export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOpen }: TopBarProps) {
   const [open, setOpen] = useState(false)
+  const { colors } = useSessionTheme();
   const {
     sessions,
     tabs,
@@ -78,7 +80,7 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
     }
   };
   return (
-    <div className="flex flex-col border-b border-gray-800 bg-[#1a1b26] shrink-0">
+    <div className="flex flex-col border-b border-gray-800/50 shrink-0" style={{ backgroundColor: `${colors.background}dd` }}>
       <div className="h-12 flex items-center px-4">
         <div className="flex-1 flex items-center space-x-4">
           <Button

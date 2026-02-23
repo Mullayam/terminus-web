@@ -3,12 +3,19 @@ import { Palette, Save, Type } from 'lucide-react';
 import { useTabStore } from '@/store/rightSidebarTabStore';
 import { Badge } from '@/components/ui/badge';
 import { XtermTheme, ThemeName, themeNames } from '@/pages/ssh-v/components/themes';
+import { useSSHStore } from '@/store/sshStore';
+import { useSessionTheme } from '@/hooks/useSessionTheme';
 
 export default function SettingsTab() {
   const { settings, updateSettings } = useTabStore();
+  const activeTabId = useSSHStore((s) => s.activeTabId);
+  const setSessionTheme = useSSHStore((s) => s.setSessionTheme);
+  const { themeName } = useSessionTheme();
 
   const handleThemeChange = (theme: ThemeName) => {
-    updateSettings({ theme });
+    if (activeTabId) {
+      setSessionTheme(activeTabId, theme);
+    }
   };
 
   const handleFontSizeChange = (fontSize: 'small' | 'medium' | 'large') => {
@@ -41,7 +48,7 @@ export default function SettingsTab() {
             <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
               {themeNames.map((theme) => {
                 const colors = XtermTheme[theme];
-                const isSelected = settings.theme === theme;
+                const isSelected = themeName === theme;
 
                 return (
                   <button

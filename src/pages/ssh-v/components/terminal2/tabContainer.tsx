@@ -2,6 +2,7 @@ import React from 'react';
 
 import { Terminal, Share, Settings, Command } from 'lucide-react';
 import { TabType, useTabStore } from '@/store/rightSidebarTabStore';
+import { useSessionTheme } from '@/hooks/useSessionTheme';
 
 const tabs = [
   { id: 'commands' as TabType, name: 'Commands', icon: Command },
@@ -15,11 +16,12 @@ interface TabContainerProps {
 
 export default function TabContainer({ children }: TabContainerProps) {
   const { activeTab, setActiveTab } = useTabStore();
+  const { colors } = useSessionTheme();
 
   return (
-    <div className="h-full flex flex-col border-l border-[#1a1b28]">
+    <div className="h-full flex flex-col" style={{ borderLeftColor: `${colors.foreground}15`, borderLeftWidth: 1 }}>
       {/* Tab Navigation */}
-      <div className="flex border-b  border-gray-700 ">
+      <div className="flex" style={{ borderBottomColor: `${colors.foreground}20`, borderBottomWidth: 1 }}>
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -28,19 +30,19 @@ export default function TabContainer({ children }: TabContainerProps) {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`
-                flex items-center space-x-2 px-4 py-3 font-medium text-sm transition-all duration-200 relative flex-1 bg-[#1f2031]
-                ${isActive
-                  ? 'text-green-600  border-blue-600'
-                  : 'text-orange-500 hover:text-orange-600 '
-                }
+                flex items-center space-x-2 px-4 py-3 font-medium text-sm transition-all duration-200 relative flex-1
               `}
+              style={{
+                backgroundColor: isActive ? `${colors.background}` : `${colors.background}cc`,
+                color: isActive ? colors.green : colors.yellow,
+              }}
             >
               <Icon size={16} />
               <span className="hidden sm:inline">{tab.name}</span>
 
               {/* Active tab indicator */}
               {isActive && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 to-blue-600" />
+                <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: `linear-gradient(to right, ${colors.blue}, ${colors.cyan})` }} />
               )}
             </button>
           );

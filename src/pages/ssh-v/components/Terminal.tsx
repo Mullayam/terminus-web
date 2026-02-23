@@ -26,8 +26,7 @@ import { useTerminalStore } from "@/store/terminalStore";
 import { useSSHStore } from "@/store/sshStore";
 import AISuggestionBox from "./terminal2/suggestion-box";
 import useAudio from "@/hooks/useAudio";
-import { XtermTheme } from "./themes";
-import { useTabStore } from "@/store/rightSidebarTabStore";
+import { XtermTheme, ThemeName } from "./themes";
 
 
 // https://github.com/xtermjs/xterm.js/blob/master/demo/client.ts
@@ -43,7 +42,7 @@ const XTerminal = ({
   const { play } = useAudio(sound)
   const isRendered = useRef(false);
   const { sessions } = useSSHStore();
-  const settings = useTabStore((state) => state.settings);
+  const sessionTheme = useSSHStore((s) => s.sessionThemes[sessionId]) || 'default';
   const termRef = useRef<Terminal | null>(null);
   const { logs, addLogLine } = useTerminalStore();
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -194,7 +193,8 @@ const XTerminal = ({
       allowProposedApi: true,
       cursorWidth: 1,
       fontFamily: "monospace",
-      theme: XtermTheme[settings.theme] || XtermTheme.default,
+      theme: XtermTheme[sessionTheme] || XtermTheme.default,
+      
     });
 
     termRef.current = term;
@@ -276,10 +276,10 @@ const XTerminal = ({
   // Reactively apply theme changes to the live terminal instance
   useEffect(() => {
     if (termRef.current) {
-      const newTheme = XtermTheme[settings.theme] || XtermTheme.default;
+      const newTheme = XtermTheme[sessionTheme] || XtermTheme.default;
       termRef.current.options.theme = newTheme;
     }
-  }, [settings.theme]);
+  }, [sessionTheme]);
 
   useEffect(() => {
     const handleKey = ({

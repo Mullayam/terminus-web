@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 
 import { useSidebarState } from '@/store/sidebarStore';
 import { useSSHStore } from "@/store/sshStore";
+import { useSessionTheme } from '@/hooks/useSessionTheme';
 
 interface NavItem {
   icon: typeof Terminal;
@@ -16,6 +17,7 @@ interface NavItem {
 export function Sidebar() {
   const { sessions, activeTabId } = useSSHStore()
   const { activeItem, setActiveItem } = useSidebarState()
+  const { colors } = useSessionTheme();
   const [navItems, setNavItems] = useState<NavItem[]>([
     { icon: Terminal, label: 'Terminal', state: true },
   ]);
@@ -34,7 +36,7 @@ export function Sidebar() {
 
 
   return (
-    <div className="w-16 flex flex-col items-center py-4 border-r border-gray-800 bg-[#1a1b26] shrink-0">
+    <div className="w-16 flex flex-col items-center py-4 border-r border-gray-800/50 shrink-0" style={{ backgroundColor: `${colors.background}ee` }}>
       {navItems.map((item) => (
         <Button
           key={item.label}

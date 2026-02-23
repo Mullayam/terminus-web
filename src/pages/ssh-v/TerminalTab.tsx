@@ -18,6 +18,7 @@ import TerminalLayout from './components/terminal2';
 import { RefreshCcw } from 'lucide-react';
 import { useIdleReconnect } from '@/hooks/useIdleReconnect';
 import { useSessionDisconnect } from '@/hooks/useSessionDisconnect';
+import { useSessionTheme } from '@/hooks/useSessionTheme';
 import { __config } from '@/lib/config';
 import { useTerminalStore } from '@/store/terminalStore';
 
@@ -68,10 +69,11 @@ export default function TerminalTab({ sessionId }: Props) {
     const [hostId, setHostId] = useState<string | null>(null)
     const startTracking = useIdleReconnect()
     const { disconnect } = useSessionDisconnect()
+    const { colors } = useSessionTheme();
     const { setActiveTabData, activeTabData } = useStore()
     const { addSharedSession, addPermissions, deletePermission, deleteSharedSession } = useTerminalStore()
 
-    const { tabs, sessions, addSession, updateStatus, updateSftpStatus, activeTabId } = useSSHStore()
+    const { tabs, sessions, addSession, updateStatus, updateSftpStatus, activeTabId, loadSessionTheme } = useSSHStore();
     const socketRef = useRef<Socket | null>(null);
 
     const form = useForm<FormValues>({
@@ -113,6 +115,9 @@ export default function TerminalTab({ sessionId }: Props) {
 
     React.useEffect(() => {
         const session = sessions[sessionId]
+
+        // Load persisted theme from IndexedDB for this session
+        loadSessionTheme(sessionId);
 
         let socket = null
         if (session && session?.socket) {
@@ -207,7 +212,7 @@ export default function TerminalTab({ sessionId }: Props) {
                      </div>
                     {tabs.length !== 0 && sessions[sessionId] && (
                         <>
-                            <div className="flex justify-between items-start flex-wrap px-4 py-1 border-t text-xs bg-[#1a1b26] shrink-0">
+                            <div className="flex justify-between items-start flex-wrap px-4 py-1 border-t text-xs shrink-0" style={{ backgroundColor: `${colors.background}dd`, color: colors.foreground, borderColor: `${colors.foreground}20` }}>
                                 <div className="flex flex-row  gap-4">
                                     <span>Public IPs: <a href={`http://${sessions[sessionId].host}`}
                                         target="_blank" rel="noopener noreferrer" className="inline-block text-gray-200 dark:text-neutral-200 hover:underline" >

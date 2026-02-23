@@ -2,15 +2,16 @@ import { Sidebar } from "./sidebar";
 import React from "react";
 import { TopBar } from "./topbar";
 import { RightSidebar } from "./rightSidebar";
+import { useSessionTheme } from "@/hooks/useSessionTheme";
 
 export default function TerminalLayout({ children }: { children: React.ReactNode }) {
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
     const [isRightSidebarOpen, setIsRightSidebarOpen] = React.useState(false);
-
+    const { colors } = useSessionTheme();
 
     return (
         <>
-            <div className="hidden lg:flex h-full bg-[#1a1b26] text-white overflow-hidden">
+            <div className="hidden lg:flex h-full text-white overflow-hidden" style={{ backgroundColor: colors.background }}>
                 <div className="flex h-full">
                     {isSidebarOpen && <Sidebar />}
                 </div>
@@ -28,8 +29,8 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
                     <RightSidebar isRightSidebarOpen={isRightSidebarOpen} onClose={() => setIsRightSidebarOpen(false)} />
                 </div>
             </div>
-            <div className="flex lg:hidden items-center justify-center w-full h-full bg-[#1a1b26] text-center p-4">
-                <p className="text-sm text-gray-400">This layout is best viewed on a larger screen.</p>
+            <div className="flex lg:hidden items-center justify-center w-full h-full text-center p-4" style={{ backgroundColor: colors.background }}>
+                <p className="text-sm" style={{ color: colors.foreground }}>This layout is best viewed on a larger screen.</p>
             </div>
         </>
     );
