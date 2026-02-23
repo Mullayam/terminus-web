@@ -35,7 +35,7 @@ export function RightSidebar({
             className={`
 fixed right-0 top-14 bottom-12  bg-[#1a1b26] z-20
 transition-all duration-300 ease-in-out
-${isRightSidebarOpen ? "w-90 translate-x-0" : "w-80 translate-x-full"}
+${isRightSidebarOpen ? "w-96 translate-x-0" : "w-96 translate-x-full"}
 flex flex-col shadow-lg
 `}
         >

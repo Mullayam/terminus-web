@@ -1,12 +1,13 @@
 
-import { Palette,  Save, Type, Monitor, Sun, Moon } from 'lucide-react';
+import { Palette, Save, Type } from 'lucide-react';
 import { useTabStore } from '@/store/rightSidebarTabStore';
 import { Badge } from '@/components/ui/badge';
+import { XtermTheme, ThemeName, themeNames } from '@/pages/ssh-v/components/themes';
 
 export default function SettingsTab() {
   const { settings, updateSettings } = useTabStore();
 
-  const handleThemeChange = (theme: 'light' | 'dark' | 'auto') => {
+  const handleThemeChange = (theme: ThemeName) => {
     updateSettings({ theme });
   };
 
@@ -18,17 +19,8 @@ export default function SettingsTab() {
     updateSettings({ [key]: !settings[key] });
   };
 
-  const getThemeIcon = (theme: string) => {
-    switch (theme) {
-      case 'light': return Sun;
-      case 'dark': return Moon;
-      case 'auto': return Monitor;
-      default: return Monitor;
-    }
-  };
-
   return (
-    <div className="space-y-6 text-neutral-200">
+    <div className="space-y-6 text-neutral-200 px-2">
       {/* Header */}
       <div>
         <h3 className="text-lg font-semibold text-white">Dummy Settings</h3>
@@ -46,9 +38,9 @@ export default function SettingsTab() {
           {/* Theme */}
           <div>
             <label className="block text-xs font-medium text-neutral-400 mb-2">Theme</label>
-            <div className="grid grid-cols-3 gap-2">
-              {(['light', 'dark', 'auto'] as const).map((theme) => {
-                const Icon = getThemeIcon(theme);
+            <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+              {themeNames.map((theme) => {
+                const colors = XtermTheme[theme];
                 const isSelected = settings.theme === theme;
 
                 return (
@@ -56,15 +48,20 @@ export default function SettingsTab() {
                     key={theme}
                     onClick={() => handleThemeChange(theme)}
                     className={`
-                      flex items-center justify-center space-x-1 p-2 rounded border transition-colors text-xs
+                      flex items-center space-x-2 p-2 rounded border transition-colors text-xs
                       ${isSelected
                         ? 'border-blue-400 bg-blue-950 text-blue-200'
                         : 'border-neutral-700 bg-neutral-800 text-neutral-300 hover:border-neutral-600'
                       }
                     `}
                   >
-                    <Icon size={14} />
-                    <span className="capitalize">{theme}</span>
+                    <div className="flex gap-px shrink-0 rounded overflow-hidden border border-neutral-600" style={{ backgroundColor: colors.background }}>
+                      <span className="block w-3 h-3" style={{ backgroundColor: colors.red }} />
+                      <span className="block w-3 h-3" style={{ backgroundColor: colors.green }} />
+                      <span className="block w-3 h-3" style={{ backgroundColor: colors.yellow }} />
+                      <span className="block w-3 h-3" style={{ backgroundColor: colors.blue }} />
+                    </div>
+                    <span className="capitalize truncate">{theme}</span>
                   </button>
                 );
               })}
@@ -135,31 +132,10 @@ export default function SettingsTab() {
         </div>
       </div>
 
-      {/* Current Config */}
-      <div className="bg-neutral-800 border border-neutral-700 rounded-lg p-3">
-        <h4 className="text-sm font-medium text-neutral-100 mb-2">Current Config</h4>
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div>
-            <p className="text-neutral-400 font-medium">Theme</p>
-            <p className="text-neutral-200 capitalize">{settings.theme}</p>
-          </div>
-          <div>
-            <p className="text-neutral-400 font-medium">Font</p>
-            <p className="text-neutral-200 capitalize">{settings.fontSize}</p>
-          </div>
-          <div>
-            <p className="text-neutral-400 font-medium">Notifications</p>
-            <p className="text-neutral-200">{settings.notifications ? 'On' : 'Off'}</p>
-          </div>
-          <div>
-            <p className="text-neutral-400 font-medium">Auto Save</p>
-            <p className="text-neutral-200">{settings.autoSave ? 'On' : 'Off'}</p>
-          </div>
-        </div>
-      </div>
+    
 
       {/* Autocomplete status */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between p-4">
         <span className="text-sm text-neutral-300">Autocomplete</span>
         <Badge variant="outline" className="bg-neutral-700 text-neutral-300 border border-neutral-600">
           Disabled

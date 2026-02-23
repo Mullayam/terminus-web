@@ -26,7 +26,7 @@ export function HostCard({ info, onClick,index }: HostCardProps) {
                 <h3 className="text-white font-medium">{info.localName || info.host}</h3>
                 <p className="text-slate-400 text-sm">ssh,{info.username}</p>
             </div>
-            <button onClick={() => idb.deleteItem("hosts",info.id)} className="text-red-400 hover:text-red transition-colors">
+            <button onClick={() => idb.deleteItem("hosts",info.id)} className="text-red-400 hover:text-red-500 transition-colors">
                 <Trash />
             </button>
         </div>

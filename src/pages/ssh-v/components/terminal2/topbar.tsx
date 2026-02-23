@@ -146,13 +146,12 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
         </Popover>
         {activeItem === "Terminal" && <div
           className={`flex items-center space-x-4 cursor-pointer text-gray-400 hover:text-gray-300 transition-all duration-300 ease-in-out`}
-          style={{ marginRight: isRightSidebarOpen ? '24rem' : '1rem' }} // 96 = 24rem, 4 = 1rem
+          style={{ marginRight: isRightSidebarOpen ? '24rem' : '1rem' }}
           onClick={onToggleRightSidebar}
         >
           <Menu className="h-4 w-4 text-gray-400" />
         </div>
         }
-
 
         <HostDialog open={open} setOpen={setOpen} />
       </div>

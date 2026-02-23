@@ -239,7 +239,7 @@ function OnlySFTPClient() {
         </div>
         :
         <SSHConnectionForm<typeof form>
-          isLoading={!loading}
+          isLoading={loading}
           form={form}
           handleSubmit={handleSubmit}
         >

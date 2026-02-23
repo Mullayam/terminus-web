@@ -140,7 +140,7 @@ const TerminalShare = () => {
 
                 ) : (
                     <>
-                        <div className="text-center py-8   w-full rounded-none border border-gray-200">
+                        <div className="text-center py-8   w-full rounded-lg border border-gray-700">
                             <Globe size={32} className="mx-auto text-gray-300 mb-2" />
                             <h4 className="text-sm font-medium text-gray-300 mb-1">No sessions</h4>
                             <p className="text-xs text-gray-500 mb-3">Create your first session</p>
