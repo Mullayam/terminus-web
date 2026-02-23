@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { SFTP_FILES_LIST, RIGHT_CLICK_ACTIONS } from './interface';
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import {
   flexRender,
@@ -16,7 +16,7 @@ import {
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ColumnDef } from "@tanstack/react-table";
 
-import { File, Folder } from "lucide-react";
+import FileIcon from "@/components/FileIcon";
 
 import {
   Tooltip,
@@ -27,10 +27,21 @@ import {
 import { formatBytes, formatPermissions } from "@/lib/utils";
 import EnhancedFileUploadPopup from "@/components/FileUpload";
 import { SocketEventConstants } from "@/lib/sockets/event-constants";
-import { socket } from "@/lib/sockets";
+import {
+  Pencil,
+  RefreshCw,
+  Type,
+  FolderInput,
+  Trash2,
+  FilePlus2,
+  FolderPlus,
+  Download,
+  Info,
+  ShieldCheck,
+} from "lucide-react";
 import { DeleteFolderDialog } from "./DeleteDialog";
 import { NewFolderDialog } from "./NewDialog";
-import { SocketEmitters } from "@/lib/sockets/emitter";
+import { useSFTPContext } from "../sftp-context";
 import { ContextModal } from "@/components/ui/context-modal";
 import { FilePermissions } from "./edit-permission";
 import { StatsInfoCard } from "./StatsInfoCards";
@@ -58,103 +69,97 @@ export function FileList({ files, currentDir }: {
   currentDir: string
 }) {
   const { toast } = useToast()
+  const { socket } = useSFTPContext()
   const [rowSelection, setRowSelection] = useState({})
- const{setLoading} =  useLoadingState()
+  const { setLoading } = useLoadingState()
   const [stats, setStats] = useState<null | RootObject>(null)
   const { openDialog, setOpenDialog } = useDialogState()
-  const displayMesasge = (description: string) => {
+
+  // Refs keep latest values so memoized callbacks never go stale
+  const socketRef = useRef(socket)
+  const currentDirRef = useRef(currentDir)
+  useEffect(() => { socketRef.current = socket }, [socket])
+  useEffect(() => { currentDirRef.current = currentDir }, [currentDir])
+
+  const displayMesasge = useCallback((description: string) => {
     toast({
       title: "Success",
       description: description,
       duration: 2000,
     })
-  }
+  }, [toast])
 
-  const handleDirectoryChange = (path: string) => {
+  const handleDirectoryChange = useCallback((path: string) => {
     setLoading(true)
-    socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: `${currentDir}/${path}` })
-  }
-  const columns: ColumnDef<SFTP_FILES_LIST>[] = [
+    socketRef.current?.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: `${currentDirRef.current}/${path}` })
+  }, [setLoading])
+  // Memoize columns so react-table doesn't re-render all cells on every state change
+  const columns: ColumnDef<SFTP_FILES_LIST>[] = useMemo(() => [
     {
       accessorKey: "name",
       header: "Name",
       cell: ({ row }) => (
-        <div className="p-2 flex space-x-2 cursor-pointer"
-          onClick={row.original.type === "d" ? () => handleDirectoryChange((row.getValue("name"))) : () => {
-            toast({
-              title: "Not A Valid Directory",
-              description: "Live Editing Feature Comming Soon",
-              variant: "destructive",
-
-
-            })
+        <div className="flex items-center gap-1.5 cursor-pointer select-none"
+          onPointerDown={(e) => {
+            if (e.button !== 0) return;
+            e.stopPropagation();
+            if (row.original.type === "d") {
+              handleDirectoryChange(row.getValue("name"));
+            }
           }}
         >
-
-          {row.original.type === "d" ? (
-            <Folder size={18} strokeWidth={1.5} />
-          ) : (
-            <File size={18} strokeWidth={1.5} />
-          )}
-          <span>{row.getValue("name")}</span>
+          <FileIcon name={row.getValue("name")} isDirectory={row.original.type === "d"} size={16} />
+          <span className="truncate">{row.getValue("name")}</span>
         </div>
       ),
     },
     {
       accessorKey: "size",
       header: "Size",
-      cell: ({ row }) => <div className="p-2 cursor-pointer">{formatBytes(row.getValue("size"))}</div>,
+      cell: ({ row }) => <span className="text-muted-foreground">{formatBytes(row.getValue("size"))}</span>,
     },
     {
       accessorKey: "modifyTime",
       header: "Modified",
       cell: ({ row }) => (
-        <div className="p-2 cursor-pointer">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div>{new Date(row.getValue("modifyTime")).toLocaleString()}</div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <div>{new Date(row.getValue("modifyTime")).toLocaleString()}</div>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
+        <TooltipProvider delayDuration={300}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-muted-foreground">{new Date(row.getValue("modifyTime")).toLocaleDateString()}</span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs">
+              {new Date(row.getValue("modifyTime")).toLocaleString()}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       ),
     },
     {
       accessorKey: "accessTime",
       header: "Accessed",
       cell: ({ row }) => (
-        <div className="p-2 cursor-pointer">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div>{new Date(row.getValue("accessTime")).toLocaleString()}</div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <div>{new Date(row.getValue("accessTime")).toLocaleString()}</div>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
+        <TooltipProvider delayDuration={300}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-muted-foreground">{new Date(row.getValue("accessTime")).toLocaleDateString()}</span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs">
+              {new Date(row.getValue("accessTime")).toLocaleString()}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       ),
     },
-
     {
       accessorKey: "rights",
       header: "Permissions",
-      cell: ({ row }) => {
-
-        return (
-          <div className="p-2 cursor-pointer">
-            {formatPermissions(row.getValue("rights"))}
-          </div>
-        );
-      },
+      cell: ({ row }) => (
+        <code className="text-[11px] text-muted-foreground font-mono">
+          {formatPermissions(row.getValue("rights"))}
+        </code>
+      ),
     },
-  ];
+  ], [handleDirectoryChange]);
   const shortcutMap: Record<string, RIGHT_CLICK_ACTIONS> = {
     "Ctrl+E": "edit",
     "Ctrl+C": "copy",
@@ -226,15 +231,15 @@ export function FileList({ files, currentDir }: {
         break;
       case "delete":
         if (data.type === "d") {
-          SocketEmitters.emit(SocketEventConstants.SFTP_DELETE_DIR, { path: fullPath })
+          socket?.emit(SocketEventConstants.SFTP_DELETE_DIR, { path: fullPath })
         } else {
-          SocketEmitters.emit(SocketEventConstants.SFTP_DELETE_FILE, { path: fullPath })
+          socket?.emit(SocketEventConstants.SFTP_DELETE_FILE, { path: fullPath })
         }
         handleRefreshSftp()
         setOpenDialog(false)
         break;
       case "properties":
-        SocketEmitters.emit(SocketEventConstants.SFTP_FILE_STATS, { path: fullPath })
+        socket?.emit(SocketEventConstants.SFTP_FILE_STATS, { path: fullPath })
         break;
       case "refresh":
         handleRefreshSftp()
@@ -249,8 +254,13 @@ export function FileList({ files, currentDir }: {
         break;
     }
   }
+  // Memoize sorted data — never mutate the files prop in-place
+  const sortedFiles = useMemo(
+    () => [...files].sort((a, b) => (a.type === "d" && b.type !== "d" ? -1 : 1)),
+    [files]
+  );
   const table = useReactTable({
-    data: files.sort((a, b) => (a.type === "d" && b.type !== "d" ? -1 : 1)),
+    data: sortedFiles,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -261,36 +271,36 @@ export function FileList({ files, currentDir }: {
       rowSelection,
     },
   });
-  const handleRefreshSftp = () => {
-    SocketEmitters.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: currentDir })
-  }
+  const handleRefreshSftp = useCallback(() => {
+    socketRef.current?.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: currentDirRef.current })
+  }, [])
   const handleCreateFileOrDir = (path: string, type: FileOperations, newPath?: string) => {
     const fullPath = `${currentDir}/${path}`
     if (type === "file") {
-      SocketEmitters.emit(SocketEventConstants.SFTP_CREATE_FILE, { filePath: fullPath })
+      socket?.emit(SocketEventConstants.SFTP_CREATE_FILE, { filePath: fullPath })
     } else if (type === "folder") {
-      SocketEmitters.emit(SocketEventConstants.SFTP_DELETE_DIR, { folderPath: fullPath })
+      socket?.emit(SocketEventConstants.SFTP_DELETE_DIR, { folderPath: fullPath })
     }
     else if (type === "move") {
-      SocketEmitters.emit(SocketEventConstants.SFTP_MOVE_FILE, { folderPath: fullPath })
+      socket?.emit(SocketEventConstants.SFTP_MOVE_FILE, { folderPath: fullPath })
     }
     else if (type === "rename") {
       const payload = { oldPath: `${currentDir}/${path}`, newPath: `${currentDir}/${newPath}` }
-      SocketEmitters.emit(SocketEventConstants.SFTP_RENAME_FILE, payload)
+      socket?.emit(SocketEventConstants.SFTP_RENAME_FILE, payload)
     }
     handleRefreshSftp()
 
   }
-  document.addEventListener("keydown", handleKeydown);
 
   useEffect(() => {
-    socket.on(SocketEventConstants.SFTP_FILE_STATS, (data: RootObject) => setStats(data))
+    const onStats = (data: RootObject) => setStats(data);
+    socket?.on(SocketEventConstants.SFTP_FILE_STATS, onStats)
     document.addEventListener("keydown", handleKeydown);
     return () => {
-      socket.off(SocketEventConstants.SFTP_FILE_STATS)
+      socket?.off(SocketEventConstants.SFTP_FILE_STATS, onStats)
       document.removeEventListener("keydown", handleKeydown);
     };
-  }, []);
+  }, [socket]);
   return (
     <div className="w-full">
       <div className="rounded-md border">
@@ -332,49 +342,62 @@ export function FileList({ files, currentDir }: {
                         )}
                       </TableCell>}
                       title={row.getValue('name')}
-                      contextItems={[                         
+                      contextItems={[
                         {
                           label: 'Edit',
+                          icon: <Pencil className="w-4 h-4" />,
                           action: () => console.log('Editing user:'),
-                          disabled: true
+                          disabled: true,
                         },
                         {
                           label: 'Refresh',
+                          icon: <RefreshCw className="w-4 h-4" />,
                           action: () => handleContextClickAction("refresh", row.original),
+                          separator: true,
                         },
                         {
                           label: 'Rename',
+                          icon: <Type className="w-4 h-4" />,
                           content: <NewFolderDialog type="rename" data={row.original} onClick={handleCreateFileOrDir} />,
                         },
                         {
                           label: 'Move',
+                          icon: <FolderInput className="w-4 h-4" />,
                           content: <NewFolderDialog type="move" data={row.original} onClick={handleCreateFileOrDir} />,
                         },
                         {
                           label: 'Delete',
+                          icon: <Trash2 className="w-4 h-4 text-red-400" />,
                           content: <DeleteFolderDialog
                             folderName={row.getValue('name')} type={row.original.type} onDelete={() => handleContextClickAction("delete", row.original)} />,
+                          separator: true,
                         },
                         {
                           label: 'New File',
+                          icon: <FilePlus2 className="w-4 h-4" />,
                           content: <NewFolderDialog type="file" data={row.original} onClick={handleCreateFileOrDir} />,
                         },
                         {
                           label: 'New Folder',
+                          icon: <FolderPlus className="w-4 h-4" />,
                           content: <NewFolderDialog type="folder" data={row.original} onClick={handleCreateFileOrDir} />,
+                          separator: true,
                         },
                         {
                           label: 'Download',
+                          icon: <Download className="w-4 h-4" />,
                           action: () => handleContextClickAction("download", row.original),
+                          separator: true,
                         },
                         {
                           label: 'Properties',
+                          icon: <Info className="w-4 h-4" />,
                           action: () => handleContextClickAction("properties", row.original),
                           content: <StatsInfoCard data={stats} />,
                         },
-
                         {
                           label: 'Check Permissions',
+                          icon: <ShieldCheck className="w-4 h-4" />,
                           content: <FilePermissions data={row.original} />,
                         },
                       ]}

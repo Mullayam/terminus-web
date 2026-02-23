@@ -21,19 +21,19 @@ import {
 } from "@/components/ui/sidebar"
 import { NavLink } from "react-router-dom"
 
-export function NavMain() {
+export function   NavMain() {
 
   const navItems = [
     {
       title: "SSH",
-      url: "/ssh",
+      url: "/ssh/connect",
       icon: SquareTerminal,
       isActive: true,
 
     },
     {
       title: "SFTP",
-      url: "/ssh/only-sftp",
+      url: "/ssh/sftp",
       icon: FilesIcon,
       isActive: false,
 

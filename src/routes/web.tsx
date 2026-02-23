@@ -8,6 +8,7 @@ import ProtectedLayout from "@/pages/layout";
 // const NewSSH = lazy(() => import("@/pages/ssh-v/page"));
 import NewSSH from '@/pages/ssh-v/page';
 const SFTP = lazy(() => import("@/pages/sftp"));
+ 
 const TerminalComponent = lazy(() => import("@/pages/shared-terminal"));
 
 
@@ -50,12 +51,10 @@ export const router = createBrowserRouter([
 
             {
                 path: "sftp",
-                element: <SFTP only_sftp={true} />,
+                element: <SFTP />,
             },
-            {
-                path: "only-sftp",
-                element: <SFTP only_sftp={false} />,
-            },
+
+            
         ]
     },
     {

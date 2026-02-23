@@ -1,7 +1,7 @@
 import { getStatusColor, formatBytes, formatSpeed } from '@/lib/utils';
 import { Archive, File, FileText, Image, Music, Video, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { DownloadProgressType } from './only-sftp-client';
+import { DownloadProgressType } from './SFTPTabClient';
 
 
 const getFileIcon = (type: string) => {

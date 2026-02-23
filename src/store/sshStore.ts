@@ -113,7 +113,14 @@ export const useSSHStore = create<SSHStore>((set, get) => ({
       tabs: [...state.tabs, tab],
       activeTabId: tab.id,
     })),
-  removeTab: (tabId) => set((state) => ({ tabs: state.tabs.filter((tab) => tab.id !== tabId)})),
+  removeTab: (tabId) => set((state) => {
+    const remaining = state.tabs.filter((tab) => tab.id !== tabId);
+    const newActive =
+      state.activeTabId === tabId
+        ? remaining[remaining.length - 1]?.id
+        : state.activeTabId;
+    return { tabs: remaining, activeTabId: newActive };
+  }),
   setActiveTab: (tabId) => set(() => ({ activeTabId: tabId })),
   setSessionTheme: (sessionId, theme) => {
     set((state) => ({

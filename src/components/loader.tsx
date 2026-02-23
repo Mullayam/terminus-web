@@ -1,6 +1,7 @@
+import { Loader2 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
-export   function FullScreenLoader() {
+export function FullScreenLoader({text}: {text?: string}) {
   const [dots, setDots] = useState('.')
 
   useEffect(() => {
@@ -12,11 +13,10 @@ export   function FullScreenLoader() {
   }, [])
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col items-center justify-center bg-black text-white">
-      <div className="w-12 h-12 border-t-2 border-r-2 border-white rounded-full animate-spin mb-4"></div>
-      <p className="text-lg font-semibold">
-        Establishing Connection{dots}
-      </p>
+    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
+      <Loader2 className="h-10 w-10 text-green-500 animate-spin" />
+      <p className="mt-3 text-sm text-gray-300">Connecting to server{dots}</p>
+      <p className="mt-1 text-xs text-gray-500">{text}</p>
     </div>
   )
 }

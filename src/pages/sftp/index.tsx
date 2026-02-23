@@ -1,41 +1,50 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Suspense, useEffect } from 'react'
-import { Navigate, useLocation } from 'react-router-dom';
+import { Suspense } from 'react'
 import { v4 as uuid } from 'uuid';
+import { FolderOpen, Plus } from 'lucide-react';
 
-import SftpClient from './SftpClient';
 import SFTPTabClient from './components/SFTPTabClient';
 import { SFTPTabBar } from './components/SFTPTabBar';
 import { useSFTPStore } from '@/store/sftpStore';
+import { Button } from '@/components/ui/button';
 
-const SFTP = ({ only_sftp = false }: { only_sftp?: boolean }) => {
-  const location = useLocation();
+const SFTP = () => {
   const { tabs, activeTabId, addTab, addSession } = useSFTPStore();
-
-  const sftpEnabled = location.state?.sftp_enabled;
-  if (only_sftp && !sftpEnabled) {
-    return <Navigate to="/ssh" />
-  }
-
-  // If rendering multi-tab SFTP (only_sftp=false), auto-create first tab
-  useEffect(() => {
-    if (!only_sftp && tabs.length === 0) {
-      handleAddTab();
-    }
-  }, []);
 
   const handleAddTab = () => {
     const id = uuid();
     addTab({ id, title: `SFTP ${tabs.length + 1}` });
-    addSession({ tabId: id, host: '', username: '', status: 'idle' });
+    addSession({
+      tabId: id,
+      host: '',
+      username: '',
+      status: 'idle',
+      isConnecting: false,
+      isConnected: false,
+      isSftpConnected: false,
+      loading: false,
+      isError: false,
+      currentDir: '',
+      homeDir: '',
+      title: '',
+      remoteFiles: [],
+    });
   };
 
-  if (only_sftp) {
+  // Empty state — no tabs yet
+  if (tabs.length === 0) {
     return (
-      <div className="h-full">
-        <Suspense fallback={<div>Loading...</div>}>
-          <SftpClient />
-        </Suspense>
+      <div className="flex flex-col items-center justify-center h-full bg-[#0A0A0A] text-gray-400 gap-4">
+        <FolderOpen className="h-16 w-16 text-green-500/60" />
+        <h2 className="text-xl font-semibold text-white">No SFTP Sessions</h2>
+        <p className="text-sm text-gray-500">Click below to start a new SFTP connection</p>
+        <Button
+          onClick={handleAddTab}
+          className="mt-2 gap-2 bg-green-600 hover:bg-green-700 text-white"
+        >
+          <Plus className="h-4 w-4" />
+          New SFTP Connection
+        </Button>
       </div>
     );
   }

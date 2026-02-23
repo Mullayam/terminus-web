@@ -14,7 +14,9 @@ export const SFTPContext = React.createContext<{
 }>({ socket: socket, isConnected: false, });
 const SftpClient = () => {
     const { sessions, activeTabId } = useSSHStore()
-    const socket = sessions[activeTabId!].socket || undefined
+
+    const session = activeTabId ? sessions[activeTabId] : undefined
+    const socket = session?.socket || undefined
 
     const [currentDir, setCurrentDir] = useState("")
 
@@ -25,6 +27,7 @@ const SftpClient = () => {
     const [remoteFiles, setRemoteFiles] = useState<Partial<SFTP_FILES_LIST[]>>([])
     const handleSetCurrentDir = (path?: string) => {
         setLoading(true)
+
         if (!path) {
             socket && socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: homeDir })
             setLoading(false)
@@ -52,6 +55,12 @@ const SftpClient = () => {
                 setRemoteFiles(data)
                 setLoading(false)
             })
+            socket.on(SocketEventConstants.SFTP_FILES_LIST, (data: any) => {
+                setRemoteFiles(JSON.parse(data.files))
+                setCurrentDir(data.currentDir)
+                setHomeDir(data.workingDir)
+                setLoading(false)
+            })
             socket.on(SocketEventConstants.SFTP_EMIT_ERROR, (data: string) => {
                 setIsError(true)
                 toast({
@@ -61,13 +70,18 @@ const SftpClient = () => {
                 })
                 setLoading(false)
             })
+
+            // Request initial file listing
+            socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: '' })
         }
         return () => {
             if (socket) {
                 socket.off(SocketEventConstants.SFTP_READY)
                 socket.off(SocketEventConstants.SFTP_CURRENT_PATH)
                 socket.off(SocketEventConstants.SFTP_GET_FILE)
+                socket.off(SocketEventConstants.SFTP_FILES_LIST)
                 socket.off(SocketEventConstants.SFTP_EMIT_ERROR)
+
             }
         }
     }, [socket])
@@ -75,7 +89,7 @@ const SftpClient = () => {
     return (
         <SFTPContext.Provider value={{ socket, isConnected: true }}>
             <FilePane
-                title={activeTabId ? sessions[activeTabId].host : "SFTP Host"}
+                title={session?.host || "SFTP Host"}
                 files={remoteFiles}
                 path={currentDir}
                 hasError={isError}

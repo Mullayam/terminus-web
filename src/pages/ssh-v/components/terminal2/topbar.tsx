@@ -54,22 +54,19 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
    * @param {string} tabId - The id of the tab to be removed.
    */
   const handleRemoveTab = (tabId: string) => {
-    const currentActiveTab = tabs.find((tab) => tab.id === tabId);
-    const current = currentActiveTab ? sessions[currentActiveTab.sessionId] : undefined;
+    const closingTab = tabs.find((tab) => tab.id === tabId);
+    const closingSession = closingTab ? sessions[closingTab.sessionId] : undefined;
 
+    // Disconnect & clean up the session
+    if (closingSession?.sessionId) {
+      closingSession.socket?.disconnect();
+      updateStatus(closingSession.sessionId, 'disconnected');
+      removeSession(closingSession.sessionId);
+      removeLog(closingSession.sessionId);
+    }
 
+    // Remove the tab (also updates activeTabId)
     removeTab(tabId);
-    if (current?.sessionId) {
-      disconnect(current?.sessionId, tabId)
-    }
-  }
-  const disconnect = (sessionId: string, id: string) => {
-    if (current?.sessionId) {
-      updateStatus(sessionId, 'disconnected');
-      removeSession(sessionId);
-      removeTab(id);
-      removeLog(sessionId)
-    }
   };
 
   const retry = () => {

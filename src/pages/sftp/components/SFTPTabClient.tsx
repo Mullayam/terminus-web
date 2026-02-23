@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { memo, useEffect, useRef, useState } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { Socket } from 'socket.io-client';
 import { FilePane } from './FilePane';
 import { SocketEventConstants } from '@/lib/sockets/event-constants';
 import { useToast } from '@/hooks/use-toast';
@@ -15,10 +15,9 @@ import { ShowProgressBar } from './DownloadProgress';
 import { HostsObject } from '@/pages';
 import { Button } from '@/components/ui/button';
 import { HostCard } from '@/pages/ssh-v/components/HostCard';
-import { X } from 'lucide-react';
-import { __config } from '@/lib/config';
-import { useSFTPStore } from '@/store/sftpStore';
-import { SFTPContext } from '../SftpClient';
+import { Loader2, X } from 'lucide-react';
+import { useSFTPStore, getOrCreateSocket } from '@/store/sftpStore';
+import { SFTPContext } from '../sftp-context';
 
 export interface DownloadProgressType {
   name: string;
@@ -31,7 +30,7 @@ export interface DownloadProgressType {
   remaining: { size: string; unit: string };
 }
 
-function SFTPTabClient({ tabId }: { tabId: string }) {
+export default function SFTPTabClient({ tabId }: { tabId: string }) {
   const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: DEFAULT_FORM_VALUES,
@@ -39,79 +38,81 @@ function SFTPTabClient({ tabId }: { tabId: string }) {
 
   const { updateSession } = useSFTPStore();
   const session = useSFTPStore((s) => s.sessions[tabId]);
+  const updateTab = useSFTPStore((s) => s.addTab); // for title updates
   const socketRef = useRef<Socket | null>(null);
+  // Track socket as state so children re-render only after socket is set
+  const [socketReady, setSocketReady] = useState<Socket | null>(null);
 
+  // Only truly local UI state (not per-tab data)
   const [hosts, setHosts] = useState<HostsObject[]>([]);
-  const [title, setTitle] = useState<string | null>(null);
   const [hostId, setHostId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [currentDir, setCurrentDir] = useState('');
-  const [homeDir, setHomeDir] = useState('');
-  const [isError, setIsError] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
-  const [isSftpConnected, setIsSftpConnected] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<Record<string, DownloadProgressType>>({});
-  const [remoteFiles, setRemoteFiles] = useState<Partial<SFTP_FILES_LIST[]>>([]);
 
   const { toast } = useToast();
 
-  // Create a dedicated socket for this tab
+  // Helper to patch this tab's session in the store
+  const patch = useCallback(
+    (p: Partial<typeof session>) => updateSession(tabId, p as any),
+    [tabId, updateSession]
+  );
+
+  // Get or reuse the persistent socket for this tab
   useEffect(() => {
-    const socket = io(__config.API_URL, {
-      query: { sessionId: tabId },
-      autoConnect: true,
-    });
+    const socket = getOrCreateSocket(tabId);
     socketRef.current = socket;
+    setSocketReady(socket);
 
-    socket.on('connect', () => {
-      setIsConnected(true);
+    // If already connected & SFTP ready (remount scenario), restore state
+    if (socket.connected) {
+      patch({ isConnected: true });
+    }
+    const storedSession = useSFTPStore.getState().sessions[tabId];
+    if (storedSession?.status === 'connected') {
+      patch({ isSftpConnected: true, isConnected: true });
+      socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: '' });
+    }
+
+    const onConnect = () => {
+      patch({ isConnected: true });
       updateSession(tabId, { socket });
-    });
-    socket.on('disconnect', () => setIsConnected(false));
-    socket.on('connect_error', (err) => {
+    };
+    const onDisconnect = () => patch({ isConnected: false });
+    const onConnectError = (err: Error) => {
       console.error('SFTP socket error:', err);
-      setIsConnected(false);
-    });
-
-    socket.on(SocketEventConstants.SFTP_READY, () => {
-      setIsSftpConnected(true);
-      updateSession(tabId, { status: 'connected' });
-    });
-
-    socket.on(SocketEventConstants.SFTP_CURRENT_PATH, (cwd: string) => {
-      setCurrentDir(cwd);
-      setHomeDir(cwd);
-      setLoading(false);
-    });
-
-    socket.on(SocketEventConstants.FILE_UPLOADED, (data: string) => {
+      patch({ isConnected: false });
+    };
+    const onSftpReady = () => {
+      socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: '' });
+      patch({ isSftpConnected: true, isConnecting: false, loading: false, status: 'connected' });
+    };
+    const onCurrentPath = (cwd: string) => {
+      patch({ currentDir: cwd, homeDir: cwd, loading: false });
+    };
+    const onFileUploaded = (data: string) => {
       toast({ title: 'File Uploaded', description: 'File uploaded successfully at ' + data, variant: 'default' });
-      socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: currentDir });
-    });
-
-    socket.on(SocketEventConstants.SFTP_FILES_LIST, (data: any) => {
-      setRemoteFiles(JSON.parse(data.files));
-      setCurrentDir(data.currentDir);
-      setHomeDir(data.workingDir);
-    });
-
-    socket.on(SocketEventConstants.ERROR, (data: string) => {
-      setIsError(true);
-      updateSession(tabId, { status: 'error', error: data });
+      const currentSession = useSFTPStore.getState().sessions[tabId];
+      socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: currentSession?.currentDir || '' });
+    };
+    const onFilesList = (data: any) => {
+      patch({
+        loading: false,
+        remoteFiles: JSON.parse(data.files),
+        currentDir: data.currentDir,
+        homeDir: data.workingDir,
+      });
+    };
+    const onError = (data: string) => {
+      patch({ isError: true, isConnecting: false, status: 'error', error: data, loading: false });
       toast({ title: 'SFTP Error', description: data, variant: 'destructive' });
-      setLoading(false);
-    });
-
-    socket.on(SocketEventConstants.SUCCESS, (data: string) => {
+    };
+    const onSuccess = (data: string) => {
       toast({ description: data, variant: 'default' });
-    });
-
-    socket.on(SocketEventConstants.COMPRESSING, (data: string) => {
+    };
+    const onCompressing = (data: string) => {
       console.log(data);
-    });
-
-    socket.on(SocketEventConstants.DOWNLOAD_PROGRESS, (data: DownloadProgressType) => {
+    };
+    const onDownloadProgress = (data: DownloadProgressType) => {
       setDownloadProgress((prev) => {
         if (data.percent >= 100) {
           const { [data.name]: _, ...rest } = prev;
@@ -119,22 +120,36 @@ function SFTPTabClient({ tabId }: { tabId: string }) {
         }
         return { ...prev, [data.name]: data };
       });
-    });
+    };
+
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
+    socket.on('connect_error', onConnectError);
+    socket.on(SocketEventConstants.SFTP_READY, onSftpReady);
+    socket.on(SocketEventConstants.SFTP_CURRENT_PATH, onCurrentPath);
+    socket.on(SocketEventConstants.FILE_UPLOADED, onFileUploaded);
+    socket.on(SocketEventConstants.SFTP_FILES_LIST, onFilesList);
+    socket.on(SocketEventConstants.ERROR, onError);
+    socket.on(SocketEventConstants.SUCCESS, onSuccess);
+    socket.on(SocketEventConstants.COMPRESSING, onCompressing);
+    socket.on(SocketEventConstants.DOWNLOAD_PROGRESS, onDownloadProgress);
 
     return () => {
-      socket.off(SocketEventConstants.SFTP_READY);
-      socket.off(SocketEventConstants.SFTP_CURRENT_PATH);
-      socket.off(SocketEventConstants.SFTP_FILES_LIST);
-      socket.off(SocketEventConstants.ERROR);
-      socket.off(SocketEventConstants.SUCCESS);
-      socket.off(SocketEventConstants.FILE_UPLOADED);
-      socket.off(SocketEventConstants.DOWNLOAD_PROGRESS);
-      socket.off(SocketEventConstants.COMPRESSING);
-      socket.disconnect();
+      socket.off('connect', onConnect);
+      socket.off('disconnect', onDisconnect);
+      socket.off('connect_error', onConnectError);
+      socket.off(SocketEventConstants.SFTP_READY, onSftpReady);
+      socket.off(SocketEventConstants.SFTP_CURRENT_PATH, onCurrentPath);
+      socket.off(SocketEventConstants.FILE_UPLOADED, onFileUploaded);
+      socket.off(SocketEventConstants.SFTP_FILES_LIST, onFilesList);
+      socket.off(SocketEventConstants.ERROR, onError);
+      socket.off(SocketEventConstants.SUCCESS, onSuccess);
+      socket.off(SocketEventConstants.COMPRESSING, onCompressing);
+      socket.off(SocketEventConstants.DOWNLOAD_PROGRESS, onDownloadProgress);
     };
   }, [tabId]);
 
-  // Load hosts
+  // Load hosts from IDB
   useEffect(() => {
     idb.getAllItems('hosts').then((data) => {
       if (data) setHosts(data as any);
@@ -142,14 +157,13 @@ function SFTPTabClient({ tabId }: { tabId: string }) {
   }, []);
 
   const handleSetCurrentDir = (path?: string) => {
-    setLoading(true);
-    const dirPath = path || homeDir;
+    patch({ loading: true });
+    const dirPath = path || session?.homeDir || '';
     socketRef.current?.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath });
-    setLoading(false);
   };
 
   const handleSetLoading = (input: boolean) => {
-    setLoading(input);
+    patch({ loading: input });
   };
 
   const handleSubmit = async (data: FormValues) => {
@@ -164,8 +178,15 @@ function SFTPTabClient({ tabId }: { tabId: string }) {
       });
     }
 
-    setLoading(true);
-    updateSession(tabId, { status: 'connecting', host: data.host, username: data.username });
+    patch({
+      loading: true,
+      isConnecting: true,
+      isError: false,
+      status: 'connecting',
+      host: data.host,
+      username: data.username,
+      title: data.host,
+    });
     socketRef.current?.emit(SocketEventConstants.SFTP_CONNECT, JSON.stringify(data));
   };
 
@@ -184,15 +205,24 @@ function SFTPTabClient({ tabId }: { tabId: string }) {
     setHostId(data.id);
     form.reset(data);
     handleSubmit(data as any);
-    setTitle(data.host);
   };
 
-  if (isConnected && isSftpConnected) {
+  // --- Read per-tab state from the store ---
+  const isConnected = session?.isConnected ?? false;
+  const isSftpConnected = session?.isSftpConnected ?? false;
+  const isConnecting = session?.isConnecting ?? false;
+  const loading = session?.loading ?? false;
+  const isError = session?.isError ?? false;
+  const currentDir = session?.currentDir ?? '';
+  const remoteFiles = session?.remoteFiles ?? [];
+  const sftpTitle = session?.title || session?.host || 'SFTP Host';
+
+  if (isConnected && isSftpConnected && socketReady) {
     return (
-      <SFTPContext.Provider value={{ socket: socketRef.current || undefined, isConnected: true }}>
+      <SFTPContext.Provider value={{ socket: socketReady, isConnected: true }}>
         <div className="flex flex-col h-full">
           <FilePane
-            title={title || session?.host || 'SFTP Host'}
+            title={sftpTitle}
             files={remoteFiles}
             path={currentDir}
             hasError={isError}
@@ -218,25 +248,41 @@ function SFTPTabClient({ tabId }: { tabId: string }) {
   }
 
   return (
-    <div className="w-full h-full">
+    <div className="w-full h-full relative">
+      {/* Connecting overlay */}
+      {isConnecting && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
+          <Loader2 className="h-10 w-10 text-green-500 animate-spin" />
+          <p className="mt-3 text-sm text-gray-300">Connecting to SFTP server...</p>
+          <p className="mt-1 text-xs text-gray-500">{session?.host || ''}</p>
+        </div>
+      )}
+
       {hosts.length > 0 && !showForm ? (
         <div className="p-8">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-white text-xl font-semibold">Hosts</h2>
-            <Button variant="ghost" onClick={() => setShowForm(true)} className="text-sm text-blue-400 hover:underline">
+            <Button
+              variant="ghost"
+              onClick={() => setShowForm(true)}
+              disabled={isConnecting}
+              className="text-sm text-blue-400 hover:underline"
+            >
               New Connection
             </Button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {hosts.map((host, index) => (
-              <HostCard key={index} index={index} info={host} onClick={handleClickOnHostCard} />
+              <div key={index} className={isConnecting ? 'pointer-events-none opacity-50' : ''}>
+                <HostCard index={index} info={host} onClick={handleClickOnHostCard} />
+              </div>
             ))}
           </div>
         </div>
       ) : (
         <SSHConnectionForm<typeof form> isLoading={loading} form={form} handleSubmit={handleSubmit}>
           {hosts.length > 0 && (
-            <Button variant="secondary" className="mx-4" onClick={() => setShowForm(false)}>
+            <Button variant="secondary" className="mx-4" onClick={() => setShowForm(false)} disabled={isConnecting}>
               <X className="w-6 h-6 cursor-pointer" />
             </Button>
           )}
@@ -245,5 +291,3 @@ function SFTPTabClient({ tabId }: { tabId: string }) {
     </div>
   );
 }
-
-export default memo(SFTPTabClient);

@@ -14,10 +14,10 @@ import { SocketEventConstants } from "@/lib/sockets/event-constants";
 import { FilterDropdown } from "./FilterDropdown";
 import EnhancedFileUploadPopup from "@/components/FileUpload";
 import { Progress } from "@/components/ui/progress";
-import { useSFTPContext } from "../SftpClient";
+import { useSFTPContext } from "../sftp-context";
 import PathBreadcrumb from "./PathBreadcrumb";
 import { ShowProgressBar } from "./DownloadProgress";
-import { DownloadProgressType } from "./only-sftp-client";
+import { DownloadProgressType } from "./SFTPTabClient";
 
 export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoading, loading, hasError }: any) {
     const splitedPath = path.split("/") as string[];
@@ -29,7 +29,7 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
     const [isUploading, setIsUploading] = useState(false);
     const [showHiddenFiles, setShowHiddenFiles] = useState<boolean>(false);
     const [uploadFileName, setUploadFileName] = useState<string | null>(null);
-
+const [sessionClosed, setSessionClosed] = useState(false);
     const [fileUploadProgress, setFileUploadProgress] = useState<DownloadProgressType | null>(null);
     const handleHiddenFilesFilter = () => {
         setShowHiddenFiles(!showHiddenFiles);
@@ -92,22 +92,36 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
         }
     };
     const handleRetrySFTPConnect = () => {
-        // handleSetLoading(true)
-        // socket!.emit(SocketEventConstants.SFTP_CONNECT)
+        handleSetLoading(true)
+        socket?.emit(SocketEventConstants.SFTP_CONNECT)
     }
     useEffect(() => {
-        socket!.on(SocketEventConstants.FILE_UPLOADED_PROGRESS, (data: DownloadProgressType) => {
+        if (!socket) return;
+        const onUploadProgress = (data: DownloadProgressType) => {
             setFileUploadProgress(data)
-
-        })
-        socket!.on(SocketEventConstants.FILE_UPLOADED, () => {
+        }
+        const onFileUploaded = () => {
             setUploadFileName(null)
             setFileUploadProgress(null)
+        }
+        socket.on(SocketEventConstants.FILE_UPLOADED_PROGRESS, onUploadProgress)
+        socket.on(SocketEventConstants.FILE_UPLOADED, onFileUploaded)
+        socket.on(SocketEventConstants.SFTP_ENDED, (mesage: string) => {
+            toast({
+                title: 'SFTP Session Ended',
+                description: mesage,
+            })
+            setSessionClosed(true);
         })
-        setFilteredFiles(files.filter((file: SFTP_FILES_LIST) => !file.name.startsWith(".")));
+        setFilteredFiles(showHiddenFiles ? files : files.filter((file: SFTP_FILES_LIST) => !file.name.startsWith(".")));
         setTimeout(() => files.length > 0 && handleSetLoading(false), 1000);
 
-    }, [files, handleSetLoading]);
+        return () => {
+            socket.off(SocketEventConstants.FILE_UPLOADED_PROGRESS, onUploadProgress)
+            socket.off(SocketEventConstants.FILE_UPLOADED, onFileUploaded)
+            socket.off(SocketEventConstants.SFTP_ENDED)
+        }
+    }, [files, handleSetLoading, socket, showHiddenFiles]);
 
     return (
         <>
@@ -137,7 +151,7 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
                         <PathBreadcrumb
                             handleSetCurrentDir={handleSetCurrentDir}
                             loading={loading}
-                            fetchFolderSuggestions={async (path: string) => ["Comming Soon , till Then wait, hahahah"]}
+                            fetchFolderSuggestions={async (path: string) => ["Comming Soon , till Then wait, hahahah", "Busy in Jobs :)"]}
                             currentPath={path}
                         />
                     </div>
@@ -145,7 +159,7 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
 
                         {hasError ?
                             <RefreshCwIcon className="h-4 w-4 cursor-pointer" onClick={handleRetrySFTPConnect} /> :
-                            <RefreshCwIcon className="h-4 w-4 cursor-pointer" onClick={() => socket!.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: path })} />
+                            <RefreshCwIcon className="h-4 w-4 cursor-pointer" onClick={() => socket?.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: path })} />
                         }
 
                         {!loading &&
@@ -190,7 +204,7 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
                                         },
                                         {
                                             label: "Refresh",
-                                            action: () => socket!.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: path }),
+                                            action: () => socket?.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: path }),
 
                                         }
 
@@ -259,7 +273,7 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
                             index={1}
                             download={fileUploadProgress}
                             onCancel={() => {
-                                socket!.emit(SocketEventConstants.CANCEL_UPLOADING, { fileName: uploadFileName });
+                                socket?.emit(SocketEventConstants.CANCEL_UPLOADING, { fileName: uploadFileName });
                             }}
 
                         />
