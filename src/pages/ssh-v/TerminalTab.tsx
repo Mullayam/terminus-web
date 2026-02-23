@@ -143,7 +143,7 @@ export default function TerminalTab({ sessionId }: Props) {
             updateSftpStatus(sessionId, true)
         }
         const handleCLoseSession = () => disconnect(sessionId, activeTabId!)
-        const closeIdleTabSession = startTracking(handleCLoseSession);
+        
 
         const storeHandshakeLogs = (data: string) => {
             //  console.log(data)   
@@ -179,7 +179,7 @@ export default function TerminalTab({ sessionId }: Props) {
             socket.off("connect");
             socket.off("connect_error");
             socket.off("disconnect");
-            closeIdleTabSession()
+ 
         }
 
 
