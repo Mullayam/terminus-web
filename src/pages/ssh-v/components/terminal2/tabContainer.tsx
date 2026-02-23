@@ -50,7 +50,7 @@ export default function TabContainer({ children }: TabContainerProps) {
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1 overflow-auto bg-[#1e1f2e]">
+      <div className="flex-1 overflow-auto" style={{ backgroundColor: colors.background }}>
         {children}
       </div>
     </div>

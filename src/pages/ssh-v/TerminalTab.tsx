@@ -73,7 +73,7 @@ export default function TerminalTab({ sessionId }: Props) {
     const { setActiveTabData, activeTabData } = useStore()
     const { addSharedSession, addPermissions, deletePermission, deleteSharedSession } = useTerminalStore()
 
-    const { tabs, sessions, addSession, updateStatus, updateSftpStatus, activeTabId, loadSessionTheme } = useSSHStore();
+    const { tabs, sessions, addSession, updateStatus, updateSftpStatus, activeTabId, loadSessionTheme, loadSessionFont } = useSSHStore();
     const socketRef = useRef<Socket | null>(null);
 
     const form = useForm<FormValues>({
@@ -118,6 +118,8 @@ export default function TerminalTab({ sessionId }: Props) {
 
         // Load persisted theme from IndexedDB for this session
         loadSessionTheme(sessionId);
+        // Load persisted font settings from localStorage for this session
+        loadSessionFont(sessionId);
 
         let socket = null
         if (session && session?.socket) {

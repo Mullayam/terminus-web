@@ -43,7 +43,7 @@ flex flex-col shadow-lg
             style={{ backgroundColor: colors.background }}
         >
             <div className="flex items-center justify-between p-2.5 border-b" style={{ borderColor: `${colors.foreground}20` }}>
-                <h2 className="text-lg font-semibold" style={{ color: colors.yellow }}>{activeTab}</h2>
+                <h2 className="text-lg font-semibold" style={{ color: colors?.yellow }}>{activeTab}</h2>
             </div>
 
             {/* Tab Container */}

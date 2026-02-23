@@ -42,7 +42,8 @@ const XTerminal = ({
   const { play } = useAudio(sound)
   const isRendered = useRef(false);
   const { sessions } = useSSHStore();
-  const sessionTheme = useSSHStore((s) => s.sessionThemes[sessionId]) || 'default';
+  const sessionTheme = useSSHStore((s) => s.sessionThemes[sessionId]) || 'custom';
+  const { fontSize = 15, fontWeight = '400', fontWeightBold = '700' } = useSSHStore((s) => s.sessionFonts[sessionId]) || {};
   const termRef = useRef<Terminal | null>(null);
   const { logs, addLogLine } = useTerminalStore();
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -193,8 +194,10 @@ const XTerminal = ({
       allowProposedApi: true,
       cursorWidth: 1,
       fontFamily: "monospace",
-      theme: XtermTheme[sessionTheme] || XtermTheme.default,
-      
+      fontSize,
+      fontWeight: fontWeight as any,
+      fontWeightBold: fontWeightBold as any,
+      theme: XtermTheme[sessionTheme] || XtermTheme.default,      
     });
 
     termRef.current = term;
@@ -280,6 +283,16 @@ const XTerminal = ({
       termRef.current.options.theme = newTheme;
     }
   }, [sessionTheme]);
+
+  // Reactively apply font settings changes
+  useEffect(() => {
+    if (termRef.current) {
+      termRef.current.options.fontSize = fontSize;
+      termRef.current.options.fontWeight = fontWeight as any;
+      termRef.current.options.fontWeightBold = fontWeightBold as any;
+      fitAddonRef.current?.fit();
+    }
+  }, [fontSize, fontWeight, fontWeightBold]);
 
   useEffect(() => {
     const handleKey = ({
