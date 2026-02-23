@@ -379,7 +379,8 @@ const XTerminal = ({
       <div
         ref={terminalRef}
         id="terminal"
-        style={{ width: "100%", height: "100%" }}
+         style={{ width: "100%", height: "100vh" }}  
+     
       />
       {showSearch && (
         <div className="absolute top-2 right-2 bg-[#181818] shadow-md border border-none rounded px-2 py-1 flex items-center gap-2 z-10">
