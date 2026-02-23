@@ -196,14 +196,15 @@ export default function TerminalTab({ sessionId }: Props) {
     }, [])
 
     return (
-        <div>
+        <div className="flex flex-col h-screen">
             {isLoading && <FullScreenLoader />}
             {sessions[sessionId]?.status === 'connected' && socketRef.current ?
                 <>
-                    <TerminalLayout>
-                        <XTerminal sessionId={sessionId} socket={socketRef.current} />
-                    </TerminalLayout>
-
+                    <div className="flex-1 min-h-0">  
+                        <TerminalLayout>
+                            <XTerminal sessionId={sessionId} socket={socketRef.current} />
+                        </TerminalLayout>
+                     </div>
                     {tabs.length !== 0 && sessions[sessionId] && (
                         <>
                             <div className="flex justify-between items-start flex-wrap px-4 py-1 border-t text-xs bg-[#1a1b26]">
