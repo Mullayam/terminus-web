@@ -8,11 +8,13 @@ import React, { useMemo, useState } from 'react';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
+import { useSessionTheme } from '@/hooks/useSessionTheme';
 
 
 
 export function CommandList() {
   const { setCommand, allCommands, addToAllCommands } = useCommandStore()
+  const { colors } = useSessionTheme();
   const [loadingState, setLoadingState] = useState(true);
   let clickTimer: NodeJS.Timeout | null = null;
 
@@ -56,20 +58,22 @@ export function CommandList() {
     }
   }, [])
   return (
-    <div className="border-l border-gray-800 bg-[#1e1f2e] flex flex-col h-full mr-2">
+    <div className="border-l flex flex-col h-full mr-2" style={{ borderColor: `${colors.foreground}15`, backgroundColor: colors.background }}>
       {/* Fixed Search & Input Section */}
-      <div className="p-4 border-b border-gray-800 relative">
+      <div className="p-4 border-b relative" style={{ borderColor: `${colors.foreground}15` }}>
         <Input
           placeholder="Search commands..."
           value={query}
           onChange={(e) => setQuery(e.target.value.toLowerCase())}
-          className="bg-[#24253a] border-gray-700 pr-10 focus:outline-none focus:ring-0"
+          className="border-gray-700 pr-10 focus:outline-none focus:ring-0"
+          style={{ backgroundColor: `${colors.foreground}10` }}
         />
 
         {/* Toggle Button Inside Input */}
         <button
           onClick={() => setIsEditing(!isEditing)}
-          className="absolute right-6 top-6 text-gray-400 hover:text-white"
+          className="absolute right-6 top-6 hover:text-white"
+          style={{ color: `${colors.foreground}80` }}
           type="button"
         >
           {!isEditing && <Plus className="w-4 h-4" />}
@@ -78,7 +82,7 @@ export function CommandList() {
 
       {/* Conditional Command Add/Edit Card */}
       {isEditing && (
-        <div className="p-4 border-b border-gray-800">
+        <div className="p-4 border-b" style={{ borderColor: `${colors.foreground}15` }}>
           <Card className="p-4 flex gap-2 flex-col">
             <div className="flex flex-col gap-2">
               <div className="flex flex-row justify-between items-center">
@@ -110,7 +114,8 @@ export function CommandList() {
                   setSniphet({ ...sniphet, name: e.target.value })
                 }
                 placeholder="Snippet Name"
-                className="bg-[#24253a] border-gray-700 pr-10 focus:outline-none focus:ring-0 focus:border-gray-700"
+                className="border-gray-700 pr-10 focus:outline-none focus:ring-0 focus:border-gray-700"
+                style={{ backgroundColor: `${colors.foreground}10` }}
               />
             </div>
             <Textarea
@@ -120,7 +125,8 @@ export function CommandList() {
                 setSniphet({ ...sniphet, command: e.target.value })
               }
               placeholder="Command"
-              className="bg-[#24253a] border-gray-700 pr-10 focus:outline-none focus:ring-0 focus:border-gray-700 resize-none font-mono whitespace-pre text-sm"
+              className="border-gray-700 pr-10 focus:outline-none focus:ring-0 focus:border-gray-700 resize-none font-mono whitespace-pre text-sm"
+              style={{ backgroundColor: `${colors.foreground}10` }}
             />
           </Card>
         </div>
@@ -135,7 +141,8 @@ export function CommandList() {
                 <Button
                   variant="ghost"
                   onClick={(e) => handleMouseClick(e, cmd.command)}
-                  className="flex-1 justify-start text-left text-gray-300 hover:text-white hover:bg-[#24253a]"
+                  className="flex-1 justify-start text-left hover:text-white"
+                  style={{ color: `${colors.foreground}cc` }}
                 >
                   <Terminal className="h-4 w-4 mr-2" />
                   {cmd.name}
@@ -161,7 +168,7 @@ export function CommandList() {
               )}
 
               {index < filteredCommands.length - 1 && (
-                <Separator className="my-2 bg-gray-800" />
+                <Separator className="my-2" style={{ backgroundColor: `${colors.foreground}15` }} />
               )}
             </div>
           ))}

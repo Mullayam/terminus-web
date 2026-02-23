@@ -5,6 +5,7 @@ import { CommandList } from "./commandList";
 import TerminalShare from "./share";
 import TabContainer from "./tabContainer";
 import SettingsTab from "./settingsTab";
+import { useSessionTheme } from "@/hooks/useSessionTheme";
 
 interface RightSidebarProps {
     onClose: () => void;
@@ -16,6 +17,7 @@ export function RightSidebar({
     isRightSidebarOpen,
 }: RightSidebarProps) {
     const { activeTab } = useTabStore();
+    const { colors } = useSessionTheme();
 
     const renderActiveTab = () => {
         switch (activeTab) {
@@ -33,14 +35,15 @@ export function RightSidebar({
     return (
         <div
             className={`
-fixed right-0 top-14 bottom-12  bg-[#1a1b26] z-20
+fixed right-0 top-14 bottom-12 z-20
 transition-all duration-300 ease-in-out
-${isRightSidebarOpen ? "w-90 translate-x-0" : "w-80 translate-x-full"}
+${isRightSidebarOpen ? "w-96 translate-x-0" : "w-96 translate-x-full"}
 flex flex-col shadow-lg
 `}
+            style={{ backgroundColor: colors.background }}
         >
-            <div className="flex items-center justify-between p-2.5 border-b border-gray-800">
-                <h2 className="text-lg font-semibold text-orange-400">{activeTab}</h2>
+            <div className="flex items-center justify-between p-2.5 border-b" style={{ borderColor: `${colors.foreground}20` }}>
+                <h2 className="text-lg font-semibold" style={{ color: colors?.yellow }}>{activeTab}</h2>
             </div>
 
             {/* Tab Container */}

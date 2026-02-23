@@ -83,7 +83,7 @@ export default function NewSSH() {
         return () => unsubscribe()
     }, [hosts, activeTabId])
     return (
-        <div className='w-full'>
+        <div className='w-full h-full overflow-hidden'>
 
             {tabs.length === 0 && <StoredHosts hosts={hosts} handleClickOnHostCard={handleClickOnHostCard} />}
             {tabs.map((tab) => (

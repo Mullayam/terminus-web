@@ -107,7 +107,7 @@ export function ShowProgressBar({ download, onCancel, index }:
                     {formatBytes(+download.transferred)} / {formatBytes(+download.totalSize)}
                 </span>
 
-                {download.status === 'downloading'|| download.status === 'uploading' && (
+                {(download.status === 'downloading' || download.status === 'uploading') && (
                     <span className="flex items-center space-x-1">
                         <span>{download.speed.speed}{download.speed.unit}</span>
                         <span>•</span>

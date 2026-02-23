@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import ServerStatus from './ServerStatus';
-
 import { AppSidebar } from "./app-sidebar"
 
 import {
@@ -14,7 +13,6 @@ import {
 
 export function Dashboard({ children }: { children: React.ReactNode }) {
     return (
-
         <SidebarProvider>
             <AppSidebar />
             <SidebarInset>
@@ -26,12 +24,10 @@ export function Dashboard({ children }: { children: React.ReactNode }) {
                         <ServerStatus />
                     </div>
                 </header>
-                <div className="flex flex-1 flex-col   pt-0 bg-[#0A0A0A]">
+                <div className="flex flex-1 flex-col h-[calc(100vh-3.5rem)] overflow-hidden pt-0 bg-[#0A0A0A]">
                     {children}
                 </div>
             </SidebarInset>
         </SidebarProvider>
-
-
     );
 }

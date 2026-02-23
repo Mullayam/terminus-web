@@ -119,7 +119,7 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
                 setIsUploading={setIsUploading}
                 startUpload={startUpload}
             />
-            <div className="flex flex-col h-[720px]" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+            <div className="flex flex-col h-[calc(100vh-8rem)]" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
                 <div className="flex justify-between items-center p-2 bg-primary/10">
                     <div className="flex items-center space-x-2">
                         <span className="font-semibold">{title}</span>
@@ -209,7 +209,7 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
                 </div>
 
 
-                <ScrollArea className="flex-grow relative h-[720px]">
+                <ScrollArea className="flex-grow relative">
                     {loading ? (
                         <div className="absolute inset-0 bg-black opacity-75 flex items-center justify-center">
                             <div className="text-white font-semibold">Loading...</div>

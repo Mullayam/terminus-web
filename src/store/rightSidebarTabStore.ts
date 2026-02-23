@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { ThemeName } from '@/pages/ssh-v/components/themes';
 
 export type TabType = 'commands' | 'sharing' | 'settings';
 
@@ -20,7 +21,7 @@ interface SharingSession {
 }
 
 interface Settings {
-  theme: 'light' | 'dark' | 'auto';
+  theme: ThemeName;
   notifications: boolean;
   autoSave: boolean;
   fontSize: 'small' | 'medium' | 'large';
@@ -110,7 +111,7 @@ export const useTabStore = create<TabState>((set, get) => ({
     }
   ],
   settings: {
-    theme: 'auto',
+    theme: 'custom',
     notifications: true,
     autoSave: true,
     fontSize: 'medium'

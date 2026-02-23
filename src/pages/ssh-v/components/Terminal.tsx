@@ -26,7 +26,8 @@ import { useTerminalStore } from "@/store/terminalStore";
 import { useSSHStore } from "@/store/sshStore";
 import AISuggestionBox from "./terminal2/suggestion-box";
 import useAudio from "@/hooks/useAudio";
-import { get } from "http";
+import { XtermTheme, ThemeName } from "./themes";
+
 
 // https://github.com/xtermjs/xterm.js/blob/master/demo/client.ts
 const XTerminal = ({
@@ -41,7 +42,8 @@ const XTerminal = ({
   const { play } = useAudio(sound)
   const isRendered = useRef(false);
   const { sessions } = useSSHStore();
-
+  const sessionTheme = useSSHStore((s) => s.sessionThemes[sessionId]) || 'custom';
+  const { fontSize = 15, fontWeight = '400', fontWeightBold = '700' } = useSSHStore((s) => s.sessionFonts[sessionId]) || {};
   const termRef = useRef<Terminal | null>(null);
   const { logs, addLogLine } = useTerminalStore();
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -191,13 +193,11 @@ const XTerminal = ({
       cursorStyle: "block",
       allowProposedApi: true,
       cursorWidth: 1,
-      // rows: 40,
-      // cols: 150,
       fontFamily: "monospace",
-      theme: {
-        background: backgroundColor,
-        cursor: "#f1fa8c",
-      },
+      fontSize,
+      fontWeight: fontWeight as any,
+      fontWeightBold: fontWeightBold as any,
+      theme: XtermTheme[sessionTheme] || XtermTheme.default,      
     });
 
     termRef.current = term;
@@ -219,10 +219,10 @@ const XTerminal = ({
     term.loadAddon(searchAddon);
 
     term.open(terminalRef.current);
-      requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
       if (fitAddonRef.current) {
         fitAddonRef.current.fit();
-        socket.emit(SocketEventConstants.SSH_EMIT_RESIZE, { cols: term.cols, rows: term.rows});
+        socket.emit(SocketEventConstants.SSH_EMIT_RESIZE, { cols: term.cols, rows: term.rows });
       }
     });
     searchAddonRef.current = searchAddon;
@@ -261,7 +261,7 @@ const XTerminal = ({
     });
 
     window.addEventListener("resize", handleResize);
-  
+
 
     setSuggestions(
       Array.from(new Set(allCommands
@@ -275,6 +275,24 @@ const XTerminal = ({
       termRef.current = null;
     };
   }, [sessionId, socket]);
+
+  // Reactively apply theme changes to the live terminal instance
+  useEffect(() => {
+    if (termRef.current) {
+      const newTheme = XtermTheme[sessionTheme] || XtermTheme.default;
+      termRef.current.options.theme = newTheme;
+    }
+  }, [sessionTheme]);
+
+  // Reactively apply font settings changes
+  useEffect(() => {
+    if (termRef.current) {
+      termRef.current.options.fontSize = fontSize;
+      termRef.current.options.fontWeight = fontWeight as any;
+      termRef.current.options.fontWeightBold = fontWeightBold as any;
+      fitAddonRef.current?.fit();
+    }
+  }, [fontSize, fontWeight, fontWeightBold]);
 
   useEffect(() => {
     const handleKey = ({
@@ -375,15 +393,14 @@ const XTerminal = ({
 
   return (
     <div className="relative w-full h-full">
-
       <div
         ref={terminalRef}
         id="terminal"
-         style={{ width: "100%", height: "100vh" }}  
-     
+        style={{ width: "100%", height: "100%" }}
+
       />
       {showSearch && (
-        <div className="absolute top-2 right-2 bg-[#181818] shadow-md border border-none rounded px-2 py-1 flex items-center gap-2 z-10">
+        <div className="absolute top-2 right-2 bg-[#181818] shadow-md border border-gray-700 rounded px-2 py-1 flex items-center gap-2 z-10">
           <input
             ref={searchInputRef}
             type="text"
@@ -393,7 +410,7 @@ const XTerminal = ({
               if (e.key === 'Enter') handleSearchNext();
               if (e.key === 'Escape') setShowSearch(false);
             }}
-            className="px-2 py-1 border bg-[#181818] text-green-400 border-gray-300 rounded w-48"
+            className="px-2 py-1 border bg-[#181818] text-green-400 border-gray-600 rounded w-48"
           />
           <button
             onClick={handleSearchNext}

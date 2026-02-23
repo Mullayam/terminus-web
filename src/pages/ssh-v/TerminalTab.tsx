@@ -18,6 +18,7 @@ import TerminalLayout from './components/terminal2';
 import { RefreshCcw } from 'lucide-react';
 import { useIdleReconnect } from '@/hooks/useIdleReconnect';
 import { useSessionDisconnect } from '@/hooks/useSessionDisconnect';
+import { useSessionTheme } from '@/hooks/useSessionTheme';
 import { __config } from '@/lib/config';
 import { useTerminalStore } from '@/store/terminalStore';
 
@@ -68,10 +69,11 @@ export default function TerminalTab({ sessionId }: Props) {
     const [hostId, setHostId] = useState<string | null>(null)
     const startTracking = useIdleReconnect()
     const { disconnect } = useSessionDisconnect()
+    const { colors } = useSessionTheme();
     const { setActiveTabData, activeTabData } = useStore()
     const { addSharedSession, addPermissions, deletePermission, deleteSharedSession } = useTerminalStore()
 
-    const { tabs, sessions, addSession, updateStatus, updateSftpStatus, activeTabId } = useSSHStore()
+    const { tabs, sessions, addSession, updateStatus, updateSftpStatus, activeTabId, loadSessionTheme, loadSessionFont } = useSSHStore();
     const socketRef = useRef<Socket | null>(null);
 
     const form = useForm<FormValues>({
@@ -113,6 +115,11 @@ export default function TerminalTab({ sessionId }: Props) {
 
     React.useEffect(() => {
         const session = sessions[sessionId]
+
+        // Load persisted theme from IndexedDB for this session
+        loadSessionTheme(sessionId);
+        // Load persisted font settings from localStorage for this session
+        loadSessionFont(sessionId);
 
         let socket = null
         if (session && session?.socket) {
@@ -196,18 +203,18 @@ export default function TerminalTab({ sessionId }: Props) {
     }, [])
 
     return (
-        <div className="flex flex-col h-screen">
+        <div className="flex flex-col h-full overflow-hidden">
             {isLoading && <FullScreenLoader />}
             {sessions[sessionId]?.status === 'connected' && socketRef.current ?
                 <>
-                    <div className="flex-1 min-h-0">  
+                    <div className="flex-1 min-h-0 overflow-hidden">  
                         <TerminalLayout>
                             <XTerminal sessionId={sessionId} socket={socketRef.current} />
                         </TerminalLayout>
                      </div>
                     {tabs.length !== 0 && sessions[sessionId] && (
                         <>
-                            <div className="flex justify-between items-start flex-wrap px-4 py-1 border-t text-xs bg-[#1a1b26]">
+                            <div className="flex justify-between items-start flex-wrap px-4 py-1 border-t text-xs shrink-0" style={{ backgroundColor: `${colors.background}dd`, color: colors.foreground, borderColor: `${colors.foreground}20` }}>
                                 <div className="flex flex-row  gap-4">
                                     <span>Public IPs: <a href={`http://${sessions[sessionId].host}`}
                                         target="_blank" rel="noopener noreferrer" className="inline-block text-gray-200 dark:text-neutral-200 hover:underline" >

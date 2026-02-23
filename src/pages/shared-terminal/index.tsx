@@ -246,7 +246,7 @@ const XTerminal = () => {
         style={{ width: "100%", height: "100%", border: "1px solid #333" }}
       />
       {showSearch && (
-        <div className="absolute top-2 right-2 bg-[#181818] shadow-md border border-none rounded px-2 py-1 flex items-center gap-2 z-10">
+        <div className="absolute top-2 right-2 bg-[#181818] shadow-md border border-gray-700 rounded px-2 py-1 flex items-center gap-2 z-10">
           <input
             ref={searchInputRef}
             type="text"
@@ -256,7 +256,7 @@ const XTerminal = () => {
               if (e.key === 'Enter') handleSearchNext();
               if (e.key === 'Escape') setShowSearch(false);
             }}
-            className="px-2 py-1 border bg-[#181818] text-green-400 border-gray-300 rounded w-48"
+            className="px-2 py-1 border bg-[#181818] text-green-400 border-gray-600 rounded w-48"
           />
           <button
             onClick={handleSearchNext}
