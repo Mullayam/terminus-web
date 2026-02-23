@@ -28,6 +28,7 @@ const SFTP = () => {
       homeDir: '',
       title: '',
       remoteFiles: [],
+      authMethod: 'password',
     });
   };
 

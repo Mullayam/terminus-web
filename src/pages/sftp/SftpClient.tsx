@@ -20,6 +20,7 @@ const SftpClient = () => {
 
     const [currentDir, setCurrentDir] = useState("")
 
+
     const [homeDir, setHomeDir] = useState("")
     const [isError, setIsError] = useState(false)
     const [loading, setLoading] = useState(true);
@@ -40,11 +41,12 @@ const SftpClient = () => {
         setLoading(input)
     }
     React.useEffect(() => {
+        const dir = localStorage.getItem(`sftp_current_dir_${activeTabId}`)
+        if (activeTabId && dir) {
+            setCurrentDir(dir)
+        }
         if (socket) {
-            socket.on(SocketEventConstants.SFTP_READY, (cwd: string) => {
-                console.log("Ready")
 
-            })
             socket.on(SocketEventConstants.SFTP_CURRENT_PATH, (cwd: string) => {
 
                 setCurrentDir(cwd)
@@ -76,7 +78,7 @@ const SftpClient = () => {
         }
         return () => {
             if (socket) {
-                socket.off(SocketEventConstants.SFTP_READY)
+
                 socket.off(SocketEventConstants.SFTP_CURRENT_PATH)
                 socket.off(SocketEventConstants.SFTP_GET_FILE)
                 socket.off(SocketEventConstants.SFTP_FILES_LIST)

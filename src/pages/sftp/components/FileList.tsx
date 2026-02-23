@@ -45,6 +45,7 @@ import { useSFTPContext } from "../sftp-context";
 import { ContextModal } from "@/components/ui/context-modal";
 import { FilePermissions } from "./edit-permission";
 import { StatsInfoCard } from "./StatsInfoCards";
+import { FileEditor } from "./FileEditor";
 import { ApiCore } from "@/lib/api";
 import { useDialogState, useLoadingState } from "@/store";
 export type FileOperations = "file" | "folder" | "rename" | "move"
@@ -69,7 +70,7 @@ export function FileList({ files, currentDir }: {
   currentDir: string
 }) {
   const { toast } = useToast()
-  const { socket } = useSFTPContext()
+  const { socket, tabId } = useSFTPContext()
   const [rowSelection, setRowSelection] = useState({})
   const { setLoading } = useLoadingState()
   const [stats, setStats] = useState<null | RootObject>(null)
@@ -91,8 +92,10 @@ export function FileList({ files, currentDir }: {
 
   const handleDirectoryChange = useCallback((path: string) => {
     setLoading(true)
-    socketRef.current?.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: `${currentDirRef.current}/${path}` })
-  }, [setLoading])
+    const newDir = `${currentDirRef.current}/${path}`
+    localStorage.setItem(`sftp_current_dir_${tabId}`, newDir)
+    socketRef.current?.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: newDir })
+  }, [setLoading, tabId])
   // Memoize columns so react-table doesn't re-render all cells on every state change
   const columns: ColumnDef<SFTP_FILES_LIST>[] = useMemo(() => [
     {
@@ -346,8 +349,14 @@ export function FileList({ files, currentDir }: {
                         {
                           label: 'Edit',
                           icon: <Pencil className="w-4 h-4" />,
-                          action: () => console.log('Editing user:'),
-                          disabled: true,
+                          disabled: row.original.type === 'd',
+                          content: row.original.type !== 'd' ? (
+                            <FileEditor
+                              filePath={`${currentDir}/${row.getValue('name')}`}
+                              fileName={row.getValue('name')}
+                              socket={socket}
+                            />
+                          ) : undefined,
                         },
                         {
                           label: 'Refresh',

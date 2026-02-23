@@ -17,6 +17,8 @@ export interface SFTPSession {
   status: 'idle' | 'connecting' | 'connected' | 'error';
   error?: string;
   socket?: Socket | null;
+  password?: string;
+  authMethod: string;
   // Per-tab view state — lives in store so it never leaks across tabs
   isConnecting: boolean;
   isConnected: boolean;
@@ -91,6 +93,8 @@ export const useSFTPStore = create<SFTPStore>()(
       removeTab: (tabId) => {
         // Destroy the socket when tab is explicitly closed
         destroySocket(tabId);
+        // Clean up per-tab localStorage
+        localStorage.removeItem(`sftp_current_dir_${tabId}`);
         set((state) => {
           const remaining = state.tabs.filter((t) => t.id !== tabId);
           const newActive =

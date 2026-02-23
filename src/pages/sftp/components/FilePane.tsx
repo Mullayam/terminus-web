@@ -18,10 +18,12 @@ import { useSFTPContext } from "../sftp-context";
 import PathBreadcrumb from "./PathBreadcrumb";
 import { ShowProgressBar } from "./DownloadProgress";
 import { DownloadProgressType } from "./SFTPTabClient";
+import { useSFTPStore } from "@/store/sftpStore";
 
 export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoading, loading, hasError }: any) {
     const splitedPath = path.split("/") as string[];
     const { socket } = useSFTPContext()
+    const sftpStore = useSFTPStore((state) => state)
     const [filteredFiles, setFilteredFiles] = useState(files);
     const [dragOver, setDragOver] = useState(false);
     const [open, setOpen] = useState(false);
@@ -29,7 +31,7 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
     const [isUploading, setIsUploading] = useState(false);
     const [showHiddenFiles, setShowHiddenFiles] = useState<boolean>(false);
     const [uploadFileName, setUploadFileName] = useState<string | null>(null);
-const [sessionClosed, setSessionClosed] = useState(false);
+    const [sessionClosed, setSessionClosed] = useState(false);
     const [fileUploadProgress, setFileUploadProgress] = useState<DownloadProgressType | null>(null);
     const handleHiddenFilesFilter = () => {
         setShowHiddenFiles(!showHiddenFiles);
@@ -93,7 +95,22 @@ const [sessionClosed, setSessionClosed] = useState(false);
     };
     const handleRetrySFTPConnect = () => {
         handleSetLoading(true)
-        socket?.emit(SocketEventConstants.SFTP_CONNECT)
+        const session = sftpStore.sessions[sftpStore?.activeTabId as any]
+        if (session) {
+            const d = JSON.stringify({
+                host: session.host,
+                username: session.username,
+                password: session.password || '',
+                authMethod:session.authMethod || "password"
+            })
+
+            return socket?.emit(SocketEventConstants.SFTP_CONNECT, d)
+        }
+        return toast({
+            title: "No session data",
+            description: "Session data is missing, please refresh the page and try again",
+        })
+
     }
     useEffect(() => {
         if (!socket) return;
@@ -104,6 +121,12 @@ const [sessionClosed, setSessionClosed] = useState(false);
             setUploadFileName(null)
             setFileUploadProgress(null)
         }
+        socket.on(SocketEventConstants.SFTP_READY, (cwd: string) => {
+            console.log("Ready")
+            if (sftpStore.activeTabId) {
+                sftpStore.updateSession(sftpStore.activeTabId!, { isConnected: true, isConnecting: false, error: undefined });
+            }
+        })
         socket.on(SocketEventConstants.FILE_UPLOADED_PROGRESS, onUploadProgress)
         socket.on(SocketEventConstants.FILE_UPLOADED, onFileUploaded)
         socket.on(SocketEventConstants.SFTP_ENDED, (mesage: string) => {
@@ -112,6 +135,9 @@ const [sessionClosed, setSessionClosed] = useState(false);
                 description: mesage,
             })
             setSessionClosed(true);
+            if (sftpStore.activeTabId) {
+                sftpStore.updateSession(sftpStore.activeTabId!, { isConnected: false, isConnecting: false, error: "Session Ended" });
+            }
         })
         setFilteredFiles(showHiddenFiles ? files : files.filter((file: SFTP_FILES_LIST) => !file.name.startsWith(".")));
         setTimeout(() => files.length > 0 && handleSetLoading(false), 1000);
@@ -120,6 +146,7 @@ const [sessionClosed, setSessionClosed] = useState(false);
             socket.off(SocketEventConstants.FILE_UPLOADED_PROGRESS, onUploadProgress)
             socket.off(SocketEventConstants.FILE_UPLOADED, onFileUploaded)
             socket.off(SocketEventConstants.SFTP_ENDED)
+            socket.off(SocketEventConstants.SFTP_READY)
         }
     }, [files, handleSetLoading, socket, showHiddenFiles]);
 
