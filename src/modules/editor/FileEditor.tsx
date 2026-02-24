@@ -56,6 +56,8 @@ import { InlineAnnotationsOverlay } from "./plugins/components/InlineAnnotations
 import { DiagnosticsOverlay } from "./plugins/components/DiagnosticsOverlay";
 import { PluginStatusBar } from "./plugins/components/PluginStatusBar";
 import { PluginPanelRenderer } from "./plugins/components/PluginPanelRenderer";
+import { GhostTextOverlay } from "./plugins/components/GhostTextOverlay";
+import { PluginManagerPopover } from "./plugins/components/PluginManagerPopover";
 
 // ═══════════════════════════════════════════════════════════════
 //  Public props
@@ -131,7 +133,7 @@ function EditorInner(props: FileEditorProps) {
     const { host: pluginHost, snapshot: pluginSnapshot } = usePluginHost(
         props.plugins ?? [],
     );
-
+ 
     // ── Format callback ──────────────────────────────────────
     const fileName = useEditorStore((s) => s.fileName);
     const language = useEditorStore((s) => s.language);
@@ -156,6 +158,11 @@ function EditorInner(props: FileEditorProps) {
     // ── Drag & Drop state ────────────────────────────────────
     const [isDragging, setIsDragging] = useState(false);
     const dragCountRef = useRef(0);
+
+    // ── Plugin manager sheet state ─────────────────────────
+    const [showPluginManager, setShowPluginManager] = useState(false);
+    const togglePluginManager = useCallback(() => setShowPluginManager((v) => !v), []);
+    const closePluginManager = useCallback(() => setShowPluginManager(false), []);
 
     const onFormat = useCallback(() => {
         const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
@@ -385,13 +392,35 @@ function EditorInner(props: FileEditorProps) {
                     </div>
                 </div>
             )}
-            {/* Toolbar */}
-            <Toolbar
-                fileName={fileName}
-                onSave={saveWithPluginNotify}
-                onReload={reload}
-                onFormat={onFormat}
-            />
+            {/* Toolbar + Plugin Manager Button */}
+            <div className="flex items-center shrink-0">
+                <div className="flex-1 min-w-0">
+                    <Toolbar
+                        fileName={fileName}
+                        onSave={saveWithPluginNotify}
+                        onReload={reload}
+                        onFormat={onFormat}
+                    />
+                </div>
+                {/* Plugin manager toggle */}
+                <button
+                    onClick={togglePluginManager}
+                    title="Manage Plugins"
+                    className={`relative flex items-center justify-center w-7 h-7 rounded-md border-none cursor-pointer mr-2 transition-colors duration-150 ${
+                        showPluginManager
+                            ? "bg-[var(--editor-popup-hover-bg)] text-[var(--editor-accent)]"
+                            : "bg-transparent text-[var(--editor-muted)] hover:bg-[var(--editor-popup-hover-bg)]"
+                    }`}
+                >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
+                    </svg>
+                    <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-[var(--editor-accent,#bd93f9)] text-white text-[8px] font-bold flex items-center justify-center leading-none">
+                        {pluginSnapshot.enabledPlugins.size}
+                    </span>
+                </button>
+            </div>
 
             {/* Find / Replace */}
             <FindReplaceBar />
@@ -416,7 +445,7 @@ function EditorInner(props: FileEditorProps) {
             )}
 
             {/* Editor body */}
-            <div className="flex flex-1 min-h-0 overflow-hidden">
+            <div className="flex flex-1 min-h-0 overflow-hidden relative">
                 {/* Gutter + Code area */}
                 <div className="flex flex-1 min-w-0 overflow-hidden relative">
                     <VirtualizedGutter />
@@ -427,6 +456,7 @@ function EditorInner(props: FileEditorProps) {
                         <CodeLensOverlay codeLenses={pluginSnapshot.codeLenses} />
                         <InlineAnnotationsOverlay annotations={pluginSnapshot.inlineAnnotations} />
                         <DiagnosticsOverlay diagnostics={pluginSnapshot.diagnostics} />
+                        <GhostTextOverlay />
                         {/* Whitespace visibility overlay */}
                         {showWhitespace && whitespaceHtml && (
                             <pre
@@ -488,6 +518,14 @@ function EditorInner(props: FileEditorProps) {
 
                 {/* Plugin side panels */}
                 <PluginPanelRenderer host={pluginHost} snapshot={pluginSnapshot} position="right" />
+
+                {/* Plugin Manager (overlays inside editor body) */}
+                <PluginManagerPopover
+                    host={pluginHost}
+                    snapshot={pluginSnapshot}
+                    open={showPluginManager}
+                    onClose={closePluginManager}
+                />
             </div>
 
             {/* Plugin bottom panels */}
@@ -498,7 +536,7 @@ function EditorInner(props: FileEditorProps) {
                 <div className="flex-1">
                     <StatusBar language={language} />
                 </div>
-                <PluginStatusBar snapshot={pluginSnapshot} />
+                <PluginStatusBar snapshot={pluginSnapshot} onTogglePluginManager={togglePluginManager} />
             </div>
 
             {/* Completion Widget (floating) */}

@@ -23,6 +23,7 @@ import type {
 } from "./types";
 import { ThemeManager } from "../themes/manager";
 import { FormatterRegistry } from "../formatters";
+import { validatePlugin } from "./validatePlugin";
 
 type Listener = () => void;
 
@@ -69,10 +70,32 @@ export class PluginHost {
         return () => this.listeners.delete(listener);
     }
 
+    /** When > 0, emit() is deferred until the batch ends */
+    private batchDepth = 0;
+    private batchDirty = false;
+
     private emit() {
+        if (this.batchDepth > 0) {
+            this.batchDirty = true;
+            return;
+        }
         // Create a new state reference so React detects the change
         this.state = { ...this.state };
         this.listeners.forEach((l) => l());
+    }
+
+    /** Run fn with emit batching — only one emission at the end */
+    private batch(fn: () => void): void {
+        this.batchDepth++;
+        try {
+            fn();
+        } finally {
+            this.batchDepth--;
+            if (this.batchDepth === 0 && this.batchDirty) {
+                this.batchDirty = false;
+                this.emit();
+            }
+        }
     }
 
     // ── Plugin registration ──────────────────────────────────
@@ -82,6 +105,22 @@ export class PluginHost {
             console.warn(`[PluginHost] Plugin "${plugin.id}" is already registered.`);
             return;
         }
+
+        // Validate plugin structure
+        const validation = validatePlugin(plugin);
+        if (!validation.valid) {
+            const errors = validation.issues.filter((i) => i.level === "error");
+            console.error(
+                `[PluginHost] Plugin "${validation.pluginId}" failed validation:`,
+                errors.map((e) => `${e.field}: ${e.message}`),
+            );
+            return;
+        }
+        // Log warnings
+        for (const issue of validation.issues.filter((i) => i.level === "warning")) {
+            console.warn(`[PluginHost] ⚠ ${plugin.id}: ${issue.field} — ${issue.message}`);
+        }
+
         this.state.plugins.set(plugin.id, plugin);
         if (plugin.defaultEnabled !== false) {
             this.enable(plugin.id);
@@ -99,50 +138,52 @@ export class PluginHost {
         const plugin = this.state.plugins.get(pluginId);
         if (!plugin || this.state.enabledPlugins.has(pluginId)) return;
 
-        this.state.enabledPlugins.add(pluginId);
-        const api = this.createAPI(pluginId);
+        this.batch(() => {
+            this.state.enabledPlugins.add(pluginId);
+            const api = this.createAPI(pluginId);
 
-        // Run legacy onInit / onMount
-        try { plugin.onInit?.(api); } catch (e) { console.error(`[Plugin:${pluginId}] onInit error:`, e); }
-        try { plugin.onMount?.(api); } catch (e) { console.error(`[Plugin:${pluginId}] onMount error:`, e); }
+            // Run legacy onInit / onMount
+            try { plugin.onInit?.(api); } catch (e) { console.error(`[Plugin:${pluginId}] onInit error:`, e); }
+            try { plugin.onMount?.(api); } catch (e) { console.error(`[Plugin:${pluginId}] onMount error:`, e); }
 
-        // Run extended onActivate
-        const activateResult = plugin.onActivate?.(api);
-        if (activateResult instanceof Promise) {
-            activateResult.catch((e) => console.error(`[Plugin:${pluginId}] onActivate error:`, e));
-        }
+            // Run extended onActivate
+            const activateResult = plugin.onActivate?.(api);
+            if (activateResult instanceof Promise) {
+                activateResult.catch((e) => console.error(`[Plugin:${pluginId}] onActivate error:`, e));
+            }
 
-        // Register static contributions
-        plugin.keybindings?.forEach((kb) => api.registerKeybinding(kb));
-        plugin.contextMenuItems?.forEach((item) => api.addContextMenuItem(item));
-        plugin.formatters?.forEach((f) => api.registerFormatter(f));
-        plugin.panels?.forEach((p) => this.registerPanel(p));
-        plugin.completionProviders?.forEach((cp) => this.registerCompletionProvider(cp));
-
-        this.emit();
+            // Register static contributions
+            plugin.keybindings?.forEach((kb) => api.registerKeybinding(kb));
+            plugin.contextMenuItems?.forEach((item) => api.addContextMenuItem(item));
+            plugin.formatters?.forEach((f) => api.registerFormatter(f));
+            plugin.panels?.forEach((p) => this.registerPanel(p));
+            plugin.completionProviders?.forEach((cp) => this.registerCompletionProvider(cp));
+        });
     }
 
     disable(pluginId: string): void {
         if (!this.state.enabledPlugins.has(pluginId)) return;
-        const plugin = this.state.plugins.get(pluginId);
-        const api = this.createAPI(pluginId);
 
-        try { plugin?.onDeactivate?.(api); } catch (e) { console.error(`[Plugin:${pluginId}] onDeactivate error:`, e); }
-        try { plugin?.onUnmount?.(); } catch (e) { console.error(`[Plugin:${pluginId}] onUnmount error:`, e); }
+        this.batch(() => {
+            const plugin = this.state.plugins.get(pluginId);
+            const api = this.createAPI(pluginId);
 
-        // Clean up disposables
-        this.disposables.get(pluginId)?.forEach((d) => d());
-        this.disposables.delete(pluginId);
+            try { plugin?.onDeactivate?.(api); } catch (e) { console.error(`[Plugin:${pluginId}] onDeactivate error:`, e); }
+            try { plugin?.onUnmount?.(); } catch (e) { console.error(`[Plugin:${pluginId}] onUnmount error:`, e); }
 
-        // Remove contributions owned by this plugin
-        this.clearInlineDecorations(pluginId);
-        this.clearGutterDecorations(pluginId);
-        this.clearCodeLenses(pluginId);
-        this.clearInlineAnnotations(pluginId);
-        this.clearDiagnostics(pluginId);
+            // Clean up disposables
+            this.disposables.get(pluginId)?.forEach((d) => d());
+            this.disposables.delete(pluginId);
 
-        this.state.enabledPlugins.delete(pluginId);
-        this.emit();
+            // Remove contributions owned by this plugin
+            this.clearInlineDecorations(pluginId);
+            this.clearGutterDecorations(pluginId);
+            this.clearCodeLenses(pluginId);
+            this.clearInlineAnnotations(pluginId);
+            this.clearDiagnostics(pluginId);
+
+            this.state.enabledPlugins.delete(pluginId);
+        });
     }
 
     isEnabled(pluginId: string): boolean {

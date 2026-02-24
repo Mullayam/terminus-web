@@ -10,7 +10,8 @@
  */
 import { useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { FileEditor, ApiContentProvider } from "@/modules/editor";
+import { FileEditor, ApiContentProvider, createAllBuiltinPlugins } from "@/modules/editor";
+import { createAllMockPlugins } from "@/modules/editor/plugins/mock";
 
 export default function FileEditorModulePage() {
     const [params] = useSearchParams();
@@ -44,6 +45,7 @@ export default function FileEditorModulePage() {
     return (
         <div className="editor-page-wrapper">
             <FileEditor
+                plugins={createAllMockPlugins()}
                 sessionId={sessionId}
                 remotePath={remotePath}
                 provider={provider}

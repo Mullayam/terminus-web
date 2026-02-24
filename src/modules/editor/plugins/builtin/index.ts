@@ -16,6 +16,8 @@ export { createDiffViewerPlugin } from "./diff-viewer";
 export { createFileMetadataPlugin } from "./file-metadata";
 export { createAutoDetectIndentPlugin } from "./auto-detect-indent";
 export { createFocusModePlugin } from "./focus-mode";
+export { createAiGhostTextPlugin, ghostTextStore } from "./ai-ghost-text";
+export type { GhostTextState } from "./ai-ghost-text";
 
 // ── Convenience: create all built-in plugins at once ─────────
 
@@ -31,6 +33,7 @@ import { createDiffViewerPlugin } from "./diff-viewer";
 import { createFileMetadataPlugin } from "./file-metadata";
 import { createAutoDetectIndentPlugin } from "./auto-detect-indent";
 import { createFocusModePlugin } from "./focus-mode";
+import { createAiGhostTextPlugin } from "./ai-ghost-text";
 import type { ExtendedEditorPlugin } from "../types";
 
 /**
@@ -51,5 +54,6 @@ export function createAllBuiltinPlugins(): ExtendedEditorPlugin[] {
         createFileMetadataPlugin(),
         createAutoDetectIndentPlugin(),
         createFocusModePlugin(),
+        createAiGhostTextPlugin(),
     ];
 }

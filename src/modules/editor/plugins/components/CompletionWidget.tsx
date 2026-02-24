@@ -56,11 +56,88 @@ export function CompletionWidget({ host, snapshot }: CompletionWidgetProps) {
     const fontSize = useEditorStore((s) => s.fontSize);
     const language = useEditorStore((s) => s.language);
     const fileName = useEditorStore((s) => s.fileName);
+    const tabSize = useEditorStore((s) => s.tabSize);
+    const wordWrap = useEditorStore((s) => s.wordWrap);
 
     const providers = useMemo(
         () => Array.from(snapshot.completionProviders.values()),
         [snapshot.completionProviders],
     );
+
+    // ── Measure cursor pixel position ───────────────────────
+    // Uses the well-known "mirror div" technique (same as the
+    // textarea-caret-position library).  A hidden div replicates
+    // the textarea's layout styles, the text before the cursor is
+    // inserted as plain text, then a <span> with the remaining
+    // text is appended.  The span's offsetTop/offsetLeft give us
+    // the exact caret coordinates inside the content — accounting
+    // for word-wrap, tab-size, padding, etc.
+
+    const measureCursorPosition = useCallback(() => {
+        const ta = textareaRef.current;
+        if (!ta) return null;
+
+        const position = ta.selectionStart;
+        const computed = window.getComputedStyle(ta);
+
+        // Properties that affect text layout — mirrors the list used
+        // by the battle-tested textarea-caret-position library.
+        const properties = [
+            "direction", "boxSizing",
+            "width", "height",
+            "overflowX", "overflowY",
+            "borderTopWidth", "borderRightWidth",
+            "borderBottomWidth", "borderLeftWidth",
+            "borderStyle",
+            "paddingTop", "paddingRight",
+            "paddingBottom", "paddingLeft",
+            "fontStyle", "fontVariant", "fontWeight",
+            "fontStretch", "fontSize", "fontSizeAdjust",
+            "lineHeight", "fontFamily",
+            "textAlign", "textTransform", "textIndent",
+            "textDecoration",
+            "letterSpacing", "wordSpacing",
+            "tabSize",
+        ];
+
+        const div = document.createElement("div");
+        div.id = "completion-mirror";
+        div.style.position = "absolute";
+        div.style.visibility = "hidden";
+        div.style.whiteSpace = "pre-wrap";
+        div.style.wordWrap = "break-word";
+
+        for (const prop of properties) {
+            (div.style as any)[prop] = (computed as any)[prop];
+        }
+        // Prevent a scrollbar flash on the mirror
+        div.style.overflow = "hidden";
+
+        div.textContent = ta.value.substring(0, position);
+
+        // The span contains the remaining text (or a fallback period
+        // so it always occupies visual space).  Its offset* values
+        // represent the exact caret position inside the mirror div.
+        const span = document.createElement("span");
+        span.textContent = ta.value.substring(position) || ".";
+        div.appendChild(span);
+
+        document.body.appendChild(div);
+
+        const caretTop =
+            span.offsetTop + parseInt(computed.borderTopWidth, 10);
+        const caretLeft =
+            span.offsetLeft + parseInt(computed.borderLeftWidth, 10);
+
+        document.body.removeChild(div);
+
+        const taRect = ta.getBoundingClientRect();
+
+        return {
+            top:  taRect.top + caretTop  - ta.scrollTop + lineHeight + 2,
+            left: taRect.left + caretLeft - ta.scrollLeft,
+        };
+    }, [textareaRef, content, cursorLine, cursorCol, lineHeight, tabSize]);
 
     // ── Compute completions on cursor change ─────────────────
 
@@ -112,26 +189,76 @@ export function CompletionWidget({ host, snapshot }: CompletionWidgetProps) {
             return;
         }
 
-        // Calculate position relative to textarea
-        const taRect = ta.getBoundingClientRect();
-        const lineTop = (cursorLine - 1) * lineHeight + 10 - ta.scrollTop;
-        const charWidth = fontSize * 0.6; // Approximate
-        const colLeft = (cursorCol - 1 - wordBeforeCursor.length) * charWidth + 10 - ta.scrollLeft;
+        // Measure actual cursor position using hidden span
+        const measured = measureCursorPosition();
+        if (!measured) { setVisible(false); return; }
 
-        setPosition({
-            top: taRect.top + lineTop + lineHeight + 2,
-            left: taRect.left + colLeft,
-        });
+        // Clamp to viewport
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const widgetW = 340;
+        const widgetH = Math.min(limited.length * 30 + 8, 260);
+
+        let top = measured.top;
+        let left = measured.left;
+
+        // If widget would go below viewport, show above the cursor line
+        if (top + widgetH > vh - 8) {
+            top = measured.top - lineHeight - widgetH - 4;
+        }
+        // Clamp horizontal
+        if (left + widgetW > vw - 8) {
+            left = vw - widgetW - 8;
+        }
+        if (left < 8) left = 8;
+
+        setPosition({ top, left });
 
         setItems(limited);
         setSelectedIndex(0);
         setVisible(true);
-    }, [content, cursorLine, cursorCol, providers, textareaRef, lineHeight, fontSize, language, fileName]);
+    }, [content, cursorLine, cursorCol, providers, textareaRef, lineHeight, fontSize, language, fileName, measureCursorPosition]);
 
     useEffect(() => {
         const timer = setTimeout(fetchCompletions, 150);
         return () => clearTimeout(timer);
     }, [fetchCompletions]);
+
+    // ── Reposition / dismiss on scroll & resize ──────────────
+
+    useEffect(() => {
+        if (!visible) return;
+        const ta = textareaRef.current;
+
+        const reposition = () => {
+            const measured = measureCursorPosition();
+            if (!measured) { setVisible(false); return; }
+
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            const widgetW = 340;
+            const widgetH = Math.min(items.length * 30 + 8, 260);
+            let { top, left } = measured;
+
+            if (top + widgetH > vh - 8) {
+                top = measured.top - lineHeight - widgetH - 4;
+            }
+            if (left + widgetW > vw - 8) left = vw - widgetW - 8;
+            if (left < 8) left = 8;
+
+            setPosition({ top, left });
+        };
+
+        const onScroll = () => reposition();
+        const onResize = () => reposition();
+
+        ta?.addEventListener("scroll", onScroll, { passive: true });
+        window.addEventListener("resize", onResize, { passive: true });
+        return () => {
+            ta?.removeEventListener("scroll", onScroll);
+            window.removeEventListener("resize", onResize);
+        };
+    }, [visible, items.length, lineHeight, measureCursorPosition, textareaRef]);
 
     // ── Keyboard handling ────────────────────────────────────
 

@@ -131,6 +131,17 @@
     to   { opacity: 1; transform: scale(1); }
 }
 
+@keyframes plugin-panel-slide-in {
+    from { opacity: 0; transform: translateX(24px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+.plugin-manager-row:focus-visible {
+    background: var(--editor-popup-hover-bg, rgba(68,71,90,0.5));
+    outline: 1px solid var(--editor-accent, #bd93f9);
+    outline-offset: -1px;
+}
+
 .editor-animate-in {
     animation: editor-fade-in 100ms ease-out;
 }

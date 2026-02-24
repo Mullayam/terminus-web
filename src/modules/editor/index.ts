@@ -68,6 +68,11 @@ export type {
 // ── Plugin system ───────────────────────────────────────────
 export { PluginHost } from "./plugins/PluginHost";
 export { usePluginHost } from "./plugins/usePluginHost";
+export { definePlugin, mergePlugins, checkPlugin } from "./plugins/definePlugin";
+export { validatePlugin, validatePlugins, logValidationResults } from "./plugins/validatePlugin";
+export { AiProviderManager } from "./plugins/AiProvider";
+export type { AiSuggestionRequest, AiSuggestionResponse, AiHandlerFn, AiStreamHandlerFn, AiStreamCallback } from "./plugins/AiProvider";
+export type { PluginValidationResult, PluginValidationIssue } from "./plugins/validatePlugin";
 export {
     createAllBuiltinPlugins,
     createAutoCompletionPlugin,
@@ -82,6 +87,8 @@ export {
     createFileMetadataPlugin,
     createAutoDetectIndentPlugin,
     createFocusModePlugin,
+    createAiGhostTextPlugin,
+    ghostTextStore,
 } from "./plugins/builtin";
 export type {
     ExtendedEditorPlugin,
@@ -100,6 +107,7 @@ export type {
     DiffHunk,
 } from "./plugins/types";
 export type { AiAdapter, AiContext, AiBugReport } from "./plugins/builtin/ai-suite";
+export type { GhostTextState } from "./plugins/builtin/ai-ghost-text";
 export { DemoAiAdapter } from "./plugins/builtin/ai-suite";
 
 // ── Plugin UI components ────────────────────────────────────
