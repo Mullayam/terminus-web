@@ -21,6 +21,8 @@ export default function FileEditorModulePage() {
     const remotePath = params.get("path") ?? "";
 
     const provider = useMemo(() => new ApiContentProvider(), []);
+    // Memoize plugins so they are created once and not re-created on every render
+    const plugins = useMemo(() => createAllMockPlugins(), []);
 
     if (!sessionId || !remotePath) {
         return (
@@ -45,7 +47,7 @@ export default function FileEditorModulePage() {
     return (
         <div className="editor-page-wrapper">
             <FileEditor
-                plugins={createAllMockPlugins()}
+                plugins={plugins}
                 sessionId={sessionId}
                 remotePath={remotePath}
                 provider={provider}

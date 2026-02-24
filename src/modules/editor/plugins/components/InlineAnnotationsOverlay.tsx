@@ -3,6 +3,8 @@
  *
  * Renders inline ghost text annotations after lines.
  */
+import { useState, useEffect } from "react";
+import type React from "react";
 import { useEditorStore, useEditorRefs } from "../../state/context";
 import type { InlineAnnotation } from "../types";
 
@@ -15,10 +17,26 @@ export function InlineAnnotationsOverlay({ annotations }: InlineAnnotationsOverl
     const fontSize = useEditorStore((s) => s.fontSize);
     const { textareaRef } = useEditorRefs();
 
+    // Track scroll position reactively
+    const [scrollTop, setScrollTop] = useState(0);
+    const [scrollLeft, setScrollLeft] = useState(0);
+
+    useEffect(() => {
+        const ta = textareaRef.current;
+        if (!ta) return;
+        const handleScroll = () => {
+            setScrollTop(ta.scrollTop);
+            setScrollLeft(ta.scrollLeft);
+        };
+        ta.addEventListener("scroll", handleScroll, { passive: true });
+        handleScroll();
+        return () => ta.removeEventListener("scroll", handleScroll);
+    }, [textareaRef]);
+
     if (annotations.length === 0) return null;
 
-    const scrollTop = textareaRef.current?.scrollTop ?? 0;
     const viewportHeight = textareaRef.current?.clientHeight ?? 800;
+    const charWidth = fontSize * 0.6;
 
     return (
         <div
@@ -38,6 +56,11 @@ export function InlineAnnotationsOverlay({ annotations }: InlineAnnotationsOverl
                 const top = (ann.line - 1) * lineHeight + 10 - scrollTop;
                 if (top < -lineHeight || top > viewportHeight + lineHeight) return null;
 
+                // Position at specific column if provided, otherwise right-align
+                const posStyle: React.CSSProperties = ann.col != null
+                    ? { left: ann.col * charWidth + 10 - scrollLeft }
+                    : { right: 12 };
+
                 return (
                     <div
                         key={ann.id}
@@ -45,7 +68,7 @@ export function InlineAnnotationsOverlay({ annotations }: InlineAnnotationsOverl
                         style={{
                             position: "absolute",
                             top,
-                            right: 12,
+                            ...posStyle,
                             height: lineHeight,
                             lineHeight: `${lineHeight}px`,
                             fontSize: fontSize - 1,

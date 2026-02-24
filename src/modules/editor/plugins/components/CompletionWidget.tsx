@@ -98,20 +98,21 @@ export function CompletionWidget({ host, snapshot }: CompletionWidgetProps) {
             "textDecoration",
             "letterSpacing", "wordSpacing",
             "tabSize",
+            "whiteSpace", "wordWrap", "overflowWrap",
         ];
 
         const div = document.createElement("div");
         div.id = "completion-mirror";
         div.style.position = "absolute";
         div.style.visibility = "hidden";
-        div.style.whiteSpace = "pre-wrap";
-        div.style.wordWrap = "break-word";
 
         for (const prop of properties) {
             (div.style as any)[prop] = (computed as any)[prop];
         }
         // Prevent a scrollbar flash on the mirror
         div.style.overflow = "hidden";
+        // Match the textarea's exact width so word-wrap breaks at the same points
+        div.style.width = computed.width;
 
         div.textContent = ta.value.substring(0, position);
 
@@ -134,7 +135,7 @@ export function CompletionWidget({ host, snapshot }: CompletionWidgetProps) {
         const taRect = ta.getBoundingClientRect();
 
         return {
-            top:  taRect.top + caretTop  - ta.scrollTop + lineHeight + 2,
+            top: taRect.top + caretTop - ta.scrollTop + lineHeight + 2,
             left: taRect.left + caretLeft - ta.scrollLeft,
         };
     }, [textareaRef, content, cursorLine, cursorCol, lineHeight, tabSize]);
@@ -166,6 +167,8 @@ export function CompletionWidget({ host, snapshot }: CompletionWidgetProps) {
             wordBeforeCursor,
             language,
             fileName,
+            linesBefore: lines.slice(Math.max(0, cursorLine - 1 - 250), cursorLine - 1),
+            linesAfter: lines.slice(cursorLine, Math.min(lines.length, cursorLine + 250)),
         };
 
         const allItems: CompletionItem[] = [];
@@ -193,11 +196,12 @@ export function CompletionWidget({ host, snapshot }: CompletionWidgetProps) {
         const measured = measureCursorPosition();
         if (!measured) { setVisible(false); return; }
 
-        // Clamp to viewport
+
+        // // Clamp to viewport
         const vw = window.innerWidth;
         const vh = window.innerHeight;
         const widgetW = 340;
-        const widgetH = Math.min(limited.length * 30 + 8, 260);
+        const widgetH = Math.min(limited.length * 30 + 8, 263);
 
         let top = measured.top;
         let left = measured.left;
@@ -212,7 +216,8 @@ export function CompletionWidget({ host, snapshot }: CompletionWidgetProps) {
         }
         if (left < 8) left = 8;
 
-        setPosition({ top, left });
+        // Position the widget at the measured cursor coordinates        
+        setPosition({ top: measured.top - 55, left: measured.left - 250 });
 
         setItems(limited);
         setSelectedIndex(0);
@@ -286,7 +291,7 @@ export function CompletionWidget({ host, snapshot }: CompletionWidgetProps) {
 
         document.addEventListener("keydown", handleKeyDown, true);
         return () => document.removeEventListener("keydown", handleKeyDown, true);
-    }, [visible, items, selectedIndex]);
+    }, [visible, items, selectedIndex, position]);
 
     // ── Accept completion ────────────────────────────────────
 

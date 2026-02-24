@@ -12,7 +12,7 @@
  *   - "Tab to accept" hint
  *   - Scrolls with the editor
  */
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useEditorStore, useEditorRefs } from "../../state/context";
 import { ghostTextStore, type GhostTextState } from "../builtin/ai-ghost-text";
 
@@ -32,23 +32,73 @@ export function GhostTextOverlay() {
         return ghostTextStore.subscribe(setGhost);
     }, []);
 
+    // Measure exact cursor position using hidden mirror div (same technique as CompletionWidget)
+    const measureCursorPosition = useCallback(() => {
+        const ta = textareaRef.current;
+        if (!ta) return null;
+
+        // Calculate the cursor offset from line/col
+        const lines = ta.value.split("\n");
+        let offset = 0;
+        for (let i = 0; i < ghost.line - 1 && i < lines.length; i++) {
+            offset += lines[i].length + 1;
+        }
+        offset += ghost.col;
+
+        const computed = window.getComputedStyle(ta);
+        const properties = [
+            "direction", "boxSizing",
+            "width", "height",
+            "overflowX", "overflowY",
+            "borderTopWidth", "borderRightWidth",
+            "borderBottomWidth", "borderLeftWidth",
+            "borderStyle",
+            "paddingTop", "paddingRight",
+            "paddingBottom", "paddingLeft",
+            "fontStyle", "fontVariant", "fontWeight",
+            "fontStretch", "fontSize", "fontSizeAdjust",
+            "lineHeight", "fontFamily",
+            "textAlign", "textTransform", "textIndent",
+            "textDecoration",
+            "letterSpacing", "wordSpacing",
+            "tabSize",
+            "whiteSpace", "wordWrap", "overflowWrap",
+        ];
+
+        const div = document.createElement("div");
+        div.style.position = "absolute";
+        div.style.visibility = "hidden";
+
+        for (const prop of properties) {
+            (div.style as any)[prop] = (computed as any)[prop];
+        }
+        div.style.overflow = "hidden";
+        div.style.width = computed.width;
+
+        div.textContent = ta.value.substring(0, offset);
+
+        const span = document.createElement("span");
+        span.textContent = ta.value.substring(offset) || ".";
+        div.appendChild(span);
+
+        document.body.appendChild(div);
+
+        const caretTop = span.offsetTop + parseInt(computed.borderTopWidth, 10);
+        const caretLeft = span.offsetLeft + parseInt(computed.borderLeftWidth, 10);
+
+        document.body.removeChild(div);
+
+        return {
+            top: caretTop - ta.scrollTop,
+            left: caretLeft - ta.scrollLeft,
+        };
+    }, [textareaRef, ghost.line, ghost.col, content]);
+
     // Compute position relative to textarea
     const position = useMemo(() => {
         if (!ghost.visible || !textareaRef.current) return null;
-
-        const ta = textareaRef.current;
-        const scrollTop = ta.scrollTop;
-        const scrollLeft = ta.scrollLeft;
-
-        // Approximate character width (monospace)
-        const charWidth = fontSize * 0.6;
-        const padding = 10; // Same padding as the textarea
-
-        const top = (ghost.line - 1) * lineHeight + padding - scrollTop;
-        const left = ghost.col * charWidth + padding - scrollLeft;
-
-        return { top, left };
-    }, [ghost.visible, ghost.line, ghost.col, fontSize, lineHeight, textareaRef]);
+        return measureCursorPosition();
+    }, [ghost.visible, ghost.line, ghost.col, measureCursorPosition, textareaRef]);
 
     if (!ghost.visible || !position) return null;
 
@@ -112,36 +162,55 @@ export function GhostTextOverlay() {
             {!ghost.isStreaming && ghost.streamedLength > 0 && (
                 <div
                     style={{
-                        marginTop: 2,
+                        marginTop: 4,
                         marginLeft: isMultiLine ? -position.left + 10 : 0,
                         display: "inline-flex",
                         alignItems: "center",
                         gap: 4,
-                        padding: "1px 6px",
-                        borderRadius: 3,
+                        padding: "2px 8px",
+                        borderRadius: 4,
                         fontSize: 10,
                         fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-                        background: "var(--editor-ghost-hint-bg, rgba(189, 147, 249, 0.12))",
+                        background: "var(--editor-popup-bg, #282a36)",
                         color: "var(--editor-ghost-hint-fg, #bd93f9)",
-                        opacity: 0.8,
+                        border: "1px solid var(--editor-border, #44475a)",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+                        opacity: 1,
                         pointerEvents: "auto",
                         animation: "ghostFadeIn 0.3s ease-out",
+                        zIndex: 6,
+                        position: "relative",
                     }}
                 >
                     <kbd
                         style={{
-                            padding: "0 3px",
-                            borderRadius: 2,
+                            padding: "0 4px",
+                            borderRadius: 3,
                             fontSize: 9,
                             fontWeight: 600,
-                            background: "rgba(255,255,255,0.08)",
-                            border: "1px solid rgba(255,255,255,0.1)",
+                            lineHeight: "16px",
+                            background: "rgba(255,255,255,0.1)",
+                            border: "1px solid rgba(255,255,255,0.15)",
                         }}
                     >
                         Tab
                     </kbd>
                     <span>to accept</span>
-                    <span style={{ opacity: 0.5, marginLeft: 4 }}>Esc to dismiss</span>
+                    <span style={{ opacity: 0.5, margin: "0 2px" }}>·</span>
+                    <kbd
+                        style={{
+                            padding: "0 4px",
+                            borderRadius: 3,
+                            fontSize: 9,
+                            fontWeight: 600,
+                            lineHeight: "16px",
+                            background: "rgba(255,255,255,0.1)",
+                            border: "1px solid rgba(255,255,255,0.15)",
+                        }}
+                    >
+                        Esc
+                    </kbd>
+                    <span style={{ opacity: 0.6 }}>to dismiss</span>
                 </div>
             )}
 

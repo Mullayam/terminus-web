@@ -258,6 +258,7 @@ function extractTypeHints(content: string): InlineAnnotation[] {
                 annotations.push({
                     id: `mock-type-hint:${i + 1}`,
                     line: i + 1,
+                    col: line.length,
                     text: `  ${inferredType}`,
                     style: { color: "var(--editor-muted, #6272a4)", fontStyle: "italic", opacity: 0.7 },
                 });
@@ -306,11 +307,14 @@ export function createMockIntelliSensePlugin(): ExtendedEditorPlugin {
 }
 
 function updateAnalysis(content: string, api: ExtendedPluginAPI) {
-    // Diagnostics
+    // Clear stale diagnostics before setting new ones
+    // This ensures removed lines don't leave ghost diagnostics behind
+    api.clearDiagnostics("mock-intellisense");
     const diagnostics = analyzeDiagnostics(content);
     api.setDiagnostics(diagnostics);
 
-    // Type hint annotations
+    // Clear stale annotations before setting new ones
+    api.clearInlineAnnotations("mock-intellisense");
     const annotations = extractTypeHints(content);
     api.setInlineAnnotations(annotations);
 }

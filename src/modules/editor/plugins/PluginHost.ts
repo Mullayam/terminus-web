@@ -24,6 +24,7 @@ import type {
 import { ThemeManager } from "../themes/manager";
 import { FormatterRegistry } from "../formatters";
 import { validatePlugin } from "./validatePlugin";
+import { KeybindingManager } from "./KeybindingManager";
 
 type Listener = () => void;
 
@@ -37,6 +38,8 @@ export class PluginHost {
     private saveListeners: Set<Listener> = new Set();
     private languageListeners: Set<(lang: string) => void> = new Set();
     private disposables: Map<string, Array<() => void>> = new Map();
+    /** Keybinding manager — handles conflict resolution and user overrides */
+    readonly keybindingManager = new KeybindingManager();
 
     constructor(
         store: StoreApi<EditorStoreType>,
@@ -158,6 +161,11 @@ export class PluginHost {
             plugin.formatters?.forEach((f) => api.registerFormatter(f));
             plugin.panels?.forEach((p) => this.registerPanel(p));
             plugin.completionProviders?.forEach((cp) => this.registerCompletionProvider(cp));
+
+            // Register keybindings with the KeybindingManager
+            if (plugin.keybindings?.length) {
+                this.keybindingManager.registerPluginBindings(pluginId, plugin.keybindings);
+            }
         });
     }
 
@@ -181,6 +189,9 @@ export class PluginHost {
             this.clearCodeLenses(pluginId);
             this.clearInlineAnnotations(pluginId);
             this.clearDiagnostics(pluginId);
+
+            // Unregister keybindings
+            this.keybindingManager.unregisterPluginBindings(pluginId);
 
             this.state.enabledPlugins.delete(pluginId);
         });
@@ -234,6 +245,22 @@ export class PluginHost {
                 catch (e) { console.error(`[Plugin:${id}] onLanguageChange error:`, e); }
             }
         }
+    }
+
+    // ── Keybinding dispatch ────────────────────────────────
+
+    /**
+     * Try to handle a key event via registered plugin keybindings.
+     * @returns `true` if a handler consumed the event (called preventDefault).
+     */
+    handleKeyEvent(e: KeyboardEvent, context: "editor" | "find" | "always" = "editor"): boolean {
+        const handler = this.keybindingManager.getHandler(e, context);
+        if (handler) {
+            handler(e);
+            // Only consider consumed if the handler called preventDefault()
+            return e.defaultPrevented;
+        }
+        return false;
     }
 
     // ── Decoration management ────────────────────────────────
@@ -488,6 +515,22 @@ export class PluginHost {
             },
             getLineCount: () => store.getState().lineCount,
 
+            getSurroundingContext: (radius = 250) => {
+                const s = store.getState();
+                const lines = s.content.split("\n");
+                const curLine = s.cursorLine;
+                const curCol = s.cursorCol;
+                const startLine = Math.max(0, curLine - 1 - radius);
+                const endLine = Math.min(lines.length, curLine + radius);
+                return {
+                    linesBefore: lines.slice(startLine, curLine - 1),
+                    currentLine: lines[curLine - 1] ?? "",
+                    linesAfter: lines.slice(curLine, endLine),
+                    cursorLine: curLine,
+                    cursorCol: curCol,
+                };
+            },
+
             registerCommand: (id, handler) => {
                 host.registerCommand(`${pluginId}:${id}`, handler);
                 addDisposable(() => host.state.commands.delete(`${pluginId}:${id}`));
@@ -529,5 +572,6 @@ export class PluginHost {
         this.selectionListeners.clear();
         this.saveListeners.clear();
         this.languageListeners.clear();
+        this.keybindingManager.destroy();
     }
 }

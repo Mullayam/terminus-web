@@ -107,7 +107,9 @@ export const PluginManagerPopover = memo(function PluginManagerPopover({
 
     const allPlugins = useMemo(
         () => Array.from(snapshot.plugins.values()),
-        [snapshot.plugins],
+        // snapshot (not snapshot.plugins) — the Map reference is stable,
+        // but the outer snapshot object is replaced on every emit().
+        [snapshot],
     );
 
     const filtered = useMemo(() => {

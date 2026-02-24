@@ -4,6 +4,7 @@
  * Renders CodeLens items above their target lines.
  * Positioned absolutely within the editor body, scrolls with content.
  */
+import { useState, useEffect, useCallback } from "react";
 import { useEditorStore, useEditorRefs } from "../../state/context";
 import type { CodeLensItem } from "../types";
 
@@ -17,6 +18,19 @@ export function CodeLensOverlay({ codeLenses }: CodeLensOverlayProps) {
     const wordWrap = useEditorStore((s) => s.wordWrap);
     const { textareaRef } = useEditorRefs();
 
+    // Track scroll position reactively so the overlay re-renders on scroll
+    const [scrollTop, setScrollTop] = useState(0);
+
+    useEffect(() => {
+        const ta = textareaRef.current;
+        if (!ta) return;
+        const handleScroll = () => setScrollTop(ta.scrollTop);
+        ta.addEventListener("scroll", handleScroll, { passive: true });
+        // Sync initial value
+        setScrollTop(ta.scrollTop);
+        return () => ta.removeEventListener("scroll", handleScroll);
+    }, [textareaRef]);
+
     if (codeLenses.length === 0) return null;
 
     // Group lenses by line
@@ -25,8 +39,6 @@ export function CodeLensOverlay({ codeLenses }: CodeLensOverlayProps) {
         if (!byLine.has(lens.line)) byLine.set(lens.line, []);
         byLine.get(lens.line)!.push(lens);
     }
-
-    const scrollTop = textareaRef.current?.scrollTop ?? 0;
 
     return (
         <div

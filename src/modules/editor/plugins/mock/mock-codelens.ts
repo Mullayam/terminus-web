@@ -210,6 +210,8 @@ export function createMockCodeLensPlugin(): ExtendedEditorPlugin {
 }
 
 function refresh(content: string, language: string, api: ExtendedPluginAPI) {
+    // Clear stale lenses before setting new ones so removed symbols don't leave ghosts
+    api.clearCodeLenses("mock-codelens");
     const lang = LANG_MAP[language] ?? language.toLowerCase();
     const lenses = buildLenses(content, lang, api);
     api.setCodeLenses(lenses);

@@ -205,3 +205,13 @@
     border-radius: 8px;
     margin: 4px;
 }
+
+/* ── Diagnostics hover tooltip ────────────────────────────── */
+.diag-item-group .diag-tooltip {
+    opacity: 0;
+    pointer-events: none;
+}
+.diag-item-group:hover .diag-tooltip,
+.diag-item-group .diag-hover-zone:hover ~ .diag-tooltip {
+    opacity: 1 !important;
+}

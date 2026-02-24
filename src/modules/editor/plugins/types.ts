@@ -62,6 +62,9 @@ export interface CodeLensItem {
 export interface InlineAnnotation {
     id: string;
     line: number;
+    /** Column position (0-based). When set, the annotation is placed at this column.
+     *  When omitted, falls back to right-aligned. */
+    col?: number;
     text: string;
     className?: string;
     style?: React.CSSProperties;
@@ -101,6 +104,10 @@ export interface CompletionContext {
     language: string;
     fileName: string;
     triggerCharacter?: string;
+    /** Lines before the cursor (up to 250 lines) */
+    linesBefore: string[];
+    /** Lines after the cursor (up to 250 lines) */
+    linesAfter: string[];
 }
 
 /** Diagnostic (lint warning / error) */
@@ -190,6 +197,18 @@ export interface ExtendedPluginAPI extends EditorPluginAPI {
     getCursorPosition(): { line: number; col: number; offset: number };
     getLineContent(line: number): string;
     getLineCount(): number;
+    /**
+     * Get surrounding context around the cursor.
+     * Returns up to `radius` lines before and after the cursor line.
+     * Default radius: 250 lines.
+     */
+    getSurroundingContext(radius?: number): {
+        linesBefore: string[];
+        currentLine: string;
+        linesAfter: string[];
+        cursorLine: number;
+        cursorCol: number;
+    };
 
     // ── Commands ─────────────────────────────────────
     registerCommand(id: string, handler: (...args: unknown[]) => void): void;

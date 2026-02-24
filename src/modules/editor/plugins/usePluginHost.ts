@@ -33,6 +33,8 @@ export function usePluginHost(
     const { textareaRef } = useEditorRefs();
     const content = useEditorStore((s) => s.content);
     const language = useEditorStore((s) => s.language);
+    const cursorLine = useEditorStore((s) => s.cursorLine);
+    const cursorCol = useEditorStore((s) => s.cursorCol);
 
     // Create PluginHost once
     const hostRef = useRef<PluginHost | null>(null);
@@ -83,6 +85,20 @@ export function usePluginHost(
             host.dispatchLanguageChange(language);
         }
     }, [language, host]);
+
+    // Dispatch selection / cursor changes
+    const prevCursorRef = useRef({ line: cursorLine, col: cursorCol });
+    useEffect(() => {
+        const prev = prevCursorRef.current;
+        if (cursorLine !== prev.line || cursorCol !== prev.col) {
+            prevCursorRef.current = { line: cursorLine, col: cursorCol };
+            const ta = textareaRef.current;
+            const start = ta?.selectionStart ?? 0;
+            const end = ta?.selectionEnd ?? 0;
+            const text = (start !== end && ta) ? ta.value.slice(start, end) : "";
+            host.dispatchSelectionChange({ start, end, text });
+        }
+    }, [cursorLine, cursorCol, host, textareaRef]);
 
     // Reactive snapshot via useSyncExternalStore
     const subscribe = useCallback((cb: () => void) => host.subscribe(cb), [host]);

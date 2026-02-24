@@ -3,6 +3,7 @@
  *
  * Renders diagnostic squiggly underlines and gutter markers.
  */
+import { useState, useEffect } from "react";
 import { useEditorStore, useEditorRefs } from "../../state/context";
 import type { Diagnostic } from "../types";
 
@@ -29,9 +30,24 @@ export function DiagnosticsOverlay({ diagnostics }: DiagnosticsOverlayProps) {
     const fontSize = useEditorStore((s) => s.fontSize);
     const { textareaRef } = useEditorRefs();
 
+    // Track scroll position reactively
+    const [scrollTop, setScrollTop] = useState(0);
+    const [scrollLeft, setScrollLeft] = useState(0);
+
+    useEffect(() => {
+        const ta = textareaRef.current;
+        if (!ta) return;
+        const handleScroll = () => {
+            setScrollTop(ta.scrollTop);
+            setScrollLeft(ta.scrollLeft);
+        };
+        ta.addEventListener("scroll", handleScroll, { passive: true });
+        handleScroll();
+        return () => ta.removeEventListener("scroll", handleScroll);
+    }, [textareaRef]);
+
     if (diagnostics.length === 0) return null;
 
-    const scrollTop = textareaRef.current?.scrollTop ?? 0;
     const viewportHeight = textareaRef.current?.clientHeight ?? 800;
     const charWidth = fontSize * 0.6;
 
@@ -58,7 +74,21 @@ export function DiagnosticsOverlay({ diagnostics }: DiagnosticsOverlayProps) {
                 const color = SEVERITY_COLORS[diag.severity];
 
                 return (
-                    <div key={diag.id}>
+                    <div key={diag.id} className="diag-item-group">
+                        {/* Invisible hover zone over the squiggly area */}
+                        <div
+                            className="diag-hover-zone"
+                            style={{
+                                position: "absolute",
+                                top: top,
+                                left,
+                                width,
+                                height: lineHeight,
+                                pointerEvents: "auto",
+                                cursor: "default",
+                                zIndex: 5,
+                            }}
+                        />
                         {/* Squiggly underline */}
                         <div
                             style={{
@@ -72,13 +102,13 @@ export function DiagnosticsOverlay({ diagnostics }: DiagnosticsOverlayProps) {
                                 backgroundSize: "6px 3px",
                             }}
                         />
-                        {/* Hover tooltip */}
+                        {/* Hover tooltip — positioned at the diagnostic word location */}
                         <div
-                            className="diagnostic-tooltip"
+                            className="diag-tooltip"
                             style={{
                                 position: "absolute",
-                                top: top - 2,
-                                right: 12,
+                                top: top - 18,
+                                left,
                                 fontSize: 10,
                                 lineHeight: "14px",
                                 padding: "2px 8px",
@@ -90,10 +120,11 @@ export function DiagnosticsOverlay({ diagnostics }: DiagnosticsOverlayProps) {
                                 maxWidth: 400,
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
-                                pointerEvents: "auto",
-                                opacity: 0.8,
+                                pointerEvents: "none",
+                                opacity: 0,
+                                transition: "opacity 0.15s",
+                                zIndex: 10,
                             }}
-                            title={diag.message}
                         >
                             <span style={{ marginRight: 4 }}>{SEVERITY_ICONS[diag.severity]}</span>
                             {diag.message}

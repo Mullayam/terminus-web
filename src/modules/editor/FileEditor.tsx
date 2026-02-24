@@ -179,6 +179,17 @@ function EditorInner(props: FileEditorProps) {
     // ── Keybindings ──────────────────────────────────────────
     useKeybindings({ onSave: save, onFormat });
 
+    // ── Combined textarea keydown: plugin keybindings → editor keys ─
+    const handleTextareaKeyDown = useCallback(
+        (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+            // Let plugin keybindings run first (ghost-text accept/dismiss, etc.)
+            if (pluginHost.handleKeyEvent(e.nativeEvent)) return;
+            // Then fall through to editor handlers (snippets, auto-close, indent)
+            editor.handleTextareaKeyDown(e);
+        },
+        [pluginHost, editor],
+    );
+
     // ── Dispatch save events to plugin host ───────────────────
     const origSave = save;
     const saveWithPluginNotify = useCallback(async () => {
@@ -483,7 +494,7 @@ function EditorInner(props: FileEditorProps) {
                             onInput={onTextareaInput}
                             onScroll={onScroll}
                             onContextMenu={onContextMenu}
-                            onKeyDown={editor.handleTextareaKeyDown}
+                            onKeyDown={handleTextareaKeyDown}
                             onClick={editor.syncCursor}
                             onKeyUp={editor.syncCursor}
                             readOnly={readOnly}
