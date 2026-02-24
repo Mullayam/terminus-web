@@ -32,7 +32,6 @@ export default function SSHConnectionForm<T>({ form, handleSubmit, isLoading, ch
       removeSession(activeTabId)
       removeTab(activeTabId)
     }
-    setActiveTab(tabs.filter((tab) => tab.id === activeTabId).length > 1 ? tabs[tabs.length - 1]?.id : tabs[0]?.id)
   }
   return (
     <div className="flex items-center justify-center p-4">

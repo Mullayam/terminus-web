@@ -73,6 +73,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@radix-ui/react-visually-hidden": "^1.2.4",
     "@tanstack/react-table": "^8.21.3",
+    "@types/prismjs": "^1.26.6",
     "@xterm/addon-attach": "^0.11.0",
     "@xterm/addon-canvas": "^0.7.0",
     "@xterm/addon-clipboard": "^0.1.0",
@@ -105,6 +106,7 @@
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.460.0",
     "next-themes": "^0.4.6",
+    "prismjs": "^1.30.0",
     "react": "^18.3.1",
     "react-contextmenu": "^2.14.0",
     "react-day-picker": "8.10.1",
@@ -120,6 +122,7 @@
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^11.1.0",
     "vaul": "^1.1.2",
+    "vscode-icons-js": "^11.6.1",
     "zod": "^3.25.76",
     "zustand": "^5.0.11"
   },

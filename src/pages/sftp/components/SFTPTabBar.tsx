@@ -4,15 +4,11 @@ import { cn } from '@/lib/utils';
 import { useSFTPStore } from '@/store/sftpStore';
 
 export function SFTPTabBar({ onAddTab }: { onAddTab: () => void }) {
-  const { tabs, activeTabId, setActiveTab, removeTab, removeSession } = useSFTPStore();
+  const { tabs, sessions, activeTabId, setActiveTab, removeTab } = useSFTPStore();
 
   const handleRemoveTab = (e: React.MouseEvent, tabId: string) => {
     e.stopPropagation();
-    const session = useSFTPStore.getState().sessions[tabId];
-    if (session?.socket) {
-      session.socket.disconnect();
-    }
-    removeSession(tabId);
+    // removeTab already destroys the socket & cleans up the session
     removeTab(tabId);
   };
 
@@ -32,8 +28,10 @@ export function SFTPTabBar({ onAddTab }: { onAddTab: () => void }) {
                 : 'text-gray-400 hover:text-gray-300'
             )}
           >
-            <span className="truncate max-w-[140px]">{tab.title}</span>
-            {tabs.length > 1 && (
+            <span className="truncate max-w-[140px]">
+              {sessions[tab.id]?.host || tab.title}
+            </span>
+            {tabs.length > 0 && (
               <span
                 onClick={(e) => handleRemoveTab(e, tab.id)}
                 className="ml-1 text-red-500 cursor-pointer hover:text-red-400"

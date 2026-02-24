@@ -48,4 +48,36 @@ export class ApiCore {
 
         return response;
     }
+
+    /**
+     * Fetch the content of a remote file via REST API.
+     */
+    static async fetchFileContent(sessionId: string, remotePath: string): Promise<{status:boolean,message:string, result: string }> {
+        const response = await fetch(__config.API_URL + "/api/file/read", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId, path: remotePath }),
+        });
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({ message: response.statusText }));
+            throw new Error(err.message ?? "Failed to fetch file content");
+        }
+        return response.json();
+    }
+
+    /**
+     * Save / update the content of a remote file via REST API.
+     */
+    static async saveFileContent(sessionId: string, remotePath: string, content: string): Promise<{ status: boolean,message:string, result: string  }> {
+        const response = await fetch(__config.API_URL + "/api/file/write", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId, path: remotePath, content }),
+        });
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({ message: response.statusText }));
+            throw new Error(err.message ?? "Failed to save file");
+        }
+        return response.json();
+    }
 }

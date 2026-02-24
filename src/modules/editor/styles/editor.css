@@ -1,0 +1,217 @@
+/**
+ * Base editor styles – scrollbars, animations, and layout helpers.
+ * Uses CSS custom properties set by the ThemeManager on .editor-root.
+ */
+
+/* ── Page wrapper – fits inside sidebar layout ────────────── */
+
+.editor-page-wrapper {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── Root containment ─────────────────────────────────────── */
+
+.editor-root {
+    position: relative;
+    z-index: 0;           /* never overlap the sidebar */
+    min-width: 0;         /* allow flex shrinking */
+    min-height: 0;
+    max-width: 100%;
+    max-height: 100%;
+    overflow: hidden;
+    isolation: isolate;   /* create stacking context */
+}
+
+/* ── Scrollbars ───────────────────────────────────────────── */
+
+.editor-root ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.editor-root ::-webkit-scrollbar-track {
+    background: var(--editor-scrollbar-track, transparent);
+}
+
+.editor-root ::-webkit-scrollbar-thumb {
+    background: var(--editor-scrollbar-thumb, #444);
+    border-radius: 4px;
+}
+
+.editor-root ::-webkit-scrollbar-thumb:hover {
+    background: var(--editor-scrollbar-thumb-hover, #666);
+}
+
+.editor-root ::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+/* ── Context menu scrollbar ───────────────────────────────── */
+
+.editor-ctx-menu::-webkit-scrollbar {
+    width: 6px;
+}
+
+.editor-ctx-menu::-webkit-scrollbar-track {
+    background: var(--editor-popup-bg, #1e1e1e);
+    border-radius: 3px;
+}
+
+.editor-ctx-menu::-webkit-scrollbar-thumb {
+    background: var(--editor-border, #444);
+    border-radius: 3px;
+}
+
+.editor-ctx-menu::-webkit-scrollbar-thumb:hover {
+    background: var(--editor-scrollbar-thumb-hover, #666);
+}
+
+/* ── Minimap ──────────────────────────────────────────────── */
+
+.editor-minimap {
+    font-size: 1.5px !important;
+    line-height: 2px !important;
+    letter-spacing: -0.2px;
+    pointer-events: none;
+}
+
+.editor-minimap-viewport {
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+/* ── Textarea reset ───────────────────────────────────────── */
+
+.editor-textarea {
+    caret-color: var(--editor-cursor, #fff);
+    color: transparent !important;
+    resize: none;
+    outline: none;
+    background: transparent !important;
+    z-index: 2;
+}
+
+.editor-textarea::selection {
+    background: var(--editor-selection, rgba(68, 71, 90, 0.6));
+}
+
+.editor-textarea::placeholder {
+    color: var(--editor-muted, #666);
+}
+
+/* ── Highlighted code overlay ─────────────────────────────── */
+
+.editor-highlight-overlay {
+    pointer-events: none;
+    user-select: none;
+    z-index: 0;
+}
+
+.editor-highlight-overlay code {
+    font-family: inherit;
+    color: inherit;
+}
+
+/* Ensure Prism tokens inside the overlay are visible */
+.editor-highlight-overlay .token {
+    background: none;
+}
+
+/* ── Animations ───────────────────────────────────────────── */
+
+@keyframes editor-fade-in {
+    from { opacity: 0; transform: scale(0.97); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes plugin-panel-slide-in {
+    from { opacity: 0; transform: translateX(24px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+.plugin-manager-row:focus-visible {
+    background: var(--editor-popup-hover-bg, rgba(68,71,90,0.5));
+    outline: 1px solid var(--editor-accent, #bd93f9);
+    outline-offset: -1px;
+}
+
+.editor-animate-in {
+    animation: editor-fade-in 100ms ease-out;
+}
+
+/* ── Gutter active line indicator ─────────────────────────── */
+
+.editor-gutter-line-active {
+    color: var(--editor-gutter-active-fg, #fff);
+}
+
+.editor-gutter-line {
+    color: var(--editor-gutter-fg, #666);
+}
+
+/* ── Whitespace visibility ────────────────────────────────── */
+
+.editor-whitespace-overlay .ws-space {
+    color: var(--editor-muted, #555);
+    opacity: 0.4;
+    font-size: inherit;
+}
+
+.editor-whitespace-overlay .ws-tab {
+    color: var(--editor-muted, #555);
+    opacity: 0.4;
+    font-size: inherit;
+}
+
+/* ── Bracket pair colorization ────────────────────────────── */
+
+.bracket-color-1 { color: #ffd700; font-weight: 500; } /* Gold */
+.bracket-color-2 { color: #da70d6; font-weight: 500; } /* Orchid */
+.bracket-color-3 { color: #179fff; font-weight: 500; } /* Blue */
+.bracket-color-4 { color: #00ccaa; font-weight: 500; } /* Teal */
+.bracket-color-5 { color: #ff6b6b; font-weight: 500; } /* Coral */
+.bracket-color-6 { color: #98d85a; font-weight: 500; } /* Lime */
+.bracket-error   { color: #ff0000; text-decoration: wavy underline; text-decoration-color: #ff0000; }
+
+/* ── Active line highlight ────────────────────────────────── */
+
+.editor-active-line-highlight {
+    background: var(--editor-line-highlight, rgba(68, 71, 90, 0.25));
+    pointer-events: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+}
+
+/* ── Drag-and-drop overlay ────────────────────────────────── */
+
+.editor-drop-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    pointer-events: none;
+    border: 2px dashed var(--editor-accent, #bd93f9);
+    border-radius: 8px;
+    margin: 4px;
+}
+
+/* ── Diagnostics hover tooltip ────────────────────────────── */
+.diag-item-group .diag-tooltip {
+    opacity: 0;
+    pointer-events: none;
+}
+.diag-item-group:hover .diag-tooltip,
+.diag-item-group .diag-hover-zone:hover ~ .diag-tooltip {
+    opacity: 1 !important;
+}

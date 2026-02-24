@@ -92,7 +92,7 @@ function OnlySFTPClient() {
         }
       });
     }
-
+    
     setLoading(true);
     socket?.emit(SocketEventConstants.SFTP_CONNECT, JSON.stringify(data));
   };

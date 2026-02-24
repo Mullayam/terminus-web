@@ -1,0 +1,84 @@
+/**
+ * Prism.js token styles – driven by CSS custom properties.
+ * Each editor instance sets --syntax-* variables on its root element,
+ * so multiple editors can use different themes simultaneously.
+ */
+
+/* ── Token colors ─────────────────────────────────────────── */
+
+.editor-root .token.comment,
+.editor-root .token.prolog,
+.editor-root .token.doctype,
+.editor-root .token.cdata {
+    color: var(--syntax-comment);
+    font-style: italic;
+}
+
+.editor-root .token.punctuation {
+    color: var(--syntax-punctuation);
+}
+
+.editor-root .token.namespace {
+    opacity: 0.7;
+}
+
+.editor-root .token.property,
+.editor-root .token.tag,
+.editor-root .token.constant,
+.editor-root .token.symbol,
+.editor-root .token.deleted {
+    color: var(--syntax-property);
+}
+
+.editor-root .token.boolean,
+.editor-root .token.number {
+    color: var(--syntax-number);
+}
+
+.editor-root .token.selector,
+.editor-root .token.attr-name,
+.editor-root .token.string,
+.editor-root .token.char,
+.editor-root .token.builtin,
+.editor-root .token.inserted {
+    color: var(--syntax-string);
+}
+
+.editor-root .token.operator,
+.editor-root .token.entity,
+.editor-root .token.url,
+.editor-root .language-css .token.string,
+.editor-root .style .token.string {
+    color: var(--syntax-operator);
+}
+
+.editor-root .token.atrule,
+.editor-root .token.attr-value,
+.editor-root .token.function,
+.editor-root .token.class-name {
+    color: var(--syntax-function);
+}
+
+.editor-root .token.keyword {
+    color: var(--syntax-keyword);
+}
+
+.editor-root .token.regex,
+.editor-root .token.important,
+.editor-root .token.variable {
+    color: var(--syntax-variable);
+}
+
+.editor-root .token.important,
+.editor-root .token.bold {
+    font-weight: bold;
+}
+
+.editor-root .token.italic {
+    font-style: italic;
+}
+
+/* Builtin override */
+.editor-root .token.builtin {
+    color: var(--syntax-builtin);
+}

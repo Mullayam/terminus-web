@@ -21,6 +21,8 @@ import { useSessionDisconnect } from '@/hooks/useSessionDisconnect';
 import { useSessionTheme } from '@/hooks/useSessionTheme';
 import { __config } from '@/lib/config';
 import { useTerminalStore } from '@/store/terminalStore';
+import { useSidebarState } from '@/store/sidebarStore';
+import SSHSftpViewer from './components/SSHSftpViewer';
 
 
 
@@ -72,6 +74,7 @@ export default function TerminalTab({ sessionId }: Props) {
     const { colors } = useSessionTheme();
     const { setActiveTabData, activeTabData } = useStore()
     const { addSharedSession, addPermissions, deletePermission, deleteSharedSession } = useTerminalStore()
+    const { activeItem } = useSidebarState();
 
     const { tabs, sessions, addSession, updateStatus, updateSftpStatus, activeTabId, loadSessionTheme, loadSessionFont } = useSSHStore();
     const socketRef = useRef<Socket | null>(null);
@@ -150,7 +153,7 @@ export default function TerminalTab({ sessionId }: Props) {
             updateSftpStatus(sessionId, true)
         }
         const handleCLoseSession = () => disconnect(sessionId, activeTabId!)
-        
+
 
         const storeHandshakeLogs = (data: string) => {
             //  console.log(data)   
@@ -164,16 +167,20 @@ export default function TerminalTab({ sessionId }: Props) {
             addSharedSession(activeTabId!, socketIds)
             addPermissions(activeTabId!, socketId, '400')
         }
+        const onResume = () => {
+            socket?.emit(SocketEventConstants.SSH_RESUME, sessionId)
 
+        }
         socket.on(SocketEventConstants.session_info, handleAddSession)
         socket.on(SocketEventConstants.SSH_DISCONNECTED, handleDeleteSession);
         socket.on(SocketEventConstants.SSH_EMIT_LOGS, storeHandshakeLogs);
         socket.on(SocketEventConstants.SSH_READY, handleSSHReady);
         socket.on(SocketEventConstants.SFTP_READY, handleSFTPStatus);
         socket.on(SocketEventConstants.SSH_EMIT_ERROR, handleSSHError);
-        socket.on('connect', () => console.log('Connected'));
+        socket.on('connect', () => console.log('Connected', socket.id));
         socket.on('disconnect', () => console.log('Disconnected'));
         socket.on('connect_error', (error) => console.error('Error:', error));
+
 
 
         return () => {
@@ -186,13 +193,12 @@ export default function TerminalTab({ sessionId }: Props) {
             socket.off("connect");
             socket.off("connect_error");
             socket.off("disconnect");
- 
         }
 
 
     }, [sessionId, activeTabId]);
     React.useEffect(() => {
-        
+
         if (activeTabData !== null) {
             form.reset(activeTabData);
             setHostId(activeTabData.id)
@@ -204,14 +210,24 @@ export default function TerminalTab({ sessionId }: Props) {
 
     return (
         <div className="flex flex-col h-full overflow-hidden">
-            {isLoading && <FullScreenLoader />}
+            {isLoading && <FullScreenLoader text={sessions[sessionId]?.host || 'starting session'} />}
             {sessions[sessionId]?.status === 'connected' && socketRef.current ?
                 <>
-                    <div className="flex-1 min-h-0 overflow-hidden">  
+                    <div className="flex-1 min-h-0 overflow-hidden">
                         <TerminalLayout>
-                            <XTerminal sessionId={sessionId} socket={socketRef.current} />
+                            <div style={{ display: activeItem === 'Terminal' ? 'contents' : 'none' }}>
+                                <XTerminal sessionId={sessionId} socket={socketRef.current} />
+                            </div>
+                            {activeItem === 'SFTP' && sessions[sessionId]?.sftp_enabled && (
+                                <SSHSftpViewer socket={socketRef.current} host={sessions[sessionId]?.host || 'SFTP Host'} />
+                            )}
+                            {activeItem === 'SFTP' && !sessions[sessionId]?.sftp_enabled && (
+                                <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+                                    SFTP is not available for this session.
+                                </div>
+                            )}
                         </TerminalLayout>
-                     </div>
+                    </div>
                     {tabs.length !== 0 && sessions[sessionId] && (
                         <>
                             <div className="flex justify-between items-start flex-wrap px-4 py-1 border-t text-xs shrink-0" style={{ backgroundColor: `${colors.background}dd`, color: colors.foreground, borderColor: `${colors.foreground}20` }}>
@@ -232,6 +248,7 @@ export default function TerminalTab({ sessionId }: Props) {
                                     <div className='cursor-pointer' onClick={() => window.navigator.clipboard.writeText(sessionId)}>
                                         Session:  {sessionId}
                                     </div>
+
                                 </div>
                                 <div className=" text-gray-200 text-xs text-right flex flex-row gap-4">
                                     {!socketRef.current?.connected && <RefreshCcw className='w-4 h-4 animate-spin' />}
