@@ -22,7 +22,7 @@ export default function FileEditorModulePage() {
 
     const provider = useMemo(() => new ApiContentProvider(), []);
     // Memoize plugins so they are created once and not re-created on every render
-    const plugins = useMemo(() => createAllMockPlugins(), []);
+    const plugins = useMemo(() => [...createAllMockPlugins(), ...createAllBuiltinPlugins()], []);
 
     if (!sessionId || !remotePath) {
         return (

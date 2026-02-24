@@ -248,13 +248,7 @@ export default function TerminalTab({ sessionId }: Props) {
                                     <div className='cursor-pointer' onClick={() => window.navigator.clipboard.writeText(sessionId)}>
                                         Session:  {sessionId}
                                     </div>
-                                    <div>
-                                       <span onClick={()=>{
-                                        if(socketRef.current){
-                                            socketRef.current?.connected ? socketRef.current?.disconnect() : socketRef.current?.connect();
-                                        }
-                                       }}> {socketRef.current?.connected ? 'Disconnect' : 'Connect'}</span>
-                                    </div>
+
                                 </div>
                                 <div className=" text-gray-200 text-xs text-right flex flex-row gap-4">
                                     {!socketRef.current?.connected && <RefreshCcw className='w-4 h-4 animate-spin' />}
