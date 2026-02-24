@@ -13,6 +13,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { BaseContentProvider, FileEditor, createAllBuiltinPlugins } from "@/modules/editor";
 import { createAllMockPlugins } from "@/modules/editor/plugins/mock";
 import { ApiCore } from "@/lib/api";
+import { __config } from "@/lib/config";
 
 // ═══════════════════════════════════════════════════════════════
 //  API Content Provider  (REST)
@@ -60,6 +61,13 @@ export default function FileEditorModulePage() {
     const sessionId = params.get("tabId") ?? "";
     const remotePath = params.get("path") ?? "";
 
+    // Extract the directory from the remote file path (strip the filename)
+    const terminalCwd = useMemo(() => {
+        if (!remotePath) return "/";
+        const dir = remotePath.replace(/\/[^/]*$/, "");
+        return dir || "/";
+    }, [remotePath]);
+
     const provider = useMemo(() => new ApiContentProvider(), []);
 
     // Memoize plugins so they are created once and not re-created on every render
@@ -94,6 +102,8 @@ export default function FileEditorModulePage() {
                 provider={provider}
                 themeId="vs-dark"
                 wordWrap
+                terminalSocketUrl={`${__config.API_URL}/dedicated-terminal`}
+                terminalCwd={terminalCwd}
             />
         </div>
     );

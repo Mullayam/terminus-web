@@ -6,9 +6,10 @@ import { memo, useCallback } from "react";
 import {
     Search, Replace, ArrowDown01, RotateCcw, WrapText, Palette,
     Map, ZoomIn, ZoomOut, BookLock, Info, Save, Undo2, Redo2,
-    AlignLeft, Keyboard, Terminal,
+    AlignLeft, Keyboard, Terminal, SquareTerminal,
 } from "lucide-react";
 import { useEditorStore, useEditorRefs } from "../state/context";
+import { useTerminalPanelStore } from "../terminal/store";
 import { FileIcon } from "./FileIcon";
 /** Tiny toolbar button */
 const TB = memo(function TB(props: {
@@ -70,6 +71,10 @@ export const Toolbar = memo(function Toolbar(props: {
     const redo = useEditorStore((s) => s.redo);
     const { textareaRef } = useEditorRefs();
 
+    // Terminal
+    const terminalToggle = useTerminalPanelStore((s) => s.toggle);
+    const terminalOpen = useTerminalPanelStore((s) => s.open);
+
     const handleUndo = useCallback(() => { undo(); textareaRef.current?.focus(); }, [undo, textareaRef]);
     const handleRedo = useCallback(() => { redo(); textareaRef.current?.focus(); }, [redo, textareaRef]);
 
@@ -130,6 +135,7 @@ export const Toolbar = memo(function Toolbar(props: {
             <TB icon={<ZoomOut className={sz} />} title="Zoom out (Ctrl+-)" onClick={zoomOut} />
             <TB icon={<BookLock className={sz} />} title="Read only" onClick={toggleReadOnly} active={readOnly} />
             <TB icon={<Terminal className={sz} />} title="Command Palette (Ctrl+Shift+P)" onClick={openCommandPalette} />
+            <TB icon={<SquareTerminal className={sz} />} title="Terminal (Ctrl+`)" onClick={terminalToggle} active={terminalOpen} />
             <TB icon={<Keyboard className={sz} />} title="Shortcuts" onClick={openShortcuts} active={showShortcuts} />
 
             {/* Spacer */}

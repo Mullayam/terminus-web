@@ -7,6 +7,7 @@
 import { useEffect, useCallback } from "react";
 import { useEditorStore, useEditorStoreApi, useEditorRefs } from "../state/context";
 import { useEditor } from "./useEditor";
+import { useTerminalPanelStore } from "../terminal/store";
 
 interface KeybindingCfg {
     onSave: () => void;
@@ -17,6 +18,7 @@ export function useKeybindings(cfg: KeybindingCfg) {
     const storeApi = useEditorStoreApi();
     const { textareaRef } = useEditorRefs();
     const editor = useEditor();
+    const toggleTerminal = useTerminalPanelStore((s) => s.toggle);
 
     const handler = useCallback(
         (e: KeyboardEvent) => {
@@ -28,6 +30,9 @@ export function useKeybindings(cfg: KeybindingCfg) {
             /* helper: prevent default + stop propagation */
             const eat = () => { e.preventDefault(); e.stopPropagation(); };
             const s = storeApi.getState();
+
+            /* ── Terminal (Ctrl + `) ───────────────── */
+            if (ctrl && !shift && (key === "`" || key === "backquote")) { eat(); toggleTerminal(); return; }
 
             /* ── File ──────────────────────────────── */
             if (ctrl && !shift && key === "s") { eat(); cfg.onSave(); return; }
@@ -89,7 +94,7 @@ export function useKeybindings(cfg: KeybindingCfg) {
             /* ── Help ──────────────────────────────── */
             if (ctrl && key === "k") { eat(); s.openShortcuts(); return; }
         },
-        [storeApi, editor, cfg, textareaRef],
+        [storeApi, editor, cfg, textareaRef, toggleTerminal],
     );
 
     useEffect(() => {

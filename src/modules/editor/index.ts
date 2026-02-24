@@ -129,3 +129,7 @@ export { FoldingOverlay } from "./plugins/components/FoldingOverlay";
 export { SplitPane } from "./plugins/components/SplitPane";
 export { PluginStatusBar } from "./plugins/components/PluginStatusBar";
 export { PluginPanelRenderer } from "./plugins/components/PluginPanelRenderer";
+
+// ── Terminal panel ──────────────────────────────────────────
+export { TerminalPanel, XtermTerminal, useTerminalPanelStore } from "./terminal";
+export type { TerminalPanelProps, XtermTerminalProps, TerminalEvents, TerminalPanelState, TerminalPanelActions, TerminalPanelStore } from "./terminal";

@@ -61,6 +61,12 @@ import { FoldingOverlay } from "./plugins/components/FoldingOverlay";
 import { SplitPane } from "./plugins/components/SplitPane";
 import { PluginManagerPopover } from "./plugins/components/PluginManagerPopover";
 
+// ── Terminal panel ───────────────────────────────────────────
+import { TerminalPanel } from "./terminal/TerminalPanel";
+import { useTerminalPanelStore } from "./terminal/store";
+import { editorThemeToXterm } from "./terminal/themeAdapter";
+import { ThemeManager } from "./themes/manager";
+
 // ═══════════════════════════════════════════════════════════════
 //  Public props
 // ═══════════════════════════════════════════════════════════════
@@ -88,6 +94,16 @@ export interface FileEditorProps {
     style?: CSSProperties;
     /** Optional plugins to register with the editor */
     plugins?: ExtendedEditorPlugin[];
+
+    // ── Terminal panel (optional) ────────────────────────────
+    /** Socket.IO URL for the embedded terminal. If omitted the terminal button/panel are hidden. */
+    terminalSocketUrl?: string;
+    /** Working directory sent to the terminal backend (defaults to dirname of remotePath) */
+    terminalCwd?: string;
+    /** Custom event names for the terminal socket */
+    terminalEvents?: import("./terminal/XtermTerminal").TerminalEvents;
+    /** Font size for the terminal (default 14) */
+    terminalFontSize?: number;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -157,6 +173,20 @@ function EditorInner(props: FileEditorProps) {
     const modified = useEditorStore((s) => s.modified);
     const cursorLine = useEditorStore((s) => s.cursorLine);
     const splitView = useEditorStore((s) => s.splitView);
+
+    // ── Terminal panel ───────────────────────────────────────
+    const terminalToggle = useTerminalPanelStore((s) => s.toggle);
+    const terminalOpen = useTerminalPanelStore((s) => s.open);
+    const hasTerminal = !!props.terminalSocketUrl;
+    const terminalCwd = props?.terminalCwd ?? (props?.remotePath?.replace(/\/[^/]*$/, "") || "/");
+
+    // Derive xterm-compatible theme from the active editor theme
+    const activeThemeId = useEditorStore((s) => s.activeThemeId);
+    const terminalTheme = useMemo(() => {
+        const mgr = ThemeManager.getInstance();
+        const editorTheme = mgr.get(activeThemeId) ?? mgr.getActive();
+        return editorThemeToXterm(editorTheme);
+    }, [activeThemeId]);
 
     // ── Drag & Drop state ────────────────────────────────────
     const [isDragging, setIsDragging] = useState(false);
@@ -607,11 +637,51 @@ function EditorInner(props: FileEditorProps) {
             {/* Plugin bottom panels */}
             <PluginPanelRenderer host={pluginHost} snapshot={pluginSnapshot} position="bottom" />
 
+            {/* Embedded Terminal Panel */}
+            {hasTerminal && (
+                <TerminalPanel
+                    socketUrl={props.terminalSocketUrl!}
+                    sessionId={props.sessionId}
+                    cwd={terminalCwd}
+                    events={props.terminalEvents}
+                    fontSize={props.terminalFontSize}
+                    theme={terminalTheme}
+                />
+            )}
+
             {/* Status Bar */}
             <div className="flex items-center">
                 <div className="flex-1">
                     <StatusBar language={language} />
                 </div>
+                {/* Terminal toggle in status bar */}
+                {hasTerminal && (
+                    <button
+                        onClick={terminalToggle}
+                        title="Toggle Terminal (Ctrl+`)"
+                        className="flex items-center gap-1 px-2 transition-colors"
+                        style={{
+                            height: 24,
+                            border: "none",
+                            cursor: "pointer",
+                            background: terminalOpen ? "var(--editor-popup-hover-bg)" : "transparent",
+                            color: terminalOpen ? "var(--editor-accent)" : "var(--editor-muted)",
+                            fontSize: 11,
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.background = "var(--editor-popup-hover-bg)";
+                        }}
+                        onMouseLeave={(e) => {
+                            if (!terminalOpen) e.currentTarget.style.background = "transparent";
+                        }}
+                    >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="4 17 10 11 4 5" />
+                            <line x1="12" y1="19" x2="20" y2="19" />
+                        </svg>
+                        Terminal
+                    </button>
+                )}
                 <PluginStatusBar snapshot={pluginSnapshot} onTogglePluginManager={togglePluginManager} />
             </div>
 

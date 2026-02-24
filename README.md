@@ -26,7 +26,10 @@ This project is a **web-based terminal** developed using modern web technologies
 ![screenshot-5](./public/5.png)
 - Editor 2.0 - Edit With Editor (Advanced ) (Ctrl-K for Shortcuts)
 ![screenshot-6](./public/6.png)
-
+- Editor 2.0 themes and Suggestion Box of recent
+![screenshot-7](./public/7.png)
+- InLine Terminal for use Case if only sftp is connected
+![screenshot-8](./public/8.png)
 ### **Landing Page**
 
 1.  Open the application.
