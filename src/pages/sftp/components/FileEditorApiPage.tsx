@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ApiCore } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -11,6 +11,32 @@ import {
     MessageSquareCode, SortAsc, Hash,
 } from "lucide-react";
 import FileIcon from "@/components/FileIcon";
+import Prism from "prismjs";
+import "prismjs/components/prism-c";
+import "prismjs/components/prism-cpp";
+import "prismjs/components/prism-csharp";
+import "prismjs/components/prism-typescript";
+import "prismjs/components/prism-jsx";
+import "prismjs/components/prism-tsx";
+import "prismjs/components/prism-python";
+import "prismjs/components/prism-bash";
+import "prismjs/components/prism-json";
+import "prismjs/components/prism-yaml";
+import "prismjs/components/prism-scss";
+import "prismjs/components/prism-markdown";
+import "prismjs/components/prism-sql";
+import "prismjs/components/prism-go";
+import "prismjs/components/prism-rust";
+import "prismjs/components/prism-java";
+import "prismjs/components/prism-ruby";
+import "prismjs/components/prism-docker";
+import "prismjs/components/prism-toml";
+import "prismjs/components/prism-ini";
+import "prismjs/components/prism-kotlin";
+import "prismjs/components/prism-swift";
+import "prismjs/components/prism-graphql";
+
+import './prism-vscode-dark.css'
 
 /** Detect language from file extension for the status bar */
 function detectLang(name: string): string {
@@ -30,6 +56,29 @@ function detectLang(name: string): string {
     return map[ext] ?? "Plain Text";
 }
 
+/** Map file extension to Prism.js language identifier */
+function detectPrismLang(name: string): string | null {
+    const ext = name.split(".").pop()?.toLowerCase() ?? "";
+    const map: Record<string, string> = {
+        js: "javascript", jsx: "jsx", ts: "typescript", tsx: "tsx",
+        py: "python", rb: "ruby", go: "go", rs: "rust", java: "java", kt: "kotlin",
+        c: "c", cpp: "cpp", h: "c", cs: "csharp", swift: "swift",
+        html: "markup", htm: "markup", css: "css", scss: "scss", less: "css",
+        json: "json", yaml: "yaml", yml: "yaml", toml: "toml", xml: "markup",
+        md: "markdown", sh: "bash", bash: "bash", zsh: "bash",
+        sql: "sql", graphql: "graphql", dockerfile: "docker",
+        ini: "ini", conf: "ini", cfg: "ini",
+    };
+    if (name.toLowerCase() === "dockerfile") return "docker";
+    return map[ext] ?? null;
+}
+
+/** Escape HTML for safe dangerouslySetInnerHTML fallback */
+function escapeHtml(text: string): string {
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+const HIGHLIGHT_SIZE_LIMIT = 100_000; // Skip highlighting for files > 100KB
 
 export default function FileEditorApiPage() {
     const [params] = useSearchParams();
@@ -63,6 +112,7 @@ export default function FileEditorApiPage() {
     const gutterRef = useRef<HTMLDivElement>(null);
     const ctxMenuRef = useRef<HTMLDivElement>(null);
     const editorWrapperRef = useRef<HTMLDivElement>(null);
+    const highlightRef = useRef<HTMLPreElement>(null);
     const originalContent = useRef("");
     const undoStack = useRef<string[]>([]);
     const redoStack = useRef<string[]>([]);
@@ -71,6 +121,19 @@ export default function FileEditorApiPage() {
     const lines = content.split("\n");
     const lineCount = lines.length;
     const lang = detectLang(fileName);
+
+    // ── Syntax highlighting with Prism.js ────────────────────
+    const highlightedHtml = useMemo(() => {
+        if (content.length > HIGHLIGHT_SIZE_LIMIT) return escapeHtml(content);
+        const prismLang = detectPrismLang(fileName);
+        const grammar = prismLang ? Prism.languages[prismLang] : null;
+        if (!grammar) return escapeHtml(content);
+        try {
+            return Prism.highlight(content, grammar, prismLang!);
+        } catch {
+            return escapeHtml(content);
+        }
+    }, [content, fileName]);
 
     // ── Fetch file content via API ────────────────────────────
     const fetchContent = useCallback(async () => {
@@ -138,8 +201,12 @@ export default function FileEditorApiPage() {
 
     // ── Editor helpers ───────────────────────────────────────
     const handleScroll = () => {
-        if (textareaRef.current && gutterRef.current) {
-            gutterRef.current.scrollTop = textareaRef.current.scrollTop;
+        const ta = textareaRef.current;
+        if (!ta) return;
+        if (gutterRef.current) gutterRef.current.scrollTop = ta.scrollTop;
+        if (highlightRef.current) {
+            highlightRef.current.scrollTop = ta.scrollTop;
+            highlightRef.current.scrollLeft = ta.scrollLeft;
         }
     };
 
@@ -191,6 +258,24 @@ export default function FileEditorApiPage() {
         const rect = wrapper.getBoundingClientRect();
         setCtxMenu({ x: e.clientX - rect.left, y: e.clientY - rect.top });
     };
+
+    // Reposition context menu if it overflows viewport edges
+    useLayoutEffect(() => {
+        if (!ctxMenu || !ctxMenuRef.current || !editorWrapperRef.current) return;
+        const menuEl = ctxMenuRef.current;
+        const wrapperRect = editorWrapperRef.current.getBoundingClientRect();
+        const menuRect = menuEl.getBoundingClientRect();
+        let newX = ctxMenu.x;
+        let newY = ctxMenu.y;
+        if (newY + menuRect.height > wrapperRect.height) {
+            newY = Math.max(4, wrapperRect.height - menuRect.height - 4);
+        }
+        if (newX + menuRect.width > wrapperRect.width) {
+            newX = Math.max(4, wrapperRect.width - menuRect.width - 4);
+        }
+        menuEl.style.left = `${newX}px`;
+        menuEl.style.top = `${newY}px`;
+    }, [ctxMenu]);
 
     useEffect(() => {
         if (!ctxMenu) return;
@@ -774,7 +859,7 @@ export default function FileEditorApiPage() {
             <div className="flex items-center justify-between px-3 py-1.5 bg-[#21222c] border-b border-[#44475a]">
                 <div className="flex items-center gap-2 min-w-0">
                     <span className="flex items-center space-x-1">
-                        <FileIcon name={fileName} isDirectory={false} className="w-4 h-4"/>
+                        <FileIcon name={fileName} isDirectory={false} className="w-4 h-4" />
                         <span className="text-[13px] font-medium text-[#f8f8f2] truncate">{fileName}</span>
                     </span>
                     {modified && (
@@ -921,7 +1006,7 @@ export default function FileEditorApiPage() {
                 {ctxMenu && (
                     <div
                         ref={ctxMenuRef}
-                        className="absolute z-50 w-56 p-1.5 bg-[#21222c] backdrop-blur-xl border border-[#44475a] rounded-lg shadow-2xl shadow-black/50 animate-in fade-in zoom-in-95 duration-100"
+                        className="ctx-menu-scroll absolute z-50 w-56 p-1.5 bg-[#21222c] backdrop-blur-xl border border-[#44475a] rounded-lg shadow-2xl shadow-black/50 animate-in fade-in zoom-in-95 duration-100 max-h-[min(70vh,500px)] overflow-y-auto"
                         style={{ left: ctxMenu.x, top: ctxMenu.y }}
                         onPointerDown={(e) => e.stopPropagation()}
                     >
@@ -968,27 +1053,46 @@ export default function FileEditorApiPage() {
                     </div>
                 </div>
 
-                {/* Textarea — Dracula foreground */}
-                <textarea
-                    ref={textareaRef}
-                    value={content}
-                    onChange={(e) => handleContentChange(e.target.value)}
-                    onScroll={handleScroll}
-                    onKeyDown={handleKeyDown}
-                    onKeyUp={updateCursor}
-                    onClick={updateCursor}
-                    spellCheck={false}
-                    autoCapitalize="off"
-                    autoCorrect="off"
-                    className="flex-1 resize-none bg-[#282a36] text-[#f8f8f2] text-[13px] font-mono p-[10px] outline-none leading-[20px] caret-[#f8f8f2] placeholder:text-[#6272a4] selection:bg-[#44475a]"
-                    style={{
-                        whiteSpace: wordWrap ? "pre-wrap" : "pre",
-                        overflowWrap: wordWrap ? "break-word" : "normal",
-                        overflowX: wordWrap ? "hidden" : "auto",
-                        tabSize: 2,
-                    }}
-                    placeholder="File is empty"
-                />
+                {/* Editor area with syntax highlighting overlay */}
+                <div className="relative flex-1 overflow-hidden">
+                    {/* Syntax highlight layer (behind textarea) */}
+                    <pre
+                        ref={highlightRef}
+                        className="prism-dracula absolute inset-0 m-0 p-[10px] overflow-hidden text-[13px] font-mono leading-[20px] bg-[#282a36] select-none"
+                        style={{
+                            whiteSpace: wordWrap ? "pre-wrap" : "pre",
+                            overflowWrap: wordWrap ? "break-word" : "normal",
+                            tabSize: 2,
+                        }}
+                        aria-hidden
+                    >
+                        <code
+                            dangerouslySetInnerHTML={{ __html: highlightedHtml + "\n" }}
+                            style={{ fontFamily: "inherit" }}
+                        />
+                    </pre>
+                    {/* Textarea — transparent text, visible caret */}
+                    <textarea
+                        ref={textareaRef}
+                        value={content}
+                        onChange={(e) => handleContentChange(e.target.value)}
+                        onScroll={handleScroll}
+                        onKeyDown={handleKeyDown}
+                        onKeyUp={updateCursor}
+                        onClick={updateCursor}
+                        spellCheck={false}
+                        autoCapitalize="off"
+                        autoCorrect="off"
+                        className="relative z-10 w-full h-full resize-none bg-transparent text-transparent text-[13px] font-mono p-[10px] outline-none leading-[20px] caret-[#f8f8f2] placeholder:text-[#6272a4] selection:bg-[#44475a]/60"
+                        style={{
+                            whiteSpace: wordWrap ? "pre-wrap" : "pre",
+                            overflowWrap: wordWrap ? "break-word" : "normal",
+                            overflowX: wordWrap ? "hidden" : "auto",
+                            tabSize: 2,
+                        }}
+                        placeholder="File is empty"
+                    />
+                </div>
             </div>
 
             {/* Status bar — VS Code style with Dracula blue accent */}

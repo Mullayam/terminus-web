@@ -1,0 +1,112 @@
+/**
+ * Base editor styles – scrollbars, animations, and layout helpers.
+ * Uses CSS custom properties set by the ThemeManager on .editor-root.
+ */
+
+/* ── Scrollbars ───────────────────────────────────────────── */
+
+.editor-root ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.editor-root ::-webkit-scrollbar-track {
+    background: var(--editor-scrollbar-track, transparent);
+}
+
+.editor-root ::-webkit-scrollbar-thumb {
+    background: var(--editor-scrollbar-thumb, #444);
+    border-radius: 4px;
+}
+
+.editor-root ::-webkit-scrollbar-thumb:hover {
+    background: var(--editor-scrollbar-thumb-hover, #666);
+}
+
+.editor-root ::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+/* ── Context menu scrollbar ───────────────────────────────── */
+
+.editor-ctx-menu::-webkit-scrollbar {
+    width: 6px;
+}
+
+.editor-ctx-menu::-webkit-scrollbar-track {
+    background: var(--editor-popup-bg, #1e1e1e);
+    border-radius: 3px;
+}
+
+.editor-ctx-menu::-webkit-scrollbar-thumb {
+    background: var(--editor-border, #444);
+    border-radius: 3px;
+}
+
+.editor-ctx-menu::-webkit-scrollbar-thumb:hover {
+    background: var(--editor-scrollbar-thumb-hover, #666);
+}
+
+/* ── Minimap ──────────────────────────────────────────────── */
+
+.editor-minimap {
+    font-size: 1.5px !important;
+    line-height: 2px !important;
+    letter-spacing: -0.2px;
+    pointer-events: none;
+}
+
+.editor-minimap-viewport {
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+/* ── Textarea reset ───────────────────────────────────────── */
+
+.editor-textarea {
+    caret-color: var(--editor-cursor, #fff);
+    color: transparent;
+    resize: none;
+    outline: none;
+    background: transparent;
+}
+
+.editor-textarea::selection {
+    background: var(--editor-selection, rgba(68, 71, 90, 0.6));
+}
+
+.editor-textarea::placeholder {
+    color: var(--editor-muted, #666);
+}
+
+/* ── Highlighted code overlay ─────────────────────────────── */
+
+.editor-highlight-overlay {
+    pointer-events: none;
+    user-select: none;
+}
+
+.editor-highlight-overlay code {
+    font-family: inherit;
+}
+
+/* ── Animations ───────────────────────────────────────────── */
+
+@keyframes editor-fade-in {
+    from { opacity: 0; transform: scale(0.97); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+.editor-animate-in {
+    animation: editor-fade-in 100ms ease-out;
+}
+
+/* ── Gutter active line indicator ─────────────────────────── */
+
+.editor-gutter-line-active {
+    color: var(--editor-gutter-active-fg, #fff);
+}
+
+.editor-gutter-line {
+    color: var(--editor-gutter-fg, #666);
+}
