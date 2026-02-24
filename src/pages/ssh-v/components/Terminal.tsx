@@ -44,6 +44,13 @@ const XTerminal = ({
   const { sessions } = useSSHStore();
   const sessionTheme = useSSHStore((s) => s.sessionThemes[sessionId]) || 'custom';
   const { fontSize = 15, fontWeight = '400', fontWeightBold = '700' } = useSSHStore((s) => s.sessionFonts[sessionId]) || {};
+
+  // Derive localStorage key from the session host/IP
+  const hostKey = useMemo(() => {
+    const host = sessions[sessionId]?.host ?? sessionId;
+    return `terminus-suggestions:${host}`;
+  }, [sessionId, sessions]);
+
   const termRef = useRef<Terminal | null>(null);
   const { logs, addLogLine } = useTerminalStore();
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -54,19 +61,23 @@ const XTerminal = ({
   const searchAddonRef = useRef<SearchAddon | null>(null);
   const { allCommands, recentCommands } = useCommandStore();
   const [suggestionPos, setSuggestionPos] = useState({ top: 0, left: 0 });
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(`terminus-suggestions:${sessions[sessionId]?.host ?? sessionId}`);
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  });
   const [commandBuffer, setCommandBuffer] = useState<string>("");
   const { command, clickType, setCommand, addRecentCommand } = useCommandStore();
 
   let lastPromptPrefix = '';
 
   const filteredSuggestions = useMemo(() => {
-
     if (commandBuffer == "") {
       return suggestions
     }
     return suggestions.filter((command) => command.includes(commandBuffer));
-  }, [commandBuffer])
+  }, [commandBuffer, suggestions])
 
 
   const handleSearchNext = () => {
@@ -263,11 +274,14 @@ const XTerminal = ({
     window.addEventListener("resize", handleResize);
 
 
-    setSuggestions(
-      Array.from(new Set(allCommands
-        .map((c) => c.command.toLocaleLowerCase())
-        .concat(recentCommands)))
-    );
+    setSuggestions((prev) => {
+      const merged = Array.from(new Set([
+        ...prev,
+        ...allCommands.map((c) => c.command.toLocaleLowerCase()),
+        ...recentCommands,
+      ]));
+      return merged;
+    });
     return () => {
       window.removeEventListener("resize", handleResize);
       socket.off(SocketEventConstants.SSH_EMIT_DATA);
@@ -293,6 +307,13 @@ const XTerminal = ({
       fitAddonRef.current?.fit();
     }
   }, [fontSize, fontWeight, fontWeightBold]);
+
+  // Persist suggestions to localStorage keyed by host
+  useEffect(() => {
+    try {
+      localStorage.setItem(hostKey, JSON.stringify(suggestions));
+    } catch { /* quota exceeded — silently ignore */ }
+  }, [suggestions, hostKey]);
 
   useEffect(() => {
     const handleKey = ({
@@ -436,6 +457,7 @@ const XTerminal = ({
         terminalHeight={terminalRef.current?.offsetHeight || 600}
         terminalWidth={terminalRef.current?.offsetWidth || 800}
         setSuggestions={setSuggestions}
+        hostKey={hostKey}
       />
     </div>
   );
