@@ -16,7 +16,7 @@ export default function FileEditorModulePage() {
     const [params] = useSearchParams();
     const navigate = useNavigate();
 
-    const sessionId = params.get("sessionId") ?? "";
+    const sessionId = params.get("tabId") ?? "";
     const remotePath = params.get("path") ?? "";
 
     const provider = useMemo(() => new ApiContentProvider(), []);
@@ -27,7 +27,7 @@ export default function FileEditorModulePage() {
                 <div className="text-center space-y-3">
                     <h2 className="text-lg font-semibold">Missing Parameters</h2>
                     <p className="text-sm text-[#6272a4]">
-                        Both <code className="px-1 py-0.5 rounded bg-[#44475a]">sessionId</code> and{" "}
+                        Both <code className="px-1 py-0.5 rounded bg-[#44475a]">tabId</code> and{" "}
                         <code className="px-1 py-0.5 rounded bg-[#44475a]">path</code> URL parameters are required.
                     </p>
                     <button
@@ -42,12 +42,12 @@ export default function FileEditorModulePage() {
     }
 
     return (
-        <div className="h-screen w-full overflow-hidden" style={{ position: 'fixed', inset: 0 }}>
+        <div className="editor-page-wrapper">
             <FileEditor
                 sessionId={sessionId}
                 remotePath={remotePath}
                 provider={provider}
-                themeId="dracula"
+                themeId="vs-dark"
                 wordWrap
             />
         </div>

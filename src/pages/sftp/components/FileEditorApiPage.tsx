@@ -863,13 +863,14 @@ export default function FileEditorApiPage() {
     // ── Render states ────────────────────────────────────────
     if (error && !content) {
         return (
-            <div className="flex items-center justify-center h-screen bg-[#282a36]">
+            <div className="flex items-center justify-center h-screen" style={{ background: c.bg }}>
                 <div className="text-center space-y-3">
-                    <p className="text-[#ff5555] text-sm">{error}</p>
-                    <p className="text-[#6272a4] text-xs">Check the URL parameters and try again.</p>
+                    <p className="text-sm" style={{ color: c.error }}>{error}</p>
+                    <p className="text-xs" style={{ color: c.textMuted }}>Check the URL parameters and try again.</p>
                     <button
                         onClick={fetchContent}
-                        className="inline-flex items-center gap-1.5 text-xs text-[#bd93f9] hover:text-[#f8f8f2] transition-colors mt-2"
+                        className="inline-flex items-center gap-1.5 text-xs transition-colors mt-2"
+                        style={{ color: c.accent }}
                     >
                         <RefreshCw className="w-3.5 h-3.5" /> Retry
                     </button>
@@ -880,10 +881,10 @@ export default function FileEditorApiPage() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-screen bg-[#282a36]">
+            <div className="flex items-center justify-center h-screen" style={{ background: c.bg }}>
                 <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="w-6 h-6 animate-spin text-[#bd93f9]" />
-                    <span className="text-sm text-[#f8f8f2]">Loading {fileName}…</span>
+                    <Loader2 className="w-6 h-6 animate-spin" style={{ color: c.accent }} />
+                    <span className="text-sm" style={{ color: c.text }}>Loading {fileName}…</span>
                 </div>
             </div>
         );
@@ -892,18 +893,18 @@ export default function FileEditorApiPage() {
     const gutterWidth = Math.max(String(lineCount).length * 10 + 20, 40);
 
     return (
-        <div className="h-screen w-full bg-[#282a36] overflow-hidden flex flex-col">
-            {/* Toolbar — VS Code title bar style */}
-            <div className="flex items-center justify-between px-3 py-1.5 bg-[#21222c] border-b border-[#44475a] shrink-0 select-none overflow-hidden">
+        <div className="h-screen w-full overflow-hidden flex flex-col" style={{ background: c.bg }}>
+            {/* Toolbar */}
+            <div className="flex items-center justify-between px-3 py-1.5 shrink-0 select-none overflow-hidden" style={{ background: c.bgSurface, borderBottom: `1px solid ${c.border}` }}>
                 <div className="flex items-center gap-2 min-w-0 overflow-hidden">
                     <span className="flex items-center space-x-1">
                         <FileIcon name={fileName} isDirectory={false} className="w-4 h-4" />
-                        <span className="text-[13px] font-medium text-[#f8f8f2] truncate">{fileName}</span>
+                        <span className="text-[13px] font-medium truncate" style={{ color: c.text }}>{fileName}</span>
                     </span>
                     {modified && (
-                        <span className="w-2 h-2 rounded-full bg-[#ffb86c] shrink-0" title="Unsaved changes" />
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: c.warning }} title="Unsaved changes" />
                     )}
-                    <span className="text-[11px] text-[#6272a4] font-mono truncate hidden sm:inline">
+                    <span className="text-[11px] font-mono truncate hidden sm:inline" style={{ color: c.textMuted }}>
                         {filePath}
                     </span>
                 </div>
@@ -911,14 +912,20 @@ export default function FileEditorApiPage() {
                     <button
                         onClick={() => { setShowFind(true); setShowReplace(false); }}
                         title="Find (Ctrl+F)"
-                        className="p-1.5 rounded-md text-[#6272a4] hover:text-[#f8f8f2] transition-colors"
+                        className="p-1.5 rounded-md transition-colors"
+                        style={{ color: c.textMuted }}
+                        onMouseEnter={e => (e.currentTarget.style.color = c.text)}
+                        onMouseLeave={e => (e.currentTarget.style.color = c.textMuted)}
                     >
                         <Search className="w-3.5 h-3.5" />
                     </button>
                     <button
                         onClick={() => setShowGoToLine(true)}
                         title="Go to Line (Ctrl+G)"
-                        className="p-1.5 rounded-md text-[#6272a4] hover:text-[#f8f8f2] transition-colors"
+                        className="p-1.5 rounded-md transition-colors"
+                        style={{ color: c.textMuted }}
+                        onMouseEnter={e => (e.currentTarget.style.color = c.text)}
+                        onMouseLeave={e => (e.currentTarget.style.color = c.textMuted)}
                     >
                         <Hash className="w-3.5 h-3.5" />
                     </button>
@@ -926,28 +933,83 @@ export default function FileEditorApiPage() {
                         onClick={fetchContent}
                         disabled={loading}
                         title="Reload file from server"
-                        className="p-1.5 rounded-md text-[#6272a4] hover:text-[#f8f8f2] transition-colors"
+                        className="p-1.5 rounded-md transition-colors"
+                        style={{ color: c.textMuted }}
+                        onMouseEnter={e => (e.currentTarget.style.color = c.text)}
+                        onMouseLeave={e => (e.currentTarget.style.color = c.textMuted)}
                     >
                         <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
                     </button>
                     <button
                         onClick={() => setWordWrap((w) => !w)}
                         title={wordWrap ? "Disable word wrap" : "Enable word wrap"}
-                        className={`p-1.5 rounded-md transition-colors ${wordWrap ? "bg-[#44475a] text-[#f8f8f2]" : "text-[#6272a4] hover:text-[#f8f8f2]"}`}
+                        className="p-1.5 rounded-md transition-colors"
+                        style={{ background: wordWrap ? c.hover : "transparent", color: wordWrap ? c.text : c.textMuted }}
+                        onMouseEnter={e => { if (!wordWrap) e.currentTarget.style.color = c.text; }}
+                        onMouseLeave={e => { if (!wordWrap) e.currentTarget.style.color = c.textMuted; }}
                     >
                         <WrapText className="w-3.5 h-3.5" />
                     </button>
+                    {/* Theme picker button */}
+                    <div className="relative">
+                        <button
+                            onClick={() => setShowThemePicker((v) => !v)}
+                            title="Change theme"
+                            className="p-1.5 rounded-md transition-colors"
+                            style={{ color: showThemePicker ? c.text : c.textMuted, background: showThemePicker ? c.hover : "transparent" }}
+                            onMouseEnter={e => (e.currentTarget.style.color = c.text)}
+                            onMouseLeave={e => { if (!showThemePicker) e.currentTarget.style.color = c.textMuted; }}
+                        >
+                            <Palette className="w-3.5 h-3.5" />
+                        </button>
+                        {showThemePicker && (
+                            <div
+                                className="theme-picker-scroll absolute right-0 top-full mt-1 z-50 w-52 p-1.5 rounded-lg shadow-2xl shadow-black/50 max-h-64 overflow-y-auto"
+                                style={{ background: c.bgSurface, border: `1px solid ${c.border}` }}
+                            >
+                                {getThemeKeys().map((key) => {
+                                    const t = editorThemes[key];
+                                    const isActive = key === themeKey;
+                                    return (
+                                        <button
+                                            key={key}
+                                            onClick={() => handleThemeChange(key)}
+                                            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[13px] transition-colors"
+                                            style={{ color: isActive ? c.text : c.textMuted, background: isActive ? c.hover : "transparent" }}
+                                            onMouseEnter={e => { e.currentTarget.style.background = c.hover; e.currentTarget.style.color = c.text; }}
+                                            onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = c.textMuted; } }}
+                                        >
+                                            {/* Color preview dots */}
+                                            <span className="flex gap-0.5 shrink-0">
+                                                <span className="w-2.5 h-2.5 rounded-full" style={{ background: t.colors.accent }} />
+                                                <span className="w-2.5 h-2.5 rounded-full" style={{ background: t.colors.bg }} />
+                                                <span className="w-2.5 h-2.5 rounded-full" style={{ background: t.colors.text }} />
+                                            </span>
+                                            <span className="flex-1 text-left">{t.name}</span>
+                                            {isActive && <Check className="w-3.5 h-3.5 shrink-0" style={{ color: c.accent }} />}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
                     <button
                         onClick={() => setShowShortcuts(true)}
                         title="Keyboard Shortcuts & Help"
-                        className="p-1.5 rounded-md text-[#6272a4] hover:text-[#f8f8f2] transition-colors"
+                        className="p-1.5 rounded-md transition-colors"
+                        style={{ color: c.textMuted }}
+                        onMouseEnter={e => (e.currentTarget.style.color = c.text)}
+                        onMouseLeave={e => (e.currentTarget.style.color = c.textMuted)}
                     >
                         <Info className="w-3.5 h-3.5" />
                     </button>
                     <button
                         onClick={handleSave}
                         disabled={saving || !modified}
-                        className="inline-flex items-center gap-1.5 bg-[#bd93f9] hover:bg-[#caa9fa] disabled:opacity-40 disabled:cursor-not-allowed text-[#282a36] text-xs font-medium px-3 py-1.5 rounded-md transition-colors ml-1"
+                        className="inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-medium px-3 py-1.5 rounded-md transition-colors ml-1"
+                        style={{ background: c.accent, color: c.accentText }}
+                        onMouseEnter={e => (e.currentTarget.style.background = c.accentHover)}
+                        onMouseLeave={e => (e.currentTarget.style.background = c.accent)}
                     >
                         {saving ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -961,8 +1023,8 @@ export default function FileEditorApiPage() {
 
             {/* Find / Replace bar */}
             {showFind && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-[#21222c] border-b border-[#44475a]">
-                    <Search className="w-3.5 h-3.5 text-[#6272a4] shrink-0" />
+                <div className="flex items-center gap-2 px-3 py-1.5" style={{ background: c.bgSurface, borderBottom: `1px solid ${c.border}` }}>
+                    <Search className="w-3.5 h-3.5 shrink-0" style={{ color: c.textMuted }} />
                     <input
                         ref={findInputRef}
                         value={findText}
@@ -972,20 +1034,21 @@ export default function FileEditorApiPage() {
                             if (e.key === "Escape") { setShowFind(false); setShowReplace(false); setFindText(""); textareaRef.current?.focus(); }
                         }}
                         placeholder="Find…"
-                        className="bg-[#282a36] border border-[#44475a] text-[#f8f8f2] text-[12px] font-mono px-2 py-1 rounded-md outline-none focus:border-[#bd93f9] placeholder:text-[#6272a4] w-48"
+                        className="text-[12px] font-mono px-2 py-1 rounded-md outline-none w-48"
+                        style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}
                     />
                     {findText && (
-                        <span className="text-[11px] text-[#6272a4] min-w-[60px]">
+                        <span className="text-[11px] min-w-[60px]" style={{ color: c.textMuted }}>
                             {findMatchCount > 0 ? `${findMatchIndex + 1} of ${findMatchCount}` : "No results"}
                         </span>
                     )}
-                    <button onClick={doFindPrev} disabled={findMatchCount === 0} className="p-1 rounded text-[#6272a4] hover:text-[#f8f8f2] disabled:opacity-30" title="Previous (Shift+Enter)">
+                    <button onClick={doFindPrev} disabled={findMatchCount === 0} className="p-1 rounded disabled:opacity-30" style={{ color: c.textMuted }} title="Previous (Shift+Enter)">
                         <ArrowUp className="w-3.5 h-3.5" />
                     </button>
-                    <button onClick={doFindNext} disabled={findMatchCount === 0} className="p-1 rounded text-[#6272a4] hover:text-[#f8f8f2] disabled:opacity-30" title="Next (Enter)">
+                    <button onClick={doFindNext} disabled={findMatchCount === 0} className="p-1 rounded disabled:opacity-30" style={{ color: c.textMuted }} title="Next (Enter)">
                         <ArrowDown className="w-3.5 h-3.5" />
                     </button>
-                    <button onClick={() => setShowReplace((r) => !r)} className={`p-1 rounded transition-colors ${showReplace ? "text-[#f8f8f2] bg-[#44475a]" : "text-[#6272a4] hover:text-[#f8f8f2]"}`} title="Toggle Replace (Ctrl+H)">
+                    <button onClick={() => setShowReplace((r) => !r)} className="p-1 rounded transition-colors" style={{ color: showReplace ? c.text : c.textMuted, background: showReplace ? c.hover : "transparent" }} title="Toggle Replace (Ctrl+H)">
                         <Replace className="w-3.5 h-3.5" />
                     </button>
                     {showReplace && (
@@ -995,17 +1058,18 @@ export default function FileEditorApiPage() {
                                 onChange={(e) => setReplaceText(e.target.value)}
                                 onKeyDown={(e) => { if (e.key === "Escape") { setShowFind(false); setShowReplace(false); setFindText(""); textareaRef.current?.focus(); } }}
                                 placeholder="Replace…"
-                                className="bg-[#282a36] border border-[#44475a] text-[#f8f8f2] text-[12px] font-mono px-2 py-1 rounded-md outline-none focus:border-[#bd93f9] placeholder:text-[#6272a4] w-40"
+                                className="text-[12px] font-mono px-2 py-1 rounded-md outline-none w-40"
+                                style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}
                             />
-                            <button onClick={doReplaceOne} disabled={findMatchCount === 0} className="text-[11px] px-2 py-1 rounded-md bg-[#44475a] text-[#f8f8f2] hover:bg-[#6272a4] disabled:opacity-30" title="Replace">
+                            <button onClick={doReplaceOne} disabled={findMatchCount === 0} className="text-[11px] px-2 py-1 rounded-md disabled:opacity-30" style={{ background: c.hover, color: c.text }} title="Replace">
                                 Replace
                             </button>
-                            <button onClick={doReplaceAll} disabled={findMatchCount === 0} className="text-[11px] px-2 py-1 rounded-md bg-[#44475a] text-[#f8f8f2] hover:bg-[#6272a4] disabled:opacity-30" title="Replace All">
+                            <button onClick={doReplaceAll} disabled={findMatchCount === 0} className="text-[11px] px-2 py-1 rounded-md disabled:opacity-30" style={{ background: c.hover, color: c.text }} title="Replace All">
                                 All
                             </button>
                         </>
                     )}
-                    <button onClick={() => { setShowFind(false); setShowReplace(false); setFindText(""); textareaRef.current?.focus(); }} className="p-1 rounded text-[#6272a4] hover:text-[#f8f8f2] ml-auto" title="Close (Escape)">
+                    <button onClick={() => { setShowFind(false); setShowReplace(false); setFindText(""); textareaRef.current?.focus(); }} className="p-1 rounded ml-auto" style={{ color: c.textMuted }} title="Close (Escape)">
                         <X className="w-3.5 h-3.5" />
                     </button>
                 </div>
@@ -1013,9 +1077,9 @@ export default function FileEditorApiPage() {
 
             {/* Go to Line bar */}
             {showGoToLine && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-[#21222c] border-b border-[#44475a]">
-                    <Hash className="w-3.5 h-3.5 text-[#6272a4] shrink-0" />
-                    <span className="text-[12px] text-[#6272a4]">Go to Line:</span>
+                <div className="flex items-center gap-2 px-3 py-1.5" style={{ background: c.bgSurface, borderBottom: `1px solid ${c.border}` }}>
+                    <Hash className="w-3.5 h-3.5 shrink-0" style={{ color: c.textMuted }} />
+                    <span className="text-[12px]" style={{ color: c.textMuted }}>Go to Line:</span>
                     <input
                         ref={goToLineInputRef}
                         value={goToLineValue}
@@ -1025,10 +1089,11 @@ export default function FileEditorApiPage() {
                             if (e.key === "Escape") { setShowGoToLine(false); setGoToLineValue(""); textareaRef.current?.focus(); }
                         }}
                         placeholder={`1 – ${lineCount}`}
-                        className="bg-[#282a36] border border-[#44475a] text-[#f8f8f2] text-[12px] font-mono px-2 py-1 rounded-md outline-none focus:border-[#bd93f9] placeholder:text-[#6272a4] w-32"
+                        className="text-[12px] font-mono px-2 py-1 rounded-md outline-none w-32"
+                        style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}
                     />
-                    <button onClick={doGoToLine} className="text-[11px] px-2 py-1 rounded-md bg-[#44475a] text-[#f8f8f2] hover:bg-[#6272a4]">Go</button>
-                    <button onClick={() => { setShowGoToLine(false); setGoToLineValue(""); textareaRef.current?.focus(); }} className="p-1 rounded text-[#6272a4] hover:text-[#f8f8f2] ml-auto" title="Close (Escape)">
+                    <button onClick={doGoToLine} className="text-[11px] px-2 py-1 rounded-md" style={{ background: c.hover, color: c.text }}>Go</button>
+                    <button onClick={() => { setShowGoToLine(false); setGoToLineValue(""); textareaRef.current?.focus(); }} className="p-1 rounded ml-auto" style={{ color: c.textMuted }} title="Close (Escape)">
                         <X className="w-3.5 h-3.5" />
                     </button>
                 </div>
@@ -1040,12 +1105,12 @@ export default function FileEditorApiPage() {
                 className="relative flex flex-1 overflow-hidden"
                 onContextMenu={handleContextMenu}
             >
-                {/* Custom context menu — Dracula style */}
+                {/* Custom context menu */}
                 {ctxMenu && (
                     <div
                         ref={ctxMenuRef}
-                        className="ctx-menu-scroll absolute z-50 w-[250px] p-1.5 bg-[#21222c] backdrop-blur-xl border border-[#44475a] rounded-lg shadow-2xl shadow-black/50 animate-in fade-in zoom-in-95 duration-100 max-h-[min(70vh,500px)] overflow-y-auto"
-                        style={{ left: ctxMenu.x, top: ctxMenu.y }}
+                        className="ctx-menu-scroll absolute z-50 w-[250px] p-1.5 backdrop-blur-xl rounded-lg shadow-2xl shadow-black/50 animate-in fade-in zoom-in-95 duration-100 max-h-[min(70vh,500px)] overflow-y-auto"
+                        style={{ left: ctxMenu.x, top: ctxMenu.y, background: c.bgSurface, border: `1px solid ${c.border}` }}
                         onPointerDown={(e) => e.stopPropagation()}
                     >
                         {ctxItems.map((item, i) => (
@@ -1053,37 +1118,40 @@ export default function FileEditorApiPage() {
                                 <button
                                     disabled={item.disabled}
                                     onClick={() => ctxAction(item.action)}
-                                    className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[13px] text-[#f8f8f2] transition-colors hover:bg-[#44475a] hover:text-[#f8f8f2] disabled:text-[#6272a4] disabled:pointer-events-none"
+                                    className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[13px] transition-colors disabled:pointer-events-none"
+                                    style={{ color: item.disabled ? c.textMuted : c.text }}
+                                    onMouseEnter={e => { if (!item.disabled) e.currentTarget.style.background = c.hover; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
                                 >
-                                    <span className="w-4 h-4 flex items-center justify-center text-[#bd93f9]">
+                                    <span className="w-4 h-4 flex items-center justify-center" style={{ color: c.accent }}>
                                         {item.icon}
                                     </span>
                                     <span className="flex-1 text-left">{item.label}</span>
                                     {item.shortcut && (
-                                        <span className="text-[11px] text-[#6272a4] ml-auto pl-3 tracking-wide">
+                                        <span className="text-[11px] ml-auto pl-3 tracking-wide" style={{ color: c.textMuted }}>
                                             {item.shortcut}
                                         </span>
                                     )}
                                 </button>
-                                {item.separator && <div className="my-1 h-px bg-[#44475a]" />}
+                                {item.separator && <div className="my-1 h-px" style={{ background: c.border }} />}
                             </div>
                         ))}
                     </div>
                 )}
 
-                {/* Line number gutter — Dracula style */}
+                {/* Line number gutter */}
                 <div
                     ref={gutterRef}
-                    className="shrink-0 overflow-hidden select-none pointer-events-none bg-[#282a36] border-r border-[#44475a]"
-                    style={{ width: gutterWidth }}
+                    className="shrink-0 overflow-hidden select-none pointer-events-none"
+                    style={{ width: gutterWidth, background: c.bg, borderRight: `1px solid ${c.border}` }}
                     aria-hidden
                 >
                     <div className="py-[10px]">
                         {Array.from({ length: lineCount }, (_, i) => (
                             <div
                                 key={i}
-                                className={`px-2 text-right font-mono leading-[20px] text-[12px] ${i + 1 === cursorLine ? "text-[#f8f8f2]" : "text-[#6272a4]"}`}
-                                style={{ height: 20 }}
+                                className="px-2 text-right font-mono leading-[20px] text-[12px]"
+                                style={{ height: 20, color: i + 1 === cursorLine ? c.text : c.textMuted }}
                             >
                                 {i + 1}
                             </div>
@@ -1096,11 +1164,12 @@ export default function FileEditorApiPage() {
                     {/* Syntax highlight layer (behind textarea) */}
                     <pre
                         ref={highlightRef}
-                        className="prism-dracula absolute inset-0 m-0 p-[10px] overflow-hidden text-[13px] font-mono leading-[20px] bg-[#282a36] select-none"
+                        className="prism-dracula absolute inset-0 m-0 p-[10px] overflow-hidden text-[13px] font-mono leading-[20px] select-none"
                         style={{
                             whiteSpace: wordWrap ? "pre-wrap" : "pre",
                             overflowWrap: wordWrap ? "break-word" : "normal",
                             tabSize: 2,
+                            background: c.bg,
                         }}
                         aria-hidden
                     >
@@ -1121,26 +1190,28 @@ export default function FileEditorApiPage() {
                         spellCheck={false}
                         autoCapitalize="off"
                         autoCorrect="off"
-                        className="relative z-10 w-full h-full resize-none bg-transparent text-transparent text-[13px] font-mono p-[10px] outline-none leading-[20px] caret-[#f8f8f2] placeholder:text-[#6272a4] selection:bg-[#44475a]/60"
+                        className="relative z-10 w-full h-full resize-none bg-transparent text-transparent text-[13px] font-mono p-[10px] outline-none leading-[20px]"
                         style={{
                             whiteSpace: wordWrap ? "pre-wrap" : "pre",
                             overflowWrap: wordWrap ? "break-word" : "normal",
                             overflowX: wordWrap ? "hidden" : "auto",
                             tabSize: 2,
+                            caretColor: c.text,
+                            // @ts-ignore -- vendor prefixed selection handled via global style
                         }}
                         placeholder="File is empty"
                     />
                 </div>
             </div>
 
-            {/* Status bar — VS Code style with Dracula blue accent */}
-            <div className="flex items-center justify-between px-3 py-1 bg-[#191a21] border-t border-[#44475a] text-[11px] text-[#6272a4] select-none overflow-hidden">
+            {/* Status bar */}
+            <div className="flex items-center justify-between px-3 py-1 text-[11px] select-none overflow-hidden" style={{ background: c.bgStatusBar, borderTop: `1px solid ${c.border}`, color: c.textMuted }}>
                 <div className="flex items-center gap-3 min-w-0">
-                    <span className="bg-[#bd93f9] text-[#282a36] px-2 py-0.5 rounded-sm font-semibold -ml-3 -my-1">{lang}</span>
+                    <span className="px-2 py-0.5 rounded-sm font-semibold -ml-3 -my-1" style={{ background: c.accent, color: c.accentText }}>{lang}</span>
                     <span>UTF-8</span>
                     <span>{wordWrap ? "Wrap" : "No Wrap"}</span>
                     {lastSaved && (
-                        <span className="text-[#50fa7b]">
+                        <span style={{ color: c.success }}>
                             Saved {lastSaved.toLocaleTimeString()}
                         </span>
                     )}
@@ -1149,52 +1220,70 @@ export default function FileEditorApiPage() {
                     <span>Ln {cursorLine}, Col {cursorCol}</span>
                     <span>{lineCount} lines</span>
                     <span>{content.length.toLocaleString()} chars</span>
+                    <span className="hidden sm:inline" style={{ color: c.textMuted }}>{theme.name}</span>
                     <button
                         onClick={() => setShowShortcuts(true)}
-                        className="hidden sm:inline text-[#6272a4] hover:text-[#bd93f9] transition-colors cursor-pointer"
+                        className="hidden sm:inline transition-colors cursor-pointer"
+                        style={{ color: c.textMuted }}
+                        onMouseEnter={e => (e.currentTarget.style.color = c.accent)}
+                        onMouseLeave={e => (e.currentTarget.style.color = c.textMuted)}
                     >
-                        Ctrl+S save · Ctrl+F find · Ctrl+G go to line · ? help
+                        Ctrl+S save · Ctrl+F find · ? help
                     </button>
                 </div>
             </div>
+
+            {/* Theme picker backdrop (close on click outside) */}
+            {showThemePicker && (
+                <div className="fixed inset-0 z-40" onClick={() => setShowThemePicker(false)} />
+            )}
 
             {/* Shortcuts / Help Modal */}
             {showShortcuts && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowShortcuts(false)}>
                     <div
-                        className="bg-[#21222c] border border-[#44475a] rounded-xl shadow-2xl shadow-black/50 w-[560px] max-w-[90vw] max-h-[80vh] overflow-hidden flex flex-col"
+                        className="rounded-xl shadow-2xl shadow-black/50 w-[560px] max-w-[90vw] max-h-[80vh] overflow-hidden flex flex-col"
+                        style={{ background: c.bgSurface, border: `1px solid ${c.border}` }}
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Modal header */}
-                        <div className="flex items-center justify-between px-5 py-3 border-b border-[#44475a]">
+                        <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${c.border}` }}>
                             <div className="flex items-center gap-2">
-                                <Info className="w-4 h-4 text-[#bd93f9]" />
-                                <span className="text-[14px] font-semibold text-[#f8f8f2]">Keyboard Shortcuts & Help</span>
+                                <Info className="w-4 h-4" style={{ color: c.accent }} />
+                                <span className="text-[14px] font-semibold" style={{ color: c.text }}>Keyboard Shortcuts & Help</span>
                             </div>
                             <button
                                 onClick={() => setShowShortcuts(false)}
-                                className="p-1 rounded-md text-[#6272a4] hover:text-[#f8f8f2] hover:bg-[#44475a] transition-colors"
+                                className="p-1 rounded-md transition-colors"
+                                style={{ color: c.textMuted }}
+                                onMouseEnter={e => { e.currentTarget.style.color = c.text; e.currentTarget.style.background = c.hover; }}
+                                onMouseLeave={e => { e.currentTarget.style.color = c.textMuted; e.currentTarget.style.background = "transparent"; }}
                             >
                                 <X className="w-4 h-4" />
                             </button>
                         </div>
                         {/* Modal body */}
-                        <div className="overflow-y-auto p-5 space-y-5">
+                        <div className="editor-modal-scroll overflow-y-auto p-5 space-y-5">
                             {shortcutGroups.map((group) => (
                                 <div key={group.title}>
-                                    <h3 className="text-[12px] font-semibold text-[#bd93f9] uppercase tracking-wider mb-2">{group.title}</h3>
+                                    <h3 className="text-[12px] font-semibold uppercase tracking-wider mb-2" style={{ color: c.accent }}>{group.title}</h3>
                                     <div className="space-y-1">
                                         {group.items.map((item) => (
-                                            <div key={item.keys} className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-[#282a36] transition-colors">
-                                                <span className="text-[13px] text-[#f8f8f2]">{item.desc}</span>
+                                            <div
+                                                key={item.keys}
+                                                className="flex items-center justify-between py-1.5 px-2 rounded-md transition-colors"
+                                                onMouseEnter={e => (e.currentTarget.style.background = c.bg)}
+                                                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                                            >
+                                                <span className="text-[13px]" style={{ color: c.text }}>{item.desc}</span>
                                                 <div className="flex items-center gap-1">
                                                     {item.keys.split("+").map((key, ki) => (
                                                         <span key={ki}>
-                                                            <kbd className="px-1.5 py-0.5 rounded bg-[#282a36] border border-[#44475a] text-[11px] font-mono text-[#f8f8f2] shadow-sm">
+                                                            <kbd className="px-1.5 py-0.5 rounded text-[11px] font-mono shadow-sm" style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}>
                                                                 {key.trim()}
                                                             </kbd>
                                                             {ki < item.keys.split("+").length - 1 && (
-                                                                <span className="text-[#6272a4] text-[10px] mx-0.5">+</span>
+                                                                <span className="text-[10px] mx-0.5" style={{ color: c.textMuted }}>+</span>
                                                             )}
                                                         </span>
                                                     ))}
@@ -1205,23 +1294,27 @@ export default function FileEditorApiPage() {
                                 </div>
                             ))}
                             {/* Tips section */}
-                            <div className="border-t border-[#44475a] pt-4">
-                                <h3 className="text-[12px] font-semibold text-[#50fa7b] uppercase tracking-wider mb-2">Tips</h3>
-                                <ul className="space-y-1.5 text-[12px] text-[#f8f8f2]/80">
-                                    <li className="flex items-start gap-2"><span className="text-[#bd93f9] mt-0.5">•</span> Right-click anywhere in the editor for the full context menu with all actions</li>
-                                    <li className="flex items-start gap-2"><span className="text-[#bd93f9] mt-0.5">•</span> Select text first to enable Cut, Copy, Uppercase, and Lowercase actions</li>
-                                    <li className="flex items-start gap-2"><span className="text-[#bd93f9] mt-0.5">•</span> Typing a bracket character while text is selected will wrap the selection</li>
-                                    <li className="flex items-start gap-2"><span className="text-[#bd93f9] mt-0.5">•</span> Use the Find bar with Enter/Shift+Enter to navigate between matches</li>
-                                    <li className="flex items-start gap-2"><span className="text-[#bd93f9] mt-0.5">•</span> The editor auto-indents on Enter, matching the current line's indentation</li>
-                                    <li className="flex items-start gap-2"><span className="text-[#bd93f9] mt-0.5">•</span> Unsaved changes show an orange dot next to the filename</li>
+                            <div className="pt-4" style={{ borderTop: `1px solid ${c.border}` }}>
+                                <h3 className="text-[12px] font-semibold uppercase tracking-wider mb-2" style={{ color: c.success }}>Tips</h3>
+                                <ul className="space-y-1.5 text-[12px]" style={{ color: `${c.text}cc` }}>
+                                    <li className="flex items-start gap-2"><span className="mt-0.5" style={{ color: c.accent }}>•</span> Right-click anywhere in the editor for the full context menu with all actions</li>
+                                    <li className="flex items-start gap-2"><span className="mt-0.5" style={{ color: c.accent }}>•</span> Select text first to enable Cut, Copy, Uppercase, and Lowercase actions</li>
+                                    <li className="flex items-start gap-2"><span className="mt-0.5" style={{ color: c.accent }}>•</span> Typing a bracket character while text is selected will wrap the selection</li>
+                                    <li className="flex items-start gap-2"><span className="mt-0.5" style={{ color: c.accent }}>•</span> Use the Find bar with Enter/Shift+Enter to navigate between matches</li>
+                                    <li className="flex items-start gap-2"><span className="mt-0.5" style={{ color: c.accent }}>•</span> The editor auto-indents on Enter, matching the current line's indentation</li>
+                                    <li className="flex items-start gap-2"><span className="mt-0.5" style={{ color: c.accent }}>•</span> Unsaved changes show an orange dot next to the filename</li>
+                                    <li className="flex items-start gap-2"><span className="mt-0.5" style={{ color: c.accent }}>•</span> Click the <Palette className="w-3 h-3 inline" /> palette icon in the toolbar to switch themes</li>
                                 </ul>
                             </div>
                         </div>
                         {/* Modal footer */}
-                        <div className="px-5 py-2.5 border-t border-[#44475a] flex justify-end">
+                        <div className="px-5 py-2.5 flex justify-end" style={{ borderTop: `1px solid ${c.border}` }}>
                             <button
                                 onClick={() => setShowShortcuts(false)}
-                                className="text-[12px] px-4 py-1.5 rounded-md bg-[#bd93f9] text-[#282a36] font-medium hover:bg-[#caa9fa] transition-colors"
+                                className="text-[12px] px-4 py-1.5 rounded-md font-medium transition-colors"
+                                style={{ background: c.accent, color: c.accentText }}
+                                onMouseEnter={e => (e.currentTarget.style.background = c.accentHover)}
+                                onMouseLeave={e => (e.currentTarget.style.background = c.accent)}
                             >
                                 Got it
                             </button>

@@ -45,6 +45,7 @@ import { FormatterRegistry } from "./formatters";
 import { debounce } from "./core/utils";
 import "./styles/editor.css";
 import "./styles/tokens.css";
+import type { BuiltInThemeId } from "./themes/defaults";
 
 // ═══════════════════════════════════════════════════════════════
 //  Public props
@@ -58,7 +59,7 @@ export interface FileEditorProps {
     /** Content provider implementation (API, Socket, or custom) */
     provider: ContentProvider;
     /** Initial theme ID (defaults to "dracula") */
-    themeId?: string;
+    themeId?: BuiltInThemeId | (string & {});
     /** Start in read-only mode */
     readOnly?: boolean;
     /** Show minimap on mount */
@@ -332,13 +333,15 @@ function EditorInner(props: FileEditorProps) {
             style={{
                 height: "100%",
                 width: "100%",
+                minHeight: 0,
+                minWidth: 0,
                 maxHeight: "100%",
                 maxWidth: "100%",
                 background: "var(--editor-background)",
                 color: "var(--editor-foreground)",
                 fontFamily: "var(--editor-font-family)",
                 overflow: "hidden",
-                contain: "strict",
+                contain: "layout paint style",
                 ...props.style,
             }}
             onDragEnter={onDragEnter}

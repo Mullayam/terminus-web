@@ -24,7 +24,7 @@ const MONO_FONT: ThemeFont = {
 const draculaColors: ThemeColors = {
     background: "#282a36",
     foreground: "#f8f8f2",
-    selection: "#44475a",
+    selection: "#44475a99",
     cursor: "#f8f8f2",
     lineHighlight: "#44475a40",
     gutterFg: "#6272a4",
@@ -94,7 +94,7 @@ export const vsDark: EditorTheme = {
     colors: {
         background: "#1e1e1e",
         foreground: "#d4d4d4",
-        selection: "#264f78",
+        selection: "#264f78aa",
         cursor: "#aeafad",
         lineHighlight: "#2a2d2e",
         gutterFg: "#858585",
@@ -156,7 +156,7 @@ export const monokai: EditorTheme = {
     colors: {
         background: "#272822",
         foreground: "#f8f8f2",
-        selection: "#49483e",
+        selection: "#49483eaa",
         cursor: "#f8f8f0",
         lineHighlight: "#3e3d3240",
         gutterFg: "#90908a",
@@ -218,7 +218,7 @@ export const oneDark: EditorTheme = {
     colors: {
         background: "#282c34",
         foreground: "#abb2bf",
-        selection: "#3e4451",
+        selection: "#3e4451aa",
         cursor: "#528bff",
         lineHighlight: "#2c313a",
         gutterFg: "#636d83",
@@ -280,7 +280,7 @@ export const darcula: EditorTheme = {
     colors: {
         background: "#2b2b2b",
         foreground: "#a9b7c6",
-        selection: "#214283",
+        selection: "#214283aa",
         cursor: "#a9b7c6",
         lineHighlight: "#323232",
         gutterFg: "#606366",
@@ -342,7 +342,7 @@ export const solarizedDark: EditorTheme = {
     colors: {
         background: "#002b36",
         foreground: "#839496",
-        selection: "#073642",
+        selection: "#073642cc",
         cursor: "#839496",
         lineHighlight: "#073642",
         gutterFg: "#586e75",
@@ -404,7 +404,7 @@ export const githubDark: EditorTheme = {
     colors: {
         background: "#0d1117",
         foreground: "#e6edf3",
-        selection: "#264f7844",
+        selection: "#264f78aa",
         cursor: "#e6edf3",
         lineHighlight: "#161b22",
         gutterFg: "#6e7681",
@@ -456,15 +456,152 @@ export const githubDark: EditorTheme = {
 };
 
 // ═══════════════════════════════════════════════════════════════
+// 8. VS Dark 2 (VS Code Dark+ faithful port)
+// ═══════════════════════════════════════════════════════════════
+
+export const vsDark2: EditorTheme = {
+    id: "vs-dark-2",
+    name: "VS Dark 2",
+    type: "dark",
+    colors: {
+        background: "#1e1e1e",
+        foreground: "#d4d4d4",
+        selection: "#264f78aa",
+        cursor: "#aeafad",
+        lineHighlight: "#2a2d2e",
+        gutterFg: "#858585",
+        gutterActiveFg: "#c6c6c6",
+        gutterBg: "#1e1e1e",
+        border: "#3c3c3c",
+        scrollbarThumb: "#424242",
+        scrollbarThumbHover: "#4f4f4f",
+        scrollbarTrack: "#1e1e1e",
+        toolbarBg: "#252526",
+        statusBarBg: "#007acc",
+        inputBg: "#3c3c3c",
+        inputBorder: "#3c3c3c",
+        inputFocusBorder: "#007acc",
+        accent: "#007acc",
+        accentHover: "#1a8ad4",
+        accentFg: "#ffffff",
+        success: "#4ec9b0",
+        warning: "#cca700",
+        error: "#f44747",
+        info: "#858585",
+        muted: "#858585",
+        popupBg: "#252526",
+        popupHoverBg: "#094771",
+    },
+    syntax: {
+        keyword: "#569cd6",
+        string: "#ce9178",
+        number: "#b5cea8",
+        comment: "#6a9955",
+        operator: "#d4d4d4",
+        function: "#dcdcaa",
+        className: "#4ec9b0",
+        variable: "#9cdcfe",
+        property: "#9cdcfe",
+        tag: "#569cd6",
+        attribute: "#9cdcfe",
+        constant: "#9cdcfe",
+        regex: "#d16969",
+        punctuation: "#d4d4d4",
+        builtin: "#4ec9b0",
+        inserted: "#b5cea8",
+        deleted: "#ce9178",
+        important: "#569cd6",
+        doctype: "#6a9955",
+    },
+    font: { ...MONO_FONT },
+    isBuiltIn: true,
+};
+
+// ═══════════════════════════════════════════════════════════════
+// 9. Synthwave '84
+// ═══════════════════════════════════════════════════════════════
+
+export const synthwave84: EditorTheme = {
+    id: "synthwave-84",
+    name: "Synthwave '84",
+    type: "dark",
+    colors: {
+        background: "#2a2139",
+        foreground: "#f92aad",
+        selection: "#463465bb",
+        cursor: "#f92aad",
+        lineHighlight: "#34294f",
+        gutterFg: "#6e5a8e",
+        gutterActiveFg: "#f92aad",
+        gutterBg: "#2a2139",
+        border: "#34294f",
+        scrollbarThumb: "#463465",
+        scrollbarThumbHover: "#6e5a8e",
+        scrollbarTrack: "#2a2139",
+        toolbarBg: "#241b2f",
+        statusBarBg: "#241b2f",
+        inputBg: "#34294f",
+        inputBorder: "#463465",
+        inputFocusBorder: "#f92aad",
+        accent: "#f92aad",
+        accentHover: "#ff6bcb",
+        accentFg: "#2a2139",
+        success: "#72f1b8",
+        warning: "#f87c32",
+        error: "#e2777a",
+        info: "#6e5a8e",
+        muted: "#8e8e8e",
+        popupBg: "#241b2f",
+        popupHoverBg: "#34294f",
+    },
+    syntax: {
+        keyword: "#f4eee4",
+        string: "#f87c32",
+        number: "#e2777a",
+        comment: "#8e8e8e",
+        operator: "#67cdcc",
+        function: "#fdfdfd",
+        className: "#fff5f6",
+        variable: "#f87c32",
+        property: "#72f1b8",
+        tag: "#e2777a",
+        attribute: "#e2777a",
+        constant: "#f92aad",
+        regex: "#f87c32",
+        punctuation: "#cccccc",
+        builtin: "#f4eee4",
+        inserted: "#72f1b8",
+        deleted: "#e2777a",
+        important: "#f4eee4",
+        doctype: "#8e8e8e",
+    },
+    font: { ...MONO_FONT },
+    isBuiltIn: true,
+};
+
+// ═══════════════════════════════════════════════════════════════
 // Registry of all built-in themes
 // ═══════════════════════════════════════════════════════════════
 
 export const BUILT_IN_THEMES: EditorTheme[] = [
     dracula,
     vsDark,
+    
     monokai,
     oneDark,
     darcula,
     solarizedDark,
     githubDark,
+    synthwave84,
 ];
+
+/** Union of all built-in theme IDs for type-safe props */
+export type BuiltInThemeId =
+    | "dracula"
+    | "vs-dark"
+    | "monokai"
+    | "one-dark"
+    | "darcula"
+    | "solarized-dark"
+    | "github-dark"
+    | "synthwave-84";

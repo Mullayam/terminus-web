@@ -3,6 +3,32 @@
  * Uses CSS custom properties set by the ThemeManager on .editor-root.
  */
 
+/* ── Page wrapper – fits inside sidebar layout ────────────── */
+
+.editor-page-wrapper {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── Root containment ─────────────────────────────────────── */
+
+.editor-root {
+    position: relative;
+    z-index: 0;           /* never overlap the sidebar */
+    min-width: 0;         /* allow flex shrinking */
+    min-height: 0;
+    max-width: 100%;
+    max-height: 100%;
+    overflow: hidden;
+    isolation: isolate;   /* create stacking context */
+}
+
 /* ── Scrollbars ───────────────────────────────────────────── */
 
 .editor-root ::-webkit-scrollbar {
@@ -65,10 +91,11 @@
 
 .editor-textarea {
     caret-color: var(--editor-cursor, #fff);
-    color: transparent;
+    color: transparent !important;
     resize: none;
     outline: none;
-    background: transparent;
+    background: transparent !important;
+    z-index: 2;
 }
 
 .editor-textarea::selection {
@@ -84,10 +111,17 @@
 .editor-highlight-overlay {
     pointer-events: none;
     user-select: none;
+    z-index: 0;
 }
 
 .editor-highlight-overlay code {
     font-family: inherit;
+    color: inherit;
+}
+
+/* Ensure Prism tokens inside the overlay are visible */
+.editor-highlight-overlay .token {
+    background: none;
 }
 
 /* ── Animations ───────────────────────────────────────────── */
