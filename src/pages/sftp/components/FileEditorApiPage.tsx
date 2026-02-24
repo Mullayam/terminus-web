@@ -118,6 +118,7 @@ export default function FileEditorApiPage() {
     const ctxMenuRef = useRef<HTMLDivElement>(null);
     const editorWrapperRef = useRef<HTMLDivElement>(null);
     const highlightRef = useRef<HTMLPreElement>(null);
+    const themePickerBtnRef = useRef<HTMLButtonElement>(null);
     const originalContent = useRef("");
     const undoStack = useRef<string[]>([]);
     const redoStack = useRef<string[]>([]);
@@ -895,7 +896,7 @@ export default function FileEditorApiPage() {
     return (
         <div className="h-screen w-full overflow-hidden flex flex-col" style={{ background: c.bg }}>
             {/* Toolbar */}
-            <div className="flex items-center justify-between px-3 py-1.5 shrink-0 select-none overflow-hidden" style={{ background: c.bgSurface, borderBottom: `1px solid ${c.border}` }}>
+            <div className="flex items-center justify-between px-3 py-1.5 shrink-0 select-none" style={{ background: c.bgSurface, borderBottom: `1px solid ${c.border}` }}>
                 <div className="flex items-center gap-2 min-w-0 overflow-hidden">
                     <span className="flex items-center space-x-1">
                         <FileIcon name={fileName} isDirectory={false} className="w-4 h-4" />
@@ -953,6 +954,7 @@ export default function FileEditorApiPage() {
                     {/* Theme picker button */}
                     <div className="relative">
                         <button
+                            ref={themePickerBtnRef}
                             onClick={() => setShowThemePicker((v) => !v)}
                             title="Change theme"
                             className="p-1.5 rounded-md transition-colors"
@@ -962,10 +964,14 @@ export default function FileEditorApiPage() {
                         >
                             <Palette className="w-3.5 h-3.5" />
                         </button>
-                        {showThemePicker && (
+                        {showThemePicker && (() => {
+                            const btnRect = themePickerBtnRef.current?.getBoundingClientRect();
+                            const dropdownTop = btnRect ? btnRect.bottom + 4 : 40;
+                            const dropdownRight = btnRect ? window.innerWidth - btnRect.right : 8;
+                            return (
                             <div
-                                className="theme-picker-scroll absolute right-0 top-full mt-1 z-50 w-52 p-1.5 rounded-lg shadow-2xl shadow-black/50 max-h-64 overflow-y-auto"
-                                style={{ background: c.bgSurface, border: `1px solid ${c.border}` }}
+                                className="theme-picker-scroll fixed z-[9999] w-52 p-1.5 rounded-lg shadow-2xl shadow-black/50 max-h-64 overflow-y-auto"
+                                style={{ background: c.bgSurface, border: `1px solid ${c.border}`, top: dropdownTop, right: dropdownRight }}
                             >
                                 {getThemeKeys().map((key) => {
                                     const t = editorThemes[key];
@@ -991,7 +997,8 @@ export default function FileEditorApiPage() {
                                     );
                                 })}
                             </div>
-                        )}
+                            );
+                        })()}
                     </div>
                     <button
                         onClick={() => setShowShortcuts(true)}
@@ -1235,7 +1242,7 @@ export default function FileEditorApiPage() {
 
             {/* Theme picker backdrop (close on click outside) */}
             {showThemePicker && (
-                <div className="fixed inset-0 z-40" onClick={() => setShowThemePicker(false)} />
+                <div className="fixed inset-0 z-[9998]" onClick={() => setShowThemePicker(false)} />
             )}
 
             {/* Shortcuts / Help Modal */}

@@ -14,12 +14,17 @@ This project is a **web-based terminal** developed using modern web technologies
 ----------
 
 ## **Getting Started**
--  Theme Support and Command Activity Pallet
+- Command Activity Pallet
 ![screenshot-1](./public/1.png)
+- Custom Themes and Font Size, Weight
 ![screenshot-2](./public/2.png)
+- Terminal Sharing (Read Only)
 ![screenshot-3](./public/3.png)
+- SFTP Panel With Icons and Custom Context Menu with Preview for Media Files and Edit Files
 ![screenshot-4](./public/4.png)
+- Editor 1 - Edit in New Tab (Ctrl-K for Shortcuts)
 ![screenshot-5](./public/5.png)
+- Editor 2.0 - Edit With Editor (Advanced ) (Ctrl-K for Shortcuts)
 ![screenshot-6](./public/6.png)
 
 ### **Landing Page**
