@@ -36,10 +36,30 @@ No Monaco, no CodeMirror — just a highly composable module with syntax highlig
 ## Quick Start
 
 ```tsx
-import { FileEditor, ApiContentProvider } from "@/modules/editor";
+import { useMemo } from "react";
+import { FileEditor, BaseContentProvider, createContentProvider } from "@/modules/editor";
+import { ApiCore } from "@/lib/api"; // your own API layer
+
+// Option A — extend BaseContentProvider
+class MyApiProvider extends BaseContentProvider {
+  async fetchContent(sessionId: string, path: string) {
+    const data = await ApiCore.fetchFileContent(sessionId, path);
+    return data.status ? { content: data.result } : { content: "", error: data.message };
+  }
+  async saveContent(sessionId: string, path: string, content: string) {
+    await ApiCore.saveFileContent(sessionId, path, content);
+    return { success: true };
+  }
+}
+
+// Option B — factory with raw functions
+const provider = createContentProvider(
+  async (sid, path) => { /* fetch */ return { content: "..." }; },
+  async (sid, path, content) => { /* save */ return { success: true }; },
+);
 
 function MyEditorPage() {
-  const provider = useMemo(() => new ApiContentProvider(), []);
+  const provider = useMemo(() => new MyApiProvider(), []);
 
   return (
     <FileEditor
@@ -51,7 +71,7 @@ function MyEditorPage() {
 }
 ```
 
-That's the minimum. The editor will load the file over REST, auto-detect the language, and give you syntax highlighting, a toolbar, status bar, find/replace, go-to-line, and a context menu out of the box.
+That's the minimum. The editor will load the file, auto-detect the language, and give you syntax highlighting, a toolbar, status bar, find/replace, go-to-line, and a context menu out of the box.
 
 ---
 
@@ -96,7 +116,7 @@ That's the minimum. The editor will load the file over REST, auto-detect the lan
 
 | Concern | Who handles it |
 |---|---|
-| **Reading / writing files** | `ContentProvider` (`ApiContentProvider` or `SocketContentProvider`) |
+| **Reading / writing files** | `ContentProvider` (user-supplied via `BaseContentProvider` or `createContentProvider`) |
 | **Editor features** (completions, ghost-text, diagnostics, codelens) | **Plugins** |
 | **Routing AI requests** to a backend or handler fn | `AiProviderManager` (optional singleton) |
 
@@ -130,8 +150,11 @@ A `ContentProvider` is responsible for **loading and saving files**. It has noth
 
 | Provider | Description |
 |---|---|
-| `ApiContentProvider` | REST API via `fetch` — calls your backend endpoints |
-| `SocketContentProvider` | Socket.IO — placeholder, ready for real-time integration |
+| `SocketContentProvider` | Socket.IO — pass your own socket or a URL + event names |
+| `NoopContentProvider` | In-memory / offline / demo — no network calls |
+| `BaseContentProvider` | Abstract class — extend to build your own provider |
+| `defineContentProvider()` | Functional helper — create a provider from plain functions |
+| `createContentProvider()` | Factory — pass raw functions, or `"socket"` / `"noop"` with options |
 
 ### Interface
 
@@ -146,10 +169,31 @@ interface ContentProvider {
 ### Usage
 
 ```tsx
-import { ApiContentProvider } from "@/modules/editor";
+import { BaseContentProvider, createContentProvider } from "@/modules/editor";
 
-// Always memoize — prevents re-creating on every render
-const provider = useMemo(() => new ApiContentProvider(), []);
+// 1. Extend BaseContentProvider with your own API logic
+class MyApiProvider extends BaseContentProvider {
+  async fetchContent(sessionId: string, path: string) { /* ... */ }
+  async saveContent(sessionId: string, path: string, content: string) { /* ... */ }
+}
+const provider = useMemo(() => new MyApiProvider(), []);
+
+// 2. Or use the factory with raw functions
+const provider = useMemo(() => createContentProvider(
+  async (sid, path) => ({ content: await loadFile(sid, path) }),
+  async (sid, path, content) => { await saveFile(sid, path, content); return { success: true }; },
+), []);
+
+// 3. Socket provider — pass existing socket or a URL
+const provider = useMemo(() => createContentProvider("socket", {
+  socket: mySocket,               // or: url: "http://localhost:4000"
+  events: {
+    fetchRequest:  "sftp:edit:file:request",
+    fetchResponse: "sftp:edit:file:request:response",
+    saveRequest:   "sftp:edit:file:done",
+    saveResponse:  "sftp:edit:file:done:response",
+  },
+}), []);
 
 <FileEditor provider={provider} sessionId="abc" remotePath="/path/to/file" />
 ```
@@ -452,14 +496,19 @@ AiProviderManager.setStreamHandler(async (req, onChunk) => {
 import { useMemo } from "react";
 import {
   FileEditor,
-  ApiContentProvider,        // ← For loading/saving files
+  BaseContentProvider,        // ← Extend to build your own
   AiProviderManager,          // ← For routing AI requests
   createAllBuiltinPlugins,    // ← For editor features
 } from "@/modules/editor";
 
+class MyApiProvider extends BaseContentProvider {
+  async fetchContent(sid: string, path: string) { /* your API call */ }
+  async saveContent(sid: string, path: string, content: string) { /* your API call */ }
+}
+
 function MyEditorPage({ sessionId, remotePath }) {
-  // ContentProvider: how files are loaded/saved (REST API)
-  const provider = useMemo(() => new ApiContentProvider(), []);
+  // ContentProvider: how files are loaded/saved
+  const provider = useMemo(() => new MyApiProvider(), []);
 
   // AiProviderManager: how AI requests are routed (optional, global)
   // Set this once at app startup or in a useEffect:
@@ -530,10 +579,16 @@ ThemeManager.register({
 
 ```tsx
 import { useMemo } from "react";
-import { FileEditor, ApiContentProvider } from "@/modules/editor";
+import { FileEditor, BaseContentProvider } from "@/modules/editor";
+
+// Define your own provider outside the module
+class MyApiProvider extends BaseContentProvider {
+  async fetchContent(sid: string, path: string) { /* ... */ return { content: "" }; }
+  async saveContent(sid: string, path: string, c: string) { /* ... */ return { success: true }; }
+}
 
 export default function Editor({ sessionId, path }) {
-  const provider = useMemo(() => new ApiContentProvider(), []);
+  const provider = useMemo(() => new MyApiProvider(), []);
 
   return (
     <FileEditor
@@ -549,10 +604,15 @@ export default function Editor({ sessionId, path }) {
 
 ```tsx
 import { useMemo } from "react";
-import { FileEditor, ApiContentProvider, createAllBuiltinPlugins } from "@/modules/editor";
+import { FileEditor, BaseContentProvider, createAllBuiltinPlugins } from "@/modules/editor";
+
+class MyApiProvider extends BaseContentProvider {
+  async fetchContent(sid: string, path: string) { /* ... */ return { content: "" }; }
+  async saveContent(sid: string, path: string, c: string) { /* ... */ return { success: true }; }
+}
 
 export default function Editor({ sessionId, path }) {
-  const provider = useMemo(() => new ApiContentProvider(), []);
+  const provider = useMemo(() => new MyApiProvider(), []);
 
   return (
     <FileEditor
@@ -575,11 +635,12 @@ Perfect for development and demos — all features work with canned data:
 
 ```tsx
 import { useMemo } from "react";
-import { FileEditor, ApiContentProvider } from "@/modules/editor";
+import { FileEditor, createContentProvider } from "@/modules/editor";
 import { createAllMockPlugins } from "@/modules/editor/plugins/mock";
 
 export default function EditorDemo({ sessionId, path }) {
-  const provider = useMemo(() => new ApiContentProvider(), []);
+  // NoopContentProvider for demos — works offline
+  const provider = useMemo(() => createContentProvider("noop", "// demo content"), []);
 
   return (
     <FileEditor
@@ -600,7 +661,7 @@ export default function EditorDemo({ sessionId, path }) {
 import { useMemo } from "react";
 import {
   FileEditor,
-  ApiContentProvider,
+  BaseContentProvider,
   createAllBuiltinPlugins,
   definePlugin,
   mergePlugins,
@@ -609,6 +670,11 @@ import {
   createMockGhostTextPlugin,
   createMockCodeLensPlugin,
 } from "@/modules/editor/plugins/mock";
+
+class MyApiProvider extends BaseContentProvider {
+  async fetchContent(sid: string, path: string) { /* ... */ return { content: "" }; }
+  async saveContent(sid: string, path: string, c: string) { /* ... */ return { success: true }; }
+}
 
 const myPlugin = definePlugin({
   id: "my-plugin",
@@ -621,7 +687,7 @@ const myPlugin = definePlugin({
 });
 
 export default function Editor({ sessionId, path }) {
-  const provider = useMemo(() => new ApiContentProvider(), []);
+  const provider = useMemo(() => new MyApiProvider(), []);
 
   const plugins = useMemo(
     () =>
@@ -650,13 +716,18 @@ export default function Editor({ sessionId, path }) {
 import { useMemo, useEffect } from "react";
 import {
   FileEditor,
-  ApiContentProvider,
+  BaseContentProvider,
   AiProviderManager,
   createAllBuiltinPlugins,
 } from "@/modules/editor";
 
+class MyApiProvider extends BaseContentProvider {
+  async fetchContent(sid: string, path: string) { /* ... */ return { content: "" }; }
+  async saveContent(sid: string, path: string, c: string) { /* ... */ return { success: true }; }
+}
+
 export default function Editor({ sessionId, path, aiToken }) {
-  const provider = useMemo(() => new ApiContentProvider(), []);
+  const provider = useMemo(() => new MyApiProvider(), []);
 
   // Configure AI routing — runs once
   useEffect(() => {
@@ -689,12 +760,22 @@ import { useMemo, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import {
   FileEditor,
-  ApiContentProvider,
+  BaseContentProvider,
   AiProviderManager,
   createAllBuiltinPlugins,
   mergePlugins,
 } from "@/modules/editor";
 import { createAllMockPlugins } from "@/modules/editor/plugins/mock";
+
+class MyApiProvider extends BaseContentProvider {
+  async fetchContent(sid: string, path: string) {
+    // your own REST / gRPC / whatever call
+    return { content: "" };
+  }
+  async saveContent(sid: string, path: string, c: string) {
+    return { success: true };
+  }
+}
 
 export default function FileEditorPage() {
   const [params] = useSearchParams();
@@ -703,8 +784,8 @@ export default function FileEditorPage() {
   const sessionId = params.get("tabId") ?? "";
   const remotePath = params.get("path") ?? "";
 
-  // 1. Content provider — handles file loading and saving via REST API
-  const provider = useMemo(() => new ApiContentProvider(), []);
+  // 1. Content provider — user-supplied, lives outside the module
+  const provider = useMemo(() => new MyApiProvider(), []);
 
   // 2. Plugins — editor features (completions, ghost-text, codelens, etc.)
   //    Use createAllBuiltinPlugins() for production,
@@ -753,7 +834,7 @@ src/modules/editor/
 ├── FileEditor.tsx              # Main component
 ├── types.ts                    # Core type definitions
 ├── api/
-│   └── providers.ts            # ApiContentProvider, SocketContentProvider
+│   └── providers.ts            # BaseContentProvider, SocketContentProvider, NoopContentProvider, createContentProvider
 ├── components/                 # Toolbar, FindBar, GoToLine, StatusBar, etc.
 ├── core/                       # detect-lang, syntax, snippets, utils
 ├── hooks/                      # useEditor, useTheme, useKeybindings, etc.

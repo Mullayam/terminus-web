@@ -10,9 +10,49 @@
  */
 import { useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { FileEditor, ApiContentProvider, createAllBuiltinPlugins } from "@/modules/editor";
+import { BaseContentProvider, FileEditor, createAllBuiltinPlugins } from "@/modules/editor";
 import { createAllMockPlugins } from "@/modules/editor/plugins/mock";
+import { ApiCore } from "@/lib/api";
 
+// ═══════════════════════════════════════════════════════════════
+//  API Content Provider  (REST)
+// ═══════════════════════════════════════════════════════════════
+
+export class ApiContentProvider extends BaseContentProvider {
+    async fetchContent(
+        sessionId: string,
+        filePath: string,
+    ): Promise<{ content: string; error?: string }> {
+        try {
+            const data = await ApiCore.fetchFileContent(sessionId, filePath);
+            if (!data.status) {
+                return { content: "", error: data.message || "Failed to load file content" };
+            }
+            return { content: data.result };
+        } catch (e: unknown) {
+            return {
+                content: "",
+                error: e instanceof Error ? e.message : "Network error while fetching file",
+            };
+        }
+    }
+
+    async saveContent(
+        sessionId: string,
+        filePath: string,
+        content: string,
+    ): Promise<{ success: boolean; error?: string }> {
+        try {
+            await ApiCore.saveFileContent(sessionId, filePath, content);
+            return { success: true };
+        } catch (e: unknown) {
+            return {
+                success: false,
+                error: e instanceof Error ? e.message : "Network error while saving file",
+            };
+        }
+    }
+}
 export default function FileEditorModulePage() {
     const [params] = useSearchParams();
     const navigate = useNavigate();
@@ -21,6 +61,7 @@ export default function FileEditorModulePage() {
     const remotePath = params.get("path") ?? "";
 
     const provider = useMemo(() => new ApiContentProvider(), []);
+
     // Memoize plugins so they are created once and not re-created on every render
     const plugins = useMemo(() => [...createAllMockPlugins(), ...createAllBuiltinPlugins()], []);
 

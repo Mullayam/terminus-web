@@ -4,13 +4,15 @@
  * Public API for the File Editor module.
  *
  * Usage:
- *   import { FileEditor, ThemeManager, FormatterRegistry, ApiContentProvider } from "@/modules/editor";
+ *   import { FileEditor, BaseContentProvider, createContentProvider } from "@/modules/editor";
  *
- *   <FileEditor
- *     sessionId={sessionId}
- *     remotePath={remotePath}
- *     provider={new ApiContentProvider()}
- *   />
+ *   // Option 1: Extend BaseContentProvider
+ *   class MyProvider extends BaseContentProvider { ... }
+ *   <FileEditor provider={new MyProvider()} sessionId={sid} remotePath={path} />
+ *
+ *   // Option 2: Factory with raw functions
+ *   const provider = createContentProvider(myFetchFn, mySaveFn);
+ *   <FileEditor provider={provider} sessionId={sid} remotePath={path} />
  */
 
 // ── Main component ──────────────────────────────────────────
@@ -24,7 +26,14 @@ export { ThemeManager } from "./themes/manager";
 export { BUILT_IN_THEMES, dracula, vsDark, monokai, oneDark, darcula, solarizedDark, githubDark } from "./themes/defaults";
 
 // ── Content providers ───────────────────────────────────────
-export { ApiContentProvider, SocketContentProvider, createContentProvider } from "./api/providers";
+export {
+    SocketContentProvider,
+    NoopContentProvider,
+    BaseContentProvider,
+    createContentProvider,
+    defineContentProvider,
+} from "./api/providers";
+export type { SocketProviderEvents, SocketProviderOptions } from "./api/providers";
 
 // ── Formatters ──────────────────────────────────────────────
 export { FormatterRegistry } from "./formatters";
