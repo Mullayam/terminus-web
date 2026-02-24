@@ -38,6 +38,7 @@ import {
   Download,
   Info,
   ShieldCheck,
+  ExternalLink,
 } from "lucide-react";
 import { DeleteFolderDialog } from "./DeleteDialog";
 import { NewFolderDialog } from "./NewDialog";
@@ -357,6 +358,18 @@ export function FileList({ files, currentDir }: {
                               socket={socket}
                             />
                           ) : undefined,
+                        },
+                        {
+                          label: 'Edit in New Tab',
+                          icon: <ExternalLink className="w-4 h-4" />,
+                          disabled: row.original.type === 'd',
+                          action: () => {
+                            const fullPath = `${currentDir}/${row.getValue('name')}`;
+                            window.open(
+                              `/ssh/sftp/edit?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? '')}`,
+                              '_blank'
+                            );
+                          },
                         },
                         {
                           label: 'Refresh',

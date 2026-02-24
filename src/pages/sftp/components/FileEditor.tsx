@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SocketEventConstants } from "@/lib/sockets/event-constants";
 import {
-    Loader2, Save, WrapText,
+    Loader2, Save, WrapText, Undo2, Redo2,
     Scissors, Copy, ClipboardPaste, TextSelect,
     Indent, Outdent, RemoveFormatting, Braces,
 } from "lucide-react";
@@ -12,6 +12,8 @@ interface FileEditorProps {
     filePath: string;
     fileName: string;
     socket: Socket | null | undefined;
+    /** When true the editor uses full available height instead of a capped dialog size */
+    fullScreen?: boolean;
     onClose?: () => void;
 }
 
@@ -33,37 +35,7 @@ function detectLang(name: string): string {
     return map[ext] ?? "Plain Text";
 }
 
-/** Simple undo/redo history manager */
-function useHistory(initial: string) {
-    const [stack, setStack] = useState<string[]>([initial]);
-    const [index, setIndex] = useState(0);
-
-    const push = useCallback((value: string) => {
-        setStack((prev) => {
-            const next = prev.slice(0, index + 1);
-            next.push(value);
-            // Keep history capped at 100 entries
-            if (next.length > 100) next.shift();
-            return next;
-        });
-        setIndex((i) => Math.min(i + 1, 99));
-    }, [index]);
-
-    const undo = useCallback(() => {
-        if (index > 0) setIndex((i) => i - 1);
-    }, [index]);
-
-    const redo = useCallback(() => {
-        setStack((prev) => {
-            if (index < prev.length - 1) setIndex((i) => i + 1);
-            return prev;
-        });
-    }, [index]);
-
-    return { value: stack[index] ?? initial, push, undo, redo, canUndo: index > 0, canRedo: index < stack.length - 1 };
-}
-
-export function FileEditor({ filePath, fileName, socket, onClose }: FileEditorProps) {
+export function FileEditor({ filePath, fileName, socket, fullScreen = false, onClose }: FileEditorProps) {
     const [content, setContent] = useState<string>("");
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -79,6 +51,10 @@ export function FileEditor({ filePath, fileName, socket, onClose }: FileEditorPr
     const editorWrapperRef = useRef<HTMLDivElement>(null);
     const originalContent = useRef<string>("");
     const { toast } = useToast();
+
+    // ── Undo / Redo stacks ──────────────────────────────────
+    const undoStack = useRef<string[]>([]);
+    const redoStack = useRef<string[]>([]);
 
     const lines = content.split("\n");
     const lineCount = lines.length;
@@ -134,8 +110,28 @@ export function FileEditor({ filePath, fileName, socket, onClose }: FileEditorPr
     }, [socket, filePath]);
 
     const handleContentChange = (value: string) => {
+        // Push current content onto undo stack before changing
+        undoStack.current.push(content);
+        if (undoStack.current.length > 200) undoStack.current.shift();
+        redoStack.current = [];
         setContent(value);
         setModified(value !== originalContent.current);
+    };
+
+    const doUndo = () => {
+        if (undoStack.current.length === 0) return;
+        const prev = undoStack.current.pop()!;
+        redoStack.current.push(content);
+        setContent(prev);
+        setModified(prev !== originalContent.current);
+    };
+
+    const doRedo = () => {
+        if (redoStack.current.length === 0) return;
+        const next = redoStack.current.pop()!;
+        undoStack.current.push(content);
+        setContent(next);
+        setModified(next !== originalContent.current);
     };
 
     const handleSave = () => {
@@ -306,6 +302,8 @@ export function FileEditor({ filePath, fileName, socket, onClose }: FileEditorPr
 
     // Context menu items definition
     const ctxItems: { label: string; icon: React.ReactNode; action: () => void; disabled?: boolean; shortcut?: string; separator?: boolean }[] = [
+        { label: "Undo", icon: <Undo2 className="w-3.5 h-3.5" />, action: doUndo, disabled: undoStack.current.length === 0, shortcut: "Ctrl+Z" },
+        { label: "Redo", icon: <Redo2 className="w-3.5 h-3.5" />, action: doRedo, disabled: redoStack.current.length === 0, shortcut: "Ctrl+Shift+Z", separator: true },
         { label: "Cut", icon: <Scissors className="w-3.5 h-3.5" />, action: doCut, disabled: !hasSelection(), shortcut: "Ctrl+X" },
         { label: "Copy", icon: <Copy className="w-3.5 h-3.5" />, action: doCopy, disabled: !hasSelection(), shortcut: "Ctrl+C" },
         { label: "Paste", icon: <ClipboardPaste className="w-3.5 h-3.5" />, action: doPaste, shortcut: "Ctrl+V" },
@@ -325,6 +323,20 @@ export function FileEditor({ filePath, fileName, socket, onClose }: FileEditorPr
         if ((e.ctrlKey || e.metaKey) && e.key === "s") {
             e.preventDefault();
             handleSave();
+            return;
+        }
+
+        // Ctrl+Z → undo
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === "z") {
+            e.preventDefault();
+            doUndo();
+            return;
+        }
+
+        // Ctrl+Shift+Z or Ctrl+Y → redo
+        if ((e.ctrlKey || e.metaKey) && (e.shiftKey && e.key === "Z" || e.key === "y")) {
+            e.preventDefault();
+            doRedo();
             return;
         }
 
@@ -474,7 +486,7 @@ export function FileEditor({ filePath, fileName, socket, onClose }: FileEditorPr
             <div
                 ref={editorWrapperRef}
                 className="relative flex flex-1 overflow-hidden"
-                style={{ height: "min(460px, 65vh)" }}
+                style={{ height: fullScreen ? "calc(100vh - 80px)" : "min(350px, 55vh)" }}
                 onContextMenu={handleContextMenu}
             >
                 {/* Custom context menu */}

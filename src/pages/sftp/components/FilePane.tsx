@@ -185,8 +185,8 @@ export function FilePane({ title, files, path, handleSetCurrentDir, handleSetLoa
                     <div className="flex items-center space-x-2">
 
                         {hasError ?
-                            <RefreshCwIcon className="h-4 w-4 cursor-pointer" onClick={handleRetrySFTPConnect} /> :
-                            <RefreshCwIcon className="h-4 w-4 cursor-pointer" onClick={() => socket?.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: path })} />
+                            <RefreshCwIcon xlinkTitle="Refresh again" className="h-4 w-4 cursor-pointer text-red-500" onClick={handleRetrySFTPConnect} /> :
+                            <RefreshCwIcon xlinkTitle="Refresh" className="h-4 w-4 cursor-pointer" onClick={() => socket?.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: path })} />
                         }
 
                         {!loading &&

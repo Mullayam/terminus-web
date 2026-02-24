@@ -97,7 +97,7 @@ export function ContextModal({
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent
-          className="sm:max-w-[700px] bg-[#1a1b26]/95 backdrop-blur-xl border border-white/[0.08] rounded-2xl shadow-2xl shadow-black/50"
+          className="sm:max-w-[700px] max-h-[85vh] overflow-hidden bg-[#1a1b26]/95 backdrop-blur-xl border border-white/[0.08] rounded-2xl shadow-2xl shadow-black/50"
           aria-describedby={title}
         >
           <VisuallyHidden.Root>

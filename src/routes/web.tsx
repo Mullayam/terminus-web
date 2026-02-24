@@ -9,6 +9,8 @@ import ProtectedLayout from "@/pages/layout";
 import NewSSH from '@/pages/ssh-v/page';
 const SFTP = lazy(() => import("@/pages/sftp"));
  
+const FileEditorApiPage = lazy(() => import("@/pages/sftp/components/FileEditorApiPage"));
+
 const TerminalComponent = lazy(() => import("@/pages/shared-terminal"));
 
 
@@ -54,7 +56,13 @@ export const router = createBrowserRouter([
                 element: <SFTP />,
             },
 
-            
+
+            {
+                path: "sftp/edit",
+                element: <FileEditorApiPage />,
+            },
+
+
         ]
     },
     {
