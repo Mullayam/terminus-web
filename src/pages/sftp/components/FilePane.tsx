@@ -2,18 +2,18 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Filter, HomeIcon, MoreVertical, RefreshCwIcon, Search, Upload, File } from 'lucide-react';
+import { Filter, HomeIcon, MoreVertical, RefreshCwIcon, Upload, } from 'lucide-react';
 import { FileList } from "./FileList";
-import React, { useState, useEffect } from "react";
+import  { useState, useEffect } from "react";
 import { SFTP_FILES_LIST } from "./interface";
-import { Skeleton } from "@/components/ui/skeleton";
+
 import { ApiCore } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 
 import { SocketEventConstants } from "@/lib/sockets/event-constants";
 import { FilterDropdown } from "./FilterDropdown";
 import EnhancedFileUploadPopup from "@/components/FileUpload";
-import { Progress } from "@/components/ui/progress";
+
 import { useSFTPContext } from "../sftp-context";
 import PathBreadcrumb from "./PathBreadcrumb";
 import { ShowProgressBar } from "./DownloadProgress";

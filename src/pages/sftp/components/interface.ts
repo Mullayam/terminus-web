@@ -24,4 +24,4 @@ interface Rights {
     user: string
 }
 
-export type  RIGHT_CLICK_ACTIONS  = "refresh" |"copy" | "move" | "delete" | "rename" | "download" | "upload" | "properties" | "createFolder" |"createFile" |"edit"
+export type  RIGHT_CLICK_ACTIONS  = "refresh" |"copy" | "move" | "delete" | "rename" | "download" | "upload" | "properties" | "createFolder" |"createFile" |"edit" | "preview"

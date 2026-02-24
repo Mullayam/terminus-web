@@ -39,6 +39,7 @@ import {
   Info,
   ShieldCheck,
   ExternalLink,
+  Eye,
 } from "lucide-react";
 import { DeleteFolderDialog } from "./DeleteDialog";
 import { NewFolderDialog } from "./NewDialog";
@@ -49,6 +50,7 @@ import { StatsInfoCard } from "./StatsInfoCards";
 import { FileEditor } from "./FileEditor";
 import { ApiCore } from "@/lib/api";
 import { useDialogState, useLoadingState } from "@/store";
+import { isPreviewable } from "./MediaPreviewPage";
 export type FileOperations = "file" | "folder" | "rename" | "move"
 
 export interface RootObject {
@@ -367,6 +369,18 @@ export function FileList({ files, currentDir }: {
                             const fullPath = `${currentDir}/${row.getValue('name')}`;
                             window.open(
                               `/ssh/sftp/edit?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? '')}`,
+                              '_blank'
+                            );
+                          },
+                        },
+                        {
+                          label: 'Preview',
+                          icon: <Eye className="w-4 h-4" />,
+                          disabled: row.original.type === 'd' || !isPreviewable(row.getValue('name')),
+                          action: () => {
+                            const fullPath = `${currentDir}/${row.getValue('name')}`;
+                            window.open(
+                              `/ssh/sftp/preview?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? '')}`,
                               '_blank'
                             );
                           },
