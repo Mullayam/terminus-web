@@ -64,7 +64,7 @@ const XTerminal = ({
   const [suggestions, setSuggestions] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem(`terminus-suggestions:${sessions[sessionId]?.host ?? sessionId}`);
-      return raw ? JSON.parse(raw) : [];
+      return raw ? Array.from(JSON.parse(raw)) : [];
     } catch { return []; }
   });
   const [commandBuffer, setCommandBuffer] = useState<string>("");

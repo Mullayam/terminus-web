@@ -141,7 +141,7 @@ const AISuggestionBox: React.FC<SuggestionBoxProps> = ({ terminalHeight, setSugg
               onClick={(e) => {
                 e.stopPropagation();
                 setSuggestions((prevSuggestions) => {
-                  const updated = prevSuggestions.filter((suggestion) => suggestion !== command);
+                  const updated = Array.from(new Set(prevSuggestions.filter((s) => s !== command)));
                   // Persist removal to localStorage immediately
                   if (hostKey) {
                     try { localStorage.setItem(`terminus-suggestions:${hostKey}`, JSON.stringify(updated)); } catch { /* ignore */ }

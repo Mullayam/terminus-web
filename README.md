@@ -14,14 +14,13 @@ This project is a **web-based terminal** developed using modern web technologies
 ----------
 
 ## **Getting Started**
-/*************  ✨ Windsurf Command ⭐  *************/
+-  Theme Support and Command Activity Pallet
 ![screenshot-1](./public/1.png)
 ![screenshot-2](./public/2.png)
 ![screenshot-3](./public/3.png)
 ![screenshot-4](./public/4.png)
 ![screenshot-5](./public/5.png)
 ![screenshot-6](./public/6.png)
-/*******  193fb5db-54ed-4e61-8922-8538f4213d51  *******/
 
 ### **Landing Page**
 
