@@ -8,8 +8,9 @@ import {
     Indent, Outdent, RemoveFormatting, Braces,
     RefreshCw, Info, X, Search, Replace, ArrowUp, ArrowDown,
     CaseSensitive, CaseUpper, CaseLower, ArrowUpDown,
-    MessageSquareCode, SortAsc, Hash,
+    MessageSquareCode, SortAsc, Hash, Palette, Check,
 } from "lucide-react";
+import { editorThemes, getEditorTheme, getThemeKeys, DEFAULT_THEME_KEY, type EditorTheme } from "./editor-themes";
 import FileIcon from "@/components/FileIcon";
 import Prism from "prismjs";
 import "prismjs/components/prism-c";
@@ -105,6 +106,10 @@ export default function FileEditorApiPage() {
     const [findMatchIndex, setFindMatchIndex] = useState(-1);
     const [showGoToLine, setShowGoToLine] = useState(false);
     const [goToLineValue, setGoToLineValue] = useState("");
+    const [themeKey, setThemeKey] = useState(() => localStorage.getItem("editor-theme") ?? DEFAULT_THEME_KEY);
+    const [showThemePicker, setShowThemePicker] = useState(false);
+    const theme = getEditorTheme(themeKey);
+    const c = theme.colors;
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const findInputRef = useRef<HTMLInputElement>(null);
@@ -117,6 +122,39 @@ export default function FileEditorApiPage() {
     const undoStack = useRef<string[]>([]);
     const redoStack = useRef<string[]>([]);
     const { toast } = useToast();
+
+    // ── Theme switcher ───────────────────────────────────────
+    const handleThemeChange = (key: string) => {
+        setThemeKey(key);
+        localStorage.setItem("editor-theme", key);
+        setShowThemePicker(false);
+    };
+
+    // ── Inject dynamic scrollbar CSS matching theme ──────────
+    useEffect(() => {
+        const id = "editor-theme-scrollbar";
+        let style = document.getElementById(id) as HTMLStyleElement | null;
+        if (!style) {
+            style = document.createElement("style");
+            style.id = id;
+            document.head.appendChild(style);
+        }
+        style.textContent = `
+            .ctx-menu-scroll::-webkit-scrollbar { width: 6px; }
+            .ctx-menu-scroll::-webkit-scrollbar-track { background: ${c.scrollTrack}; border-radius: 3px; }
+            .ctx-menu-scroll::-webkit-scrollbar-thumb { background: ${c.scrollThumb}; border-radius: 3px; }
+            .ctx-menu-scroll::-webkit-scrollbar-thumb:hover { background: ${c.scrollThumbHover}; }
+            .editor-modal-scroll::-webkit-scrollbar { width: 6px; }
+            .editor-modal-scroll::-webkit-scrollbar-track { background: ${c.scrollTrack}; border-radius: 3px; }
+            .editor-modal-scroll::-webkit-scrollbar-thumb { background: ${c.scrollThumb}; border-radius: 3px; }
+            .editor-modal-scroll::-webkit-scrollbar-thumb:hover { background: ${c.scrollThumbHover}; }
+            .theme-picker-scroll::-webkit-scrollbar { width: 5px; }
+            .theme-picker-scroll::-webkit-scrollbar-track { background: ${c.scrollTrack}; border-radius: 3px; }
+            .theme-picker-scroll::-webkit-scrollbar-thumb { background: ${c.scrollThumb}; border-radius: 3px; }
+            .theme-picker-scroll::-webkit-scrollbar-thumb:hover { background: ${c.scrollThumbHover}; }
+        `;
+        return () => { style?.remove(); };
+    }, [c.scrollTrack, c.scrollThumb, c.scrollThumbHover]);
 
     const lines = content.split("\n");
     const lineCount = lines.length;
@@ -854,10 +892,10 @@ export default function FileEditorApiPage() {
     const gutterWidth = Math.max(String(lineCount).length * 10 + 20, 40);
 
     return (
-        <div className="h-screen w-screen bg-[#282a36] overflow-hidden flex flex-col">
+        <div className="h-screen w-full bg-[#282a36] overflow-hidden flex flex-col">
             {/* Toolbar — VS Code title bar style */}
-            <div className="flex items-center justify-between px-3 py-1.5 bg-[#21222c] border-b border-[#44475a]">
-                <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center justify-between px-3 py-1.5 bg-[#21222c] border-b border-[#44475a] shrink-0 select-none overflow-hidden">
+                <div className="flex items-center gap-2 min-w-0 overflow-hidden">
                     <span className="flex items-center space-x-1">
                         <FileIcon name={fileName} isDirectory={false} className="w-4 h-4" />
                         <span className="text-[13px] font-medium text-[#f8f8f2] truncate">{fileName}</span>
@@ -869,7 +907,7 @@ export default function FileEditorApiPage() {
                         {filePath}
                     </span>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 shrink-0">
                     <button
                         onClick={() => { setShowFind(true); setShowReplace(false); }}
                         title="Find (Ctrl+F)"
@@ -1006,7 +1044,7 @@ export default function FileEditorApiPage() {
                 {ctxMenu && (
                     <div
                         ref={ctxMenuRef}
-                        className="ctx-menu-scroll absolute z-50 w-56 p-1.5 bg-[#21222c] backdrop-blur-xl border border-[#44475a] rounded-lg shadow-2xl shadow-black/50 animate-in fade-in zoom-in-95 duration-100 max-h-[min(70vh,500px)] overflow-y-auto"
+                        className="ctx-menu-scroll absolute z-50 w-[250px] p-1.5 bg-[#21222c] backdrop-blur-xl border border-[#44475a] rounded-lg shadow-2xl shadow-black/50 animate-in fade-in zoom-in-95 duration-100 max-h-[min(70vh,500px)] overflow-y-auto"
                         style={{ left: ctxMenu.x, top: ctxMenu.y }}
                         onPointerDown={(e) => e.stopPropagation()}
                     >
@@ -1096,8 +1134,8 @@ export default function FileEditorApiPage() {
             </div>
 
             {/* Status bar — VS Code style with Dracula blue accent */}
-            <div className="flex items-center justify-between px-3 py-1 bg-[#191a21] border-t border-[#44475a] text-[11px] text-[#6272a4] select-none">
-                <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between px-3 py-1 bg-[#191a21] border-t border-[#44475a] text-[11px] text-[#6272a4] select-none overflow-hidden">
+                <div className="flex items-center gap-3 min-w-0">
                     <span className="bg-[#bd93f9] text-[#282a36] px-2 py-0.5 rounded-sm font-semibold -ml-3 -my-1">{lang}</span>
                     <span>UTF-8</span>
                     <span>{wordWrap ? "Wrap" : "No Wrap"}</span>
@@ -1107,7 +1145,7 @@ export default function FileEditorApiPage() {
                         </span>
                     )}
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 shrink-0">
                     <span>Ln {cursorLine}, Col {cursorCol}</span>
                     <span>{lineCount} lines</span>
                     <span>{content.length.toLocaleString()} chars</span>

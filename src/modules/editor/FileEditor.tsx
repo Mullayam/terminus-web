@@ -5,7 +5,15 @@
  * Wires together:
  *   EditorProvider → ErrorBoundary → Toolbar → FindBar → GoToLine →
  *   EditorBody (Gutter + Overlay + Textarea + Minimap) → StatusBar →
- *   ThemeSelector (side panel) → ShortcutsModal (overlay)
+ *   ThemeSelector (side panel) → CommandPalette → ShortcutsModal
+ *
+ * Features:
+ *   - Auto-save with debounce
+ *   - Ctrl+Mouse wheel zoom
+ *   - Auto-close brackets / Auto-indent
+ *   - Whitespace visibility overlay
+ *   - VS Code-style context menu (22+ items)
+ *   - Command palette (Ctrl+Shift+P)
  *
  * Usage:
  *   <FileEditor
@@ -14,16 +22,17 @@
  *     provider={new ApiContentProvider()}
  *   />
  */
-import { useCallback, useEffect, useMemo, type CSSProperties } from "react";
-import type { ContentProvider, ContextMenuItem } from "./types";
+import { useCallback, useEffect, useRef, useMemo, useState, type CSSProperties } from "react";
+import type { ContentProvider } from "./types";
 import { EditorProvider, useEditorStore, useEditorStoreApi, useEditorRefs } from "./state/context";
 import { EditorErrorBoundary } from "./components/ErrorBoundary";
 import { Toolbar } from "./components/Toolbar";
 import { FindReplaceBar } from "./components/FindReplaceBar";
 import { GoToLineBar } from "./components/GoToLineBar";
-import { EditorGutter } from "./components/EditorGutter";
-import { SyntaxOverlay } from "./components/SyntaxOverlay";
+import { VirtualizedGutter } from "./components/VirtualizedGutter";
+import { VirtualizedSyntaxOverlay } from "./components/VirtualizedSyntaxOverlay";
 import { ContextMenu } from "./components/ContextMenu";
+import { CommandPalette } from "./components/CommandPalette";
 import { Minimap } from "./components/Minimap";
 import { StatusBar } from "./components/StatusBar";
 import { ThemeSelector } from "./components/ThemeSelector";
@@ -33,8 +42,7 @@ import { useEditor } from "./hooks/useEditor";
 import { useKeybindings } from "./hooks/useKeybindings";
 import { useContentProvider } from "./hooks/useContentProvider";
 import { FormatterRegistry } from "./formatters";
-import { clipboardWrite, clipboardRead } from "./core/utils";
-import { cursorToLineCol } from "./core/text-ops";
+import { debounce } from "./core/utils";
 import "./styles/editor.css";
 import "./styles/tokens.css";
 
@@ -116,10 +124,20 @@ function EditorInner(props: FileEditorProps) {
     const wordWrap = useEditorStore((s) => s.wordWrap);
     const fontSize = useEditorStore((s) => s.fontSize);
     const lineHeight = useEditorStore((s) => s.lineHeight);
+    const tabSize = useEditorStore((s) => s.tabSize);
     const ctxMenu = useEditorStore((s) => s.ctxMenu);
     const setCtxMenu = useEditorStore((s) => s.setCtxMenu);
     const pushChange = useEditorStore((s) => s.pushChange);
     const setError = useEditorStore((s) => s.setError);
+    const showWhitespace = useEditorStore((s) => s.showWhitespace);
+    const autoSave = useEditorStore((s) => s.autoSave);
+    const autoSaveDelay = useEditorStore((s) => s.autoSaveDelay);
+    const modified = useEditorStore((s) => s.modified);
+    const cursorLine = useEditorStore((s) => s.cursorLine);
+
+    // ── Drag & Drop state ────────────────────────────────────
+    const [isDragging, setIsDragging] = useState(false);
+    const dragCountRef = useRef(0);
 
     const onFormat = useCallback(() => {
         const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
@@ -135,6 +153,102 @@ function EditorInner(props: FileEditorProps) {
 
     // ── Keybindings ──────────────────────────────────────────
     useKeybindings({ onSave: save, onFormat });
+
+    // ── Auto-save with debounce ──────────────────────────────
+    const debouncedSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
+
+    useEffect(() => {
+        if (!autoSave) {
+            debouncedSaveRef.current?.cancel?.();
+            return;
+        }
+        debouncedSaveRef.current = debounce(() => {
+            const s = storeApi.getState();
+            if (s.modified && !s.saving && !s.readOnly) {
+                save();
+            }
+        }, autoSaveDelay);
+
+        return () => {
+            debouncedSaveRef.current?.cancel?.();
+        };
+    }, [autoSave, autoSaveDelay, save, storeApi]);
+
+    // Trigger debounced save when content changes
+    useEffect(() => {
+        if (autoSave && modified && !readOnly) {
+            debouncedSaveRef.current?.();
+        }
+    }, [content, autoSave, modified, readOnly]);
+
+    // ── Ctrl+Mouse Wheel Zoom ────────────────────────────────
+    useEffect(() => {
+        const wrapperEl = refs.editorWrapperRef.current;
+        if (!wrapperEl) return;
+        const handleWheel = (e: WheelEvent) => {
+            if (e.ctrlKey || e.metaKey) {
+                e.preventDefault();
+                const s = storeApi.getState();
+                if (e.deltaY < 0) s.zoomIn();
+                else s.zoomOut();
+            }
+        };
+        wrapperEl.addEventListener("wheel", handleWheel, { passive: false });
+        return () => wrapperEl.removeEventListener("wheel", handleWheel);
+    }, [refs.editorWrapperRef, storeApi]);
+
+    // ── Drag & Drop file support ─────────────────────────────
+    const onDragEnter = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCountRef.current++;
+        if (e.dataTransfer.types.includes("Files")) {
+            setIsDragging(true);
+        }
+    }, []);
+
+    const onDragLeave = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCountRef.current--;
+        if (dragCountRef.current <= 0) {
+            dragCountRef.current = 0;
+            setIsDragging(false);
+        }
+    }, []);
+
+    const onDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = readOnly ? "none" : "copy";
+    }, [readOnly]);
+
+    const onDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+        dragCountRef.current = 0;
+        if (readOnly) return;
+        const file = e.dataTransfer.files?.[0];
+        if (!file) return;
+        // Only accept text files (< 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            setError("File too large (max 5MB)");
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+            const text = reader.result as string;
+            editor.setContent(text);
+        };
+        reader.onerror = () => setError("Failed to read dropped file");
+        reader.readAsText(file);
+    }, [readOnly, editor, setError]);
+
+    // ── Active line highlight position ───────────────────────
+    const activeLineTop = useMemo(() => {
+        return (cursorLine - 1) * lineHeight + 10; // 10px = padding
+    }, [cursorLine, lineHeight]);
 
     // ── Textarea input handler ───────────────────────────────
     const onTextareaInput = useCallback(
@@ -163,20 +277,16 @@ function EditorInner(props: FileEditorProps) {
         [setCtxMenu],
     );
 
-    const ctxMenuItems: ContextMenuItem[] = useMemo(
-        () => [
-            { label: "Cut", shortcut: "Ctrl+X", action: () => { const ta = refs.textareaRef.current; if (ta) { clipboardWrite(ta.value.slice(ta.selectionStart, ta.selectionEnd)); const before = ta.value.slice(0, ta.selectionStart); const after = ta.value.slice(ta.selectionEnd); pushChange(before + after); } }, disabled: readOnly },
-            { label: "Copy", shortcut: "Ctrl+C", action: () => { const ta = refs.textareaRef.current; if (ta) clipboardWrite(ta.value.slice(ta.selectionStart, ta.selectionEnd)); } },
-            { label: "Paste", shortcut: "Ctrl+V", action: async () => { const ta = refs.textareaRef.current; if (ta && !readOnly) { const text = await clipboardRead(); const before = ta.value.slice(0, ta.selectionStart); const after = ta.value.slice(ta.selectionEnd); pushChange(before + text + after); } }, disabled: readOnly },
-            { label: "---", separator: true, action: () => {} },
-            { label: "Select All", shortcut: "Ctrl+A", action: () => { refs.textareaRef.current?.select(); } },
-            { label: "---", separator: true, action: () => {} },
-            { label: "Find", shortcut: "Ctrl+F", action: () => storeApi.getState().openFind() },
-            { label: "Go to Line", shortcut: "Ctrl+G", action: () => storeApi.getState().openGoToLine() },
-            { label: "Format Document", shortcut: "Ctrl+Shift+F", action: onFormat },
-        ],
-        [readOnly, refs, pushChange, storeApi, onFormat],
-    );
+    // ── Whitespace rendering ─────────────────────────────────
+    const whitespaceHtml = useMemo(() => {
+        if (!showWhitespace) return null;
+        return content
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/ /g, '<span class="ws-space">·</span>')
+            .replace(/\t/g, '<span class="ws-tab">→</span>');
+    }, [showWhitespace, content]);
 
     // ── Loading / Error states ───────────────────────────────
     if (loading) {
@@ -222,13 +332,31 @@ function EditorInner(props: FileEditorProps) {
             style={{
                 height: "100%",
                 width: "100%",
+                maxHeight: "100%",
+                maxWidth: "100%",
                 background: "var(--editor-background)",
                 color: "var(--editor-foreground)",
                 fontFamily: "var(--editor-font-family)",
                 overflow: "hidden",
+                contain: "strict",
                 ...props.style,
             }}
+            onDragEnter={onDragEnter}
+            onDragLeave={onDragLeave}
+            onDragOver={onDragOver}
+            onDrop={onDrop}
         >
+            {/* Drag & Drop overlay */}
+            {isDragging && (
+                <div className="editor-drop-overlay">
+                    <div className="flex flex-col items-center gap-2" style={{ color: "var(--editor-accent)" }}>
+                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        <span className="text-sm font-medium">Drop file to open</span>
+                    </div>
+                </div>
+            )}
             {/* Toolbar */}
             <Toolbar
                 fileName={fileName}
@@ -260,18 +388,39 @@ function EditorInner(props: FileEditorProps) {
             )}
 
             {/* Editor body */}
-            <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-1 min-h-0 overflow-hidden">
                 {/* Gutter + Code area */}
-                <div className="flex flex-1 overflow-hidden relative">
-                    <EditorGutter />
-                    <div className="relative flex-1 overflow-hidden">
-                        <SyntaxOverlay />
+                <div className="flex flex-1 min-w-0 overflow-hidden relative">
+                    <VirtualizedGutter />
+                    <div className="relative flex-1 min-w-0 overflow-hidden">
+                        <VirtualizedSyntaxOverlay />
+                        {/* Whitespace visibility overlay */}
+                        {showWhitespace && whitespaceHtml && (
+                            <pre
+                                className="editor-whitespace-overlay absolute inset-0 pointer-events-none overflow-hidden"
+                                style={{
+                                    padding: 10,
+                                    fontSize,
+                                    fontFamily: "var(--editor-font-family)",
+                                    fontWeight: "var(--editor-font-weight)" as unknown as number,
+                                    lineHeight: `${lineHeight}px`,
+                                    whiteSpace: wordWrap ? "pre-wrap" : "pre",
+                                    overflowWrap: wordWrap ? "break-word" : "normal",
+                                    tabSize,
+                                    color: "transparent",
+                                    zIndex: 1,
+                                    margin: 0,
+                                }}
+                                dangerouslySetInnerHTML={{ __html: whitespaceHtml }}
+                            />
+                        )}
                         <textarea
                             ref={refs.textareaRef}
                             value={content}
                             onInput={onTextareaInput}
                             onScroll={onScroll}
                             onContextMenu={onContextMenu}
+                            onKeyDown={editor.handleTextareaKeyDown}
                             onClick={editor.syncCursor}
                             onKeyUp={editor.syncCursor}
                             readOnly={readOnly}
@@ -290,7 +439,7 @@ function EditorInner(props: FileEditorProps) {
                                 background: "transparent",
                                 whiteSpace: wordWrap ? "pre-wrap" : "pre",
                                 overflowWrap: wordWrap ? "break-word" : "normal",
-                                tabSize: 2,
+                                tabSize,
                                 overflow: "auto",
                                 zIndex: 2,
                             }}
@@ -308,10 +457,11 @@ function EditorInner(props: FileEditorProps) {
             {/* Status Bar */}
             <StatusBar language={language} />
 
-            {/* Context Menu */}
-            {ctxMenu && (
-                <ContextMenu items={ctxMenuItems} />
-            )}
+            {/* Context Menu (VS Code-style with 22+ items) */}
+            <ContextMenu onSave={save} onFormat={onFormat} />
+
+            {/* Command Palette */}
+            <CommandPalette onSave={save} onReload={reload} onFormat={onFormat} />
 
             {/* Shortcuts Modal */}
             <ShortcutsModal />

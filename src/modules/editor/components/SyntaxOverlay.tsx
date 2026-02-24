@@ -6,6 +6,7 @@
 import { useMemo, memo } from "react";
 import { useEditorStore, useEditorRefs } from "../state/context";
 import { highlightCode } from "../core/syntax";
+import { colorizeBrackets, shouldColorizeBrackets } from "../core/bracket-colorizer";
 
 export const SyntaxOverlay = memo(function SyntaxOverlay() {
     const content = useEditorStore((s) => s.content);
@@ -13,12 +14,17 @@ export const SyntaxOverlay = memo(function SyntaxOverlay() {
     const wordWrap = useEditorStore((s) => s.wordWrap);
     const fontSize = useEditorStore((s) => s.fontSize);
     const lineHeight = useEditorStore((s) => s.lineHeight);
+    const tabSize = useEditorStore((s) => s.tabSize);
     const { highlightRef } = useEditorRefs();
 
-    const html = useMemo(
-        () => highlightCode(content, prismLang),
-        [content, prismLang],
-    );
+    const html = useMemo(() => {
+        const highlighted = highlightCode(content, prismLang);
+        // Apply bracket pair colorization if content is within size limits
+        if (shouldColorizeBrackets(content.length)) {
+            return colorizeBrackets(highlighted);
+        }
+        return highlighted;
+    }, [content, prismLang]);
 
     return (
         <pre
@@ -33,7 +39,7 @@ export const SyntaxOverlay = memo(function SyntaxOverlay() {
                 background: "var(--editor-background)",
                 whiteSpace: wordWrap ? "pre-wrap" : "pre",
                 overflowWrap: wordWrap ? "break-word" : "normal",
-                tabSize: 2,
+                tabSize,
                 color: "var(--editor-foreground)",
             }}
             aria-hidden

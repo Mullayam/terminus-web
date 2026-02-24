@@ -42,7 +42,7 @@ export default function FileEditorModulePage() {
     }
 
     return (
-        <div className="h-screen w-screen">
+        <div className="h-screen w-full overflow-hidden" style={{ position: 'fixed', inset: 0 }}>
             <FileEditor
                 sessionId={sessionId}
                 remotePath={remotePath}

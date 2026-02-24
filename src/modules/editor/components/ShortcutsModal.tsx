@@ -16,7 +16,7 @@ const GROUPS: ShortcutGroup[] = [
         title: "File",
         items: [
             { keys: "Ctrl + S", desc: "Save file" },
-            { keys: "Ctrl + Shift + S", desc: "Save & close" },
+            { keys: "Ctrl + Shift + P", desc: "Command Palette" },
         ],
     },
     {
@@ -25,6 +25,9 @@ const GROUPS: ShortcutGroup[] = [
             { keys: "Ctrl + G", desc: "Go to line" },
             { keys: "Ctrl + F", desc: "Find" },
             { keys: "Ctrl + H", desc: "Find & Replace" },
+            { keys: "Alt + C", desc: "Toggle case sensitive (in Find)" },
+            { keys: "Alt + W", desc: "Toggle whole word (in Find)" },
+            { keys: "Alt + R", desc: "Toggle regex (in Find)" },
             { keys: "Ctrl + Home", desc: "Go to start" },
             { keys: "Ctrl + End", desc: "Go to end" },
         ],
@@ -42,6 +45,7 @@ const GROUPS: ShortcutGroup[] = [
             { keys: "Alt + ↓", desc: "Move line down" },
             { keys: "Ctrl + [", desc: "Wrap with [ ]" },
             { keys: "Ctrl + Shift + [", desc: "Wrap with { }" },
+            { keys: "( [ { \" ' `", desc: "Auto-close bracket/quote" },
         ],
     },
     {
@@ -50,16 +54,15 @@ const GROUPS: ShortcutGroup[] = [
             { keys: "Ctrl + Shift + U", desc: "UPPERCASE selection" },
             { keys: "Ctrl + Shift + L", desc: "lowercase selection" },
             { keys: "Ctrl + Shift + T", desc: "Trim trailing whitespace" },
-            { keys: "Ctrl + Shift + P", desc: "Sort lines ascending" },
             { keys: "Ctrl + Shift + F", desc: "Format document" },
         ],
     },
     {
         title: "View",
         items: [
-            { keys: "Ctrl + =", desc: "Zoom in" },
-            { keys: "Ctrl + -", desc: "Zoom out" },
+            { keys: "Ctrl + = / -", desc: "Zoom in / out" },
             { keys: "Ctrl + 0", desc: "Reset zoom" },
+            { keys: "Ctrl + Mouse Wheel", desc: "Zoom in / out" },
             { keys: "Ctrl + M", desc: "Toggle minimap" },
             { keys: "Alt + Z", desc: "Toggle word wrap" },
         ],

@@ -302,12 +302,24 @@ export interface EditorState {
     wordWrap: boolean;
     showMinimap: boolean;
     readOnly: boolean;
+    tabSize: number;
+    // Auto-save
+    autoSave: boolean;
+    autoSaveDelay: number;
+    // Whitespace & Line endings
+    showWhitespace: boolean;
+    lineEnding: 'lf' | 'crlf';
+    // Auto-close brackets
+    autoCloseBrackets: boolean;
+    // Highlight occurrences
+    highlightActiveOccurrences: boolean;
     // UI panels
     showFind: boolean;
     showReplace: boolean;
     showGoToLine: boolean;
     showShortcuts: boolean;
     showThemeSelector: boolean;
+    showCommandPalette: boolean;
     ctxMenu: { x: number; y: number } | null;
     goToLineValue: string;
     // Find / Replace
@@ -315,6 +327,9 @@ export interface EditorState {
     replaceText: string;
     findMatchCount: number;
     findMatchIndex: number;
+    findCaseSensitive: boolean;
+    findWholeWord: boolean;
+    findUseRegex: boolean;
     // Cursor
     cursorLine: number;
     cursorCol: number;
@@ -353,6 +368,18 @@ export interface EditorActions {
     setMinimap: (show: boolean) => void;
     toggleReadOnly: () => void;
     setReadOnly: (readOnly: boolean) => void;
+    setTabSize: (size: number) => void;
+    // Auto-save
+    setAutoSave: (enabled: boolean) => void;
+    setAutoSaveDelay: (delay: number) => void;
+    // Whitespace & Line endings
+    toggleWhitespace: () => void;
+    setShowWhitespace: (show: boolean) => void;
+    setLineEnding: (ending: 'lf' | 'crlf') => void;
+    // Auto-close brackets
+    setAutoCloseBrackets: (enabled: boolean) => void;
+    // Highlight occurrences
+    setHighlightActiveOccurrences: (enabled: boolean) => void;
     // UI panels
     openFind: () => void;
     openFindReplace: () => void;
@@ -364,12 +391,20 @@ export interface EditorActions {
     closeShortcuts: () => void;
     openThemeSelector: () => void;
     closeThemeSelector: () => void;
+    openCommandPalette: () => void;
+    closeCommandPalette: () => void;
     setCtxMenu: (pos: { x: number; y: number } | null) => void;
     // Find
     setFindText: (text: string) => void;
     setReplaceText: (text: string) => void;
     setFindMatchCount: (count: number) => void;
     setFindMatchIndex: (index: number) => void;
+    setFindCaseSensitive: (enabled: boolean) => void;
+    setFindWholeWord: (enabled: boolean) => void;
+    setFindUseRegex: (enabled: boolean) => void;
+    toggleFindCaseSensitive: () => void;
+    toggleFindWholeWord: () => void;
+    toggleFindUseRegex: () => void;
     // Cursor
     setCursor: (line: number, col: number) => void;
     // Status

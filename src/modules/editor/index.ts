@@ -16,6 +16,9 @@
 // ── Main component ──────────────────────────────────────────
 export { FileEditor, type FileEditorProps } from "./FileEditor";
 
+// ── Components (for advanced composition) ───────────────────
+export { CommandPalette } from "./components/CommandPalette";
+
 // ── Theme management ────────────────────────────────────────
 export { ThemeManager } from "./themes/manager";
 export { BUILT_IN_THEMES, dracula, vsDark, monokai, oneDark, darcula, solarizedDark, githubDark } from "./themes/defaults";
@@ -29,6 +32,8 @@ export { FormatterRegistry } from "./formatters";
 // ── Core utilities ──────────────────────────────────────────
 export { detectLanguage, detectPrismLanguage } from "./core/detect-lang";
 export { highlightCode } from "./core/syntax";
+export { SnippetEngine } from "./core/snippets";
+export { colorizeBrackets } from "./core/bracket-colorizer";
 
 // ── State (for advanced / embed use cases) ──────────────────
 export { EditorProvider, useEditorStore, useEditorStoreApi, useEditorRefs } from "./state/context";

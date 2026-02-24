@@ -6,11 +6,10 @@ import { memo, useCallback } from "react";
 import {
     Search, Replace, ArrowDown01, RotateCcw, WrapText, Palette,
     Map, ZoomIn, ZoomOut, BookLock, Info, Save, Undo2, Redo2,
-    AlignLeft, Keyboard,
+    AlignLeft, Keyboard, Terminal,
 } from "lucide-react";
-import { FileIcon } from "./FileIcon";
 import { useEditorStore, useEditorRefs } from "../state/context";
-
+import { FileIcon } from "./FileIcon";
 /** Tiny toolbar button */
 const TB = memo(function TB(props: {
     icon: React.ReactNode; title: string; onClick: () => void;
@@ -64,6 +63,7 @@ export const Toolbar = memo(function Toolbar(props: {
     const toggleReadOnly = useEditorStore((s) => s.toggleReadOnly);
 
     const openShortcuts = useEditorStore((s) => s.openShortcuts);
+    const openCommandPalette = useEditorStore((s) => s.openCommandPalette);
     const zoomIn = useEditorStore((s) => s.zoomIn);
     const zoomOut = useEditorStore((s) => s.zoomOut);
     const undo = useEditorStore((s) => s.undo);
@@ -77,7 +77,7 @@ export const Toolbar = memo(function Toolbar(props: {
 
     return (
         <div
-            className="flex items-center gap-1 px-3 py-1.5 select-none"
+            className="flex items-center gap-1 px-3 py-1.5 select-none shrink-0"
             style={{
                 background: "var(--editor-toolbar-bg)",
                 borderBottom: "1px solid var(--editor-border)",
@@ -129,6 +129,7 @@ export const Toolbar = memo(function Toolbar(props: {
             <TB icon={<ZoomIn className={sz} />} title="Zoom in (Ctrl+=)" onClick={zoomIn} />
             <TB icon={<ZoomOut className={sz} />} title="Zoom out (Ctrl+-)" onClick={zoomOut} />
             <TB icon={<BookLock className={sz} />} title="Read only" onClick={toggleReadOnly} active={readOnly} />
+            <TB icon={<Terminal className={sz} />} title="Command Palette (Ctrl+Shift+P)" onClick={openCommandPalette} />
             <TB icon={<Keyboard className={sz} />} title="Shortcuts" onClick={openShortcuts} active={showShortcuts} />
 
             {/* Spacer */}

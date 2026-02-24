@@ -2,6 +2,7 @@
  * @module editor/hooks/useKeybindings
  * Global keyboard shortcut handler for the editor.
  * Attaches to the editor root element and dispatches actions.
+ * Includes: file ops, navigation, editing, transforms, view, command palette.
  */
 import { useEffect, useCallback } from "react";
 import { useEditorStore, useEditorStoreApi, useEditorRefs } from "../state/context";
@@ -31,10 +32,18 @@ export function useKeybindings(cfg: KeybindingCfg) {
             /* ── File ──────────────────────────────── */
             if (ctrl && !shift && key === "s") { eat(); cfg.onSave(); return; }
 
+            /* ── Command Palette ───────────────────── */
+            if (ctrl && shift && key === "p") { eat(); s.openCommandPalette(); return; }
+
             /* ── Navigation ────────────────────────── */
             if (ctrl && !shift && key === "f") { eat(); s.openFind(); return; }
-            if (ctrl && key === "h") { eat(); s.openFind(); return; }
+            if (ctrl && key === "h") { eat(); s.openFindReplace(); return; }
             if (ctrl && !shift && key === "g") { eat(); s.openGoToLine(); return; }
+
+            /* ── Find option toggles (when find is open) ── */
+            if (alt && key === "c" && s.showFind) { eat(); s.toggleFindCaseSensitive(); return; }
+            if (alt && key === "w" && s.showFind) { eat(); s.toggleFindWholeWord(); return; }
+            if (alt && key === "r" && s.showFind) { eat(); s.toggleFindUseRegex(); return; }
 
             /* ── Undo / Redo ───────────────────────── */
             if (ctrl && !shift && key === "z") { eat(); s.undo(); return; }
@@ -61,7 +70,6 @@ export function useKeybindings(cfg: KeybindingCfg) {
             if (ctrl && shift && key === "u") { eat(); editor.toUpper(); return; }
             if (ctrl && shift && key === "l") { eat(); editor.toLower(); return; }
             if (ctrl && shift && key === "t") { eat(); editor.trimWhitespace(); return; }
-            if (ctrl && shift && key === "p") { eat(); editor.sortLines(); return; }
             if (ctrl && shift && key === "f") { eat(); cfg.onFormat?.(); return; }
 
             /* ── Wrap ──────────────────────────────── */

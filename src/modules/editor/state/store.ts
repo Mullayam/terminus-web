@@ -33,17 +33,28 @@ export const defaultEditorState: EditorState = {
     wordWrap: true,
     showMinimap: false,
     readOnly: false,
+    tabSize: 2,
+    autoSave: false,
+    autoSaveDelay: 3000,
+    showWhitespace: false,
+    lineEnding: 'lf',
+    autoCloseBrackets: true,
+    highlightActiveOccurrences: true,
     showFind: false,
     showReplace: false,
     showGoToLine: false,
     showShortcuts: false,
     showThemeSelector: false,
+    showCommandPalette: false,
     ctxMenu: null,
     goToLineValue: "",
     findText: "",
     replaceText: "",
     findMatchCount: 0,
     findMatchIndex: -1,
+    findCaseSensitive: false,
+    findWholeWord: false,
+    findUseRegex: false,
     cursorLine: 1,
     cursorCol: 1,
     loading: true,
@@ -163,6 +174,26 @@ export function createEditorStore(overrides?: Partial<EditorState>) {
         setMinimap: (show) => set({ showMinimap: show }),
         toggleReadOnly: () => set((s) => ({ readOnly: !s.readOnly })),
         setReadOnly: (readOnly) => set({ readOnly }),
+        setTabSize: (size) => set({ tabSize: Math.max(1, Math.min(8, size)) }),
+
+        // ── Auto-save ────────────────────────────────────────
+
+        setAutoSave: (enabled) => set({ autoSave: enabled }),
+        setAutoSaveDelay: (delay) => set({ autoSaveDelay: Math.max(500, delay) }),
+
+        // ── Whitespace & Line endings ────────────────────────
+
+        toggleWhitespace: () => set((s) => ({ showWhitespace: !s.showWhitespace })),
+        setShowWhitespace: (show) => set({ showWhitespace: show }),
+        setLineEnding: (ending) => set({ lineEnding: ending }),
+
+        // ── Auto-close brackets ──────────────────────────────
+
+        setAutoCloseBrackets: (enabled) => set({ autoCloseBrackets: enabled }),
+
+        // ── Highlight occurrences ─────────────────────────────
+
+        setHighlightActiveOccurrences: (enabled) => set({ highlightActiveOccurrences: enabled }),
 
         // ── UI panels ────────────────────────────────────────
 
@@ -177,6 +208,8 @@ export function createEditorStore(overrides?: Partial<EditorState>) {
         closeShortcuts: () => set({ showShortcuts: false }),
         openThemeSelector: () => set({ showThemeSelector: true }),
         closeThemeSelector: () => set({ showThemeSelector: false }),
+        openCommandPalette: () => set({ showCommandPalette: true }),
+        closeCommandPalette: () => set({ showCommandPalette: false }),
         setCtxMenu: (pos) => set({ ctxMenu: pos }),
 
         // ── Find / Replace ───────────────────────────────────
@@ -185,6 +218,12 @@ export function createEditorStore(overrides?: Partial<EditorState>) {
         setReplaceText: (text) => set({ replaceText: text }),
         setFindMatchCount: (count) => set({ findMatchCount: count }),
         setFindMatchIndex: (index) => set({ findMatchIndex: index }),
+        setFindCaseSensitive: (enabled) => set({ findCaseSensitive: enabled }),
+        setFindWholeWord: (enabled) => set({ findWholeWord: enabled }),
+        setFindUseRegex: (enabled) => set({ findUseRegex: enabled }),
+        toggleFindCaseSensitive: () => set((s) => ({ findCaseSensitive: !s.findCaseSensitive })),
+        toggleFindWholeWord: () => set((s) => ({ findWholeWord: !s.findWholeWord })),
+        toggleFindUseRegex: () => set((s) => ({ findUseRegex: !s.findUseRegex })),
 
         // ── Cursor ───────────────────────────────────────────
 
