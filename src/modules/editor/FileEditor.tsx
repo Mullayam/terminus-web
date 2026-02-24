@@ -47,6 +47,16 @@ import "./styles/editor.css";
 import "./styles/tokens.css";
 import type { BuiltInThemeId } from "./themes/defaults";
 
+// ── Plugin system ────────────────────────────────────────────
+import type { ExtendedEditorPlugin } from "./plugins/types";
+import { usePluginHost } from "./plugins/usePluginHost";
+import { CompletionWidget } from "./plugins/components/CompletionWidget";
+import { CodeLensOverlay } from "./plugins/components/CodeLensOverlay";
+import { InlineAnnotationsOverlay } from "./plugins/components/InlineAnnotationsOverlay";
+import { DiagnosticsOverlay } from "./plugins/components/DiagnosticsOverlay";
+import { PluginStatusBar } from "./plugins/components/PluginStatusBar";
+import { PluginPanelRenderer } from "./plugins/components/PluginPanelRenderer";
+
 // ═══════════════════════════════════════════════════════════════
 //  Public props
 // ═══════════════════════════════════════════════════════════════
@@ -72,6 +82,8 @@ export interface FileEditorProps {
     className?: string;
     /** Inline styles on the editor root */
     style?: CSSProperties;
+    /** Optional plugins to register with the editor */
+    plugins?: ExtendedEditorPlugin[];
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -115,6 +127,11 @@ function EditorInner(props: FileEditorProps) {
     // ── Theme application ────────────────────────────────────
     useTheme();
 
+    // ── Plugin system ────────────────────────────────────────
+    const { host: pluginHost, snapshot: pluginSnapshot } = usePluginHost(
+        props.plugins ?? [],
+    );
+
     // ── Format callback ──────────────────────────────────────
     const fileName = useEditorStore((s) => s.fileName);
     const language = useEditorStore((s) => s.language);
@@ -154,6 +171,14 @@ function EditorInner(props: FileEditorProps) {
 
     // ── Keybindings ──────────────────────────────────────────
     useKeybindings({ onSave: save, onFormat });
+
+    // ── Dispatch save events to plugin host ───────────────────
+    const origSave = save;
+    const saveWithPluginNotify = useCallback(async () => {
+        const result = await origSave();
+        pluginHost.dispatchSave();
+        return result;
+    }, [origSave, pluginHost]);
 
     // ── Auto-save with debounce ──────────────────────────────
     const debouncedSaveRef = useRef<ReturnType<typeof debounce> | null>(null);
@@ -363,7 +388,7 @@ function EditorInner(props: FileEditorProps) {
             {/* Toolbar */}
             <Toolbar
                 fileName={fileName}
-                onSave={save}
+                onSave={saveWithPluginNotify}
                 onReload={reload}
                 onFormat={onFormat}
             />
@@ -397,6 +422,11 @@ function EditorInner(props: FileEditorProps) {
                     <VirtualizedGutter />
                     <div className="relative flex-1 min-w-0 overflow-hidden">
                         <VirtualizedSyntaxOverlay />
+
+                        {/* Plugin overlays */}
+                        <CodeLensOverlay codeLenses={pluginSnapshot.codeLenses} />
+                        <InlineAnnotationsOverlay annotations={pluginSnapshot.inlineAnnotations} />
+                        <DiagnosticsOverlay diagnostics={pluginSnapshot.diagnostics} />
                         {/* Whitespace visibility overlay */}
                         {showWhitespace && whitespaceHtml && (
                             <pre
@@ -455,10 +485,24 @@ function EditorInner(props: FileEditorProps) {
 
                 {/* Theme Selector panel */}
                 <ThemeSelector />
+
+                {/* Plugin side panels */}
+                <PluginPanelRenderer host={pluginHost} snapshot={pluginSnapshot} position="right" />
             </div>
 
+            {/* Plugin bottom panels */}
+            <PluginPanelRenderer host={pluginHost} snapshot={pluginSnapshot} position="bottom" />
+
             {/* Status Bar */}
-            <StatusBar language={language} />
+            <div className="flex items-center">
+                <div className="flex-1">
+                    <StatusBar language={language} />
+                </div>
+                <PluginStatusBar snapshot={pluginSnapshot} />
+            </div>
+
+            {/* Completion Widget (floating) */}
+            <CompletionWidget host={pluginHost} snapshot={pluginSnapshot} />
 
             {/* Context Menu (VS Code-style with 22+ items) */}
             <ContextMenu onSave={save} onFormat={onFormat} />

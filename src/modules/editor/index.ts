@@ -64,3 +64,48 @@ export type {
     EditorActions,
     EditorStoreType,
 } from "./types";
+
+// ── Plugin system ───────────────────────────────────────────
+export { PluginHost } from "./plugins/PluginHost";
+export { usePluginHost } from "./plugins/usePluginHost";
+export {
+    createAllBuiltinPlugins,
+    createAutoCompletionPlugin,
+    createMarkdownPreviewPlugin,
+    createJsonSchemaValidationPlugin,
+    createYamlSchemaValidationPlugin,
+    createIntelliSensePlugin,
+    createCodeLensPlugin,
+    createInlineAnnotationsPlugin,
+    createAiSuitePlugin,
+    createDiffViewerPlugin,
+    createFileMetadataPlugin,
+    createAutoDetectIndentPlugin,
+    createFocusModePlugin,
+} from "./plugins/builtin";
+export type {
+    ExtendedEditorPlugin,
+    ExtendedPluginAPI,
+    PluginHostState,
+    CompletionItem,
+    CompletionProvider,
+    CompletionContext,
+    CodeLensItem,
+    InlineAnnotation,
+    InlineDecoration,
+    GutterDecoration,
+    Diagnostic,
+    DiagnosticFix,
+    PanelDescriptor,
+    DiffHunk,
+} from "./plugins/types";
+export type { AiAdapter, AiContext, AiBugReport } from "./plugins/builtin/ai-suite";
+export { DemoAiAdapter } from "./plugins/builtin/ai-suite";
+
+// ── Plugin UI components ────────────────────────────────────
+export { CompletionWidget } from "./plugins/components/CompletionWidget";
+export { CodeLensOverlay } from "./plugins/components/CodeLensOverlay";
+export { InlineAnnotationsOverlay } from "./plugins/components/InlineAnnotationsOverlay";
+export { DiagnosticsOverlay } from "./plugins/components/DiagnosticsOverlay";
+export { PluginStatusBar } from "./plugins/components/PluginStatusBar";
+export { PluginPanelRenderer } from "./plugins/components/PluginPanelRenderer";

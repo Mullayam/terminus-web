@@ -37,7 +37,7 @@ const SFTP = () => {
     return (
       <div className="flex flex-col items-center justify-center h-full bg-[#0A0A0A] text-gray-400 gap-4">
         <FolderOpen className="h-16 w-16 text-green-500/60" />
-        <h2 className="text-xl font-semibold text-white">No SFTP Sessions</h2>
+        <h2 className="text-xl font-semibold text-white">No Previously used SFTP Sessions</h2>
         <p className="text-sm text-gray-500">Click below to start a new SFTP connection</p>
         <Button
           onClick={handleAddTab}
