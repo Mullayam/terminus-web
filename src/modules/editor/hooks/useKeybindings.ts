@@ -35,6 +35,9 @@ export function useKeybindings(cfg: KeybindingCfg) {
             /* ── Command Palette ───────────────────── */
             if (ctrl && shift && key === "p") { eat(); s.openCommandPalette(); return; }
 
+            /* ── Split View ────────────────────────── */
+            if (ctrl && !shift && key === "\\") { eat(); s.toggleSplitView(); return; }
+
             /* ── Navigation ────────────────────────── */
             if (ctrl && !shift && key === "f") { eat(); s.openFind(); return; }
             if (ctrl && key === "h") { eat(); s.openFindReplace(); return; }

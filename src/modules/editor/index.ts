@@ -105,6 +105,7 @@ export type {
     DiagnosticFix,
     PanelDescriptor,
     DiffHunk,
+    FoldingRange,
 } from "./plugins/types";
 export type { AiAdapter, AiContext, AiBugReport } from "./plugins/builtin/ai-suite";
 export type { GhostTextState } from "./plugins/builtin/ai-ghost-text";
@@ -115,5 +116,7 @@ export { CompletionWidget } from "./plugins/components/CompletionWidget";
 export { CodeLensOverlay } from "./plugins/components/CodeLensOverlay";
 export { InlineAnnotationsOverlay } from "./plugins/components/InlineAnnotationsOverlay";
 export { DiagnosticsOverlay } from "./plugins/components/DiagnosticsOverlay";
+export { FoldingOverlay } from "./plugins/components/FoldingOverlay";
+export { SplitPane } from "./plugins/components/SplitPane";
 export { PluginStatusBar } from "./plugins/components/PluginStatusBar";
 export { PluginPanelRenderer } from "./plugins/components/PluginPanelRenderer";

@@ -58,6 +58,19 @@ export interface CodeLensItem {
     onClick: () => void;
 }
 
+/** Foldable code region (function body, if/for block, etc.) */
+export interface FoldingRange {
+    id: string;
+    /** 1-based start line (the line with the opening brace / keyword) */
+    startLine: number;
+    /** 1-based end line (the line with the closing brace) */
+    endLine: number;
+    /** Block kind — used for icon / tooltip differentiation */
+    kind: "function" | "class" | "if" | "for" | "while" | "switch" | "try" | "block" | "import" | "comment";
+    /** Collapsed summary shown when folded (e.g. "{ … }") */
+    collapsedText?: string;
+}
+
 /** An inline annotation (e.g. ghost text after a line) */
 export interface InlineAnnotation {
     id: string;
@@ -175,6 +188,10 @@ export interface ExtendedPluginAPI extends EditorPluginAPI {
     setInlineAnnotations(annotations: InlineAnnotation[]): void;
     clearInlineAnnotations(ownerId: string): void;
 
+    // ── Folding ranges ───────────────────────────────
+    setFoldingRanges(ranges: FoldingRange[]): void;
+    clearFoldingRanges(ownerId: string): void;
+
     // ── Completions ──────────────────────────────────
     registerCompletionProvider(provider: CompletionProvider): void;
     unregisterCompletionProvider(id: string): void;
@@ -277,6 +294,8 @@ export interface PluginHostState {
     inlineAnnotations: InlineAnnotation[];
     /** All diagnostics from all plugins */
     diagnostics: Diagnostic[];
+    /** All folding ranges from all plugins */
+    foldingRanges: FoldingRange[];
     /** All registered panels */
     panels: Map<string, PanelDescriptor>;
     /** Currently open panel IDs */

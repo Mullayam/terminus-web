@@ -10,7 +10,7 @@ import {
     Indent, Outdent, RemoveFormatting, ArrowUp, ArrowDown,
     MessageSquareCode, ArrowUpDown, CaseUpper, CaseLower,
     Braces, Search, Replace, Hash, Save, Terminal,
-    CopyPlus,
+    CopyPlus, Columns2,
 } from "lucide-react";
 import { useEditorStore, useEditorStoreApi, useEditorRefs } from "../state/context";
 import { useEditor } from "../hooks/useEditor";
@@ -260,6 +260,12 @@ export const ContextMenu = memo(function ContextMenu({ onSave, onFormat }: Conte
             icon: <Terminal className={iconSize} />,
             shortcut: "Ctrl+Shift+P",
             action: () => s.openCommandPalette(),
+        },
+        {
+            label: "Split Editor",
+            icon: <Columns2 className={iconSize} />,
+            shortcut: "Ctrl+\\",
+            action: () => s.toggleSplitView(),
             separator: true,
         },
         // Save

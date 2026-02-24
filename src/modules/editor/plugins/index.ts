@@ -39,6 +39,7 @@ export type {
     DiagnosticFix,
     PanelDescriptor,
     DiffHunk,
+    FoldingRange,
 } from "./types";
 
 // ── Built-in plugins ─────────────────────────────────────────
@@ -69,4 +70,6 @@ export { CodeLensOverlay } from "./components/CodeLensOverlay";
 export { InlineAnnotationsOverlay } from "./components/InlineAnnotationsOverlay";
 export { DiagnosticsOverlay } from "./components/DiagnosticsOverlay";
 export { GhostTextOverlay } from "./components/GhostTextOverlay";
+export { FoldingOverlay } from "./components/FoldingOverlay";
+export { SplitPane } from "./components/SplitPane";
 export { PluginManagerPopover } from "./components/PluginManagerPopover";

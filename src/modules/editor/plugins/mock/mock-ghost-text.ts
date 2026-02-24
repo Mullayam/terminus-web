@@ -55,8 +55,89 @@ const FALLBACK_SUGGESTIONS = [
     "const result = await processData(input);",
 ];
 
-function pickSuggestion(lineText: string): string {
+// ── Language-specific suggestion banks ────────────────────────
+
+const LANGUAGE_GHOST_SUGGESTIONS: Record<string, Record<string, string[]>> = {
+    python: {
+        "def": [" process(self, items):\n    return [x for x in items if x.is_valid()]"],
+        "class": [" Handler:\n    def __init__(self):\n        self.data = []\n\n    def run(self):\n        pass"],
+        "if": [" __name__ == '__main__':\n    main()"],
+        "for": [" item in items:\n    print(item)"],
+        "import": [" os\nimport json"],
+        "from": [" typing import List, Optional"],
+        "with": [" open('file.txt') as f:\n    data = f.read()"],
+    },
+    dockerfile: {
+        "FROM": [" node:20-alpine\nWORKDIR /app\nCOPY package*.json ./\nRUN npm ci"],
+        "RUN": [" apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*"],
+        "COPY": [" . ."],
+        "EXPOSE": [" 3000\nCMD [\"node\", \"index.js\"]"],
+        "ENV": [" NODE_ENV=production"],
+    },
+    bash: {
+        "if": [" [ -z \"$1\" ]; then\n  echo \"Usage: $0 <arg>\"\n  exit 1\nfi"],
+        "for": [" f in *.txt; do\n  echo \"$f\"\ndone"],
+        "function": [" cleanup() {\n  rm -rf \"$TMPDIR\"\n}"],
+        "while": [" read -r line; do\n  echo \"$line\"\ndone < input.txt"],
+        "#!": ["/bin/bash\nset -euo pipefail"],
+    },
+    go: {
+        "func": [" (s *Server) Handle(w http.ResponseWriter, r *http.Request) {\n\tw.WriteHeader(http.StatusOK)\n}"],
+        "type": [" Config struct {\n\tHost string `json:\"host\"`\n\tPort int    `json:\"port\"`\n}"],
+        "if": [" err != nil {\n\treturn fmt.Errorf(\"failed: %w\", err)\n}"],
+        "for": [" _, item := range items {\n\tfmt.Println(item)\n}"],
+    },
+    rust: {
+        "fn": [" process(input: &str) -> Result<String, Box<dyn Error>> {\n    Ok(input.to_uppercase())\n}"],
+        "struct": [" Config {\n    host: String,\n    port: u16,\n}"],
+        "let": [" result: Vec<_> = items.iter().filter(|x| x.is_valid()).collect();"],
+        "match": [" status {\n    Ok(v) => println!(\"{v}\"),\n    Err(e) => eprintln!(\"{e}\"),\n}"],
+    },
+    sql: {
+        "SELECT": [" * FROM users WHERE created_at > NOW() - INTERVAL '7 days' LIMIT 10;"],
+        "CREATE": [" TABLE users (\n  id SERIAL PRIMARY KEY,\n  name VARCHAR(255) NOT NULL\n);"],
+        "INSERT": [" INTO users (name, email) VALUES ($1, $2) RETURNING id;"],
+    },
+    yaml: {
+        "name": [": Build\non:\n  push:\n    branches: [main]"],
+        "services": [":\n  app:\n    build: .\n    ports:\n      - \"3000:3000\""],
+    },
+};
+
+/** Map language to a suggestion bank key */
+function normalizeLanguage(lang: string): string | null {
+    const l = lang.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (/^(typescript|javascript|tsx|jsx|ts|js)$/.test(l)) return null;
+    if (/^(python|py)$/.test(l)) return "python";
+    if (/^(dockerfile|docker)$/.test(l)) return "dockerfile";
+    if (/^(bash|sh|shell|zsh|shellscript)$/.test(l)) return "bash";
+    if (/^(go|golang)$/.test(l)) return "go";
+    if (/^(rust|rs)$/.test(l)) return "rust";
+    if (/^(yaml|yml)$/.test(l)) return "yaml";
+    if (/^(sql|mysql|postgresql|postgres|sqlite)$/.test(l)) return "sql";
+    return null;
+}
+
+function pickSuggestion(lineText: string, language?: string): string {
     const trimmed = lineText.trimStart();
+
+    // Try language-specific bank first
+    if (language) {
+        const langKey = normalizeLanguage(language);
+        if (langKey && LANGUAGE_GHOST_SUGGESTIONS[langKey]) {
+            const bank = LANGUAGE_GHOST_SUGGESTIONS[langKey];
+            for (const [prefix, suggestions] of Object.entries(bank)) {
+                if (trimmed.startsWith(prefix)) {
+                    return suggestions[Math.floor(Math.random() * suggestions.length)];
+                }
+            }
+            // No keyword match – pick random from this language's bank
+            const all = Object.values(bank).flat();
+            if (all.length > 0) return all[Math.floor(Math.random() * all.length)];
+        }
+    }
+
+    // Fall back to JS/TS bank
     for (const [prefix, suggestions] of Object.entries(GHOST_SUGGESTIONS)) {
         if (trimmed.startsWith(prefix)) {
             return suggestions[Math.floor(Math.random() * suggestions.length)];
@@ -140,7 +221,9 @@ export function createMockGhostTextPlugin(): ExtendedEditorPlugin {
             // Only trigger when cursor is at end of a non-empty line
             if (lineText.trim().length < 2 || col < lineText.length) return;
 
-            const suggestion = pickSuggestion(lineText);
+            // Get language for context-aware suggestions
+            const fileInfo = api.getFileInfo();
+            const suggestion = pickSuggestion(lineText, fileInfo.language);
             streamGhostText(suggestion, line, col);
         }, 800);
     }
@@ -155,6 +238,8 @@ export function createMockGhostTextPlugin(): ExtendedEditorPlugin {
 
         onActivate(pluginApi) {
             api = pluginApi;
+            // Expose accept/reject for clickable UI controls in ghost overlay
+            ghostTextStore.setCallbacks(acceptGhost, cancelGhost);
             api.showToast("Mock Ghost Text", "Plugin activated – pause typing to see suggestions", "default");
         },
 

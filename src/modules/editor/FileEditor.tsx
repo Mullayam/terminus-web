@@ -57,6 +57,8 @@ import { DiagnosticsOverlay } from "./plugins/components/DiagnosticsOverlay";
 import { PluginStatusBar } from "./plugins/components/PluginStatusBar";
 import { PluginPanelRenderer } from "./plugins/components/PluginPanelRenderer";
 import { GhostTextOverlay } from "./plugins/components/GhostTextOverlay";
+import { FoldingOverlay } from "./plugins/components/FoldingOverlay";
+import { SplitPane } from "./plugins/components/SplitPane";
 import { PluginManagerPopover } from "./plugins/components/PluginManagerPopover";
 
 // ═══════════════════════════════════════════════════════════════
@@ -154,6 +156,7 @@ function EditorInner(props: FileEditorProps) {
     const autoSaveDelay = useEditorStore((s) => s.autoSaveDelay);
     const modified = useEditorStore((s) => s.modified);
     const cursorLine = useEditorStore((s) => s.cursorLine);
+    const splitView = useEditorStore((s) => s.splitView);
 
     // ── Drag & Drop state ────────────────────────────────────
     const [isDragging, setIsDragging] = useState(false);
@@ -457,69 +460,131 @@ function EditorInner(props: FileEditorProps) {
 
             {/* Editor body */}
             <div className="flex flex-1 min-h-0 overflow-hidden relative">
-                {/* Gutter + Code area */}
-                <div className="flex flex-1 min-w-0 overflow-hidden relative">
-                    <VirtualizedGutter />
-                    <div className="relative flex-1 min-w-0 overflow-hidden">
-                        <VirtualizedSyntaxOverlay />
+                <SplitPane
+                    direction="horizontal"
+                    splitActive={splitView}
+                    primary={
+                        /* Gutter + Code area (primary pane) */
+                        <div className="flex flex-1 min-w-0 overflow-hidden relative" style={{ width: "100%", height: "100%" }}>
+                            <VirtualizedGutter />
+                            <div className="relative flex-1 min-w-0 overflow-hidden">
+                                <VirtualizedSyntaxOverlay />
 
-                        {/* Plugin overlays */}
-                        <CodeLensOverlay codeLenses={pluginSnapshot.codeLenses} />
-                        <InlineAnnotationsOverlay annotations={pluginSnapshot.inlineAnnotations} />
-                        <DiagnosticsOverlay diagnostics={pluginSnapshot.diagnostics} />
-                        <GhostTextOverlay />
-                        {/* Whitespace visibility overlay */}
-                        {showWhitespace && whitespaceHtml && (
-                            <pre
-                                className="editor-whitespace-overlay absolute inset-0 pointer-events-none overflow-hidden"
-                                style={{
-                                    padding: 10,
-                                    fontSize,
-                                    fontFamily: "var(--editor-font-family)",
-                                    fontWeight: "var(--editor-font-weight)" as unknown as number,
-                                    lineHeight: `${lineHeight}px`,
-                                    whiteSpace: wordWrap ? "pre-wrap" : "pre",
-                                    overflowWrap: wordWrap ? "break-word" : "normal",
-                                    tabSize,
-                                    color: "transparent",
-                                    zIndex: 1,
-                                    margin: 0,
-                                }}
-                                dangerouslySetInnerHTML={{ __html: whitespaceHtml }}
-                            />
-                        )}
-                        <textarea
-                            ref={refs.textareaRef}
-                            value={content}
-                            onInput={onTextareaInput}
-                            onScroll={onScroll}
-                            onContextMenu={onContextMenu}
-                            onKeyDown={handleTextareaKeyDown}
-                            onClick={editor.syncCursor}
-                            onKeyUp={editor.syncCursor}
-                            readOnly={readOnly}
-                            spellCheck={false}
-                            autoCapitalize="off"
-                            autoCorrect="off"
-                            className="editor-textarea absolute inset-0 w-full h-full resize-none outline-none"
+                                {/* Plugin overlays */}
+                                <CodeLensOverlay codeLenses={pluginSnapshot.codeLenses} />
+                                <InlineAnnotationsOverlay annotations={pluginSnapshot.inlineAnnotations} />
+                                <DiagnosticsOverlay diagnostics={pluginSnapshot.diagnostics} />
+                                <FoldingOverlay foldingRanges={pluginSnapshot.foldingRanges} />
+                                <GhostTextOverlay />
+                                {/* Whitespace visibility overlay */}
+                                {showWhitespace && whitespaceHtml && (
+                                    <pre
+                                        className="editor-whitespace-overlay absolute inset-0 pointer-events-none overflow-hidden"
+                                        style={{
+                                            padding: 10,
+                                            fontSize,
+                                            fontFamily: "var(--editor-font-family)",
+                                            fontWeight: "var(--editor-font-weight)" as unknown as number,
+                                            lineHeight: `${lineHeight}px`,
+                                            whiteSpace: wordWrap ? "pre-wrap" : "pre",
+                                            overflowWrap: wordWrap ? "break-word" : "normal",
+                                            tabSize,
+                                            color: "transparent",
+                                            zIndex: 1,
+                                            margin: 0,
+                                        }}
+                                        dangerouslySetInnerHTML={{ __html: whitespaceHtml }}
+                                    />
+                                )}
+                                <textarea
+                                    ref={refs.textareaRef}
+                                    value={content}
+                                    onInput={onTextareaInput}
+                                    onScroll={onScroll}
+                                    onContextMenu={onContextMenu}
+                                    onKeyDown={handleTextareaKeyDown}
+                                    onClick={editor.syncCursor}
+                                    onKeyUp={editor.syncCursor}
+                                    readOnly={readOnly}
+                                    spellCheck={false}
+                                    autoCapitalize="off"
+                                    autoCorrect="off"
+                                    className="editor-textarea absolute inset-0 w-full h-full resize-none outline-none"
+                                    style={{
+                                        padding: 10,
+                                        fontSize,
+                                        fontFamily: "var(--editor-font-family)",
+                                        fontWeight: "var(--editor-font-weight)" as unknown as number,
+                                        lineHeight: `${lineHeight}px`,
+                                        color: "transparent",
+                                        caretColor: "var(--editor-cursor)",
+                                        background: "transparent",
+                                        whiteSpace: wordWrap ? "pre-wrap" : "pre",
+                                        overflowWrap: wordWrap ? "break-word" : "normal",
+                                        tabSize,
+                                        overflow: "auto",
+                                        zIndex: 2,
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    }
+                    secondary={
+                        /* Split view secondary pane – read-only preview */
+                        <div
+                            className="flex flex-1 min-w-0 overflow-hidden relative"
                             style={{
-                                padding: 10,
-                                fontSize,
-                                fontFamily: "var(--editor-font-family)",
-                                fontWeight: "var(--editor-font-weight)" as unknown as number,
-                                lineHeight: `${lineHeight}px`,
-                                color: "transparent",
-                                caretColor: "var(--editor-cursor)",
-                                background: "transparent",
-                                whiteSpace: wordWrap ? "pre-wrap" : "pre",
-                                overflowWrap: wordWrap ? "break-word" : "normal",
-                                tabSize,
-                                overflow: "auto",
-                                zIndex: 2,
+                                width: "100%",
+                                height: "100%",
+                                borderLeft: "1px solid var(--editor-border, #44475a)",
                             }}
-                        />
-                    </div>
-                </div>
+                        >
+                            <div className="relative flex-1 min-w-0 overflow-auto" style={{ padding: 10 }}>
+                                {/* Split pane header */}
+                                <div
+                                    className="sticky top-0 z-10 flex items-center justify-between px-2 py-1 mb-1 rounded"
+                                    style={{
+                                        background: "var(--editor-popup-bg, #282a36)",
+                                        borderBottom: "1px solid var(--editor-border, #44475a)",
+                                        fontSize: 11,
+                                        color: "var(--editor-muted, #6272a4)",
+                                    }}
+                                >
+                                    <span>{fileName} (read-only preview)</span>
+                                    <button
+                                        onClick={() => storeApi.getState().setSplitView(false)}
+                                        style={{
+                                            background: "transparent",
+                                            border: "none",
+                                            color: "var(--editor-muted)",
+                                            cursor: "pointer",
+                                            fontSize: 13,
+                                            padding: "0 4px",
+                                        }}
+                                        title="Close split view"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                                <pre
+                                    style={{
+                                        margin: 0,
+                                        fontSize,
+                                        fontFamily: "var(--editor-font-family)",
+                                        fontWeight: "var(--editor-font-weight)" as unknown as number,
+                                        lineHeight: `${lineHeight}px`,
+                                        whiteSpace: wordWrap ? "pre-wrap" : "pre",
+                                        overflowWrap: wordWrap ? "break-word" : "normal",
+                                        tabSize,
+                                        color: "var(--editor-foreground)",
+                                    }}
+                                >
+                                    {content}
+                                </pre>
+                            </div>
+                        </div>
+                    }
+                />
 
                 {/* Minimap */}
                 <Minimap />

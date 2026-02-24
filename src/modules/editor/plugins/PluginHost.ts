@@ -17,6 +17,7 @@ import type {
     GutterDecoration,
     CodeLensItem,
     InlineAnnotation,
+    FoldingRange,
     CompletionProvider,
     Diagnostic,
     PanelDescriptor,
@@ -55,6 +56,7 @@ export class PluginHost {
             codeLenses: [],
             inlineAnnotations: [],
             diagnostics: [],
+            foldingRanges: [],
             panels: new Map(),
             openPanels: new Set(),
             completionProviders: new Map(),
@@ -189,6 +191,7 @@ export class PluginHost {
             this.clearCodeLenses(pluginId);
             this.clearInlineAnnotations(pluginId);
             this.clearDiagnostics(pluginId);
+            this.clearFoldingRanges(pluginId);
 
             // Unregister keybindings
             this.keybindingManager.unregisterPluginBindings(pluginId);
@@ -345,6 +348,22 @@ export class PluginHost {
         this.emit();
     }
 
+    // ── Folding ranges ───────────────────────────────────────
+
+    private setFoldingRanges(ranges: FoldingRange[]): void {
+        const ids = new Set(ranges.map((r) => r.id));
+        const others = this.state.foldingRanges.filter((r) => !ids.has(r.id));
+        this.state.foldingRanges = [...others, ...ranges];
+        this.emit();
+    }
+
+    private clearFoldingRanges(ownerId: string): void {
+        this.state.foldingRanges = this.state.foldingRanges.filter(
+            (r) => !r.id.startsWith(`${ownerId}:`),
+        );
+        this.emit();
+    }
+
     // ── Panel management ─────────────────────────────────────
 
     private registerPanel(panel: PanelDescriptor): void {
@@ -488,6 +507,8 @@ export class PluginHost {
             unregisterCompletionProvider: (id) => host.unregisterCompletionProvider(id),
             setDiagnostics: (diags) => host.setDiagnostics(diags),
             clearDiagnostics: (ownerId) => host.clearDiagnostics(ownerId),
+            setFoldingRanges: (ranges) => host.setFoldingRanges(ranges),
+            clearFoldingRanges: (ownerId) => host.clearFoldingRanges(ownerId),
             registerPanel: (panel) => {
                 host.registerPanel(panel);
                 addDisposable(() => host.unregisterPanel(panel.id));

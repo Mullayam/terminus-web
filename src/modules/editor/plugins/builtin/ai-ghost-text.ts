@@ -35,6 +35,10 @@ export interface GhostTextState {
     isStreaming: boolean;
     /** Unique ID for this suggestion session */
     sessionId: number;
+    /** Callback to accept the suggestion (for clickable controls) */
+    onAccept?: () => void;
+    /** Callback to reject/dismiss the suggestion (for clickable controls) */
+    onReject?: () => void;
 }
 
 type GhostListener = (state: GhostTextState) => void;
@@ -47,6 +51,8 @@ const INITIAL_GHOST_STATE: GhostTextState = {
     col: 0,
     isStreaming: false,
     sessionId: 0,
+    onAccept: undefined,
+    onReject: undefined,
 };
 
 /** Shared reactive store for the ghost text state */
@@ -71,6 +77,12 @@ class GhostTextStore {
     subscribe(listener: GhostListener): () => void {
         this.listeners.add(listener);
         return () => this.listeners.delete(listener);
+    }
+
+    /** Set accept/reject callbacks (called by the plugin on activation) */
+    setCallbacks(onAccept: () => void, onReject: () => void) {
+        this.state = { ...this.state, onAccept, onReject };
+        // Don't notify listeners – this is a one-time setup
     }
 }
 
@@ -136,8 +148,197 @@ const FALLBACK_SUGGESTIONS = [
     "const debounce = <T extends (...args: any[]) => void>(fn: T, delay: number): T => {\n  let timer: NodeJS.Timeout;\n  return ((...args: any[]) => {\n    clearTimeout(timer);\n    timer = setTimeout(() => fn(...args), delay);\n  }) as T;\n};",
 ];
 
-function pickSuggestion(lineText: string): string {
+// ═══════════════════════════════════════════════════════════════
+//  LANGUAGE-SPECIFIC SUGGESTION BANKS
+// ═══════════════════════════════════════════════════════════════
+
+const LANGUAGE_SUGGESTIONS: Record<string, Record<string, string[]>> = {
+    python: {
+        "def": [
+            " process_data(self, items: list) -> dict:\n    result = {}\n    for item in items:\n        result[item.id] = item.value\n    return result",
+            " fetch_data(url: str, timeout: int = 30) -> dict:\n    import requests\n    response = requests.get(url, timeout=timeout)\n    response.raise_for_status()\n    return response.json()",
+        ],
+        "class": [
+            " DataService:\n    def __init__(self, config: dict):\n        self.config = config\n        self._cache = {}\n\n    def get(self, key: str):\n        return self._cache.get(key)",
+        ],
+        "if": [
+            " __name__ == '__main__':\n    main()",
+            " not response.ok:\n    raise ValueError(f'Request failed: {response.status_code}')",
+        ],
+        "for": [
+            " item in items:\n    processed = transform(item)\n    results.append(processed)",
+            " i, value in enumerate(data):\n    print(f'{i}: {value}')",
+        ],
+        "import": [
+            " os\nimport sys\nfrom pathlib import Path",
+            " pandas as pd\nimport numpy as np",
+        ],
+        "from": [
+            " typing import List, Dict, Optional, Tuple",
+            " dataclasses import dataclass, field",
+        ],
+        "with": [
+            " open(file_path, 'r') as f:\n    data = json.load(f)",
+        ],
+        "try": [
+            ":\n    result = process(data)\nexcept ValueError as e:\n    logger.error(f'Validation error: {e}')\nexcept Exception as e:\n    logger.exception('Unexpected error')\n    raise",
+        ],
+        "async": [
+            " def fetch_all(urls: list[str]) -> list[dict]:\n    async with aiohttp.ClientSession() as session:\n        tasks = [session.get(url) for url in urls]\n        responses = await asyncio.gather(*tasks)\n        return [await r.json() for r in responses]",
+        ],
+    },
+
+    dockerfile: {
+        "FROM": [
+            " node:20-alpine AS builder\nWORKDIR /app\nCOPY package*.json ./\nRUN npm ci --only=production",
+            " python:3.12-slim\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt",
+        ],
+        "RUN": [
+            " apt-get update && apt-get install -y --no-install-recommends \\\n    curl \\\n    ca-certificates \\\n  && rm -rf /var/lib/apt/lists/*",
+            " npm ci && npm run build",
+        ],
+        "COPY": [
+            " --from=builder /app/dist ./dist\nCOPY --from=builder /app/node_modules ./node_modules",
+            " . .",
+        ],
+        "EXPOSE": [
+            " 3000\nENV NODE_ENV=production\nCMD [\"node\", \"dist/index.js\"]",
+        ],
+        "ENV": [
+            " NODE_ENV=production \\\n    PORT=3000 \\\n    HOST=0.0.0.0",
+        ],
+        "CMD": [
+            " [\"python\", \"-m\", \"uvicorn\", \"app.main:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8000\"]",
+        ],
+        "ENTRYPOINT": [
+            " [\"/docker-entrypoint.sh\"]",
+        ],
+    },
+
+    bash: {
+        "#!": [
+            "/bin/bash\nset -euo pipefail\nIFS=$'\\n\\t'",
+        ],
+        "if": [
+            " [ -z \"$1\" ]; then\n  echo \"Usage: $0 <filename>\"\n  exit 1\nfi",
+            " [ -f \"$FILE\" ]; then\n  echo \"File exists\"\nelse\n  echo \"File not found\"\n  exit 1\nfi",
+        ],
+        "for": [
+            " file in *.log; do\n  echo \"Processing $file...\"\n  gzip \"$file\"\ndone",
+            " i in $(seq 1 10); do\n  echo \"Iteration $i\"\ndone",
+        ],
+        "function": [
+            " cleanup() {\n  local exit_code=$?\n  rm -rf \"$TMPDIR\"\n  exit $exit_code\n}\ntrap cleanup EXIT",
+        ],
+        "while": [
+            " IFS= read -r line; do\n  echo \"$line\"\ndone < \"$INPUT_FILE\"",
+        ],
+        "case": [
+            " \"$1\" in\n  start)\n    echo \"Starting...\"\n    ;;\n  stop)\n    echo \"Stopping...\"\n    ;;\n  *)\n    echo \"Usage: $0 {start|stop}\"\n    exit 1\n    ;;\nesac",
+        ],
+        "echo": [
+            " \"$(date '+%Y-%m-%d %H:%M:%S') [INFO] $*\" | tee -a \"$LOG_FILE\"",
+        ],
+    },
+
+    go: {
+        "func": [
+            " (s *Server) HandleRequest(w http.ResponseWriter, r *http.Request) {\n\tvar req RequestBody\n\tif err := json.NewDecoder(r.Body).Decode(&req); err != nil {\n\t\thttp.Error(w, err.Error(), http.StatusBadRequest)\n\t\treturn\n\t}\n\tw.Header().Set(\"Content-Type\", \"application/json\")\n\tjson.NewEncoder(w).Encode(map[string]string{\"status\": \"ok\"})\n}",
+        ],
+        "type": [
+            " Config struct {\n\tHost     string `json:\"host\" yaml:\"host\"`\n\tPort     int    `json:\"port\" yaml:\"port\"`\n\tLogLevel string `json:\"log_level\" yaml:\"log_level\"`\n}",
+        ],
+        "if": [
+            " err != nil {\n\treturn fmt.Errorf(\"failed to process: %w\", err)\n}",
+        ],
+        "for": [
+            " i, item := range items {\n\tfmt.Printf(\"%d: %v\\n\", i, item)\n}",
+        ],
+        "import": [
+            " (\n\t\"context\"\n\t\"encoding/json\"\n\t\"fmt\"\n\t\"net/http\"\n)",
+        ],
+    },
+
+    rust: {
+        "fn": [
+            " process(input: &str) -> Result<String, Box<dyn Error>> {\n    let data: Value = serde_json::from_str(input)?;\n    Ok(data.to_string())\n}",
+        ],
+        "struct": [
+            " Config {\n    host: String,\n    port: u16,\n    workers: usize,\n}\n\nimpl Config {\n    fn new() -> Self {\n        Self {\n            host: \"0.0.0.0\".into(),\n            port: 8080,\n            workers: num_cpus::get(),\n        }\n    }\n}",
+        ],
+        "impl": [
+            " Display for AppError {\n    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {\n        write!(f, \"{}: {}\", self.kind, self.message)\n    }\n}",
+        ],
+        "let": [
+            " result = items\n        .iter()\n        .filter(|item| item.is_active())\n        .map(|item| item.id)\n        .collect::<Vec<_>>();",
+        ],
+        "match": [
+            " status {\n    Status::Ok => println!(\"Success\"),\n    Status::Error(e) => eprintln!(\"Error: {}\", e),\n    _ => println!(\"Unknown status\"),\n}",
+        ],
+    },
+
+    yaml: {
+        "name": [
+            ": CI/CD Pipeline\non:\n  push:\n    branches: [main]\n  pull_request:\n    branches: [main]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: 20",
+        ],
+        "services": [
+            ":\n  app:\n    build: .\n    ports:\n      - \"3000:3000\"\n    environment:\n      - NODE_ENV=production\n    depends_on:\n      - db\n  db:\n    image: postgres:16-alpine\n    environment:\n      POSTGRES_PASSWORD: secret",
+        ],
+    },
+
+    sql: {
+        "SELECT": [
+            " u.id, u.name, u.email, COUNT(o.id) as order_count\nFROM users u\nLEFT JOIN orders o ON o.user_id = u.id\nWHERE u.created_at > NOW() - INTERVAL '30 days'\nGROUP BY u.id, u.name, u.email\nORDER BY order_count DESC\nLIMIT 10;",
+        ],
+        "CREATE": [
+            " TABLE IF NOT EXISTS users (\n  id SERIAL PRIMARY KEY,\n  name VARCHAR(255) NOT NULL,\n  email VARCHAR(255) UNIQUE NOT NULL,\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n);",
+        ],
+        "INSERT": [
+            " INTO users (name, email)\nVALUES ($1, $2)\nRETURNING id, name, email, created_at;",
+        ],
+        "ALTER": [
+            " TABLE users\nADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'user';",
+        ],
+    },
+};
+
+/** Map a file language string (from editor state) to a suggestion bank key */
+function normalizeLanguage(lang: string): string | null {
+    const l = lang.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (/^(typescript|javascript|tsx|jsx|ts|js)$/.test(l)) return null; // use default bank
+    if (/^(python|py)$/.test(l)) return "python";
+    if (/^(dockerfile|docker)$/.test(l)) return "dockerfile";
+    if (/^(bash|sh|shell|zsh|shellscript)$/.test(l)) return "bash";
+    if (/^(go|golang)$/.test(l)) return "go";
+    if (/^(rust|rs)$/.test(l)) return "rust";
+    if (/^(yaml|yml)$/.test(l)) return "yaml";
+    if (/^(sql|mysql|postgresql|postgres|sqlite)$/.test(l)) return "sql";
+    return null; // fallback to JS/TS bank
+}
+
+function pickSuggestion(lineText: string, language?: string): string {
     const trimmed = lineText.trimStart();
+
+    // Try language-specific bank first
+    if (language) {
+        const langKey = normalizeLanguage(language);
+        if (langKey && LANGUAGE_SUGGESTIONS[langKey]) {
+            const bank = LANGUAGE_SUGGESTIONS[langKey];
+            for (const [keyword, suggestions] of Object.entries(bank)) {
+                if (trimmed.startsWith(keyword) || trimmed.endsWith(keyword)) {
+                    return suggestions[Math.floor(Math.random() * suggestions.length)];
+                }
+            }
+            // If we have a language-specific bank but no keyword match,
+            // pick a random entry from that language's bank
+            const allEntries = Object.values(bank).flat();
+            if (allEntries.length > 0) {
+                return allEntries[Math.floor(Math.random() * allEntries.length)];
+            }
+        }
+    }
+
+    // Fall back to JS/TS context bank
     for (const [keyword, suggestions] of Object.entries(SUGGESTIONS_BY_CONTEXT)) {
         if (trimmed.startsWith(keyword) || trimmed.endsWith(keyword)) {
             return suggestions[Math.floor(Math.random() * suggestions.length)];
@@ -219,7 +420,9 @@ export function createAiGhostTextPlugin(): ExtendedEditorPlugin {
             // Don't suggest on empty lines or very short lines
             if (lineText.trim().length < 2) return;
 
-            const suggestion = pickSuggestion(lineText);
+            // Get language for context-aware suggestions
+            const fileInfo = api.getFileInfo();
+            const suggestion = pickSuggestion(lineText, fileInfo.language);
             stream.start(suggestion, pos.line, lineText.length);
         }, TRIGGER_DELAY);
     }
@@ -266,6 +469,9 @@ export function createAiGhostTextPlugin(): ExtendedEditorPlugin {
 
             // Register dismiss command
             api.registerCommand("ghostText.dismiss", cancelGhost);
+
+            // Expose accept/reject callbacks on the store for clickable UI controls
+            ghostTextStore.setCallbacks(acceptGhost, cancelGhost);
         },
 
         onDeactivate() {

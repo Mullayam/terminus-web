@@ -46,6 +46,7 @@ export const defaultEditorState: EditorState = {
     showShortcuts: false,
     showThemeSelector: false,
     showCommandPalette: false,
+    splitView: false,
     ctxMenu: null,
     goToLineValue: "",
     findText: "",
@@ -210,6 +211,8 @@ export function createEditorStore(overrides?: Partial<EditorState>) {
         closeThemeSelector: () => set({ showThemeSelector: false }),
         openCommandPalette: () => set({ showCommandPalette: true }),
         closeCommandPalette: () => set({ showCommandPalette: false }),
+        toggleSplitView: () => set((s) => ({ splitView: !s.splitView })),
+        setSplitView: (open) => set({ splitView: open }),
         setCtxMenu: (pos) => set({ ctxMenu: pos }),
 
         // ── Find / Replace ───────────────────────────────────

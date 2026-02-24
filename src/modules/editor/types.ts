@@ -320,6 +320,7 @@ export interface EditorState {
     showShortcuts: boolean;
     showThemeSelector: boolean;
     showCommandPalette: boolean;
+    splitView: boolean;
     ctxMenu: { x: number; y: number } | null;
     goToLineValue: string;
     // Find / Replace
@@ -393,6 +394,8 @@ export interface EditorActions {
     closeThemeSelector: () => void;
     openCommandPalette: () => void;
     closeCommandPalette: () => void;
+    toggleSplitView: () => void;
+    setSplitView: (open: boolean) => void;
     setCtxMenu: (pos: { x: number; y: number } | null) => void;
     // Find
     setFindText: (text: string) => void;

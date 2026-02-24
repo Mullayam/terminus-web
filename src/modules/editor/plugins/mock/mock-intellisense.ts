@@ -29,6 +29,8 @@ import type {
     CompletionContext,
     Diagnostic,
     InlineAnnotation,
+    CodeLensItem,
+    FoldingRange,
 } from "../types";
 
 // ── Mock property databases ──────────────────────────────────
@@ -814,6 +816,271 @@ function extractTypeHints(content: string): InlineAnnotation[] {
     return annotations;
 }
 
+// ── Code actions (Refactor | Explain | Generate JSDoc) ───────
+
+interface SymbolInfo {
+    name: string;
+    kind: "function" | "class" | "method" | "interface" | "type";
+    line: number;
+}
+
+function detectSymbolsForLens(content: string, language: string): SymbolInfo[] {
+    const symbols: SymbolInfo[] = [];
+    const lines = content.split("\n");
+    const lang = language.toLowerCase();
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        const lineNum = i + 1;
+
+        // JavaScript / TypeScript
+        if (["javascript", "typescript", "jsx", "tsx", "js", "ts"].includes(lang)) {
+            let m = line.match(/^(?:export\s+)?(?:async\s+)?function\s+(\w+)/);
+            if (m) { symbols.push({ name: m[1], kind: "function", line: lineNum }); continue; }
+
+            m = line.match(/^(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?(?:\([^)]*\)|[a-zA-Z_$]\w*)\s*=>/);
+            if (m) { symbols.push({ name: m[1], kind: "function", line: lineNum }); continue; }
+
+            m = line.match(/^(?:export\s+)?class\s+(\w+)/);
+            if (m) { symbols.push({ name: m[1], kind: "class", line: lineNum }); continue; }
+
+            m = line.match(/^(?:export\s+)?interface\s+(\w+)/);
+            if (m) { symbols.push({ name: m[1], kind: "interface", line: lineNum }); continue; }
+
+            m = line.match(/^(?:export\s+)?type\s+(\w+)/);
+            if (m) { symbols.push({ name: m[1], kind: "type", line: lineNum }); continue; }
+        }
+
+        // Python
+        if (["python", "py"].includes(lang)) {
+            let m = line.match(/^(?:async\s+)?def\s+(\w+)/);
+            if (m) { symbols.push({ name: m[1], kind: "function", line: lineNum }); continue; }
+            m = line.match(/^class\s+(\w+)/);
+            if (m) { symbols.push({ name: m[1], kind: "class", line: lineNum }); }
+        }
+
+        // Go
+        if (lang === "go") {
+            let m = line.match(/^func\s+(?:\([^)]*\)\s+)?(\w+)/);
+            if (m) { symbols.push({ name: m[1], kind: "function", line: lineNum }); continue; }
+            m = line.match(/^type\s+(\w+)\s+(?:struct|interface)/);
+            if (m) { symbols.push({ name: m[1], kind: "class", line: lineNum }); }
+        }
+
+        // Rust
+        if (lang === "rust" || lang === "rs") {
+            let m = line.match(/^(?:pub\s+)?fn\s+(\w+)/);
+            if (m) { symbols.push({ name: m[1], kind: "function", line: lineNum }); continue; }
+            m = line.match(/^(?:pub\s+)?(?:struct|enum|trait)\s+(\w+)/);
+            if (m) { symbols.push({ name: m[1], kind: "class", line: lineNum }); }
+        }
+
+        // Java / C# / C++
+        if (["java", "csharp", "cs", "cpp", "c"].includes(lang)) {
+            let m = line.match(/^(?:public|private|protected|static|abstract|final|virtual|override|async)?\s*(?:public|private|protected|static|abstract|final|virtual|override|async)?\s*(?:void|int|string|boolean|float|double|char|var|auto|Task)?\s+(\w+)\s*\(/);
+            if (m && !line.startsWith("if") && !line.startsWith("for") && !line.startsWith("while")) {
+                symbols.push({ name: m[1], kind: "function", line: lineNum }); continue;
+            }
+            m = line.match(/^(?:public|private|protected)?\s*(?:abstract|static|final)?\s*class\s+(\w+)/);
+            if (m) { symbols.push({ name: m[1], kind: "class", line: lineNum }); }
+        }
+
+        // PHP
+        if (lang === "php") {
+            let m = line.match(/^(?:public|private|protected)?\s*(?:static)?\s*function\s+(\w+)/);
+            if (m) { symbols.push({ name: m[1], kind: "function", line: lineNum }); continue; }
+            m = line.match(/^(?:abstract\s+)?class\s+(\w+)/);
+            if (m) { symbols.push({ name: m[1], kind: "class", line: lineNum }); }
+        }
+    }
+
+    return symbols;
+}
+
+function buildCodeActions(content: string, language: string, api: ExtendedPluginAPI): CodeLensItem[] {
+    const symbols = detectSymbolsForLens(content, language);
+    const lenses: CodeLensItem[] = [];
+
+    for (const sym of symbols) {
+        // Windsurf-style: "Refactor | Explain | Generate JSDoc" for functions/methods
+        // "Refactor | Explain" for classes/interfaces/types
+        lenses.push({
+            id: `mock-intellisense:refactor:${sym.line}`,
+            line: sym.line,
+            command: "refactor",
+            title: "Refactor",
+            tooltip: `Refactor ${sym.kind} "${sym.name}"`,
+            onClick: () => {
+                api.showToast("Refactor", `Refactoring ${sym.kind} "${sym.name}"…`, "default");
+            },
+        });
+
+        lenses.push({
+            id: `mock-intellisense:explain:${sym.line}`,
+            line: sym.line,
+            command: "explain",
+            title: "Explain",
+            tooltip: `AI Explain ${sym.kind} "${sym.name}"`,
+            onClick: () => {
+                api.showToast("AI Explain", `"${sym.name}" is a ${sym.kind} that performs operations based on its signature.`, "default");
+            },
+        });
+
+        if (sym.kind === "function" || sym.kind === "method") {
+            lenses.push({
+                id: `mock-intellisense:jsdoc:${sym.line}`,
+                line: sym.line,
+                command: "generateJSDoc",
+                title: "Generate JSDoc",
+                tooltip: `Generate JSDoc for ${sym.name}()`,
+                onClick: () => {
+                    api.showToast("Generate JSDoc", `JSDoc generated for ${sym.name}()`, "default");
+                },
+            });
+        }
+    }
+
+    return lenses;
+}
+
+// ── Folding range detection (all languages) ──────────────────
+
+function extractFoldingRanges(content: string, language: string): FoldingRange[] {
+    const lines = content.split("\n");
+    const ranges: FoldingRange[] = [];
+    const lang = language.toLowerCase();
+
+    // For brace-based languages: track brace nesting
+    const braceLangs = ["javascript", "typescript", "jsx", "tsx", "js", "ts",
+        "java", "csharp", "cs", "cpp", "c", "go", "rust", "rs", "php",
+        "json", "css", "scss", "less", "swift", "kotlin", "scala", "dart"];
+
+    if (braceLangs.includes(lang)) {
+        // Stack-based brace matching
+        const stack: Array<{ line: number; kind: FoldingRange["kind"] }> = [];
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmed = line.trim();
+            const lineNum = i + 1;
+
+            // Determine block kind from the line that opens it
+            const detectKind = (l: string): FoldingRange["kind"] => {
+                const t = l.trim();
+                if (/^(?:export\s+)?(?:async\s+)?function\b/.test(t)) return "function";
+                if (/(?:=>\s*\{|\w+\s*\([^)]*\)\s*\{)/.test(t) && !/^(?:if|for|while|switch)\b/.test(t)) return "function";
+                if (/^(?:export\s+)?class\b/.test(t)) return "class";
+                if (/^(?:export\s+)?interface\b/.test(t)) return "class";
+                if (/^if\b|^else\b/.test(t)) return "if";
+                if (/^for\b|^for\s*\(/.test(t)) return "for";
+                if (/^while\b/.test(t)) return "while";
+                if (/^switch\b/.test(t)) return "switch";
+                if (/^try\b|^catch\b|^finally\b/.test(t)) return "try";
+                if (/^(?:pub\s+)?fn\b/.test(t)) return "function";
+                if (/^func\b/.test(t)) return "function";
+                if (/^(?:pub\s+)?(?:struct|enum|trait|impl)\b/.test(t)) return "class";
+                if (/^type\s+\w+\s+(?:struct|interface)/.test(t)) return "class";
+                return "block";
+            };
+
+            // Count braces on this line (ignoring strings/comments for simplicity)
+            for (const ch of line) {
+                if (ch === "{") {
+                    stack.push({ line: lineNum, kind: detectKind(line) });
+                } else if (ch === "}") {
+                    const open = stack.pop();
+                    if (open && lineNum > open.line) {
+                        ranges.push({
+                            id: `mock-intellisense:fold:${open.line}:${lineNum}`,
+                            startLine: open.line,
+                            endLine: lineNum,
+                            kind: open.kind,
+                            collapsedText: `{ … }  // ${lineNum - open.line - 1} lines`,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // Python: indentation-based folding
+    if (["python", "py"].includes(lang)) {
+        const indentStack: Array<{ line: number; indent: number; kind: FoldingRange["kind"] }> = [];
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (line.trim() === "") continue;
+            const lineNum = i + 1;
+            const indent = line.search(/\S/);
+
+            // Close blocks with greater indentation
+            while (indentStack.length > 0 && indent <= indentStack[indentStack.length - 1].indent) {
+                const block = indentStack.pop()!;
+                if (lineNum - 1 > block.line) {
+                    ranges.push({
+                        id: `mock-intellisense:fold:${block.line}:${lineNum - 1}`,
+                        startLine: block.line,
+                        endLine: lineNum - 1,
+                        kind: block.kind,
+                        collapsedText: `…  # ${lineNum - 1 - block.line} lines`,
+                    });
+                }
+            }
+
+            const trimmed = line.trim();
+            let kind: FoldingRange["kind"] = "block";
+            if (/^(?:async\s+)?def\b/.test(trimmed)) kind = "function";
+            else if (/^class\b/.test(trimmed)) kind = "class";
+            else if (/^if\b|^elif\b|^else\s*:/.test(trimmed)) kind = "if";
+            else if (/^for\b/.test(trimmed)) kind = "for";
+            else if (/^while\b/.test(trimmed)) kind = "while";
+            else if (/^try\b|^except\b|^finally\b/.test(trimmed)) kind = "try";
+
+            if (trimmed.endsWith(":")) {
+                indentStack.push({ line: lineNum, indent, kind });
+            }
+        }
+
+        // Close remaining open blocks
+        while (indentStack.length > 0) {
+            const block = indentStack.pop()!;
+            if (lines.length > block.line) {
+                ranges.push({
+                    id: `mock-intellisense:fold:${block.line}:${lines.length}`,
+                    startLine: block.line,
+                    endLine: lines.length,
+                    kind: block.kind,
+                    collapsedText: `…  # ${lines.length - block.line} lines`,
+                });
+            }
+        }
+    }
+
+    // Multi-line comment folding (all languages)
+    let commentStart: number | null = null;
+    for (let i = 0; i < lines.length; i++) {
+        const trimmed = lines[i].trim();
+        if (commentStart === null && (trimmed.startsWith("/*") || trimmed.startsWith("/**"))) {
+            commentStart = i + 1;
+        }
+        if (commentStart !== null && (trimmed.endsWith("*/") || trimmed === "*/")) {
+            const endLine = i + 1;
+            if (endLine > commentStart) {
+                ranges.push({
+                    id: `mock-intellisense:fold:comment:${commentStart}:${endLine}`,
+                    startLine: commentStart,
+                    endLine,
+                    kind: "comment",
+                    collapsedText: `/* … */  // ${endLine - commentStart - 1} lines`,
+                });
+            }
+            commentStart = null;
+        }
+    }
+
+    return ranges;
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  PLUGIN FACTORY
 // ═══════════════════════════════════════════════════════════════
@@ -825,7 +1092,7 @@ export function createMockIntelliSensePlugin(): ExtendedEditorPlugin {
         id: "mock-intellisense",
         name: "Mock IntelliSense",
         version: "1.0.0",
-        description: "Smart context-aware completions, diagnostics, and type hints (no backend required)",
+        description: "Smart context-aware completions, diagnostics, type hints, code actions & folding (no backend required)",
         category: "language",
         defaultEnabled: true,
 
@@ -834,26 +1101,33 @@ export function createMockIntelliSensePlugin(): ExtendedEditorPlugin {
         onActivate(api) {
             // Run initial analysis
             const content = api.getContent();
-            updateAnalysis(content, api);
-            api.showToast("Mock IntelliSense", "Diagnostics & smart completions active", "default");
+            const { language } = api.getFileInfo();
+            updateAnalysis(content, language, api);
+            api.showToast("Mock IntelliSense", "Diagnostics, smart completions, code actions & folding active", "default");
         },
 
         onContentChange(content, api) {
             if (debounceTimer) clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => updateAnalysis(content, api), 500);
+            debounceTimer = setTimeout(() => {
+                const { language } = api.getFileInfo();
+                updateAnalysis(content, language, api);
+            }, 500);
         },
 
         onDeactivate(api) {
             if (debounceTimer) clearTimeout(debounceTimer);
             api.clearDiagnostics("mock-intellisense");
             api.clearInlineAnnotations("mock-intellisense");
+            api.clearCodeLenses("mock-intellisense");
+            api.clearFoldingRanges("mock-intellisense");
         },
     };
 }
 
-function updateAnalysis(content: string, api: ExtendedPluginAPI) {
+function updateAnalysis(content: string, language: string, api: ExtendedPluginAPI) {
+    const lang = language.toLowerCase();
+
     // Clear stale diagnostics before setting new ones
-    // This ensures removed lines don't leave ghost diagnostics behind
     api.clearDiagnostics("mock-intellisense");
     const diagnostics = analyzeDiagnostics(content);
     api.setDiagnostics(diagnostics);
@@ -862,4 +1136,14 @@ function updateAnalysis(content: string, api: ExtendedPluginAPI) {
     api.clearInlineAnnotations("mock-intellisense");
     const annotations = extractTypeHints(content);
     api.setInlineAnnotations(annotations);
+
+    // Code actions (Refactor | Explain | Generate JSDoc)
+    api.clearCodeLenses("mock-intellisense");
+    const lenses = buildCodeActions(content, lang, api);
+    api.setCodeLenses(lenses);
+
+    // Folding ranges
+    api.clearFoldingRanges("mock-intellisense");
+    const foldingRanges = extractFoldingRanges(content, lang);
+    api.setFoldingRanges(foldingRanges);
 }

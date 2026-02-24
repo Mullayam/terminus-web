@@ -158,7 +158,7 @@ export function GhostTextOverlay() {
                 </div>
             ))}
 
-            {/* Tab hint – shown when streaming is complete */}
+            {/* Accept / Reject controls + keyboard hints – shown when streaming complete */}
             {!ghost.isStreaming && ghost.streamedLength > 0 && (
                 <div
                     style={{
@@ -166,13 +166,13 @@ export function GhostTextOverlay() {
                         marginLeft: isMultiLine ? -position.left + 10 : 0,
                         display: "inline-flex",
                         alignItems: "center",
-                        gap: 4,
-                        padding: "2px 8px",
-                        borderRadius: 4,
-                        fontSize: 10,
+                        gap: 6,
+                        padding: "3px 8px",
+                        borderRadius: 5,
+                        fontSize: 11,
                         fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
                         background: "var(--editor-popup-bg, #282a36)",
-                        color: "var(--editor-ghost-hint-fg, #bd93f9)",
+                        color: "var(--editor-foreground, #f8f8f2)",
                         border: "1px solid var(--editor-border, #44475a)",
                         boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
                         opacity: 1,
@@ -182,35 +182,147 @@ export function GhostTextOverlay() {
                         position: "relative",
                     }}
                 >
-                    <kbd
+                    {/* Accept button (green check) */}
+                    <button
+                        onClick={() => ghost.onAccept?.()}
+                        title="Accept (Alt+A)"
                         style={{
-                            padding: "0 4px",
-                            borderRadius: 3,
-                            fontSize: 9,
-                            fontWeight: 600,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 3,
+                            background: "rgba(80, 250, 123, 0.15)",
+                            border: "1px solid rgba(80, 250, 123, 0.35)",
+                            borderRadius: 4,
+                            padding: "2px 8px",
+                            cursor: "pointer",
+                            color: "#50fa7b",
+                            fontSize: 11,
+                            fontWeight: 500,
                             lineHeight: "16px",
-                            background: "rgba(255,255,255,0.1)",
-                            border: "1px solid rgba(255,255,255,0.15)",
+                            transition: "all 0.15s",
+                        }}
+                        onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.background = "rgba(80, 250, 123, 0.3)";
+                            (e.currentTarget as HTMLElement).style.borderColor = "rgba(80, 250, 123, 0.6)";
+                        }}
+                        onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.background = "rgba(80, 250, 123, 0.15)";
+                            (e.currentTarget as HTMLElement).style.borderColor = "rgba(80, 250, 123, 0.35)";
                         }}
                     >
-                        Tab
-                    </kbd>
-                    <span>to accept</span>
-                    <span style={{ opacity: 0.5, margin: "0 2px" }}>·</span>
-                    <kbd
+                        <span style={{ fontSize: 12, lineHeight: 1 }}>✓</span>
+                        <span>Accept</span>
+                        <kbd
+                            style={{
+                                padding: "0 3px",
+                                borderRadius: 2,
+                                fontSize: 9,
+                                fontWeight: 600,
+                                lineHeight: "14px",
+                                background: "rgba(255,255,255,0.08)",
+                                border: "1px solid rgba(255,255,255,0.12)",
+                                color: "rgba(80, 250, 123, 0.8)",
+                            }}
+                        >
+                            Alt+A
+                        </kbd>
+                    </button>
+
+                    <span style={{ opacity: 0.3 }}>│</span>
+
+                    {/* Reject button (red cross) */}
+                    <button
+                        onClick={() => ghost.onReject?.()}
+                        title="Reject (Alt+R)"
                         style={{
-                            padding: "0 4px",
-                            borderRadius: 3,
-                            fontSize: 9,
-                            fontWeight: 600,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 3,
+                            background: "rgba(255, 85, 85, 0.12)",
+                            border: "1px solid rgba(255, 85, 85, 0.3)",
+                            borderRadius: 4,
+                            padding: "2px 8px",
+                            cursor: "pointer",
+                            color: "#ff5555",
+                            fontSize: 11,
+                            fontWeight: 500,
                             lineHeight: "16px",
-                            background: "rgba(255,255,255,0.1)",
-                            border: "1px solid rgba(255,255,255,0.15)",
+                            transition: "all 0.15s",
+                        }}
+                        onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.background = "rgba(255, 85, 85, 0.25)";
+                            (e.currentTarget as HTMLElement).style.borderColor = "rgba(255, 85, 85, 0.5)";
+                        }}
+                        onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.background = "rgba(255, 85, 85, 0.12)";
+                            (e.currentTarget as HTMLElement).style.borderColor = "rgba(255, 85, 85, 0.3)";
                         }}
                     >
-                        Esc
-                    </kbd>
-                    <span style={{ opacity: 0.6 }}>to dismiss</span>
+                        <span style={{ fontSize: 12, lineHeight: 1 }}>✕</span>
+                        <span>Reject</span>
+                        <kbd
+                            style={{
+                                padding: "0 3px",
+                                borderRadius: 2,
+                                fontSize: 9,
+                                fontWeight: 600,
+                                lineHeight: "14px",
+                                background: "rgba(255,255,255,0.08)",
+                                border: "1px solid rgba(255,255,255,0.12)",
+                                color: "rgba(255, 85, 85, 0.7)",
+                            }}
+                        >
+                            Alt+R
+                        </kbd>
+                    </button>
+
+                    <span style={{ opacity: 0.3 }}>│</span>
+
+                    {/* Follow-up action */}
+                    <button
+                        onClick={() => ghost.onAccept?.()}
+                        title="Follow-up (Alt+F)"
+                        style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 3,
+                            background: "rgba(139, 233, 253, 0.1)",
+                            border: "1px solid rgba(139, 233, 253, 0.25)",
+                            borderRadius: 4,
+                            padding: "2px 8px",
+                            cursor: "pointer",
+                            color: "#8be9fd",
+                            fontSize: 11,
+                            fontWeight: 500,
+                            lineHeight: "16px",
+                            transition: "all 0.15s",
+                        }}
+                        onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.background = "rgba(139, 233, 253, 0.2)";
+                            (e.currentTarget as HTMLElement).style.borderColor = "rgba(139, 233, 253, 0.45)";
+                        }}
+                        onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.background = "rgba(139, 233, 253, 0.1)";
+                            (e.currentTarget as HTMLElement).style.borderColor = "rgba(139, 233, 253, 0.25)";
+                        }}
+                    >
+                        <span style={{ fontSize: 11, lineHeight: 1 }}>💬</span>
+                        <span>Follow-up</span>
+                        <kbd
+                            style={{
+                                padding: "0 3px",
+                                borderRadius: 2,
+                                fontSize: 9,
+                                fontWeight: 600,
+                                lineHeight: "14px",
+                                background: "rgba(255,255,255,0.08)",
+                                border: "1px solid rgba(255,255,255,0.12)",
+                                color: "rgba(139, 233, 253, 0.7)",
+                            }}
+                        >
+                            Alt+F
+                        </kbd>
+                    </button>
                 </div>
             )}
 
