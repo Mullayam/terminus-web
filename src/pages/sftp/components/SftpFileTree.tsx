@@ -7,7 +7,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 /* ─── Tree data model ─── */
@@ -25,6 +25,7 @@ interface SftpFileTreeProps {
   onNavigate: (path: string) => void;
   collapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
+  showHiddenFiles?: boolean;
 }
 
 /* ─── Helpers ─── */
@@ -72,6 +73,7 @@ function TreeItem({
   expandedPaths,
   onToggle,
   onNavigate,
+  showHiddenFiles,
 }: {
   node: TreeNode;
   depth: number;
@@ -79,26 +81,36 @@ function TreeItem({
   expandedPaths: Set<string>;
   onToggle: (path: string) => void;
   onNavigate: (path: string) => void;
+  showHiddenFiles: boolean;
 }) {
   const isDir = node.type === "d";
   const isActive = node.fullPath === currentDir;
   const isExpanded = expandedPaths.has(node.fullPath);
   const hasChildren = node.children.size > 0;
 
-  // Sort children: directories first, then alphabetical
+  // Sort & filter children: directories first, then alphabetical; respect hidden files
   const sortedChildren = useMemo(() => {
-    const arr = Array.from(node.children.values());
+    const arr = Array.from(node.children.values()).filter((child) => {
+      if (!showHiddenFiles && child.name.startsWith(".")) return false;
+      return true;
+    });
     return arr.sort((a, b) => {
       if (a.type === "d" && b.type !== "d") return -1;
       if (a.type !== "d" && b.type === "d") return 1;
       return a.name.localeCompare(b.name);
     });
-  }, [node.children]);
+  }, [node.children, showHiddenFiles]);
 
   const handleClick = () => {
     if (isDir) {
-      onToggle(node.fullPath);
-      onNavigate(node.fullPath);
+      // If already expanded, just collapse — don't reload
+      if (isExpanded) {
+        onToggle(node.fullPath);
+      } else {
+        // Expanding: toggle open + navigate to load contents
+        onToggle(node.fullPath);
+        onNavigate(node.fullPath);
+      }
     }
   };
 
@@ -108,11 +120,11 @@ function TreeItem({
         role="treeitem"
         aria-expanded={isDir ? isExpanded : undefined}
         className={cn(
-          "flex items-center gap-1 py-[3px] pr-2 cursor-pointer text-sm select-none",
+          "flex items-center gap-1 py-[3px] pr-2 cursor-pointer text-sm select-none whitespace-nowrap",
           "hover:bg-muted/50 rounded-sm transition-colors duration-100",
           isActive && "bg-primary/15 text-primary font-medium",
         )}
-        style={{ paddingLeft: `${depth * 14 + 8}px` }}
+        style={{ paddingLeft: `${depth * 16 + 8}px` }}
         onClick={handleClick}
       >
         {/* Chevron */}
@@ -139,9 +151,14 @@ function TreeItem({
         <span className="truncate text-[13px]">{node.name}</span>
       </div>
 
-      {/* Children */}
+      {/* Children with indent guide line */}
       {isDir && isExpanded && hasChildren && (
-        <div role="group">
+        <div role="group" className="relative">
+          {/* Vertical indent guide line */}
+          <div
+            className="absolute top-0 bottom-0 border-l border-border/40"
+            style={{ left: `${depth * 16 + 16}px` }}
+          />
           {sortedChildren.map((child) => (
             <TreeItem
               key={child.fullPath}
@@ -151,6 +168,7 @@ function TreeItem({
               expandedPaths={expandedPaths}
               onToggle={onToggle}
               onNavigate={onNavigate}
+              showHiddenFiles={showHiddenFiles}
             />
           ))}
         </div>
@@ -166,6 +184,7 @@ export function SftpFileTree({
   onNavigate,
   collapsed = false,
   onCollapsedChange,
+  showHiddenFiles = false,
 }: SftpFileTreeProps) {
   // Root of the accumulated tree
   const [root, setRoot] = useState<TreeNode>(() => ({
@@ -269,15 +288,18 @@ export function SftpFileTree({
     });
   }, []);
 
-  // Sort root-level children
+  // Sort & filter root-level children
   const sortedRootChildren = useMemo(() => {
-    const arr = Array.from(root.children.values());
+    const arr = Array.from(root.children.values()).filter((child) => {
+      if (!showHiddenFiles && child.name.startsWith(".")) return false;
+      return true;
+    });
     return arr.sort((a, b) => {
       if (a.type === "d" && b.type !== "d") return -1;
       if (a.type !== "d" && b.type === "d") return 1;
       return a.name.localeCompare(b.name);
     });
-  }, [root]);
+  }, [root, showHiddenFiles]);
 
   if (collapsed) {
     return (
@@ -312,9 +334,9 @@ export function SftpFileTree({
         </button>
       </div>
 
-      {/* Tree */}
+      {/* Tree — ScrollArea with both vertical + horizontal scrollbars */}
       <ScrollArea className="flex-1">
-        <div role="tree" className="py-1">
+        <div role="tree" className="py-1 min-w-max">
           {sortedRootChildren.length > 0 ? (
             sortedRootChildren.map((child) => (
               <TreeItem
@@ -325,6 +347,7 @@ export function SftpFileTree({
                 expandedPaths={expandedPaths}
                 onToggle={handleToggle}
                 onNavigate={onNavigate}
+                showHiddenFiles={showHiddenFiles}
               />
             ))
           ) : (
@@ -333,6 +356,7 @@ export function SftpFileTree({
             </div>
           )}
         </div>
+        <ScrollBar orientation="horizontal" />
       </ScrollArea>
     </div>
   );
