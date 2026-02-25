@@ -30,9 +30,7 @@ export function NewFolderDialog({ data, type, onClick }: { data: SFTP_FILES_LIST
   };
 
   return (
-    <div className=" flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="w-full max-w-md bg-[#1c1e26] rounded-lg animate-in slide-in-from-bottom-4 duration-300">
-        <div className="p-6">
+    <div className="p-4 animate-in fade-in duration-200">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl text-white font-medium">New {type}</h2>
           </div>
@@ -75,8 +73,6 @@ export function NewFolderDialog({ data, type, onClick }: { data: SFTP_FILES_LIST
               </button>
             </div>
           </form>
-        </div>
-      </div>
     </div>
   );
 }

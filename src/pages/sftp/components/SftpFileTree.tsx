@@ -259,13 +259,15 @@ function TreeItem({
 
   const handleClick = () => {
     if (isDir) {
-      if (isExpanded) {
-        onToggle(node.fullPath);
-      } else {
-        onToggle(node.fullPath);
-        onNavigate(node.fullPath);
-      }
+      onToggle(node.fullPath);
+      onNavigate(node.fullPath);
     }
+  };
+
+  /** Chevron click: only toggle expand/collapse, don't navigate */
+  const handleChevronClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onToggle(node.fullPath);
   };
 
   const contextItems = useMemo(
@@ -300,9 +302,10 @@ function TreeItem({
       {isDir ? (
         <ChevronRight
           className={cn(
-            "h-3.5 w-3.5 shrink-0 text-muted-foreground/60 transition-transform duration-150",
+            "h-3.5 w-3.5 shrink-0 text-muted-foreground/60 transition-transform duration-150 cursor-pointer",
             isExpanded && "rotate-90",
           )}
+          onClick={handleChevronClick}
         />
       ) : (
         <span className="w-3.5 shrink-0" />
@@ -333,28 +336,35 @@ function TreeItem({
         treeItemContent
       )}
 
-      {/* Children with indent guide lines */}
-      {isDir && isExpanded && hasChildren && (
-        <div role="group" className="relative">
-          {/* Vertical indent guide line — like Facebook comments */}
-          <div
-            className="absolute top-0 bottom-0 border-l-2 border-border/30 hover:border-primary/30 transition-colors"
-            style={{ left: `${depth * 18 + 14}px` }}
-          />
-          {sortedChildren.map((child, idx) => (
-            <TreeItem
-              key={child.fullPath}
-              node={child}
-              depth={depth + 1}
-              currentDir={currentDir}
-              expandedPaths={expandedPaths}
-              onToggle={onToggle}
-              onNavigate={onNavigate}
-              showHiddenFiles={showHiddenFiles}
-              isLast={idx === sortedChildren.length - 1}
-              contextActions={contextActions}
+      {/* Children with indent guide lines — animated slide */}
+      {isDir && hasChildren && (
+        <div
+          className="grid transition-[grid-template-rows] duration-200 ease-in-out"
+          style={{
+            gridTemplateRows: isExpanded ? "1fr" : "0fr",
+          }}
+        >
+          <div role="group" className="relative overflow-hidden">
+            {/* Vertical indent guide line — like Facebook comments */}
+            <div
+              className="absolute top-0 bottom-0 border-l-2 border-border/30 hover:border-primary/30 transition-colors"
+              style={{ left: `${depth * 18 + 14}px` }}
             />
-          ))}
+            {sortedChildren.map((child, idx) => (
+              <TreeItem
+                key={child.fullPath}
+                node={child}
+                depth={depth + 1}
+                currentDir={currentDir}
+                expandedPaths={expandedPaths}
+                onToggle={onToggle}
+                onNavigate={onNavigate}
+                showHiddenFiles={showHiddenFiles}
+                isLast={idx === sortedChildren.length - 1}
+                contextActions={contextActions}
+              />
+            ))}
+          </div>
         </div>
       )}
     </>
@@ -486,65 +496,67 @@ export function SftpFileTree({
     });
   }, [root, showHiddenFiles]);
 
-  if (collapsed) {
-    return (
-      <div className="flex flex-col items-center py-2 h-full bg-background border-r border-border/40">
-        <button
-          onClick={() => onCollapsedChange?.(false)}
-          className="p-1.5 rounded-md hover:bg-muted transition-colors"
-          title="Show Explorer"
-        >
-          <PanelLeftOpen className="h-4 w-4 text-muted-foreground" />
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-col h-full bg-background border-r border-border/40">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border/30">
-        <div className="flex items-center gap-1.5">
-          <FolderTree className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Explorer
-          </span>
+    <div className="flex flex-col h-full bg-background border-r border-border/40 transition-all duration-200 ease-in-out">
+      {collapsed ? (
+        /* Collapsed state — thin strip */
+        <div className="flex flex-col items-center py-2 h-full animate-in fade-in duration-150">
+          <button
+            onClick={() => onCollapsedChange?.(false)}
+            className="p-1.5 rounded-md hover:bg-muted transition-colors"
+            title="Show Explorer"
+          >
+            <PanelLeftOpen className="h-4 w-4 text-muted-foreground" />
+          </button>
         </div>
-        <button
-          onClick={() => onCollapsedChange?.(true)}
-          className="p-1 rounded-md hover:bg-muted transition-colors"
-          title="Collapse Explorer"
-        >
-          <PanelLeftClose className="h-3.5 w-3.5 text-muted-foreground" />
-        </button>
-      </div>
-
-      {/* Tree — ScrollArea with both vertical + horizontal scrollbars */}
-      <ScrollArea className="flex-1">
-        <div role="tree" className="py-1 min-w-max">
-          {sortedRootChildren.length > 0 ? (
-            sortedRootChildren.map((child, idx) => (
-              <TreeItem
-                key={child.fullPath}
-                node={child}
-                depth={0}
-                currentDir={currentDir}
-                expandedPaths={expandedPaths}
-                onToggle={handleToggle}
-                onNavigate={onNavigate}
-                showHiddenFiles={showHiddenFiles}
-                isLast={idx === sortedRootChildren.length - 1}
-                contextActions={contextActions}
-              />
-            ))
-          ) : (
-            <div className="px-3 py-6 text-xs text-muted-foreground text-center">
-              Navigate to a directory to populate the tree
+      ) : (
+        /* Expanded state */
+        <>
+          {/* Header */}
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border/30">
+            <div className="flex items-center gap-1.5">
+              <FolderTree className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Explorer
+              </span>
             </div>
-          )}
-        </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+            <button
+              onClick={() => onCollapsedChange?.(true)}
+              className="p-1 rounded-md hover:bg-muted transition-colors"
+              title="Collapse Explorer"
+            >
+              <PanelLeftClose className="h-3.5 w-3.5 text-muted-foreground" />
+            </button>
+          </div>
+
+          {/* Tree — ScrollArea with both vertical + horizontal scrollbars */}
+          <ScrollArea className="flex-1 animate-in fade-in slide-in-from-left-2 duration-200">
+            <div role="tree" className="py-1 min-w-max">
+              {sortedRootChildren.length > 0 ? (
+                sortedRootChildren.map((child, idx) => (
+                  <TreeItem
+                    key={child.fullPath}
+                    node={child}
+                    depth={0}
+                    currentDir={currentDir}
+                    expandedPaths={expandedPaths}
+                    onToggle={handleToggle}
+                    onNavigate={onNavigate}
+                    showHiddenFiles={showHiddenFiles}
+                    isLast={idx === sortedRootChildren.length - 1}
+                    contextActions={contextActions}
+                  />
+                ))
+              ) : (
+                <div className="px-3 py-6 text-xs text-muted-foreground text-center">
+                  Navigate to a directory to populate the tree
+                </div>
+              )}
+            </div>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+        </>
+      )}
     </div>
   );
 }

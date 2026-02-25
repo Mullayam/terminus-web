@@ -3,6 +3,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  ArrowLeft,
   Filter,
   HomeIcon,
   MoreVertical,
@@ -31,6 +32,12 @@ import {
   ResizableHandle,
 } from "@/components/ui/resizable";
 import { SftpFileTree, TreeContextActions } from "./SftpFileTree";
+import { DeleteFolderDialog } from "./DeleteDialog";
+import { NewFolderDialog } from "./NewDialog";
+import { FilePermissions } from "./edit-permission";
+import { StatsInfoCard } from "./StatsInfoCards";
+import { FileEditor } from "./FileEditor";
+import type { RootObject } from "./FileList";
 
 export function FilePane({
   title,
@@ -57,6 +64,52 @@ export function FilePane({
   const [fileUploadProgress, setFileUploadProgress] =
     useState<DownloadProgressType | null>(null);
   const [treeCollapsed, setTreeCollapsed] = useState(false);
+  const [treeStats, setTreeStats] = useState<RootObject | null>(null);
+
+  // Get homeDir from the store to enforce directory boundary
+  const session = sftpStore.sessions[sftpStore?.activeTabId as any];
+  const homeDir = session?.homeDir || "/";
+
+  /** Navigate to parent directory, clamped to homeDir */
+  const handleGoBack = useCallback(() => {
+    if (!path || path === "/" || path === homeDir) return;
+    // Prevent going above home directory
+    const parentDir = path.substring(0, path.lastIndexOf("/")) || "/";
+    // Check that parentDir starts with homeDir (or IS homeDir)
+    if (parentDir.length < homeDir.length && homeDir.startsWith(parentDir) === false) return;
+    handleSetCurrentDir(parentDir);
+  }, [path, homeDir, handleSetCurrentDir]);
+
+  const canGoBack = path !== "/" && path !== homeDir && path.length > homeDir.length;
+
+  /** Create/rename/move handler for tree context menu */
+  const handleTreeCreateFileOrDir = useCallback(
+    (name: string, type: "file" | "folder" | "rename" | "move", newPath?: string) => {
+      const fullPath = `${path}/${name}`;
+      if (type === "file") {
+        socket?.emit(SocketEventConstants.SFTP_CREATE_FILE, { filePath: fullPath });
+      } else if (type === "folder") {
+        socket?.emit(SocketEventConstants.SFTP_DELETE_DIR, { folderPath: fullPath });
+      } else if (type === "rename") {
+        socket?.emit(SocketEventConstants.SFTP_RENAME_FILE, {
+          oldPath: fullPath,
+          newPath: `${path}/${newPath}`,
+        });
+      } else if (type === "move") {
+        socket?.emit(SocketEventConstants.SFTP_MOVE_FILE, { folderPath: fullPath });
+      }
+      socket?.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: path });
+    },
+    [socket, path],
+  );
+
+  // Listen for stats events for tree context menu
+  useEffect(() => {
+    if (!socket) return;
+    const onStats = (data: RootObject) => setTreeStats(data);
+    socket.on(SocketEventConstants.SFTP_FILE_STATS, onStats);
+    return () => { socket.off(SocketEventConstants.SFTP_FILE_STATS, onStats); };
+  }, [socket]);
 
   const treeContextActions = useMemo<TreeContextActions>(
     () => ({
@@ -143,8 +196,60 @@ export function FilePane({
           "pdf",
         ].includes(ext || "");
       },
+      /* ── Render functions for tree context menu dialogs ── */
+      renderEdit: (fullPath, name) => (
+        <FileEditor filePath={fullPath} fileName={name} socket={socket} />
+      ),
+      renderRename: (node) => (
+        <NewFolderDialog
+          type="rename"
+          data={{ name: node.name, type: node.type } as SFTP_FILES_LIST}
+          onClick={handleTreeCreateFileOrDir}
+        />
+      ),
+      renderMove: (node) => (
+        <NewFolderDialog
+          type="move"
+          data={{ name: node.name, type: node.type } as SFTP_FILES_LIST}
+          onClick={handleTreeCreateFileOrDir}
+        />
+      ),
+      renderDelete: (node) => (
+        <DeleteFolderDialog
+          folderName={node.name}
+          type={node.type}
+          onDelete={() => {
+            if (node.type === "d") {
+              socket?.emit(SocketEventConstants.SFTP_DELETE_DIR, { path: node.fullPath });
+            } else {
+              socket?.emit(SocketEventConstants.SFTP_DELETE_FILE, { path: node.fullPath });
+            }
+            socket?.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: path });
+          }}
+        />
+      ),
+      renderNewFile: (node) => (
+        <NewFolderDialog
+          type="file"
+          data={{ name: node.name, type: node.type } as SFTP_FILES_LIST}
+          onClick={handleTreeCreateFileOrDir}
+        />
+      ),
+      renderNewFolder: (node) => (
+        <NewFolderDialog
+          type="folder"
+          data={{ name: node.name, type: node.type } as SFTP_FILES_LIST}
+          onClick={handleTreeCreateFileOrDir}
+        />
+      ),
+      renderProperties: () => <StatsInfoCard data={treeStats} />,
+      renderPermissions: (node) => (
+        <FilePermissions
+          data={{ name: node.name, type: node.type, rights: { user: "", group: "", other: "" } } as SFTP_FILES_LIST}
+        />
+      ),
     }),
-    [socket, tabId, path],
+    [socket, tabId, path, handleTreeCreateFileOrDir, treeStats],
   );
 
   const handleHiddenFilesFilter = () => {
@@ -316,6 +421,17 @@ export function FilePane({
             >
               <div className="flex justify-between items-center p-2 bg-primary/10">
                 <div className="flex items-center space-x-2">
+                  {canGoBack && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={handleGoBack}
+                      title="Go back"
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                  )}
                   <span className="font-semibold">{title}</span>
                   <PathBreadcrumb
                     handleSetCurrentDir={handleSetCurrentDir}

@@ -39,9 +39,7 @@ export function FilePermissions({ data }: { data: SFTP_FILES_LIST }) {
   
 
   return (
-    <div className="   flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="w-full p-8 max-w-md bg-[#1c1e26] rounded-lg shadow-xl animate-in slide-in-from-bottom-4 duration-300">
-
+    <div className="p-4 animate-in fade-in duration-200">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold">{
             data.type === "d" ? "Folder" : "File"
@@ -109,7 +107,6 @@ export function FilePermissions({ data }: { data: SFTP_FILES_LIST }) {
               </div>
             </div>
           </div>
-      </div>
     </div>
   );
 }

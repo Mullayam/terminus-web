@@ -519,38 +519,48 @@ export function FileList({
       {
         accessorKey: "modifyTime",
         header: "Modified",
-        cell: ({ row }) => (
-          <TooltipProvider delayDuration={300}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="text-muted-foreground">
-                  {new Date(row.getValue("modifyTime")).toLocaleDateString()}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs">
-                {new Date(row.getValue("modifyTime")).toLocaleString()}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        ),
+        cell: ({ row }) => {
+          const raw = row.getValue("modifyTime");
+          const ts = typeof raw === "string" ? Date.parse(raw) : Number(raw);
+          const d = new Date(isNaN(ts) ? 0 : ts);
+          return (
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-muted-foreground">
+                    {d.toLocaleString()}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  {d.toLocaleString()}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
+        },
       },
       {
         accessorKey: "accessTime",
         header: "Accessed",
-        cell: ({ row }) => (
-          <TooltipProvider delayDuration={300}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="text-muted-foreground">
-                  {new Date(row.getValue("accessTime")).toLocaleDateString()}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs">
-                {new Date(row.getValue("accessTime")).toLocaleString()}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        ),
+        cell: ({ row }) => {
+          const raw = row.getValue("accessTime");
+          const ts = typeof raw === "string" ? Date.parse(raw) : Number(raw);
+          const d = new Date(isNaN(ts) ? 0 : ts);
+          return (
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-muted-foreground">
+                    {d.toLocaleString()}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  {d.toLocaleString()}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
+        },
       },
       {
         accessorKey: "rights",
