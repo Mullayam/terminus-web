@@ -20,7 +20,7 @@ const navItems = [
     },
     {
         title: "More",
-        url: "https://github.com/Mullayam/terminus-web",
+        url: "https://github.com/Mullayam",
         icon: Settings2,
         external: true,
     },
