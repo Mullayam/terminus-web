@@ -3,12 +3,25 @@ import { SFTP_FILES_LIST } from "./interface";
 import FileIcon from "@/components/FileIcon";
 import {
   ChevronRight,
+  Download,
+  ExternalLink,
+  Eye,
+  FilePlus2,
+  FolderInput,
+  FolderPlus,
   FolderTree,
+  Info,
   PanelLeftClose,
   PanelLeftOpen,
+  Pencil,
+  RefreshCw,
+  ShieldCheck,
+  Trash2,
+  Type,
 } from "lucide-react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { ContextModal } from "@/components/ui/context-modal";
 
 /* ─── Tree data model ─── */
 export interface TreeNode {
@@ -19,6 +32,32 @@ export interface TreeNode {
   isLoaded: boolean; // true once we've fetched this dir's contents
 }
 
+export interface TreeContextActions {
+  onEdit?: (fullPath: string, name: string, isDir: boolean) => void;
+  onEditNewTab?: (fullPath: string, name: string) => void;
+  onEditWithEditor?: (fullPath: string, name: string) => void;
+  onPreview?: (fullPath: string, name: string) => void;
+  onRename?: (node: TreeNode) => void;
+  onMove?: (node: TreeNode) => void;
+  onDelete?: (node: TreeNode) => void;
+  onRefresh?: () => void;
+  onDownload?: (node: TreeNode) => void;
+  onProperties?: (fullPath: string) => void;
+  onPermissions?: (node: TreeNode) => void;
+  onNewFile?: (node: TreeNode) => void;
+  onNewFolder?: (node: TreeNode) => void;
+  /** Render custom content for context items that need dialogs */
+  renderEdit?: (fullPath: string, name: string) => React.ReactNode;
+  renderRename?: (node: TreeNode) => React.ReactNode;
+  renderMove?: (node: TreeNode) => React.ReactNode;
+  renderDelete?: (node: TreeNode) => React.ReactNode;
+  renderNewFile?: (node: TreeNode) => React.ReactNode;
+  renderNewFolder?: (node: TreeNode) => React.ReactNode;
+  renderProperties?: () => React.ReactNode;
+  renderPermissions?: (node: TreeNode) => React.ReactNode;
+  isPreviewable?: (name: string) => boolean;
+}
+
 interface SftpFileTreeProps {
   currentDir: string;
   files: Partial<SFTP_FILES_LIST>[];
@@ -26,6 +65,7 @@ interface SftpFileTreeProps {
   collapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
   showHiddenFiles?: boolean;
+  contextActions?: TreeContextActions;
 }
 
 /* ─── Helpers ─── */
@@ -65,6 +105,118 @@ function ensurePath(root: TreeNode, absPath: string): TreeNode {
   return cursor;
 }
 
+/* ─── Build context menu items for a node ─── */
+function buildContextItems(node: TreeNode, actions?: TreeContextActions) {
+  if (!actions) return [];
+
+  const isDir = node.type === "d";
+  const items: any[] = [];
+
+  // Edit
+  items.push({
+    label: "Edit",
+    icon: <Pencil className="w-4 h-4" />,
+    disabled: isDir,
+    content: !isDir
+      ? actions.renderEdit?.(node.fullPath, node.name)
+      : undefined,
+  });
+
+  // Edit in New Tab
+  items.push({
+    label: "Edit in New Tab",
+    icon: <ExternalLink className="w-4 h-4" />,
+    disabled: isDir,
+    action: () => actions.onEditNewTab?.(node.fullPath, node.name),
+  });
+
+  // Edit with Editor
+  items.push({
+    label: "Edit with Editor",
+    icon: <ExternalLink className="w-4 h-4" />,
+    disabled: isDir,
+    action: () => actions.onEditWithEditor?.(node.fullPath, node.name),
+  });
+
+  // Preview
+  items.push({
+    label: "Preview",
+    icon: <Eye className="w-4 h-4" />,
+    disabled: isDir || !actions.isPreviewable?.(node.name),
+    action: () => actions.onPreview?.(node.fullPath, node.name),
+  });
+
+  // Refresh
+  items.push({
+    label: "Refresh",
+    icon: <RefreshCw className="w-4 h-4" />,
+    action: () => actions.onRefresh?.(),
+    separator: true,
+  });
+
+  // Rename
+  items.push({
+    label: "Rename",
+    icon: <Type className="w-4 h-4" />,
+    content: actions.renderRename?.(node),
+  });
+
+  // Move
+  items.push({
+    label: "Move",
+    icon: <FolderInput className="w-4 h-4" />,
+    content: actions.renderMove?.(node),
+  });
+
+  // Delete
+  items.push({
+    label: "Delete",
+    icon: <Trash2 className="w-4 h-4 text-red-400" />,
+    content: actions.renderDelete?.(node),
+    separator: true,
+  });
+
+  // New File
+  items.push({
+    label: "New File",
+    icon: <FilePlus2 className="w-4 h-4" />,
+    content: actions.renderNewFile?.(node),
+  });
+
+  // New Folder
+  items.push({
+    label: "New Folder",
+    icon: <FolderPlus className="w-4 h-4" />,
+    content: actions.renderNewFolder?.(node),
+    separator: true,
+  });
+
+  // Download
+  items.push({
+    label: "Download",
+    icon: <Download className="w-4 h-4" />,
+    action: () => actions.onDownload?.(node),
+    separator: true,
+  });
+
+  // Properties
+  items.push({
+    label: "Properties",
+    icon: <Info className="w-4 h-4" />,
+    action: () => actions.onProperties?.(node.fullPath),
+    content: actions.renderProperties?.(),
+  });
+
+  // Permissions
+  items.push({
+    label: "Check Permissions",
+    icon: <ShieldCheck className="w-4 h-4" />,
+    content: actions.renderPermissions?.(node),
+  });
+
+  return items;
+}
+
 /* ─── Recursive tree item ─── */
 function TreeItem({
   node,
@@ -74,6 +226,8 @@ function TreeItem({
   onToggle,
   onNavigate,
   showHiddenFiles,
+  isLast,
+  contextActions,
 }: {
   node: TreeNode;
   depth: number;
@@ -82,6 +236,8 @@ function TreeItem({
   onToggle: (path: string) => void;
   onNavigate: (path: string) => void;
   showHiddenFiles: boolean;
+  isLast: boolean;
+  contextActions?: TreeContextActions;
 }) {
   const isDir = node.type === "d";
   const isActive = node.fullPath === currentDir;
@@ -103,63 +259,89 @@ function TreeItem({
 
   const handleClick = () => {
     if (isDir) {
-      // If already expanded, just collapse — don't reload
       if (isExpanded) {
         onToggle(node.fullPath);
       } else {
-        // Expanding: toggle open + navigate to load contents
         onToggle(node.fullPath);
         onNavigate(node.fullPath);
       }
     }
   };
 
+  const contextItems = useMemo(
+    () => buildContextItems(node, contextActions),
+    [node, contextActions],
+  );
+
+  const treeItemContent = (
+    <div
+      role="treeitem"
+      aria-expanded={isDir ? isExpanded : undefined}
+      className={cn(
+        "group flex items-center gap-1 py-[3px] pr-2 cursor-pointer text-sm select-none whitespace-nowrap",
+        "hover:bg-muted/50 rounded-sm transition-colors duration-100",
+        isActive && "bg-primary/15 text-primary font-medium",
+      )}
+      style={{ paddingLeft: `${depth * 18 + 8}px` }}
+      onClick={handleClick}
+    >
+      {/* Branch connector: ├── or └── */}
+      {depth > 0 && (
+        <span
+          className="absolute text-border/70 text-[11px] leading-none pointer-events-none select-none"
+          style={{ left: `${(depth - 1) * 18 + 14}px` }}
+          aria-hidden
+        >
+          {isLast ? "└" : "├"}
+        </span>
+      )}
+
+      {/* Chevron */}
+      {isDir ? (
+        <ChevronRight
+          className={cn(
+            "h-3.5 w-3.5 shrink-0 text-muted-foreground/60 transition-transform duration-150",
+            isExpanded && "rotate-90",
+          )}
+        />
+      ) : (
+        <span className="w-3.5 shrink-0" />
+      )}
+
+      {/* Icon */}
+      <FileIcon
+        name={node.name}
+        isDirectory={isDir}
+        isOpen={isDir && isExpanded}
+        size={15}
+      />
+
+      {/* Name */}
+      <span className="truncate text-[13px]">{node.name}</span>
+    </div>
+  );
+
   return (
     <>
-      <div
-        role="treeitem"
-        aria-expanded={isDir ? isExpanded : undefined}
-        className={cn(
-          "flex items-center gap-1 py-[3px] pr-2 cursor-pointer text-sm select-none whitespace-nowrap",
-          "hover:bg-muted/50 rounded-sm transition-colors duration-100",
-          isActive && "bg-primary/15 text-primary font-medium",
-        )}
-        style={{ paddingLeft: `${depth * 16 + 8}px` }}
-        onClick={handleClick}
-      >
-        {/* Chevron */}
-        {isDir ? (
-          <ChevronRight
-            className={cn(
-              "h-3.5 w-3.5 shrink-0 text-muted-foreground/60 transition-transform duration-150",
-              isExpanded && "rotate-90",
-            )}
-          />
-        ) : (
-          <span className="w-3.5 shrink-0" />
-        )}
-
-        {/* Icon */}
-        <FileIcon
-          name={node.name}
-          isDirectory={isDir}
-          isOpen={isDir && isExpanded}
-          size={15}
+      {contextActions ? (
+        <ContextModal
+          trigger={treeItemContent}
+          title={node.name}
+          contextItems={contextItems}
         />
+      ) : (
+        treeItemContent
+      )}
 
-        {/* Name */}
-        <span className="truncate text-[13px]">{node.name}</span>
-      </div>
-
-      {/* Children with indent guide line */}
+      {/* Children with indent guide lines */}
       {isDir && isExpanded && hasChildren && (
         <div role="group" className="relative">
-          {/* Vertical indent guide line */}
+          {/* Vertical indent guide line — like Facebook comments */}
           <div
-            className="absolute top-0 bottom-0 border-l border-border/40"
-            style={{ left: `${depth * 16 + 16}px` }}
+            className="absolute top-0 bottom-0 border-l-2 border-border/30 hover:border-primary/30 transition-colors"
+            style={{ left: `${depth * 18 + 14}px` }}
           />
-          {sortedChildren.map((child) => (
+          {sortedChildren.map((child, idx) => (
             <TreeItem
               key={child.fullPath}
               node={child}
@@ -169,6 +351,8 @@ function TreeItem({
               onToggle={onToggle}
               onNavigate={onNavigate}
               showHiddenFiles={showHiddenFiles}
+              isLast={idx === sortedChildren.length - 1}
+              contextActions={contextActions}
             />
           ))}
         </div>
@@ -185,6 +369,7 @@ export function SftpFileTree({
   collapsed = false,
   onCollapsedChange,
   showHiddenFiles = false,
+  contextActions,
 }: SftpFileTreeProps) {
   // Root of the accumulated tree
   const [root, setRoot] = useState<TreeNode>(() => ({
@@ -338,7 +523,7 @@ export function SftpFileTree({
       <ScrollArea className="flex-1">
         <div role="tree" className="py-1 min-w-max">
           {sortedRootChildren.length > 0 ? (
-            sortedRootChildren.map((child) => (
+            sortedRootChildren.map((child, idx) => (
               <TreeItem
                 key={child.fullPath}
                 node={child}
@@ -348,6 +533,8 @@ export function SftpFileTree({
                 onToggle={handleToggle}
                 onNavigate={onNavigate}
                 showHiddenFiles={showHiddenFiles}
+                isLast={idx === sortedRootChildren.length - 1}
+                contextActions={contextActions}
               />
             ))
           ) : (

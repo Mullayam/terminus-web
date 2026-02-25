@@ -10,7 +10,7 @@ import {
   Upload,
 } from "lucide-react";
 import { FileList } from "./FileList";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { SFTP_FILES_LIST } from "./interface";
 
 import { ApiCore } from "@/lib/api";
@@ -30,7 +30,7 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from "@/components/ui/resizable";
-import { SftpFileTree } from "./SftpFileTree";
+import { SftpFileTree, TreeContextActions } from "./SftpFileTree";
 
 export function FilePane({
   title,
@@ -42,7 +42,7 @@ export function FilePane({
   hasError,
 }: any) {
   const splitedPath = path.split("/") as string[];
-  const { socket } = useSFTPContext();
+  const { socket, tabId } = useSFTPContext();
   const sftpStore = useSFTPStore((state) => state);
   const [filteredFiles, setFilteredFiles] = useState(files);
   const [dragOver, setDragOver] = useState(false);
@@ -57,6 +57,95 @@ export function FilePane({
   const [fileUploadProgress, setFileUploadProgress] =
     useState<DownloadProgressType | null>(null);
   const [treeCollapsed, setTreeCollapsed] = useState(false);
+
+  const treeContextActions = useMemo<TreeContextActions>(
+    () => ({
+      onEditNewTab: (fullPath) => {
+        window.open(
+          `/ssh/sftp/edit?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? "")}`,
+          "_blank",
+        );
+      },
+      onEditWithEditor: (fullPath) => {
+        window.open(
+          `/ssh/sftp/editor?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? "")}`,
+          "_blank",
+        );
+      },
+      onPreview: (fullPath) => {
+        window.open(
+          `/ssh/sftp/preview?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? "")}`,
+          "_blank",
+        );
+      },
+      onRefresh: () => {
+        socket?.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: path });
+      },
+      onDownload: async (node) => {
+        try {
+          const response = await ApiCore.download({
+            remotePath: node.fullPath,
+            type: node.type === "d" ? "dir" : "file",
+            name: node.name,
+          });
+          if (!response.ok) throw new Error("Failed to download");
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.setAttribute("download", node.name);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        } catch (error: any) {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: error.message,
+            duration: 2000,
+          });
+        }
+      },
+      onProperties: (fullPath) => {
+        socket?.emit(SocketEventConstants.SFTP_FILE_STATS, { path: fullPath });
+      },
+      onDelete: (node) => {
+        if (node.type === "d") {
+          socket?.emit(SocketEventConstants.SFTP_DELETE_DIR, {
+            path: node.fullPath,
+          });
+        } else {
+          socket?.emit(SocketEventConstants.SFTP_DELETE_FILE, {
+            path: node.fullPath,
+          });
+        }
+        socket?.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: path });
+      },
+      isPreviewable: (name) => {
+        const ext = name.includes(".")
+          ? name.split(".").pop()?.toLowerCase()
+          : "";
+        return [
+          "jpg",
+          "jpeg",
+          "png",
+          "gif",
+          "svg",
+          "webp",
+          "bmp",
+          "ico",
+          "mp4",
+          "webm",
+          "mp3",
+          "wav",
+          "ogg",
+          "pdf",
+        ].includes(ext || "");
+      },
+    }),
+    [socket, tabId, path],
+  );
 
   const handleHiddenFilesFilter = () => {
     setShowHiddenFiles(!showHiddenFiles);
@@ -211,6 +300,7 @@ export function FilePane({
               collapsed={treeCollapsed}
               onCollapsedChange={setTreeCollapsed}
               showHiddenFiles={showHiddenFiles}
+              contextActions={treeContextActions}
             />
           </ResizablePanel>
 
