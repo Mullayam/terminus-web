@@ -210,6 +210,7 @@ export function FilePane({
               onNavigate={(dirPath) => handleSetCurrentDir(dirPath)}
               collapsed={treeCollapsed}
               onCollapsedChange={setTreeCollapsed}
+              showHiddenFiles={showHiddenFiles}
             />
           </ResizablePanel>
 
