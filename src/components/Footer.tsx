@@ -1,3 +1,4 @@
+import { Link } from "lucide-react";
 
 export const Footer = () => {
   return (
@@ -18,15 +19,13 @@ export const Footer = () => {
         <div className="flex flex-col gap-2">
           <h3 className="font-bold text-lg">Follow US</h3>
           <div>
-            <a
-              rel="noreferrer noopener"
-              href="#"
+            <Link
+              to="https://github.com/enjoys-dev/terminus-web"
               className="opacity-60 hover:opacity-100"
             >
               Github
-            </a>
+            </Link>
           </div>
-        
         </div>
 
         <div className="flex flex-col gap-2">
@@ -38,26 +37,6 @@ export const Footer = () => {
               className="opacity-60 hover:opacity-100"
             >
               Web
-            </a>
-          </div>
-
-          <div>
-            <a
-              rel="noreferrer noopener"
-              href="#"
-              className="opacity-60 hover:opacity-100"
-            >
-              Mobile
-            </a>
-          </div>
-
-          <div>
-            <a
-              rel="noreferrer noopener"
-              href="#"
-              className="opacity-60 hover:opacity-100"
-            >
-              Desktop
             </a>
           </div>
         </div>
@@ -96,7 +75,7 @@ export const Footer = () => {
         </div> */}
 
         <div className="flex flex-col gap-2">
-          <h3 className="font-bold text-lg">Community</h3>        
+          <h3 className="font-bold text-lg">Community</h3>
           <div>
             <a
               rel="noreferrer noopener"
@@ -106,19 +85,14 @@ export const Footer = () => {
               Discord
             </a>
           </div>
-
-         
         </div>
       </section>
 
       <section className="container pb-14 text-center">
         <h3>
-          &copy; {new Date().getFullYear()} Crafted & Powered by {" "}
-          <span
-           
-            className="text-primary transition-all border-primary hover:border-b-2"
-          >
-           Team Ionix | Enjoys
+          &copy; {new Date().getFullYear()} Crafted & Powered by{" "}
+          <span className="text-primary transition-all border-primary hover:border-b-2">
+            Enjoys - Mulayam
           </span>
         </h3>
       </section>
