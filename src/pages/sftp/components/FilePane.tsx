@@ -198,7 +198,7 @@ export function FilePane({
           {/* ── Left: File Tree Sidebar ── */}
           <ResizablePanel
             defaultSize={treeCollapsed ? 3 : 20}
-            minSize={3}
+            minSize={15}
             maxSize={40}
             collapsible
             onCollapse={() => setTreeCollapsed(true)}
