@@ -9,6 +9,7 @@
  */
 import React, { useState, useEffect } from "react";
 import type * as monacoNs from "monaco-editor";
+import { Terminal } from "lucide-react";
 import { getEnabledExtensions } from "../lib/extensionStorage";
 import type { ExtStatusBarItem } from "../lib/extensionStorage";
 
@@ -41,6 +42,12 @@ export interface ExtensionStatusBarProps {
   extraItems?: StatusBarItemDef[];
   /** Extra CSS class for the bar */
   className?: string;
+  /** Whether terminal integration is enabled */
+  enableTerminal?: boolean;
+  /** Whether terminal panel is currently open */
+  terminalOpen?: boolean;
+  /** Toggle the terminal panel */
+  onTerminalToggle?: () => void;
 }
 
 export interface StatusBarItemDef {
@@ -86,6 +93,9 @@ export const ExtensionStatusBar: React.FC<ExtensionStatusBarProps> = ({
   insertSpaces = true,
   extraItems = [],
   className = "",
+  enableTerminal = false,
+  terminalOpen = false,
+  onTerminalToggle,
 }) => {
   const [extItems, setExtItems] = useState<StatusBarItemDef[]>([]);
 
@@ -179,6 +189,22 @@ export const ExtensionStatusBar: React.FC<ExtensionStatusBarProps> = ({
         <span className="shrink-0 opacity-70">
           {lineCount} lines · {charCount.toLocaleString()} chars
         </span>
+
+        {/* Terminal toggle button */}
+        {enableTerminal && onTerminalToggle && (
+          <button
+            onClick={onTerminalToggle}
+            title={terminalOpen ? "Hide Terminal (Ctrl+`)" : "Show Terminal (Ctrl+`)"}
+            className={`flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors shrink-0 ${
+              terminalOpen
+                ? "bg-white/20 text-white"
+                : "hover:bg-white/15 text-white/70"
+            }`}
+          >
+            <Terminal className="w-3 h-3" />
+            <span className="text-[11px]">Terminal</span>
+          </button>
+        )}
       </div>
     </div>
   );

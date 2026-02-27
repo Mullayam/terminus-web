@@ -31,9 +31,11 @@ import {
   PanelRightClose,
   Blocks,
   Palette,
+  Settings,
 } from "lucide-react";
 import { ExtensionPanel } from "./ExtensionPanel";
 import { ThemeSidebar } from "./ThemeSidebar";
+import { EditorSettingsPanel, type EditorSettings } from "./EditorSettingsPanel";
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -58,7 +60,7 @@ export interface DocumentSymbolItem {
   children?: DocumentSymbolItem[];
 }
 
-export type SidebarTab = "outline" | "problems" | "info" | "extensions" | "themes";
+export type SidebarTab = "outline" | "problems" | "info" | "extensions" | "themes" | "settings";
 
 export interface EditorRightSidebarProps {
   open: boolean;
@@ -85,6 +87,12 @@ export interface EditorRightSidebarProps {
   extensionCount?: number;
   /** Current active theme ID (for theme sidebar) */
   activeTheme?: string;
+  /** Current editor settings */
+  editorSettings?: EditorSettings;
+  /** Called when editor settings change */
+  onSettingsChange?: (settings: EditorSettings) => void;
+  /** Whether terminal integration is enabled (for settings panel) */
+  enableTerminal?: boolean;
 }
 
 /* ── Activity Bar Tab ──────────────────────────────────────── */
@@ -96,6 +104,9 @@ const TABS: { id: SidebarTab; icon: React.FC<{ className?: string }>; label: str
   { id: "themes", icon: Palette, label: "Themes" },
   { id: "extensions", icon: Blocks, label: "Extensions" },
 ];
+
+/** Settings tab is rendered separately at the bottom of the activity bar */
+const SETTINGS_TAB = { id: "settings" as SidebarTab, icon: Settings, label: "Settings" };
 
 /* ── Symbol icon mapping ───────────────────────────────────── */
 
@@ -193,6 +204,9 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
   onThemeApply,
   extensionCount = 0,
   activeTheme,
+  editorSettings,
+  onSettingsChange,
+  enableTerminal,
 }) => {
   const errorCount = useMemo(
     () => problems.filter((p) => p.severity === 8).length,
@@ -260,15 +274,50 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
             </button>
           );
         })}
+
+        {/* Spacer to push settings to bottom */}
+        <div className="flex-1" />
+
+        {/* Settings button (always at bottom) */}
+        {(() => {
+          const isActive = open && activeTab === SETTINGS_TAB.id;
+          const SettingsIcon = SETTINGS_TAB.icon;
+          return (
+            <button
+              onClick={() => {
+                if (open && activeTab === SETTINGS_TAB.id) {
+                  onToggle();
+                } else {
+                  onTabChange(SETTINGS_TAB.id);
+                  if (!open) onToggle();
+                }
+              }}
+              className={`p-2 rounded-md mb-1 transition-colors ${
+                isActive
+                  ? "text-white bg-[#37373d]"
+                  : "text-gray-500 hover:text-gray-300 hover:bg-[#37373d]"
+              }`}
+              title={SETTINGS_TAB.label}
+            >
+              <SettingsIcon className="w-4 h-4" />
+            </button>
+          );
+        })()}
       </div>
 
-      {/* ── Panel Content ──────────────────────────────────── */}
-      {open && (
-        <div className="w-[260px] bg-[#252526] border-l border-[#3c3c3c] flex flex-col overflow-hidden">
+      {/* ── Panel Content (animated) ───────────────────────── */}
+      <div
+        className={`bg-[#252526] border-l border-[#3c3c3c] flex flex-col transition-all duration-200 ease-in-out ${
+          open ? "w-[260px] opacity-100" : "w-0 opacity-0 pointer-events-none"
+        }`}
+        style={{ overflow: "hidden" }}
+      >
+        {/* Fixed-width inner container prevents content from reflowing during transition */}
+        <div className="w-[260px] flex flex-col h-full">
           {/* Panel Header */}
           <div className="flex items-center gap-2 px-3 py-2 border-b border-[#3c3c3c] shrink-0">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-              {TABS.find((t) => t.id === activeTab)?.label}
+              {[...TABS, SETTINGS_TAB].find((t) => t.id === activeTab)?.label}
             </span>
           </div>
 
@@ -307,9 +356,16 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
                 onThemeApply={onThemeApply}
               />
             )}
+            {activeTab === "settings" && editorSettings && onSettingsChange && (
+              <EditorSettingsPanel
+                settings={editorSettings}
+                onChange={onSettingsChange}
+                enableTerminal={enableTerminal}
+              />
+            )}
           </div>
         </div>
-      )}
+      </div>
 
       {/* Scrollbar styling */}
       <style>{`

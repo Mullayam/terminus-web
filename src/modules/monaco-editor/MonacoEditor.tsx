@@ -75,6 +75,11 @@ import {
 import { VsixDropZone } from "./components/VsixDropZone";
 import { ExtensionStatusBar } from "./components/ExtensionStatusBar";
 import { EditorTerminalPanel } from "./components/EditorTerminalPanel";
+import {
+  type EditorSettings,
+  loadEditorSettings,
+  saveEditorSettings,
+} from "./components/EditorSettingsPanel";
 
 // Disposable context with hidden __dispose
 type DisposableContext = PluginContext & { __dispose: () => void };
@@ -263,7 +268,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
 
   // Sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarTab, setSidebarTab] = useState<"outline" | "problems" | "info" | "extensions" | "themes">("outline");
+  const [sidebarTab, setSidebarTab] = useState<"outline" | "problems" | "info" | "extensions" | "themes" | "settings">("outline");
   const [symbols, setSymbols] = useState<DocumentSymbolItem[]>([]);
   const [problems, setProblems] = useState<monacoNs.editor.IMarkerData[]>([]);
   const [extensionCount, setExtensionCount] = useState(0);
@@ -271,6 +276,9 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   // Internal cursor tracking (for status bar)
   const [cursorLine, setCursorLine] = useState(1);
   const [cursorCol, setCursorCol] = useState(1);
+
+  // Editor settings (persisted to localStorage)
+  const [editorSettings, setEditorSettings] = useState<EditorSettings>(() => loadEditorSettings());
 
   // Detect language from file path if not explicitly set
   const resolvedLanguage = language ?? (filePath ? detectLanguage(filePath) : "plaintext");
@@ -380,6 +388,18 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
           keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
           run: () => {
             onSave(editor.getValue());
+          },
+        });
+      }
+
+      // ── Toggle terminal (Ctrl+`) ──
+      if (enableTerminal) {
+        editor.addAction({
+          id: "terminus-toggle-terminal",
+          label: "Toggle Terminal",
+          keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Backquote],
+          run: () => {
+            setTerminalOpen((o) => !o);
           },
         });
       }
@@ -509,7 +529,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
     },
     [
       onMountProp, onSave, filePath, onNotify, getAllPlugins,
-      customTheme, resolvedLanguage, fileName,
+      customTheme, resolvedLanguage, fileName, enableTerminal,
       enableTextMate, enableSnippets, enableAutoClose,
       enableCopilot, copilotEndpoint,
       enableLSP, lspBaseUrl, documentUri,
@@ -622,23 +642,23 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
     onThemeApply?.(themeId);
   }, [onThemeApply]);
 
-  // ── Merged Monaco options ──
+  // ── Merged Monaco options (settings override props) ──
   const mergedOptions: Record<string, unknown> = {
     readOnly,
-    lineNumbers,
-    wordWrap,
-    fontSize,
+    lineNumbers: editorSettings.lineNumbers,
+    wordWrap: editorSettings.wordWrap,
+    fontSize: editorSettings.fontSize,
     fontFamily,
-    tabSize,
-    minimap: { enabled: minimap },
-    fontLigatures: true,
+    tabSize: editorSettings.tabSize,
+    minimap: { enabled: editorSettings.minimap },
+    fontLigatures: editorSettings.fontLigatures,
     smoothScrolling: true,
-    cursorBlinking: "smooth",
+    cursorBlinking: editorSettings.cursorBlinking,
     cursorSmoothCaretAnimation: "on",
     padding: { top: 12, bottom: 12 },
     scrollBeyondLastLine: false,
     automaticLayout: true,
-    bracketPairColorization: { enabled: true },
+    bracketPairColorization: { enabled: editorSettings.bracketPairColorization },
     guides: {
       bracketPairs: true,
       indentation: true,
@@ -649,9 +669,9 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
     autoSurround: "languageDefined",
     formatOnPaste: true,
     linkedEditing: true,
-    mouseWheelZoom: true,
-    stickyScroll: { enabled: true },
-    renderWhitespace: "selection",
+    mouseWheelZoom: editorSettings.mouseWheelZoom,
+    stickyScroll: { enabled: editorSettings.stickyScroll },
+    renderWhitespace: editorSettings.renderWhitespace,
     ...options,
   };
 
@@ -674,6 +694,35 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   const handleTerminalToggle = useCallback(() => {
     setTerminalOpen((o) => !o);
   }, []);
+
+  // ── Settings change handler ──
+  const handleSettingsChange = useCallback((newSettings: EditorSettings) => {
+    setEditorSettings(newSettings);
+    saveEditorSettings(newSettings);
+
+    // Apply Monaco editor options in real-time
+    const editor = editorRef.current;
+    if (editor) {
+      editor.updateOptions({
+        fontSize: newSettings.fontSize,
+        tabSize: newSettings.tabSize,
+        wordWrap: newSettings.wordWrap,
+        lineNumbers: newSettings.lineNumbers,
+        minimap: { enabled: newSettings.minimap },
+        stickyScroll: { enabled: newSettings.stickyScroll },
+        bracketPairColorization: { enabled: newSettings.bracketPairColorization },
+        cursorBlinking: newSettings.cursorBlinking,
+        renderWhitespace: newSettings.renderWhitespace,
+        fontLigatures: newSettings.fontLigatures,
+        mouseWheelZoom: newSettings.mouseWheelZoom,
+      });
+    }
+
+    // Handle panel toggles
+    if (newSettings.showTerminal !== editorSettings.showTerminal) {
+      setTerminalOpen(newSettings.showTerminal);
+    }
+  }, [editorSettings.showTerminal]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height, width }} className="monaco-editor-wrapper">
@@ -751,6 +800,9 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
             editor={editorRef.current}
             onThemeApply={handleThemeApply}
             extensionCount={extensionCount}
+            editorSettings={editorSettings}
+            onSettingsChange={handleSettingsChange}
+            enableTerminal={enableTerminal}
           />
         )}
       </div>
@@ -765,15 +817,9 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
           cwd={terminalCwd}
         />
       )}
-  <EditorTerminalPanel
-          open={terminalOpen}
-          onToggle={handleTerminalToggle}
-          terminalUrl={terminalUrl}
-          sessionId={terminalSessionId}
-          cwd={terminalCwd}
-        />
+  
       {/* Extension-contributed status bar */}
-      {showStatusBar && (
+      {(showStatusBar || editorSettings.showStatusBar) && (
         <ExtensionStatusBar
           monaco={monacoRef.current}
           editor={editorRef.current}
@@ -782,9 +828,12 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
           cursorCol={cursorCol}
           lineCount={lineCount}
           charCount={charCount}
-          wordWrap={wordWrap}
-          tabSize={tabSize}
+          wordWrap={editorSettings.wordWrap}
+          tabSize={editorSettings.tabSize}
           extraItems={statusBarItems}
+          enableTerminal={enableTerminal}
+          terminalOpen={terminalOpen}
+          onTerminalToggle={handleTerminalToggle}
         />
       )}
     </div>
