@@ -1,0 +1,71 @@
+{
+  "Console Log": {
+    "prefix": ["log", "cl"],
+    "body": ["console.log('$1');", "$0"],
+    "description": "Log output to console"
+  },
+  "Console Error": {
+    "prefix": ["error", "ce"],
+    "body": ["console.error('$1');", "$0"],
+    "description": "Log error to console"
+  },
+  "Console Warn": {
+    "prefix": ["warn", "cw"],
+    "body": ["console.warn('$1');", "$0"],
+    "description": "Log warning to console"
+  },
+  "Arrow Function": {
+    "prefix": ["af", "arrow"],
+    "body": ["const ${1:name} = (${2:params}) => {", "\t$0", "};"],
+    "description": "Arrow function"
+  },
+  "Async Arrow Function": {
+    "prefix": ["aaf", "asyncarrow"],
+    "body": ["const ${1:name} = async (${2:params}) => {", "\t$0", "};"],
+    "description": "Async arrow function"
+  },
+  "Try Catch": {
+    "prefix": ["tc", "trycatch"],
+    "body": ["try {", "\t$1", "} catch (${2:error}) {", "\t$0", "}"],
+    "description": "Try-catch block"
+  },
+  "Import": {
+    "prefix": "imp",
+    "body": ["import ${2:module} from '${1:path}';"],
+    "description": "Import module"
+  },
+  "Import Destructure": {
+    "prefix": "imd",
+    "body": ["import { $2 } from '${1:path}';"],
+    "description": "Import destructured"
+  },
+  "Export Default": {
+    "prefix": "expd",
+    "body": ["export default $0;"],
+    "description": "Export default"
+  },
+  "For Of Loop": {
+    "prefix": "forof",
+    "body": ["for (const ${1:item} of ${2:iterable}) {", "\t$0", "}"],
+    "description": "For...of loop"
+  },
+  "Promise": {
+    "prefix": "prom",
+    "body": ["new Promise((resolve, reject) => {", "\t$0", "});"],
+    "description": "Create a Promise"
+  },
+  "Set Timeout": {
+    "prefix": "sto",
+    "body": ["setTimeout(() => {", "\t$0", "}, ${1:1000});"],
+    "description": "setTimeout"
+  },
+  "Fetch": {
+    "prefix": "fetch",
+    "body": [
+      "const response = await fetch('${1:url}');",
+      "const data = await response.json();",
+      "$0"
+    ],
+    "description": "Fetch API call"
+  }
+}

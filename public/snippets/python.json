@@ -1,0 +1,67 @@
+{
+  "Print": {
+    "prefix": ["print", "pp"],
+    "body": ["print(${1:'$2'})$0"],
+    "description": "Print to stdout"
+  },
+  "Function": {
+    "prefix": ["def", "func"],
+    "body": ["def ${1:name}(${2:params}):", "\t${3:\"\"\"${4:Docstring.}\"\"\"}", "\t$0"],
+    "description": "Function definition"
+  },
+  "Async Function": {
+    "prefix": ["adef", "asyncdef"],
+    "body": ["async def ${1:name}(${2:params}):", "\t$0"],
+    "description": "Async function definition"
+  },
+  "Class": {
+    "prefix": ["class", "cls"],
+    "body": ["class ${1:Name}:", "\tdef __init__(self${2:, args}):", "\t\t${3:self.${4:attr} = ${4:attr}}", "\t\t$0"],
+    "description": "Class definition"
+  },
+  "If __name__": {
+    "prefix": "main",
+    "body": ["if __name__ == '__main__':", "\t${1:main()}$0"],
+    "description": "if __name__ == '__main__'"
+  },
+  "Try Except": {
+    "prefix": ["try", "te"],
+    "body": ["try:", "\t$1", "except ${2:Exception} as ${3:e}:", "\t$0"],
+    "description": "Try-except block"
+  },
+  "List Comprehension": {
+    "prefix": "lc",
+    "body": ["[${1:expr} for ${2:item} in ${3:iterable}]$0"],
+    "description": "List comprehension"
+  },
+  "Dict Comprehension": {
+    "prefix": "dc",
+    "body": ["{${1:key}: ${2:value} for ${3:item} in ${4:iterable}}$0"],
+    "description": "Dict comprehension"
+  },
+  "With Statement": {
+    "prefix": "with",
+    "body": ["with ${1:open('${2:file}')} as ${3:f}:", "\t$0"],
+    "description": "With context manager"
+  },
+  "Import": {
+    "prefix": "imp",
+    "body": ["import ${1:module}"],
+    "description": "Import module"
+  },
+  "From Import": {
+    "prefix": "fimp",
+    "body": ["from ${1:module} import ${2:name}"],
+    "description": "From import"
+  },
+  "Dataclass": {
+    "prefix": "dc",
+    "body": [
+      "@dataclass",
+      "class ${1:Name}:",
+      "\t${2:field}: ${3:str}",
+      "\t$0"
+    ],
+    "description": "Dataclass"
+  }
+}

@@ -49,6 +49,7 @@ import {
 import { DeleteFolderDialog } from "./DeleteDialog";
 import { NewFolderDialog } from "./NewDialog";
 import { useSFTPContext } from "../sftp-context";
+import { useSFTPStore } from "@/store/sftpStore";
 import { ContextModal } from "@/components/ui/context-modal";
 import { FilePermissions } from "./edit-permission";
 import { StatsInfoCard } from "./StatsInfoCards";
@@ -56,7 +57,7 @@ import { FileEditor } from "./FileEditor";
 import { ApiCore } from "@/lib/api";
 import { useDialogState, useLoadingState } from "@/store";
 import { isPreviewable } from "./MediaPreviewPage";
-export type FileOperations = "file" | "folder" | "rename" | "move";
+export type FileOperations = "file" | "folder" | "rename" | "move" | "copy";
 
 export interface RootObject {
   mode: number;
@@ -427,6 +428,8 @@ export function FileList({
 }) {
   const { toast } = useToast();
   const { socket, tabId } = useSFTPContext();
+  const sftpStore = useSFTPStore();
+  const homeDir = sftpStore.sessions[sftpStore.activeTabId as any]?.homeDir || '/';
   const [rowSelection, setRowSelection] = useState({});
   const { setLoading } = useLoadingState();
   const [stats, setStats] = useState<null | RootObject>(null);
@@ -709,7 +712,7 @@ export function FileList({
         filePath: fullPath,
       });
     } else if (type === "folder") {
-      socket?.emit(SocketEventConstants.SFTP_DELETE_DIR, {
+      socket?.emit(SocketEventConstants.SFTP_CREATE_DIR, {
         folderPath: fullPath,
       });
     } else if (type === "move") {
@@ -725,215 +728,234 @@ export function FileList({
     }
     handleRefreshSftp();
   };
+  /*************  ✨ Windsurf Command 🌟  *************/
+  const handleCopy = (sourcePath: string, destinationPath: string) => {
+
+    if (sourcePath === destinationPath) {
+      const sourceFileName = sourcePath.split("/").pop();
+      
+      const fileNameWithoutExtension = sourceFileName?.split(".").shift();
+      const fileExtension = sourceFileName?.split(".").pop();
+      destinationPath = `${destinationPath}/${fileNameWithoutExtension}-copy.${fileExtension}`;
+
+      socket?.emit(SocketEventConstants.SFTP_COPY_FILE, {
+        currentPath: sourcePath,
+        destinationPath: destinationPath,
+      });
+      handleRefreshSftp();
+    }
+  };
 
   useEffect(() => {
-    const onStats = (data: RootObject) => setStats(data);
-    socket?.on(SocketEventConstants.SFTP_FILE_STATS, onStats);
-    document.addEventListener("keydown", handleKeydown);
-    return () => {
-      socket?.off(SocketEventConstants.SFTP_FILE_STATS, onStats);
-      document.removeEventListener("keydown", handleKeydown);
-    };
-  }, [socket]);
-  return (
-    <div className="w-full">
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
+      const onStats = (data: RootObject) => setStats(data);
+      socket?.on(SocketEventConstants.SFTP_FILE_STATS, onStats);
+      document.addEventListener("keydown", handleKeydown);
+      return () => {
+        socket?.off(SocketEventConstants.SFTP_FILE_STATS, onStats);
+        document.removeEventListener("keydown", handleKeydown);
+      };
+    }, [socket]);
+    return (
+      <div className="w-full">
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => {
+                    return (
+                      <TableHead key={header.id}>
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
                             header.column.columnDef.header,
                             header.getContext(),
                           )}
-                    </TableHead>
-                  );
-                })}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getCoreRowModel().rows?.length ? (
-              table.getCoreRowModel().rows.map((row: any, index) => (
-                <TableRow
-                  key={index}
-                  data-state={row.getIsSelected() && "selected"}
-                >
-                  {row.getVisibleCells().map((cell: any) => (
-                    <ContextModal
-                      key={cell.id}
-                      trigger={
-                        <TableCell key={cell.id}>
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )}
-                        </TableCell>
-                      }
-                      title={row.getValue("name")}
-                      contextItems={[
-                        {
-                          label: "Edit",
-                          icon: <Pencil className="w-4 h-4" />,
-                          disabled: row.original.type === "d",
-                          content:
-                            row.original.type !== "d" ? (
-                              <FileEditor
-                                filePath={`${currentDir}/${row.getValue("name")}`}
-                                fileName={row.getValue("name")}
-                                socket={socket}
-                              />
-                            ) : undefined,
-                        },
-                        {
-                          label: "Edit in New Tab",
-                          icon: <ExternalLink className="w-4 h-4" />,
-                          disabled: row.original.type === "d",
-                          action: () => {
-                            const fullPath = `${currentDir}/${row.getValue("name")}`;
-                            window.open(
-                              `/ssh/sftp/edit?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? "")}`,
-                              "_blank",
-                            );
-                          },
-                        },
-                        {
-                          label: "Edit with Editor",
-                          icon: <ExternalLink className="w-4 h-4" />,
-                          disabled: row.original.type === "d",
-                          action: () => {
-                            const fullPath = `${currentDir}/${row.getValue("name")}`;
-                            window.open(
-                              `/ssh/sftp/editor?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? "")}`,
-                              "_blank",
-                            );
-                          },
-                        },
-                        {
-                          label: "Preview",
-                          icon: <Eye className="w-4 h-4" />,
-                          disabled:
-                            row.original.type === "d" ||
-                            !isPreviewable(row.getValue("name")),
-                          action: () => {
-                            const fullPath = `${currentDir}/${row.getValue("name")}`;
-                            window.open(
-                              `/ssh/sftp/preview?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? "")}`,
-                              "_blank",
-                            );
-                          },
-                        },
-                        {
-                          label: "Refresh",
-                          icon: <RefreshCw className="w-4 h-4" />,
-                          action: () =>
-                            handleContextClickAction("refresh", row.original),
-                          separator: true,
-                        },
-                        {
-                          label: "Rename",
-                          icon: <Type className="w-4 h-4" />,
-                          content: (
-                            <NewFolderDialog
-                              type="rename"
-                              data={row.original}
-                              onClick={handleCreateFileOrDir}
-                            />
-                          ),
-                        },
-                        {
-                          label: "Move",
-                          icon: <FolderInput className="w-4 h-4" />,
-                          content: (
-                            <NewFolderDialog
-                              type="move"
-                              data={row.original}
-                              onClick={handleCreateFileOrDir}
-                            />
-                          ),
-                        },
-                        {
-                          label: "Delete",
-                          icon: <Trash2 className="w-4 h-4 text-red-400" />,
-                          content: (
-                            <DeleteFolderDialog
-                              folderName={row.getValue("name")}
-                              type={row.original.type}
-                              onDelete={() =>
-                                handleContextClickAction("delete", row.original)
-                              }
-                            />
-                          ),
-                          separator: true,
-                        },
-                        {
-                          label: "New File",
-                          icon: <FilePlus2 className="w-4 h-4" />,
-                          content: (
-                            <NewFolderDialog
-                              type="file"
-                              data={row.original}
-                              onClick={handleCreateFileOrDir}
-                            />
-                          ),
-                        },
-                        {
-                          label: "New Folder",
-                          icon: <FolderPlus className="w-4 h-4" />,
-                          content: (
-                            <NewFolderDialog
-                              type="folder"
-                              data={row.original}
-                              onClick={handleCreateFileOrDir}
-                            />
-                          ),
-                          separator: true,
-                        },
-                        {
-                          label: "Download",
-                          icon: <Download className="w-4 h-4" />,
-                          action: () =>
-                            handleContextClickAction("download", row.original),
-                          separator: true,
-                        },
-                        {
-                          label: "Properties",
-                          icon: <Info className="w-4 h-4" />,
-                          action: () =>
-                            handleContextClickAction(
-                              "properties",
-                              row.original,
-                            ),
-                          content: <StatsInfoCard data={stats} />,
-                        },
-                        {
-                          label: "Check Permissions",
-                          icon: <ShieldCheck className="w-4 h-4" />,
-                          content: <FilePermissions data={row.original} />,
-                        },
-                      ]}
-                    ></ContextModal>
-                  ))}
+                      </TableHead>
+                    );
+                  })}
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
-                  No results.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getCoreRowModel().rows?.length ? (
+                table.getCoreRowModel().rows.map((row: any, index) => (
+                  <TableRow
+                    key={index}
+                    data-state={row.getIsSelected() && "selected"}
+                  >
+                    {row.getVisibleCells().map((cell: any) => (
+                      <ContextModal
+                        key={cell.id}
+                        trigger={
+                          <TableCell key={cell.id}>
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext(),
+                            )}
+                          </TableCell>
+                        }
+                        title={row.getValue("name")}
+                        contextItems={[
+                          {
+                            label: "Edit",
+                            icon: <Pencil className="w-4 h-4" />,
+                            disabled: row.original.type === "d",
+                            content:
+                              row.original.type !== "d" ? (
+                                <FileEditor
+                                  filePath={`${currentDir}/${row.getValue("name")}`}
+                                  fileName={row.getValue("name")}
+                                  socket={socket}
+                                />
+                              ) : undefined,
+                          },
+                          {
+                            label: "Edit in New Tab",
+                            icon: <ExternalLink className="w-4 h-4" />,
+                            disabled: row.original.type === "d",
+                            action: () => {
+                              const fullPath = `${currentDir}/${row.getValue("name")}`;
+                              window.open(
+                                `/ssh/sftp/edit?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? "")}`,
+                                "_blank",
+                              );
+                            },
+                          },
+                          {
+                            label: "Edit with Editor",
+                            icon: <ExternalLink className="w-4 h-4" />,
+                            disabled: row.original.type === "d",
+                            action: () => {
+                              const fullPath = `${currentDir}/${row.getValue("name")}`;
+                              window.open(
+                                `/ssh/sftp/editor?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? "")}`,
+                                "_blank",
+                              );
+                            },
+                          },
+                          {
+                            label: "Preview",
+                            icon: <Eye className="w-4 h-4" />,
+                            disabled:
+                              row.original.type === "d" ||
+                              !isPreviewable(row.getValue("name")),
+                            action: () => {
+                              const fullPath = `${currentDir}/${row.getValue("name")}`;
+                              window.open(
+                                `/ssh/sftp/preview?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? "")}`,
+                                "_blank",
+                              );
+                            },
+                          },
+                          {
+                            label: "Refresh",
+                            icon: <RefreshCw className="w-4 h-4" />,
+                            action: () =>
+                              handleContextClickAction("refresh", row.original),
+                            separator: true,
+                          },
+                          {
+                            label: "Rename",
+                            icon: <Type className="w-4 h-4" />,
+                            content: (
+                              <NewFolderDialog
+                                type="rename"
+                                data={row.original}
+                                onClick={handleCreateFileOrDir}
+                              />
+                            ),
+                          },
+                          {
+                            label: "Move",
+                            icon: <FolderInput className="w-4 h-4" />,
+                            content: (
+                              <NewFolderDialog
+                                type="move"
+                                data={row.original}
+                                currentDir={currentDir}
+                                homeDir={homeDir}
+                                onClick={handleCreateFileOrDir}
+                              />
+                            ),
+                          },
+                          {
+                            label: "Delete",
+                            icon: <Trash2 className="w-4 h-4 text-red-400" />,
+                            content: (
+                              <DeleteFolderDialog
+                                folderName={row.getValue("name")}
+                                type={row.original.type}
+                                onDelete={() =>
+                                  handleContextClickAction("delete", row.original)
+                                }
+                              />
+                            ),
+                            separator: true,
+                          },
+                          {
+                            label: "New File",
+                            icon: <FilePlus2 className="w-4 h-4" />,
+                            content: (
+                              <NewFolderDialog
+                                type="file"
+                                data={row.original}
+                                onClick={handleCreateFileOrDir}
+                              />
+                            ),
+                          },
+                          {
+                            label: "New Folder",
+                            icon: <FolderPlus className="w-4 h-4" />,
+                            content: (
+                              <NewFolderDialog
+                                type="folder"
+                                data={row.original}
+                                onClick={handleCreateFileOrDir}
+                              />
+                            ),
+                            separator: true,
+                          },
+                          {
+                            label: "Download",
+                            icon: <Download className="w-4 h-4" />,
+                            action: () =>
+                              handleContextClickAction("download", row.original),
+                            separator: true,
+                          },
+                          {
+                            label: "Properties",
+                            icon: <Info className="w-4 h-4" />,
+                            action: () =>
+                              handleContextClickAction(
+                                "properties",
+                                row.original,
+                              ),
+                            content: <StatsInfoCard data={stats} />,
+                          },
+                          {
+                            label: "Check Permissions",
+                            icon: <ShieldCheck className="w-4 h-4" />,
+                            content: <FilePermissions data={row.original} />,
+                          },
+                        ]}
+                      ></ContextModal>
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell
+                    colSpan={columns.length}
+                    className="h-24 text-center"
+                  >
+                    No results.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+  }

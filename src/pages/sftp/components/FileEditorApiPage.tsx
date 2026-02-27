@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ApiCore } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -13,30 +13,7 @@ import {
 import { editorThemes, getEditorTheme, getThemeKeys, DEFAULT_THEME_KEY, type EditorTheme } from "./editor-themes";
 import FileIcon from "@/components/FileIcon";
 import Prism from "prismjs";
-import "prismjs/components/prism-c";
-import "prismjs/components/prism-cpp";
-import "prismjs/components/prism-csharp";
-import "prismjs/components/prism-typescript";
-import "prismjs/components/prism-jsx";
-import "prismjs/components/prism-tsx";
-import "prismjs/components/prism-python";
-import "prismjs/components/prism-bash";
-import "prismjs/components/prism-json";
-import "prismjs/components/prism-yaml";
-import "prismjs/components/prism-scss";
-import "prismjs/components/prism-markdown";
-import "prismjs/components/prism-sql";
-import "prismjs/components/prism-go";
-import "prismjs/components/prism-rust";
-import "prismjs/components/prism-java";
-import "prismjs/components/prism-ruby";
-import "prismjs/components/prism-docker";
-import "prismjs/components/prism-toml";
-import "prismjs/components/prism-ini";
-import "prismjs/components/prism-kotlin";
-import "prismjs/components/prism-swift";
-import "prismjs/components/prism-graphql";
-
+import { loadLanguageForFile } from "@/lib/loadPrismLanguage";
 import './prism-vscode-dark.css'
 
 /** Detect language from file extension for the status bar */
@@ -50,28 +27,12 @@ function detectLang(name: string): string {
         json: "JSON", yaml: "YAML", yml: "YAML", toml: "TOML", xml: "XML",
         md: "Markdown", sh: "Shell", bash: "Bash", zsh: "Zsh",
         sql: "SQL", graphql: "GraphQL", dockerfile: "Dockerfile",
+        lua: "Lua", php: "PHP", r: "R", perl: "Perl", pl: "Perl",
         env: "Environment", conf: "Config", ini: "INI", cfg: "Config",
         txt: "Plain Text", log: "Log",
     };
     if (name.toLowerCase() === "dockerfile") return "Dockerfile";
     return map[ext] ?? "Plain Text";
-}
-
-/** Map file extension to Prism.js language identifier */
-function detectPrismLang(name: string): string | null {
-    const ext = name.split(".").pop()?.toLowerCase() ?? "";
-    const map: Record<string, string> = {
-        js: "javascript", jsx: "jsx", ts: "typescript", tsx: "tsx",
-        py: "python", rb: "ruby", go: "go", rs: "rust", java: "java", kt: "kotlin",
-        c: "c", cpp: "cpp", h: "c", cs: "csharp", swift: "swift",
-        html: "markup", htm: "markup", css: "css", scss: "scss", less: "css",
-        json: "json", yaml: "yaml", yml: "yaml", toml: "toml", xml: "markup",
-        md: "markdown", sh: "bash", bash: "bash", zsh: "bash",
-        sql: "sql", graphql: "graphql", dockerfile: "docker",
-        ini: "ini", conf: "ini", cfg: "ini",
-    };
-    if (name.toLowerCase() === "dockerfile") return "docker";
-    return map[ext] ?? null;
 }
 
 /** Escape HTML for safe dangerouslySetInnerHTML fallback */
@@ -161,18 +122,42 @@ export default function FileEditorApiPage() {
     const lineCount = lines.length;
     const lang = detectLang(fileName);
 
-    // ── Syntax highlighting with Prism.js ────────────────────
-    const highlightedHtml = useMemo(() => {
-        if (content.length > HIGHLIGHT_SIZE_LIMIT) return escapeHtml(content);
-        const prismLang = detectPrismLang(fileName);
-        const grammar = prismLang ? Prism.languages[prismLang] : null;
-        if (!grammar) return escapeHtml(content);
-        try {
-            return Prism.highlight(content, grammar, prismLang!);
-        } catch {
-            return escapeHtml(content);
+    // ── Pre-load Prism grammar for current file type ─────────
+    const [grammarInfo, setGrammarInfo] = useState<{ grammar: Prism.Grammar; langId: string } | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+        setGrammarInfo(null);
+
+        loadLanguageForFile(fileName).then(result => {
+            if (cancelled) return;
+            if (result.grammar) {
+                setGrammarInfo({ grammar: result.grammar, langId: result.langId });
+            }
+        });
+
+        return () => { cancelled = true; };
+    }, [fileName]);
+
+    // ── Syntax highlighting (synchronous once grammar is loaded) ──
+    const [highlightedHtml, setHighlightedHtml] = useState(() => escapeHtml(content));
+
+    useEffect(() => {
+        if (!content) { setHighlightedHtml(""); return; }
+        if (content.length > HIGHLIGHT_SIZE_LIMIT) {
+            setHighlightedHtml(escapeHtml(content));
+            return;
         }
-    }, [content, fileName]);
+        if (!grammarInfo) {
+            setHighlightedHtml(escapeHtml(content));
+            return;
+        }
+        try {
+            setHighlightedHtml(Prism.highlight(content, grammarInfo.grammar, grammarInfo.langId));
+        } catch {
+            setHighlightedHtml(escapeHtml(content));
+        }
+    }, [content, grammarInfo]);
 
     // ── Fetch file content via API ────────────────────────────
     const fetchContent = useCallback(async () => {
@@ -186,10 +171,20 @@ export default function FileEditorApiPage() {
         setError(null);
 
         try {
-            const data = await ApiCore.fetchFileContent(sessionId, filePath);
+            // Load grammar + file content in parallel so highlighting
+            // is ready the moment content arrives.
+            const [data, langResult] = await Promise.all([
+                ApiCore.fetchFileContent(sessionId, filePath),
+                loadLanguageForFile(fileName),
+            ]);
 
             if (!data.status) {
                 throw new Error(data.message || "Failed to load file content");
+            }
+
+            // Set grammar first so the highlight effect has it available
+            if (langResult.grammar) {
+                setGrammarInfo({ grammar: langResult.grammar, langId: langResult.langId });
             }
 
             setContent(data.result);
@@ -203,7 +198,7 @@ export default function FileEditorApiPage() {
         } finally {
             setLoading(false);
         }
-    }, [sessionId, filePath]);
+    }, [sessionId, filePath, fileName]);
 
     useEffect(() => {
         fetchContent();

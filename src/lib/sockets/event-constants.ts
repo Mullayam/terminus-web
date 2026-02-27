@@ -1,6 +1,6 @@
 export enum SocketEventConstants {
   ServerClosed = "@@ServerClosed",
-  Error = "@@Error",
+  ServerError = "@@ServerError",
 
   SESSIONN_END = "@@SESSIONN_END",
   CreateTerminal = "@@Create_Terminal",
@@ -10,7 +10,6 @@ export enum SocketEventConstants {
   join_terminal = "@@join_terminal",
   session_not_found = "@@session_not_found",
   session_info = "@@session_info",
-
 
   SSH_START_SESSION = "@@SSH_START_SESSION",
   SSH_SESSION = "@@SSH_SESSION",
@@ -62,6 +61,24 @@ export enum SocketEventConstants {
   CANCEL_DOWNLOADING = "@@CANCEL_DOWNLOADING",
 
   SUCCESS = "@@SUCCESS",
-  ERROR = "@@ERROR"
+  ERROR = "@@ERROR",
 
+  // AI Namespace  (/ai)
+  AI_GENERATE = "@@AI_GENERATE",
+  AI_STREAM = "@@AI_STREAM",
+  AI_RESULT = "@@AI_RESULT",
+  AI_CHUNK = "@@AI_CHUNK",
+  AI_DONE = "@@AI_DONE",
+  AI_ERROR = "@@AI_ERROR",
+
+  // LSP Namespace  (/lsp)
+  LSP_READY = "@@LSP_READY",
+  LSP_ERROR = "@@LSP_ERROR",
+  LSP_OPEN = "@@LSP_OPEN",
+  LSP_CHANGE = "@@LSP_CHANGE",
+  LSP_CLOSE = "@@LSP_CLOSE",
+  LSP_COMPLETE = "@@LSP_COMPLETE",
+  LSP_COMPLETE_RESULT = "@@LSP_COMPLETE_RESULT",
+  LSP_HOVER = "@@LSP_HOVER",
+  LSP_HOVER_RESULT = "@@LSP_HOVER_RESULT",
 }

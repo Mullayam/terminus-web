@@ -1,0 +1,94 @@
+{
+  "Console Log": {
+    "prefix": ["log", "cl"],
+    "body": ["console.log('$1');", "$0"],
+    "description": "Log output to console"
+  },
+  "Console Error": {
+    "prefix": ["error", "ce"],
+    "body": ["console.error('$1');", "$0"],
+    "description": "Log error to console"
+  },
+  "Interface": {
+    "prefix": ["int", "interface"],
+    "body": ["interface ${1:Name} {", "\t$0", "}"],
+    "description": "TypeScript interface"
+  },
+  "Type Alias": {
+    "prefix": ["type", "ta"],
+    "body": ["type ${1:Name} = ${0};"],
+    "description": "Type alias"
+  },
+  "Enum": {
+    "prefix": "enum",
+    "body": ["enum ${1:Name} {", "\t${2:Value},", "\t$0", "}"],
+    "description": "TypeScript enum"
+  },
+  "Arrow Function Typed": {
+    "prefix": ["aft", "arrowtyped"],
+    "body": ["const ${1:name} = (${2:params}: ${3:type}): ${4:ReturnType} => {", "\t$0", "};"],
+    "description": "Typed arrow function"
+  },
+  "Async Arrow Function Typed": {
+    "prefix": ["aaft", "asyncarrowtyped"],
+    "body": ["const ${1:name} = async (${2:params}: ${3:type}): Promise<${4:ReturnType}> => {", "\t$0", "};"],
+    "description": "Typed async arrow function"
+  },
+  "Try Catch": {
+    "prefix": ["tc", "trycatch"],
+    "body": ["try {", "\t$1", "} catch (${2:error}) {", "\t$0", "}"],
+    "description": "Try-catch block"
+  },
+  "Import": {
+    "prefix": "imp",
+    "body": ["import ${2:module} from '${1:path}';"],
+    "description": "Import module"
+  },
+  "Import Type": {
+    "prefix": "impt",
+    "body": ["import type { $2 } from '${1:path}';"],
+    "description": "Import type"
+  },
+  "Generic Function": {
+    "prefix": "gfn",
+    "body": ["function ${1:name}<${2:T}>(${3:param}: ${2:T}): ${4:ReturnType} {", "\t$0", "}"],
+    "description": "Generic function"
+  },
+  "React FC": {
+    "prefix": ["rfc", "reactfc"],
+    "body": [
+      "interface ${1:Component}Props {",
+      "\t$2",
+      "}",
+      "",
+      "export const ${1:Component}: React.FC<${1:Component}Props> = ({ $3 }) => {",
+      "\treturn (",
+      "\t\t<div>",
+      "\t\t\t$0",
+      "\t\t</div>",
+      "\t);",
+      "};"
+    ],
+    "description": "React FC with TypeScript"
+  },
+  "useState Hook": {
+    "prefix": "ust",
+    "body": ["const [${1:state}, set${1/(.*)/${1:/capitalize}/}] = useState<${2:type}>(${3:initialValue});"],
+    "description": "React useState with type"
+  },
+  "useEffect Hook": {
+    "prefix": "uef",
+    "body": ["useEffect(() => {", "\t$0", "", "\treturn () => {", "\t\t", "\t};", "}, [${1:deps}]);"],
+    "description": "React useEffect"
+  },
+  "useCallback Hook": {
+    "prefix": "ucb",
+    "body": ["const ${1:name} = useCallback((${2:params}) => {", "\t$0", "}, [${3:deps}]);"],
+    "description": "React useCallback"
+  },
+  "useMemo Hook": {
+    "prefix": "umm",
+    "body": ["const ${1:value} = useMemo(() => {", "\t$0", "}, [${2:deps}]);"],
+    "description": "React useMemo"
+  }
+}

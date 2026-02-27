@@ -3,6 +3,7 @@ import { SFTP_FILES_LIST } from "./interface";
 import FileIcon from "@/components/FileIcon";
 import {
   ChevronRight,
+  Copy,
   Download,
   ExternalLink,
   Eye,
@@ -46,6 +47,7 @@ export interface TreeContextActions {
   onPermissions?: (node: TreeNode) => void;
   onNewFile?: (node: TreeNode) => void;
   onNewFolder?: (node: TreeNode) => void;
+  onCopy?: (node: TreeNode) => void;
   /** Render custom content for context items that need dialogs */
   renderEdit?: (fullPath: string, name: string) => React.ReactNode;
   renderRename?: (node: TreeNode) => React.ReactNode;
@@ -53,6 +55,7 @@ export interface TreeContextActions {
   renderDelete?: (node: TreeNode) => React.ReactNode;
   renderNewFile?: (node: TreeNode) => React.ReactNode;
   renderNewFolder?: (node: TreeNode) => React.ReactNode;
+  renderCopy?: (node: TreeNode) => React.ReactNode;
   renderProperties?: () => React.ReactNode;
   renderPermissions?: (node: TreeNode) => React.ReactNode;
   isPreviewable?: (name: string) => boolean;
@@ -166,6 +169,13 @@ function buildContextItems(node: TreeNode, actions?: TreeContextActions) {
     label: "Move",
     icon: <FolderInput className="w-4 h-4" />,
     content: actions.renderMove?.(node),
+  });
+
+  // Copy
+  items.push({
+    label: "Copy",
+    icon: <Copy className="w-4 h-4" />,
+    content: actions.renderCopy?.(node),
   });
 
   // Delete
@@ -434,7 +444,21 @@ export function SftpFileTree({
       const newRoot = cloneTree(prev);
       const dirNode = ensurePath(newRoot, currentDir);
 
-      // Merge children: keep existing, add new
+      // Build a set of the fresh file names so we can detect removals
+      const freshNames = new Set<string>();
+      for (const f of files) {
+        if (!f.name || f.name === "." || f.name === "..") continue;
+        freshNames.add(f.name);
+      }
+
+      // Remove children that no longer exist in the updated listing
+      for (const existingName of Array.from(dirNode.children.keys())) {
+        if (!freshNames.has(existingName)) {
+          dirNode.children.delete(existingName);
+        }
+      }
+
+      // Add new / update existing children
       for (const f of files) {
         if (!f.name || f.name === "." || f.name === "..") continue;
         const childPath = `${currentDir === "/" ? "" : currentDir}/${f.name}`;
