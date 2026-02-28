@@ -1,21 +1,24 @@
 import { __config } from "./config";
-import { extractPath } from "./utils";
 
 const API_URL = __config.API_URL + "/api/upload";
 export class ApiCore {
 
     static async uploadFile(file: File & { path?: string } | Array<File & { path?: string }>, path: string) {
-        let dir = path
         const formData = new FormData();
         if (Array.isArray(file)) {
             file.forEach((f, index) => {
                 formData.append(`file[${index}]`, f);
-                dir = extractPath(path + f.path)
+                // Send each file's relative path so the server can
+                // reconstruct nested directories (e.g. test/test2/test.sh)
+                const relativePath = f.path || (f as any).webkitRelativePath || '';
+                if (relativePath) {
+                    formData.append(`relativePath[${index}]`, relativePath);
+                }
             });
         } else {
             formData.append("file", file); // Append a single file
         }
-        formData.append("path", dir);
+        formData.append("path", path);
 
         const response = await fetch(API_URL, {
             method: "POST",
@@ -27,13 +30,19 @@ export class ApiCore {
     static async download({
         remotePath,
         type,
-        name
+        name,
+        sessionId
     }: {
         remotePath: string,
         type: string
         name: string
+        sessionId?: string
     }) {
-        const response = await fetch(__config.API_URL + "/api/download", {
+        const url = new URL(__config.API_URL + "/api/download");
+        if (sessionId) {
+            url.searchParams.set("sessionId", sessionId);
+        }
+        const response = await fetch(url.toString(), {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"

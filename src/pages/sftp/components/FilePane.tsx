@@ -170,6 +170,7 @@ export function FilePane({
             remotePath: node.fullPath,
             type: node.type === "d" ? "dir" : "file",
             name: node.name,
+            sessionId: tabId,
           });
           if (!response.ok) throw new Error("Failed to download");
           const blob = await response.blob();
@@ -401,6 +402,9 @@ export function FilePane({
         });
       }
     });
+    socket.on(SocketEventConstants.STARTING, onUploadProgress);
+    socket.on(SocketEventConstants.PREPARING, onUploadProgress);
+    socket.on(SocketEventConstants.COMPRESSING, onUploadProgress);
     socket.on(SocketEventConstants.FILE_UPLOADED_PROGRESS, onUploadProgress);
     socket.on(SocketEventConstants.FILE_UPLOADED, onFileUploaded);
     socket.on(SocketEventConstants.SFTP_ENDED, (mesage: string) => {
@@ -425,6 +429,9 @@ export function FilePane({
     setTimeout(() => files.length > 0 && handleSetLoading(false), 1000);
 
     return () => {
+      socket.off(SocketEventConstants.STARTING, onUploadProgress);
+      socket.off(SocketEventConstants.PREPARING, onUploadProgress);
+      socket.off(SocketEventConstants.COMPRESSING, onUploadProgress);
       socket.off(SocketEventConstants.FILE_UPLOADED_PROGRESS, onUploadProgress);
       socket.off(SocketEventConstants.FILE_UPLOADED, onFileUploaded);
       socket.off(SocketEventConstants.SFTP_ENDED);
@@ -533,11 +540,11 @@ export function FilePane({
                       <Button variant="ghost" size="icon" className="h-8 w-8">
                         <Filter className="h-4 w-4" />
                       </Button>
-                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setNewItemDialog({ open: true, type: "file" })} title="New File">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setNewItemDialog({ open: true, type: "file" })} title="New File">
                         <FileIcon className="h-4 w-4" />
                       </Button>
-                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setNewItemDialog({ open: true, type: "folder" })} title="New Folder">
-                       <FolderCode className="h-4 w-4" />
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setNewItemDialog({ open: true, type: "folder" })} title="New Folder">
+                        <FolderCode className="h-4 w-4" />
                       </Button>
                       <FilterDropdown
                         menu={[
@@ -562,7 +569,34 @@ export function FilePane({
                           },
                           {
                             label: "Download Current Dir Zip",
-                            action: () => console.log(""),
+                            action: async () => {
+                              try {
+                                const dirName = path.split("/").filter(Boolean).pop() || "download";
+                                const response = await ApiCore.download({
+                                  remotePath: path,
+                                  type: "dir",
+                                  name: dirName,
+                                  sessionId: tabId,
+                                });
+                                if (!response.ok) throw new Error("Failed to download directory");
+                                const blob = await response.blob();
+                                const url = URL.createObjectURL(blob);
+                                const link = document.createElement("a");
+                                link.href = url;
+                                link.setAttribute("download", `${dirName}.zip`);
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                URL.revokeObjectURL(url);
+                              } catch (error: any) {
+                                toast({
+                                  variant: "destructive",
+                                  title: "Error",
+                                  description: error.message,
+                                  duration: 2000,
+                                });
+                              }
+                            },
                           },
                           {
                             label: "Refresh",
@@ -621,6 +655,7 @@ export function FilePane({
                     socket?.emit(SocketEventConstants.CANCEL_UPLOADING, {
                       fileName: uploadFileName,
                     });
+                    setUploadFileName(null);
                   }}
                 />
               )}

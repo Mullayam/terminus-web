@@ -94,8 +94,13 @@ export function ShowProgressBar({ download, onCancel, index }:
                         className={`h-full transition-all duration-500 ease-out ${getStatusColor(download.status)} ${download.status === 'downloading' ? 'animate-pulse' : ''}`}
                         style={{ width: `${progressPercentage}%` }}
                     >
+                        {
+                            download.status === 'starting' && (
+                                <div className="h-full bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse"></div>
+                            )
+                        }
                         {download.status === 'downloading' && (
-                            <div className="h-full bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+                            <div className="h-full bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer-fast"></div>
                         )}
                     </div>
                 </div>
@@ -106,7 +111,11 @@ export function ShowProgressBar({ download, onCancel, index }:
                 <span>
                     {formatBytes(+download.transferred)} / {formatBytes(+download.totalSize)}
                 </span>
-
+                {download.status === 'starting' && (
+                    <span className="text-blue-600 dark:text-blue-400 font-medium">
+                        Starting...
+                    </span>
+                )}
                 {(download.status === 'downloading' || download.status === 'uploading') && (
                     <span className="flex items-center space-x-1">
                         <span>{download.speed.speed}{download.speed.unit}</span>
@@ -124,6 +133,11 @@ export function ShowProgressBar({ download, onCancel, index }:
                 {download.status === 'error' && (
                     <span className="text-red-600 dark:text-red-400 font-medium">
                         Failed
+                    </span>
+                )}
+                {download.status === 'compressing' && (
+                    <span className="text-yellow-600 dark:text-yellow-400 font-medium">
+                        Compressing
                     </span>
                 )}
             </div>
