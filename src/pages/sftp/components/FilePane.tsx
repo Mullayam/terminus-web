@@ -149,8 +149,9 @@ export function FilePane({
         );
       },
       onEditWithEditor: (fullPath) => {
+        const host = sftpStore.sessions[sftpStore.activeTabId as any]?.host ?? "";
         window.open(
-          `/ssh/sftp/editor?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? "")}`,
+          `/ssh/sftp/editor?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? "")}&user=${encodeURIComponent(host)}`,
           "_blank",
         );
       },

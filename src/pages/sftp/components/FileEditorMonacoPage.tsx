@@ -54,6 +54,7 @@ export default function FileEditorMonacoPage() {
     const [params] = useSearchParams();
     const filePath  = params.get("path") ?? "";
     const sessionId = params.get("sessionId") ?? params.get("tabId") ?? "";
+    const hostUser  = params.get("user") ?? "";
     const fileName  = filePath.split("/").pop() ?? "untitled";
     const lang      = detectLanguage(filePath || fileName);
 
@@ -146,8 +147,8 @@ export default function FileEditorMonacoPage() {
 
     /* ── Fetch file content ─────────────────────────────────── */
     const fetchContent = useCallback(async () => {
-        if (!sessionId || !filePath) {
-            setError(!sessionId ? "Missing sessionId in URL" : "Missing file path in URL");
+        if (!sessionId || !filePath || !hostUser) {
+            setError(!sessionId ? "Missing sessionId in URL" : !filePath ? "Missing file path in URL" : "Missing host user in URL");
             setLoading(false);
             return;
         }
@@ -497,7 +498,7 @@ export default function FileEditorMonacoPage() {
                     }}
                     enableExtensions
                     chatBaseUrl={__config.API_URL}
-                    chatHostId={sessionId}
+                    chatHostId={hostUser}
                     onChatApplyCode={(code) => {
                         // Apply AI-suggested code to the editor
                         const editor = editorRef.current;
