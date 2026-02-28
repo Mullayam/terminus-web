@@ -26,7 +26,7 @@
  */
 
 import type * as monacoNs from "monaco-editor";
-import { createLSPClient, type LSPClient } from "./lsp/client";
+import { createLSPClient, type LSPClient, type LSPShowMessageParams, LSPMessageType } from "./lsp/client";
 import { registerLSPProviders, type LSPProviderRegistration } from "./lsp/providers";
 import { toMonacoMarkers, setMonacoRef } from "./lsp/converters";
 
@@ -59,6 +59,8 @@ export interface LSPConnectionOptions {
   onDisconnected?: () => void;
   /** Callback on error */
   onError?: (error: Error) => void;
+  /** Callback for LSP window/showMessage and window/logMessage notifications */
+  onServerMessage?: (message: string, severity: "error" | "warning" | "info" | "log" | "debug", languageId: string) => void;
 }
 
 export interface LSPConnection {
@@ -228,7 +230,20 @@ export async function connectLanguageServer(
     onConnected,
     onDisconnected,
     onError,
+    onServerMessage,
   } = options;
+
+  /** Map LSP MessageType number → severity string */
+  function lspMessageTypeToSeverity(type: number): "error" | "warning" | "info" | "log" | "debug" {
+    switch (type) {
+      case LSPMessageType.Error:   return "error";
+      case LSPMessageType.Warning: return "warning";
+      case LSPMessageType.Info:    return "info";
+      case LSPMessageType.Log:     return "log";
+      case LSPMessageType.Debug:   return "debug";
+      default:                     return "info";
+    }
+  }
 
   let lspClient: LSPClient | null = null;
   let providerReg: LSPProviderRegistration | null = null;
@@ -318,6 +333,19 @@ export async function connectLanguageServer(
       },
       onError: (error) => {
         onError?.(error);
+      },
+      onShowMessage: (params: LSPShowMessageParams) => {
+        const severity = lspMessageTypeToSeverity(params.type);
+        console.log(`[LSP:${languageId}] showMessage (${severity}):`, params.message);
+        onServerMessage?.(params.message, severity, languageId);
+      },
+      onLogMessage: (params: LSPShowMessageParams) => {
+        const severity = lspMessageTypeToSeverity(params.type);
+        console.log(`[LSP:${languageId}] logMessage (${severity}):`, params.message);
+        // Only surface errors/warnings as notifications; info/log/debug go to console only
+        if (params.type <= LSPMessageType.Warning) {
+          onServerMessage?.(params.message, severity, languageId);
+        }
       },
     });
   }

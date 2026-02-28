@@ -24,8 +24,9 @@ import {
     createGhostTextPlugin,
     createNotificationPlugin,
     showEditorNotification,
+    loadEditorSettings,
 } from "@/modules/monaco-editor";
-import type { MonacoEditorInstance } from "@/modules/monaco-editor";
+import type { MonacoEditorInstance, AICompletionProvider } from "@/modules/monaco-editor";
 import { SocketContext } from "@/context/socket-context";
 
 /* ── Constants ─────────────────────────────────────────────── */
@@ -87,7 +88,12 @@ export default function FileEditorMonacoPage() {
 
     const { socket } = useContext(SocketContext);
 
-    // Memoize plugins once so the array identity is stable
+    // AI completion provider from persisted settings
+    const [aiProvider, setAIProvider] = useState<AICompletionProvider>(
+        () => loadEditorSettings().aiCompletionProvider,
+    );
+
+    // Memoize plugins — ghost text is only included when selected
     const ghostTextPlugin = useMemo(
         () => createGhostTextPlugin({ endpoint: __config.API_URL }),
         [],
@@ -97,9 +103,18 @@ export default function FileEditorMonacoPage() {
         [socket],
     );
     const plugins = useMemo(
-        () => [...ALL_BUILTIN_PLUGINS, ghostTextPlugin, notificationPlugin],
-        [ghostTextPlugin, notificationPlugin],
+        () => [
+            ...ALL_BUILTIN_PLUGINS,
+            ...(aiProvider === "ghost-text" ? [ghostTextPlugin] : []),
+            notificationPlugin,
+        ],
+        [ghostTextPlugin, notificationPlugin, aiProvider],
     );
+
+    // Handle AI provider change from settings panel
+    const handleAIProviderChange = useCallback((provider: AICompletionProvider) => {
+        setAIProvider(provider);
+    }, []);
 
     /* ── Document title + favicon ───────────────────────────── */
     useEffect(() => {
@@ -446,10 +461,10 @@ export default function FileEditorMonacoPage() {
                         setCursorLine(line);
                         setCursorCol(col);
                     }}
-                    // enableCopilot
-                    // copilotEndpoint={`${__config.API_URL}/api/complete`}
-                    // enableLSP
-                    // lspBaseUrl={__config.API_URL}
+                    copilotEndpoint={`${__config.API_URL}/api/complete`}
+                    onAIProviderChange={handleAIProviderChange}
+                    enableLSP
+                    lspBaseUrl={__config.API_URL}
                     showSidebar
                     showStatusBar
                     enableTerminal

@@ -24,12 +24,35 @@ import {
 } from "vscode-jsonrpc/browser.js";
 import type * as lsp from "vscode-languageserver-protocol";
 
+/**
+ * LSP MessageType values (from the spec).
+ * Used in window/showMessage and window/logMessage notifications.
+ */
+export const LSPMessageType = {
+  Error: 1,
+  Warning: 2,
+  Info: 3,
+  Log: 4,
+  Debug: 5,
+} as const;
+
+export type LSPMessageTypeValue = (typeof LSPMessageType)[keyof typeof LSPMessageType];
+
+export interface LSPShowMessageParams {
+  type: LSPMessageTypeValue;
+  message: string;
+}
+
 export interface LSPClientOptions {
   wsUrl: string;
   languageId: string;
   documentUri: string;
   rootUri?: string;
   onDiagnostics?: (uri: string, diagnostics: lsp.Diagnostic[]) => void;
+  /** Called when the server sends window/showMessage */
+  onShowMessage?: (params: LSPShowMessageParams) => void;
+  /** Called when the server sends window/logMessage */
+  onLogMessage?: (params: LSPShowMessageParams) => void;
   onConnected?: () => void;
   onDisconnected?: () => void;
   onError?: (error: Error) => void;
@@ -102,6 +125,32 @@ export function createLSPClient(opts: LSPClientOptions): Promise<LSPClient> {
           "textDocument/publishDiagnostics",
           (params: { uri: string; diagnostics: lsp.Diagnostic[] }) => {
             opts.onDiagnostics?.(params.uri, params.diagnostics);
+          },
+        );
+
+        // Listen for window/showMessage (server → client notification)
+        connection.onNotification(
+          "window/showMessage",
+          (params: LSPShowMessageParams) => {
+            opts.onShowMessage?.(params);
+          },
+        );
+
+        // Listen for window/logMessage (server → client notification)
+        connection.onNotification(
+          "window/logMessage",
+          (params: LSPShowMessageParams) => {
+            opts.onLogMessage?.(params);
+          },
+        );
+
+        // Handle window/showMessageRequest (server → client request that expects a response)
+        connection.onRequest(
+          "window/showMessageRequest",
+          (params: LSPShowMessageParams & { actions?: Array<{ title: string }> }) => {
+            opts.onShowMessage?.(params);
+            // Return null (no action selected) — could be enhanced later with interactive buttons
+            return null;
           },
         );
 

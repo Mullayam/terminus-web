@@ -226,3 +226,16 @@ export type { ExtensionStatusBarProps, StatusBarItemDef } from "./components/Ext
 export { EditorTerminalPanel } from "./components/EditorTerminalPanel";
 export type { EditorTerminalPanelProps } from "./components/EditorTerminalPanel";
 export { VsixDropZone } from "./components/VsixDropZone";
+
+// ── Editor Settings ─────────────────────────────────────────
+export {
+  EditorSettingsPanel,
+  loadEditorSettings,
+  saveEditorSettings,
+  DEFAULT_EDITOR_SETTINGS,
+} from "./components/EditorSettingsPanel";
+export type {
+  EditorSettings,
+  AICompletionProvider,
+  EditorSettingsPanelProps,
+} from "./components/EditorSettingsPanel";

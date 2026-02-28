@@ -11,9 +11,15 @@ import React from "react";
 import {
   ChevronDown,
   RotateCcw,
+  Sparkles,
+  Bot,
+  Ghost,
+  BrainCircuit,
 } from "lucide-react";
 
 /* ── Types ─────────────────────────────────────────────────── */
+
+export type AICompletionProvider = "none" | "ghost-text" | "copilot";
 
 export interface EditorSettings {
   fontSize: number;
@@ -29,6 +35,18 @@ export interface EditorSettings {
   mouseWheelZoom: boolean;
   showStatusBar: boolean;
   showTerminal: boolean;
+  /** AI inline completion provider — only one can be active at a time */
+  aiCompletionProvider: AICompletionProvider;
+  /** Enable parameter hints (function signature help) */
+  parameterHints: boolean;
+  /** Enable hover information (type definitions, docs) */
+  hoverEnabled: boolean;
+  /** Enable quick suggestions (autocomplete as you type) */
+  quickSuggestions: boolean;
+  /** Enable go-to-definition on Ctrl+Click */
+  definitionLinkEnabled: boolean;
+  /** Enable Language Server Protocol (LSP) features */
+  enableLSP: boolean;
 }
 
 export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
@@ -45,6 +63,12 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   mouseWheelZoom: true,
   showStatusBar: true,
   showTerminal: false,
+  aiCompletionProvider: "ghost-text",
+  parameterHints: true,
+  hoverEnabled: true,
+  quickSuggestions: true,
+  definitionLinkEnabled: true,
+  enableLSP: true,
 };
 
 const STORAGE_KEY = "terminus-editor-settings";
@@ -206,6 +230,43 @@ export const EditorSettingsPanel: React.FC<EditorSettingsPanelProps> = ({
         />
       </SettingsSection>
 
+      {/* ── AI Completions Section ─────────────────────── */}
+      <SettingsSection title="AI Completions">
+        <AIProviderSetting
+          value={settings.aiCompletionProvider}
+          onChange={(v) => update("aiCompletionProvider", v)}
+        />
+      </SettingsSection>
+
+      {/* ── IntelliSense Section ───────────────────────── */}
+      <SettingsSection title="IntelliSense">
+        <ToggleSetting
+          label="Language Server (LSP)"
+          value={settings.enableLSP}
+          onChange={(v) => update("enableLSP", v)}
+        />
+        <ToggleSetting
+          label="Parameter Hints"
+          value={settings.parameterHints}
+          onChange={(v) => update("parameterHints", v)}
+        />
+        <ToggleSetting
+          label="Hover Information"
+          value={settings.hoverEnabled}
+          onChange={(v) => update("hoverEnabled", v)}
+        />
+        <ToggleSetting
+          label="Quick Suggestions"
+          value={settings.quickSuggestions}
+          onChange={(v) => update("quickSuggestions", v)}
+        />
+        <ToggleSetting
+          label="Ctrl+Click Definitions"
+          value={settings.definitionLinkEnabled}
+          onChange={(v) => update("definitionLinkEnabled", v)}
+        />
+      </SettingsSection>
+
       {/* ── Panels Section ─────────────────────────────── */}
       <SettingsSection title="Panels">
         <ToggleSetting
@@ -234,6 +295,86 @@ export const EditorSettingsPanel: React.FC<EditorSettingsPanelProps> = ({
 };
 
 /* ── Sub-components ────────────────────────────────────────── */
+
+/** Mutually exclusive AI completion provider radio selector */
+function AIProviderSetting({
+  value,
+  onChange,
+}: {
+  value: AICompletionProvider;
+  onChange: (value: AICompletionProvider) => void;
+}) {
+  const providers: { id: AICompletionProvider; label: string; desc: string; icon: React.ReactNode }[] = [
+    {
+      id: "none",
+      label: "Off",
+      desc: "No AI completions",
+      icon: <span className="w-4 h-4 rounded-full border border-[#555] inline-block" />,
+    },
+    {
+      id: "ghost-text",
+      label: "Ghost Text",
+      desc: "SSE streaming inline suggestions",
+      icon: <Ghost className="w-4 h-4" />,
+    },
+    {
+      id: "copilot",
+      label: "Copilot",
+      desc: "Monacopilot AI completions",
+      icon: <BrainCircuit className="w-4 h-4" />,
+    },
+  ];
+
+  return (
+    <div className="flex flex-col gap-1 py-0.5">
+      {providers.map((p) => {
+        const isActive = value === p.id;
+        return (
+          <button
+            key={p.id}
+            onClick={() => onChange(p.id)}
+            className="flex items-center gap-2.5 px-2 py-1.5 rounded-md text-left transition-colors w-full"
+            style={{
+              background: isActive ? "#007acc22" : "transparent",
+              border: isActive ? "1px solid #007acc" : "1px solid transparent",
+            }}
+            onMouseEnter={(e) => {
+              if (!isActive) e.currentTarget.style.background = "#2a2d2e";
+            }}
+            onMouseLeave={(e) => {
+              if (!isActive) e.currentTarget.style.background = "transparent";
+            }}
+          >
+            {/* Radio dot */}
+            <span
+              className="w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0"
+              style={{
+                borderColor: isActive ? "#007acc" : "#555",
+              }}
+            >
+              {isActive && (
+                <span className="w-1.5 h-1.5 rounded-full bg-[#007acc]" />
+              )}
+            </span>
+            {/* Icon */}
+            <span className={isActive ? "text-[#007acc]" : "text-gray-500"}>
+              {p.icon}
+            </span>
+            {/* Label + description */}
+            <div className="flex flex-col min-w-0">
+              <span className={`text-[12px] font-medium ${isActive ? "text-gray-200" : "text-gray-400"}`}>
+                {p.label}
+              </span>
+              <span className="text-[10px] text-gray-600 truncate">
+                {p.desc}
+              </span>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function SettingsSection({
   title,

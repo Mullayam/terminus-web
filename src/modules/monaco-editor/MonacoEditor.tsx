@@ -76,6 +76,7 @@ import { ExtensionStatusBar } from "./components/ExtensionStatusBar";
 import { EditorTerminalPanel } from "./components/EditorTerminalPanel";
 import {
   type EditorSettings,
+  type AICompletionProvider,
   loadEditorSettings,
   saveEditorSettings,
 } from "./components/EditorSettingsPanel";
@@ -248,6 +249,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   onCursorChange,
   onThemeApply,
   enableExtensions,
+  onAIProviderChange,
   // Terminal integration
   enableTerminal = false,
   terminalUrl,
@@ -429,8 +431,8 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
         disposables.push(...autoCloseDisposables);
       }
 
-      // ── Copilot AI completions ──
-      if (enableCopilot) {
+      // ── Copilot AI completions (only if settings say copilot, or enableCopilot prop) ──
+      if (enableCopilot || editorSettings.aiCompletionProvider === "copilot") {
         try {
           const techs = detectTechnologies(resolvedLanguage, fileName);
           const registration = registerCopilot(monaco, editor, {
@@ -447,7 +449,8 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
       }
 
       // ── LSP over WebSocket ──
-      if (enableLSP && lspBaseUrl && hasLSPSupport(resolvedLanguage)) {
+      const shouldEnableLSP = enableLSP && editorSettings.enableLSP;
+      if (shouldEnableLSP && lspBaseUrl && hasLSPSupport(resolvedLanguage)) {
 
         const wsUrl = buildLSPWebSocketUrl(lspBaseUrl, resolvedLanguage);
         if (wsUrl) {
@@ -457,9 +460,28 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
             documentUri,
             monaco,
             editor,
-            onConnected: () => console.log(`[LSP] Connected: ${resolvedLanguage}`),
+            onConnected: () => {
+              console.log(`[LSP] Connected: ${resolvedLanguage}`);
+            },
             onDisconnected: () => console.log(`[LSP] Disconnected: ${resolvedLanguage}`),
             onError: (err) => console.warn(`[LSP] Error:`, err),
+            onServerMessage: (message, severity, langId) => {
+              // Map LSP severity → notification severity
+              const severityMap: Record<string, "error" | "warning" | "info"> = {
+                error: "error",
+                warning: "warning",
+                info: "info",
+                log: "info",
+                debug: "info",
+              };
+              const lspName = langId.charAt(0).toUpperCase() + langId.slice(1);
+              notificationsRef.current?.addNotification({
+                message,
+                severity: severityMap[severity] ?? "info",
+                source: `LSP: ${lspName}`,
+                timeout: severity === "error" ? 8000 : severity === "warning" ? 6000 : 4000,
+              });
+            },
           })
             .then((conn) => { lspRef.current = conn; })
             .catch((err) => { console.warn("[MonacoEditor] LSP connection failed:", err); });
@@ -581,6 +603,84 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
     }
   }, [resolvedLanguage]);
 
+  // ── AI Completion Provider switching ──
+  useEffect(() => {
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    if (!editor || !monaco) return;
+
+    const provider = editorSettings.aiCompletionProvider;
+
+    if (provider === "copilot") {
+      // Register copilot if not already registered
+      if (!copilotRef.current) {
+        try {
+          const techs = detectTechnologies(resolvedLanguage, fileName);
+          const registration = registerCopilot(monaco, editor, {
+            language: resolvedLanguage,
+            filename: fileName,
+            endpoint: copilotEndpoint,
+            technologies: techs,
+            trigger: "onIdle",
+          });
+          copilotRef.current = registration;
+        } catch (err) {
+          console.warn("[MonacoEditor] Copilot registration failed:", err);
+        }
+      }
+    } else {
+      // Deregister copilot when switching away
+      if (copilotRef.current) {
+        try { copilotRef.current.deregister(); } catch { /* */ }
+        copilotRef.current = null;
+      }
+    }
+  }, [editorSettings.aiCompletionProvider, resolvedLanguage, fileName, copilotEndpoint]);
+
+  // ── LSP toggle switching ──
+  useEffect(() => {
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    if (!editor || !monaco) return;
+
+    const shouldConnect = enableLSP && editorSettings.enableLSP && !!lspBaseUrl && hasLSPSupport(resolvedLanguage);
+
+    if (shouldConnect && !lspRef.current) {
+      // Connect LSP
+      const wsUrl = buildLSPWebSocketUrl(lspBaseUrl!, resolvedLanguage);
+      if (wsUrl) {
+        connectLanguageServer({
+          languageId: resolvedLanguage,
+          wsUrl,
+          documentUri,
+          monaco,
+          editor,
+          onConnected: () => console.log(`[LSP] Connected: ${resolvedLanguage}`),
+          onDisconnected: () => console.log(`[LSP] Disconnected: ${resolvedLanguage}`),
+          onError: (err) => console.warn(`[LSP] Error:`, err),
+          onServerMessage: (message, severity, langId) => {
+            const severityMap: Record<string, "error" | "warning" | "info"> = {
+              error: "error", warning: "warning", info: "info", log: "info", debug: "info",
+            };
+            const lspName = langId.charAt(0).toUpperCase() + langId.slice(1);
+            notificationsRef.current?.addNotification({
+              message,
+              severity: severityMap[severity] ?? "info",
+              source: `LSP: ${lspName}`,
+              timeout: severity === "error" ? 8000 : severity === "warning" ? 6000 : 4000,
+            });
+          },
+        })
+          .then((conn) => { lspRef.current = conn; })
+          .catch((err) => console.warn("[MonacoEditor] LSP connection failed:", err));
+      }
+    } else if (!shouldConnect && lspRef.current) {
+      // Disconnect LSP
+      try { lspRef.current.dispose(); } catch { /* */ }
+      lspRef.current = null;
+    }
+  }, [editorSettings.enableLSP, enableLSP, lspBaseUrl, resolvedLanguage, documentUri]);
+
   // ── Cleanup on unmount ──
   useEffect(() => {
     return () => {
@@ -673,6 +773,22 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
     mouseWheelZoom: editorSettings.mouseWheelZoom,
     stickyScroll: { enabled: editorSettings.stickyScroll },
     renderWhitespace: editorSettings.renderWhitespace,
+    // IntelliSense / text hint settings
+    parameterHints: { enabled: editorSettings.parameterHints },
+    hover: { enabled: editorSettings.hoverEnabled },
+    quickSuggestions: editorSettings.quickSuggestions
+      ? { other: "on", comments: "off", strings: "off" }
+      : false,
+    suggestOnTriggerCharacters: editorSettings.quickSuggestions,
+    definitionLinkOpensInPeek: editorSettings.definitionLinkEnabled,
+    gotoLocation: {
+      multiple: "peek",
+      multipleDefinitions: "peek",
+      multipleTypeDefinitions: "peek",
+      multipleDeclarations: "peek",
+      multipleImplementations: "peek",
+      multipleReferences: "peek",
+    },
     ...options,
   };
 
@@ -716,14 +832,26 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
         renderWhitespace: newSettings.renderWhitespace,
         fontLigatures: newSettings.fontLigatures,
         mouseWheelZoom: newSettings.mouseWheelZoom,
+        // IntelliSense settings
+        parameterHints: { enabled: newSettings.parameterHints },
+        hover: { enabled: newSettings.hoverEnabled },
+        quickSuggestions: newSettings.quickSuggestions
+          ? { other: "on", comments: "off", strings: "off" }
+          : false,
+        suggestOnTriggerCharacters: newSettings.quickSuggestions,
       });
+    }
+
+    // Handle AI provider change
+    if (newSettings.aiCompletionProvider !== editorSettings.aiCompletionProvider) {
+      onAIProviderChange?.(newSettings.aiCompletionProvider);
     }
 
     // Handle panel toggles
     if (newSettings.showTerminal !== editorSettings.showTerminal) {
       setTerminalOpen(newSettings.showTerminal);
     }
-  }, [editorSettings.showTerminal]);
+  }, [editorSettings.showTerminal, editorSettings.aiCompletionProvider, onAIProviderChange]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height, width }} className="monaco-editor-wrapper">
