@@ -17,6 +17,7 @@ import { __config } from "@/lib/config";
 import { getIconForFile } from "vscode-icons-js";
 
 const ICON_CDN = "https://raw.githubusercontent.com/vscode-icons/vscode-icons/master/icons";
+import { cachedIconUrl } from "@/lib/iconCache";
 
 // ═══════════════════════════════════════════════════════════════
 //  API Content Provider  (REST)
@@ -70,7 +71,7 @@ export default function FileEditorModulePage() {
 
         // Set favicon to the file-type icon
         const iconFile = getIconForFile(fileName);
-        const iconUrl = iconFile
+        const rawUrl = iconFile
             ? `${ICON_CDN}/${iconFile}`
             : `${ICON_CDN}/default_file.svg`;
 
@@ -81,9 +82,15 @@ export default function FileEditorModulePage() {
             link.rel = "icon";
             document.head.appendChild(link);
         }
-        link.href = iconUrl;
+
+        // Use cached icon URL
+        let cancelled = false;
+        cachedIconUrl(rawUrl).then((url) => {
+            if (!cancelled && link) link.href = url;
+        });
 
         return () => {
+            cancelled = true;
             document.title = "Terminus";
             if (link && previousHref) link.href = previousHref;
         };

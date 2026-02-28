@@ -31,6 +31,16 @@ export { fetchProviders, streamChat, extractCodeBlocks } from "./api";
 export { useChatStore } from "./store";
 export type { ChatState } from "./store";
 
+// ── Storage (IDB persistence) ───────────────────────────────
+export {
+  loadConversations,
+  saveConversation,
+  saveAllConversations,
+  deleteStoredConversation,
+  clearStoredConversations,
+} from "./chatStorage";
+export type { StoredConversation } from "./chatStorage";
+
 // ── Components ──────────────────────────────────────────────
 export { ChatPanel } from "./components/ChatPanel";
 export type { ChatPanelProps } from "./components/ChatPanel";

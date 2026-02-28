@@ -311,6 +311,8 @@ export interface MonacoEditorConfig {
 
   /** Base API URL for AI Chat (shows chat tab in sidebar when set) */
   chatBaseUrl?: string;
+  /** Host identifier passed as base64 `user` param in chat API URLs */
+  chatHostId?: string;
   /** Called when AI chat applies code to the editor */
   onChatApplyCode?: (code: string, language: string) => void;
 }

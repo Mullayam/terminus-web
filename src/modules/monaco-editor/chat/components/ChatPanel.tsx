@@ -35,6 +35,8 @@ import type { ChatProvider } from "../types";
 export interface ChatPanelProps {
   /** Base API URL */
   baseUrl: string;
+  /** Host identifier (session / tab id) */
+  hostId?: string;
   /** Current file language */
   language: string;
   /** Current file content */
@@ -53,6 +55,7 @@ export interface ChatPanelProps {
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
   baseUrl,
+  hostId,
   language,
   fileContent,
   filename,
@@ -83,6 +86,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     isStreaming,
     error,
     setBaseUrl,
+    setContext,
     loadProviders,
     selectProvider,
     selectModel,
@@ -97,11 +101,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     getMessages,
   } = useChatStore();
 
-  // Initialize base URL and load providers
+  // Initialize base URL, host context, and load providers
   useEffect(() => {
     setBaseUrl(baseUrl);
+    if (hostId && filename) {
+      setContext(hostId, filename);
+    }
     loadProviders();
-  }, [baseUrl, setBaseUrl, loadProviders]);
+  }, [baseUrl, hostId, filename, setBaseUrl, setContext, loadProviders]);
 
   // Auto-scroll to bottom on new messages
   const messages = getMessages();

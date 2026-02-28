@@ -12,11 +12,21 @@ import type { ChatProvider, ChatRequest, ChatStreamChunk } from "./types";
 /* ── Fetch available AI providers ──────────────────────────── */
 
 /**
+ * Build a URL with an optional `user=base64(hostId)` query param.
+ */
+function buildUrl(baseUrl: string, path: string, hostId?: string): string {
+    const base = `${baseUrl.replace(/\/$/, "")}${path}`;
+    if (!hostId) return base;
+    const sep = base.includes("?") ? "&" : "?";
+    return `${base}${sep}user=${btoa(hostId)}`;
+}
+
+/**
  * Fetch the list of available AI providers from the backend.
  * Endpoint: GET `{baseUrl}/ai/providers`
  */
-export async function fetchProviders(baseUrl: string): Promise<ChatProvider[]> {
-    const url = `${baseUrl.replace(/\/$/, "")}/api/ai/providers`;
+export async function fetchProviders(baseUrl: string, hostId?: string): Promise<ChatProvider[]> {
+    const url = buildUrl(baseUrl, "/api/ai/providers", hostId);
 
     const response = await fetch(url, {
         method: "GET",
@@ -51,8 +61,9 @@ export async function streamChat(
     request: ChatRequest,
     onChunk: (chunk: ChatStreamChunk) => void,
     signal?: AbortSignal,
+    hostId?: string,
 ): Promise<string> {
-    const url = `${baseUrl.replace(/\/$/, "")}/api/chat`;
+    const url = buildUrl(baseUrl, "/api/chat", hostId);
 
     const response = await fetch(url, {
         method: "POST",

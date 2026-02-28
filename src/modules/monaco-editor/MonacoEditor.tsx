@@ -263,6 +263,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   onExtensionInstalled,
   // AI Chat
   chatBaseUrl,
+  chatHostId,
   onChatApplyCode,
 }) => {
   const editorRef = useRef<MonacoEditorInstance | null>(null);
@@ -1045,6 +1046,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
             onSettingsChange={handleSettingsChange}
             enableTerminal={enableTerminal}
             chatBaseUrl={chatBaseUrl}
+            chatHostId={chatHostId}
             chatFileContent={value ?? editorRef.current?.getValue() ?? ""}
             onChatApplyCode={onChatApplyCode}
           />

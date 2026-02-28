@@ -16,6 +16,7 @@ import {
     Loader2, Save, WrapText, RefreshCw, Info, X, Palette, Check,
 } from "lucide-react";
 import FileIcon from "@/components/FileIcon";
+import { cachedIconUrl } from "@/lib/iconCache";
 import { getIconForFile } from "vscode-icons-js";
 import {
     MonacoEditor,
@@ -120,7 +121,7 @@ export default function FileEditorMonacoPage() {
     useEffect(() => {
         document.title = `${fileName} — Terminus Editor`;
         const iconFile = getIconForFile(fileName);
-        const iconUrl  = iconFile ? `${ICON_CDN}/${iconFile}` : `${ICON_CDN}/default_file.svg`;
+        const rawUrl   = iconFile ? `${ICON_CDN}/${iconFile}` : `${ICON_CDN}/default_file.svg`;
 
         let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
         const previousHref = link?.href;
@@ -129,9 +130,15 @@ export default function FileEditorMonacoPage() {
             link.rel = "icon";
             document.head.appendChild(link);
         }
-        link.href = iconUrl;
+
+        // Use cached icon URL
+        let cancelled = false;
+        cachedIconUrl(rawUrl).then((url) => {
+            if (!cancelled && link) link.href = url;
+        });
 
         return () => {
+            cancelled = true;
             document.title = "Terminus";
             if (link && previousHref) link.href = previousHref;
         };
@@ -490,6 +497,7 @@ export default function FileEditorMonacoPage() {
                     }}
                     enableExtensions
                     chatBaseUrl={__config.API_URL}
+                    chatHostId={sessionId}
                     onChatApplyCode={(code) => {
                         // Apply AI-suggested code to the editor
                         const editor = editorRef.current;

@@ -829,7 +829,7 @@ export function FileList({
                             action: () => {
                               const fullPath = `${currentDir}/${row.getValue("name")}`;
                               window.open(
-                                `/ssh/sftp/editor?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? "")}`,
+                                `/ssh/sftp/editor?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? "")}&user=${encodeURIComponent(sftpStore.sessions[sftpStore.activeTabId as any]?.host ?? "")}`,
                                 "_blank",
                               );
                             },

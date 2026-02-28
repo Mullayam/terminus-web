@@ -97,6 +97,8 @@ export interface EditorRightSidebarProps {
   enableTerminal?: boolean;
   /** Base API URL for AI chat */
   chatBaseUrl?: string;
+  /** Host identifier for AI chat (session / tab id) */
+  chatHostId?: string;
   /** Current file content (for AI chat context) */
   chatFileContent?: string;
   /** Called when AI chat applies code */
@@ -217,6 +219,7 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
   onSettingsChange,
   enableTerminal,
   chatBaseUrl,
+  chatHostId,
   chatFileContent,
   onChatApplyCode,
 }) => {
@@ -378,6 +381,7 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
             {activeTab === "chat" && chatBaseUrl && (
               <ChatPanel
                 baseUrl={chatBaseUrl}
+                hostId={chatHostId}
                 language={language}
                 fileContent={chatFileContent ?? ""}
                 filename={filename}

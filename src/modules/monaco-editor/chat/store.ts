@@ -17,6 +17,12 @@ import type {
   CodeBlock,
 } from "./types";
 import { fetchProviders, streamChat, extractCodeBlocks } from "./api";
+import {
+  loadConversations,
+  saveConversation,
+  deleteStoredConversation,
+  clearStoredConversations,
+} from "./chatStorage";
 
 /* ── Helpers ───────────────────────────────────────────────── */
 
@@ -27,6 +33,34 @@ function generateId(): string {
 
 function generateConversationId(): string {
   return `conv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** Debounced IDB persist for a single conversation */
+const _persistTimers = new Map<string, ReturnType<typeof setTimeout>>();
+function debouncedPersist(
+  conv: ChatConversation,
+  hostId: string,
+  filename: string,
+  delay = 500,
+) {
+  const key = conv.id;
+  const existing = _persistTimers.get(key);
+  if (existing) clearTimeout(existing);
+  _persistTimers.set(
+    key,
+    setTimeout(() => {
+      _persistTimers.delete(key);
+      saveConversation(conv, hostId, filename).catch(() => {});
+    }, delay),
+  );
+}
+
+/** Immediately persist a conversation to IDB */
+function persistNow(conv: ChatConversation, hostId: string, filename: string) {
+  const existing = _persistTimers.get(conv.id);
+  if (existing) clearTimeout(existing);
+  _persistTimers.delete(conv.id);
+  saveConversation(conv, hostId, filename).catch(() => {});
 }
 
 /* ── Store State ───────────────────────────────────────────── */
@@ -50,6 +84,12 @@ export interface ChatState {
   abortController: AbortController | null;
   /** The base API URL */
   baseUrl: string;
+  /** Host identifier (session / tab id) */
+  hostId: string;
+  /** Current filename for conversation scoping */
+  filename: string;
+  /** Whether conversations have been loaded from IDB */
+  hydrated: boolean;
   /** Error message (if any) */
   error: string | null;
 
@@ -57,6 +97,8 @@ export interface ChatState {
 
   /** Set the base URL for API calls */
   setBaseUrl: (url: string) => void;
+  /** Set host + filename context and load conversations from IDB */
+  setContext: (hostId: string, filename: string) => Promise<void>;
   /** Fetch providers from backend */
   loadProviders: () => Promise<void>;
   /** Select a provider */
@@ -104,17 +146,39 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isStreaming: false,
   abortController: null,
   baseUrl: "",
+  hostId: "",
+  filename: "",
+  hydrated: false,
   error: null,
 
   setBaseUrl: (url) => set({ baseUrl: url }),
 
+  setContext: async (hostId, filename) => {
+    const prev = get();
+    // Skip if context hasn't changed
+    if (prev.hostId === hostId && prev.filename === filename && prev.hydrated) return;
+
+    set({ hostId, filename, hydrated: false });
+    try {
+      const convs = await loadConversations(hostId, filename);
+      set({
+        conversations: convs,
+        activeConversationId: convs[0]?.id ?? null,
+        hydrated: true,
+      });
+    } catch {
+      // If IDB fails, start fresh
+      set({ conversations: [], activeConversationId: null, hydrated: true });
+    }
+  },
+
   loadProviders: async () => {
-    const { baseUrl } = get();
+    const { baseUrl, hostId } = get();
     if (!baseUrl) return;
 
     set({ loadingProviders: true, error: null });
     try {
-      const providers = await fetchProviders(baseUrl);
+      const providers = await fetchProviders(baseUrl, hostId || undefined);
       const firstAvailable = providers.find((p) => p.available);
       set({
         providers,
@@ -154,6 +218,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       conversations: [conversation, ...state.conversations],
       activeConversationId: id,
     }));
+    // Persist to IDB
+    const { hostId, filename } = get();
+    if (hostId && filename) {
+      saveConversation(conversation, hostId, filename).catch(() => {});
+    }
     return id;
   },
 
@@ -286,6 +355,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
               isStreaming: false,
               abortController: null,
             }));
+            // Persist completed conversation
+            const { hostId: h, filename: f } = get();
+            const updated = get().conversations.find((c) => c.id === conversationId);
+            if (updated && h && f) persistNow(updated, h, f);
             return;
           }
 
@@ -308,9 +381,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   : c,
               ),
             }));
+            // Debounced persist during streaming
+            const { hostId: h2, filename: f2 } = get();
+            const streaming = get().conversations.find((c) => c.id === conversationId);
+            if (streaming && h2 && f2) debouncedPersist(streaming, h2, f2, 2000);
           }
         },
         abortController.signal,
+        state.hostId || undefined,
       );
     } catch (err: any) {
       if (err?.name === "AbortError") {
@@ -350,6 +428,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
           error: err?.message ?? "Request failed",
         }));
       }
+      // Persist after error / abort
+      const { hostId: eh, filename: ef } = get();
+      const errConv = get().conversations.find((c) => c.id === conversationId);
+      if (errConv && eh && ef) persistNow(errConv, eh, ef);
     }
   },
 
@@ -367,6 +449,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         c.id === id ? { ...c, messages: [], updatedAt: Date.now() } : c,
       ),
     }));
+    const { hostId, filename } = get();
+    const conv = get().conversations.find((c) => c.id === id);
+    if (conv && hostId && filename) persistNow(conv, hostId, filename);
   },
 
   deleteConversation: (id) => {
@@ -380,6 +465,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             : s.activeConversationId,
       };
     });
+    deleteStoredConversation(id).catch(() => {});
   },
 
   setCodeBlockAccepted: (messageId, blockIndex, accepted) => {
@@ -396,6 +482,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }),
       })),
     }));
+    // Persist the conversation that owns this message
+    const { hostId, filename, conversations } = get();
+    if (hostId && filename) {
+      const conv = conversations.find((c) =>
+        c.messages.some((m) => m.id === messageId),
+      );
+      if (conv) debouncedPersist(conv, hostId, filename);
+    }
   },
 
   clearError: () => set({ error: null }),
