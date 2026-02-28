@@ -135,7 +135,8 @@ export default function SFTPTabClient({ tabId }: { tabId: string }) {
         socket.on(SocketEventConstants.SUCCESS, onSuccess);
         socket.on(SocketEventConstants.COMPRESSING, onCompressing);
         socket.on(SocketEventConstants.DOWNLOAD_PROGRESS, onDownloadProgress);
-
+        socket.on(SocketEventConstants.STARTING, onDownloadProgress);
+        socket.on(SocketEventConstants.COMPRESSING, onDownloadProgress);
         return () => {
             socket.off('connect', onConnect);
             socket.off('disconnect', onDisconnect);
@@ -148,6 +149,9 @@ export default function SFTPTabClient({ tabId }: { tabId: string }) {
             socket.off(SocketEventConstants.SUCCESS, onSuccess);
             socket.off(SocketEventConstants.COMPRESSING, onCompressing);
             socket.off(SocketEventConstants.DOWNLOAD_PROGRESS, onDownloadProgress);
+            socket.off(SocketEventConstants.STARTING, onDownloadProgress);
+            socket.off(SocketEventConstants.COMPRESSING, onDownloadProgress);
+
         };
     }, [tabId]);
 
@@ -181,7 +185,7 @@ export default function SFTPTabClient({ tabId }: { tabId: string }) {
             });
         }
 
-        updateSession(tabId, { password: data.password , authMethod: data.authMethod, username: data.username, host: data.host}); // Store password in session for potential reconnects
+        updateSession(tabId, { password: data.password, authMethod: data.authMethod, username: data.username, host: data.host }); // Store password in session for potential reconnects
         patch({
             loading: true,
             isConnecting: true,
@@ -197,6 +201,8 @@ export default function SFTPTabClient({ tabId }: { tabId: string }) {
 
     const downloadCancel = (filename: string) => {
         socketRef.current?.emit(SocketEventConstants.CANCEL_DOWNLOADING, filename);
+        setDownloadProgress({});
+        
     };
 
     const handleClickOnHostCard = (index: number) => {
