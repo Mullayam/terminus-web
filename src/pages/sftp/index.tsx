@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Suspense } from 'react'
-import { v4 as uuid } from 'uuid';
+import { nanoid } from './utils/nanoid';
 import { FolderOpen, Plus } from 'lucide-react';
 
 import SFTPTabClient from './components/SFTPTabClient';
@@ -12,7 +12,7 @@ const SFTP = () => {
   const { tabs, activeTabId, addTab, addSession } = useSFTPStore();
 
   const handleAddTab = () => {
-    const id = uuid();
+    const id = nanoid();  // SFTP-specific ID, independent of SSH session IDs
     addTab({ id, title: `SFTP ${tabs.length + 1}` });
     addSession({
       tabId: id,

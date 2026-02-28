@@ -21,6 +21,12 @@ import type {
   ExtGrammar,
   ExtSnippet,
   ExtLanguage,
+  ExtCommand,
+  ExtKeybinding,
+  ExtConfiguration,
+  ExtColor,
+  ExtIcon,
+  ExtJsonValidation,
 } from "./extractVSIX";
 
 /* ── Record Types ──────────────────────────────────────────── */
@@ -93,6 +99,18 @@ export interface InstalledExtension {
     viewContainers?: ExtViewContainer[];
     /** Sidebar views */
     views?: Record<string, ExtView[]>;
+    /** Command contributions */
+    commands?: ExtCommand[];
+    /** Keybinding contributions */
+    keybindings?: ExtKeybinding[];
+    /** Configuration / settings contributions */
+    configurations?: ExtConfiguration[];
+    /** Color contributions (theme color tokens) */
+    colors?: ExtColor[];
+    /** Custom icon contributions (font-based) */
+    icons?: ExtIcon[];
+    /** JSON validation schema contributions */
+    jsonValidation?: ExtJsonValidation[];
   };
 }
 
@@ -148,6 +166,66 @@ export interface StoredFile {
   data: Uint8Array;
 }
 
+export interface StoredCommand {
+  /** Unique ID: "extensionId::command" */
+  id: string;
+  extensionId: string;
+  command: string;
+  title: string;
+  category?: string;
+  icon?: string | { light: string; dark: string };
+}
+
+export interface StoredKeybinding {
+  /** Unique ID: "extensionId::command" */
+  id: string;
+  extensionId: string;
+  command: string;
+  key: string;
+  mac?: string;
+  linux?: string;
+  win?: string;
+  when?: string;
+}
+
+export interface StoredConfiguration {
+  /** Unique ID: "extensionId::title" */
+  id: string;
+  extensionId: string;
+  title?: string;
+  /** JSON-serialised properties map */
+  properties: Record<string, unknown>;
+}
+
+export interface StoredColor {
+  /** Unique ID: "extensionId::colorId" */
+  id: string;
+  extensionId: string;
+  colorId: string;
+  description: string;
+  defaults: { dark: string; light: string; highContrast?: string; highContrastLight?: string };
+}
+
+export interface StoredIcon {
+  /** Unique ID: "extensionId::name" */
+  id: string;
+  extensionId: string;
+  name: string;
+  description?: string;
+  fontPath?: string;
+  fontCharacter?: string;
+}
+
+export interface StoredJsonValidation {
+  /** Unique ID: "extensionId::fileMatch" */
+  id: string;
+  extensionId: string;
+  fileMatch: string[];
+  url: string;
+  /** Resolved JSON Schema (if packaged in VSIX) */
+  schema?: Record<string, unknown>;
+}
+
 /* ── Database ──────────────────────────────────────────────── */
 
 class ExtensionDB extends Dexie {
@@ -156,6 +234,12 @@ class ExtensionDB extends Dexie {
   grammars!: EntityTable<StoredGrammar, "id">;
   snippets!: EntityTable<StoredSnippet, "id">;
   files!: EntityTable<StoredFile, "id">;
+  commands!: EntityTable<StoredCommand, "id">;
+  keybindings!: EntityTable<StoredKeybinding, "id">;
+  configurations!: EntityTable<StoredConfiguration, "id">;
+  colors!: EntityTable<StoredColor, "id">;
+  icons!: EntityTable<StoredIcon, "id">;
+  jsonValidation!: EntityTable<StoredJsonValidation, "id">;
 
   constructor() {
     super("terminus-extensions");
@@ -185,6 +269,21 @@ class ExtensionDB extends Dexie {
             ext.enabled = ext.enabled ? 1 : 0;
           }),
       );
+
+    // v3: add commands, keybindings, configurations, colors, icons, jsonValidation tables
+    this.version(3).stores({
+      extensions: "id, publisher, name, enabled",
+      themes: "id, extensionId, themeId",
+      grammars: "id, extensionId, scopeName, language",
+      snippets: "id, extensionId, language",
+      files: "id, extensionId, path",
+      commands: "id, extensionId, command",
+      keybindings: "id, extensionId, command",
+      configurations: "id, extensionId",
+      colors: "id, extensionId, colorId",
+      icons: "id, extensionId, name",
+      jsonValidation: "id, extensionId",
+    });
   }
 }
 
@@ -241,11 +340,21 @@ export async function saveExtension(
       menus: vsix.menus,
       viewContainers: vsix.viewContainers,
       views: vsix.views,
+      commands: vsix.commands,
+      keybindings: vsix.keybindings,
+      configurations: vsix.configurations,
+      colors: vsix.colors,
+      icons: vsix.icons,
+      jsonValidation: vsix.jsonValidation,
     },
   };
 
   // Use a transaction for atomicity
-  await db.transaction("rw", [db.extensions, db.themes, db.grammars, db.snippets, db.files], async () => {
+  await db.transaction(
+    "rw",
+    [db.extensions, db.themes, db.grammars, db.snippets, db.files,
+     db.commands, db.keybindings, db.configurations, db.colors, db.icons, db.jsonValidation],
+    async () => {
     // Remove any previous version
     await removeExtensionData(extensionId);
 
@@ -295,6 +404,78 @@ export async function saveExtension(
         data,
       });
     }
+
+    // Save commands
+    for (const cmd of vsix.commands) {
+      await db.commands.put({
+        id: `${extensionId}::${cmd.command}`,
+        extensionId,
+        command: cmd.command,
+        title: cmd.title,
+        category: cmd.category,
+        icon: cmd.icon,
+      });
+    }
+
+    // Save keybindings
+    for (const kb of vsix.keybindings) {
+      await db.keybindings.put({
+        id: `${extensionId}::${kb.command}`,
+        extensionId,
+        command: kb.command,
+        key: kb.key,
+        mac: kb.mac,
+        linux: kb.linux,
+        win: kb.win,
+        when: kb.when,
+      });
+    }
+
+    // Save configurations
+    for (let i = 0; i < vsix.configurations.length; i++) {
+      const cfg = vsix.configurations[i];
+      await db.configurations.put({
+        id: `${extensionId}::${cfg.title ?? i}`,
+        extensionId,
+        title: cfg.title,
+        properties: cfg.properties as Record<string, unknown>,
+      });
+    }
+
+    // Save colors
+    for (const color of vsix.colors) {
+      await db.colors.put({
+        id: `${extensionId}::${color.id}`,
+        extensionId,
+        colorId: color.id,
+        description: color.description,
+        defaults: color.defaults,
+      });
+    }
+
+    // Save icons
+    for (const icon of vsix.icons) {
+      await db.icons.put({
+        id: `${extensionId}::${icon.name}`,
+        extensionId,
+        name: icon.name,
+        description: icon.description,
+        fontPath: icon.fontPath,
+        fontCharacter: icon.fontCharacter,
+      });
+    }
+
+    // Save jsonValidation
+    for (const jv of vsix.jsonValidation) {
+      const fileMatch = Array.isArray(jv.fileMatch) ? jv.fileMatch : [jv.fileMatch];
+      await db.jsonValidation.put({
+        id: `${extensionId}::${fileMatch.join(",")}`,
+        extensionId,
+        fileMatch,
+        url: jv.url,
+        schema: jv.schema,
+      });
+    }
   });
 
   return ext;
@@ -309,6 +490,12 @@ async function removeExtensionData(extensionId: string): Promise<void> {
     db.grammars.where("extensionId").equals(extensionId).delete(),
     db.snippets.where("extensionId").equals(extensionId).delete(),
     db.files.where("extensionId").equals(extensionId).delete(),
+    db.commands.where("extensionId").equals(extensionId).delete(),
+    db.keybindings.where("extensionId").equals(extensionId).delete(),
+    db.configurations.where("extensionId").equals(extensionId).delete(),
+    db.colors.where("extensionId").equals(extensionId).delete(),
+    db.icons.where("extensionId").equals(extensionId).delete(),
+    db.jsonValidation.where("extensionId").equals(extensionId).delete(),
     db.extensions.delete(extensionId),
   ]);
 }
@@ -317,8 +504,12 @@ async function removeExtensionData(extensionId: string): Promise<void> {
  * Uninstall an extension (remove from IDB).
  */
 export async function uninstallExtension(extensionId: string): Promise<void> {
-  await db.transaction("rw", [db.extensions, db.themes, db.grammars, db.snippets, db.files], async () => {
-    await removeExtensionData(extensionId);
+  await db.transaction(
+    "rw",
+    [db.extensions, db.themes, db.grammars, db.snippets, db.files,
+     db.commands, db.keybindings, db.configurations, db.colors, db.icons, db.jsonValidation],
+    async () => {
+      await removeExtensionData(extensionId);
   });
 }
 
@@ -432,11 +623,71 @@ export async function getSnippetsByLanguage(language: string): Promise<StoredSni
 }
 
 /**
+ * Get ALL stored snippets from enabled extensions (for batch loading).
+ */
+export async function getAllSnippets(): Promise<StoredSnippet[]> {
+  const enabledExts = await getEnabledExtensions();
+  const ids = enabledExts.map((e) => e.id);
+  if (ids.length === 0) return [];
+  return db.snippets.where("extensionId").anyOf(ids).toArray();
+}
+
+/**
  * Get a raw file from an extension.
  */
 export async function getExtensionFile(extensionId: string, path: string): Promise<Uint8Array | undefined> {
   const record = await db.files.get(`${extensionId}::${path}`);
   return record?.data;
+}
+
+/* ── New Queries: commands, keybindings, configurations, colors, icons, jsonValidation ── */
+
+/** Get all commands from enabled extensions. */
+export async function getAllCommands(): Promise<StoredCommand[]> {
+  const enabledExts = await getEnabledExtensions();
+  const ids = enabledExts.map((e) => e.id);
+  if (ids.length === 0) return [];
+  return db.commands.where("extensionId").anyOf(ids).toArray();
+}
+
+/** Get all keybindings from enabled extensions. */
+export async function getAllKeybindings(): Promise<StoredKeybinding[]> {
+  const enabledExts = await getEnabledExtensions();
+  const ids = enabledExts.map((e) => e.id);
+  if (ids.length === 0) return [];
+  return db.keybindings.where("extensionId").anyOf(ids).toArray();
+}
+
+/** Get all configurations from enabled extensions. */
+export async function getAllConfigurations(): Promise<StoredConfiguration[]> {
+  const enabledExts = await getEnabledExtensions();
+  const ids = enabledExts.map((e) => e.id);
+  if (ids.length === 0) return [];
+  return db.configurations.where("extensionId").anyOf(ids).toArray();
+}
+
+/** Get all color contributions from enabled extensions. */
+export async function getAllColors(): Promise<StoredColor[]> {
+  const enabledExts = await getEnabledExtensions();
+  const ids = enabledExts.map((e) => e.id);
+  if (ids.length === 0) return [];
+  return db.colors.where("extensionId").anyOf(ids).toArray();
+}
+
+/** Get all icon contributions from enabled extensions. */
+export async function getAllIcons(): Promise<StoredIcon[]> {
+  const enabledExts = await getEnabledExtensions();
+  const ids = enabledExts.map((e) => e.id);
+  if (ids.length === 0) return [];
+  return db.icons.where("extensionId").anyOf(ids).toArray();
+}
+
+/** Get all JSON validation schemas from enabled extensions. */
+export async function getAllJsonValidation(): Promise<StoredJsonValidation[]> {
+  const enabledExts = await getEnabledExtensions();
+  const ids = enabledExts.map((e) => e.id);
+  if (ids.length === 0) return [];
+  return db.jsonValidation.where("extensionId").anyOf(ids).toArray();
 }
 
 /**
@@ -448,26 +699,55 @@ export async function getStorageUsage(): Promise<{
   grammarCount: number;
   snippetCount: number;
   fileCount: number;
+  commandCount: number;
+  keybindingCount: number;
+  configurationCount: number;
+  colorCount: number;
+  iconCount: number;
+  jsonValidationCount: number;
 }> {
-  const [extensionCount, themeCount, grammarCount, snippetCount, fileCount] = await Promise.all([
+  const [
+    extensionCount, themeCount, grammarCount, snippetCount, fileCount,
+    commandCount, keybindingCount, configurationCount, colorCount, iconCount, jsonValidationCount,
+  ] = await Promise.all([
     db.extensions.count(),
     db.themes.count(),
     db.grammars.count(),
     db.snippets.count(),
     db.files.count(),
+    db.commands.count(),
+    db.keybindings.count(),
+    db.configurations.count(),
+    db.colors.count(),
+    db.icons.count(),
+    db.jsonValidation.count(),
   ]);
-  return { extensionCount, themeCount, grammarCount, snippetCount, fileCount };
+  return {
+    extensionCount, themeCount, grammarCount, snippetCount, fileCount,
+    commandCount, keybindingCount, configurationCount, colorCount, iconCount, jsonValidationCount,
+  };
 }
 
 /**
  * Clear all extension data from the database.
  */
 export async function clearAllExtensions(): Promise<void> {
-  await db.transaction("rw", [db.extensions, db.themes, db.grammars, db.snippets, db.files], async () => {
-    await db.extensions.clear();
-    await db.themes.clear();
-    await db.grammars.clear();
-    await db.snippets.clear();
-    await db.files.clear();
-  });
+  await db.transaction(
+    "rw",
+    [db.extensions, db.themes, db.grammars, db.snippets, db.files,
+     db.commands, db.keybindings, db.configurations, db.colors, db.icons, db.jsonValidation],
+    async () => {
+      await db.extensions.clear();
+      await db.themes.clear();
+      await db.grammars.clear();
+      await db.snippets.clear();
+      await db.files.clear();
+      await db.commands.clear();
+      await db.keybindings.clear();
+      await db.configurations.clear();
+      await db.colors.clear();
+      await db.icons.clear();
+      await db.jsonValidation.clear();
+    },
+  );
 }

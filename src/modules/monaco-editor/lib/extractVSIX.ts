@@ -103,6 +103,73 @@ export interface ExtIconTheme {
   content?: Record<string, unknown>;
 }
 
+/* ── New contribution types (commands, keybindings, configuration, colors, icons, jsonValidation) ── */
+
+/** A contributed command from the extension manifest */
+export interface ExtCommand {
+  command: string;
+  title: string;
+  category?: string;
+  icon?: string | { light: string; dark: string };
+}
+
+/** A contributed keybinding from the extension manifest */
+export interface ExtKeybinding {
+  command: string;
+  key: string;
+  mac?: string;
+  linux?: string;
+  win?: string;
+  when?: string;
+}
+
+/** A contributed configuration property from the extension manifest */
+export interface ExtConfigurationProperty {
+  type?: string;
+  default?: unknown;
+  description?: string;
+  markdownDescription?: string;
+  enum?: string[];
+  enumDescriptions?: string[];
+  minimum?: number;
+  maximum?: number;
+  scope?: string;
+}
+
+/** A contributed configuration section from the extension manifest */
+export interface ExtConfiguration {
+  title?: string;
+  properties: Record<string, ExtConfigurationProperty>;
+}
+
+/** A contributed color from the extension manifest */
+export interface ExtColor {
+  id: string;
+  description: string;
+  defaults: {
+    dark: string;
+    light: string;
+    highContrast?: string;
+    highContrastLight?: string;
+  };
+}
+
+/** A contributed custom icon font from the extension manifest */
+export interface ExtIcon {
+  name: string;
+  description?: string;
+  fontPath?: string;
+  fontCharacter?: string;
+}
+
+/** A contributed JSON validation schema from the extension manifest */
+export interface ExtJsonValidation {
+  fileMatch: string | string[];
+  url: string;
+  /** Resolved schema content (if the url points to a local file in the VSIX) */
+  schema?: Record<string, unknown>;
+}
+
 /** The full extracted contents of a VSIX */
 export interface VSIXContents {
   /** Extension manifest (package.json) */
@@ -135,6 +202,18 @@ export interface VSIXContents {
   viewContainers?: Array<{ id: string; title: string; icon?: string }>;
   /** View contributions */
   views?: Record<string, Array<{ id: string; name: string; when?: string; type?: string }>>;
+  /** Command contributions */
+  commands: ExtCommand[];
+  /** Keybinding contributions */
+  keybindings: ExtKeybinding[];
+  /** Configuration (settings) contributions */
+  configurations: ExtConfiguration[];
+  /** Color contributions */
+  colors: ExtColor[];
+  /** Custom icon contributions (font-based icons) */
+  icons: ExtIcon[];
+  /** JSON validation schema contributions */
+  jsonValidation: ExtJsonValidation[];
   /** Raw file map: relative path → Uint8Array */
   files: Map<string, Uint8Array>;
 }
@@ -200,6 +279,12 @@ export async function extractVSIX(buffer: ArrayBuffer): Promise<VSIXContents> {
     menus: undefined,
     viewContainers: undefined,
     views: undefined,
+    commands: [],
+    keybindings: [],
+    configurations: [],
+    colors: [],
+    icons: [],
+    jsonValidation: [],
     files: new Map(),
   };
 
@@ -420,6 +505,111 @@ export async function extractVSIX(buffer: ArrayBuffer): Promise<VSIXContents> {
         }));
       }
     }
+  }
+
+  // 13. Extract commands
+  const commandContribs = (contributes.commands ?? []) as Array<{
+    command: string;
+    title: string | { value: string; original?: string };
+    category?: string | { value: string; original?: string };
+    icon?: string | { light: string; dark: string };
+  }>;
+  for (const cmd of commandContribs) {
+    const title = typeof cmd.title === "string" ? cmd.title : cmd.title?.value ?? "";
+    const category = typeof cmd.category === "string" ? cmd.category : cmd.category?.value;
+    contents.commands.push({
+      command: cmd.command,
+      title,
+      category,
+      icon: cmd.icon,
+    });
+  }
+
+  // 14. Extract keybindings
+  const keybindingContribs = (contributes.keybindings ?? []) as Array<{
+    command: string;
+    key: string;
+    mac?: string;
+    linux?: string;
+    win?: string;
+    when?: string;
+  }>;
+  for (const kb of keybindingContribs) {
+    contents.keybindings.push({
+      command: kb.command,
+      key: kb.key,
+      mac: kb.mac,
+      linux: kb.linux,
+      win: kb.win,
+      when: kb.when,
+    });
+  }
+
+  // 15. Extract configuration (settings)
+  const configContribs = contributes.configuration;
+  if (configContribs) {
+    const configs = Array.isArray(configContribs) ? configContribs : [configContribs];
+    for (const cfg of configs as Array<{ title?: string; properties?: Record<string, ExtConfigurationProperty> }>) {
+      if (cfg.properties && typeof cfg.properties === "object") {
+        contents.configurations.push({
+          title: cfg.title,
+          properties: cfg.properties,
+        });
+      }
+    }
+  }
+
+  // 16. Extract color contributions
+  const colorContribs = (contributes.colors ?? []) as Array<{
+    id: string;
+    description: string;
+    defaults: { dark: string; light: string; highContrast?: string; highContrastLight?: string };
+  }>;
+  for (const color of colorContribs) {
+    contents.colors.push({
+      id: color.id,
+      description: color.description,
+      defaults: {
+        dark: color.defaults?.dark ?? "#000000",
+        light: color.defaults?.light ?? "#ffffff",
+        highContrast: color.defaults?.highContrast,
+        highContrastLight: color.defaults?.highContrastLight,
+      },
+    });
+  }
+
+  // 17. Extract custom icon contributions (font-based)
+  const iconContribs = contributes.icons as Record<string, {
+    description?: string;
+    default?: { fontPath?: string; fontCharacter?: string };
+  }> | undefined;
+  if (iconContribs && typeof iconContribs === "object") {
+    for (const [name, icon] of Object.entries(iconContribs)) {
+      contents.icons.push({
+        name,
+        description: icon.description,
+        fontPath: icon.default?.fontPath,
+        fontCharacter: icon.default?.fontCharacter,
+      });
+    }
+  }
+
+  // 18. Extract JSON validation schemas
+  const jsonValidationContribs = (contributes.jsonValidation ?? []) as Array<{
+    fileMatch: string | string[];
+    url: string;
+  }>;
+  for (const jv of jsonValidationContribs) {
+    let schema: Record<string, unknown> | undefined;
+    // If url is a local path (starts with ./ or not http), try to read from VSIX
+    if (jv.url && !jv.url.startsWith("http")) {
+      schema = (await readJsonFile(zip, jv.url)) ?? undefined;
+    }
+    contents.jsonValidation.push({
+      fileMatch: jv.fileMatch,
+      url: jv.url,
+      schema,
+    });
   }
 
   return contents;

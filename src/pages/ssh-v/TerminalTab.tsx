@@ -132,6 +132,8 @@ export default function TerminalTab({ sessionId }: Props) {
             socket = io(__config.API_URL, {
                 query: { sessionId },
                 autoConnect: true,
+                forceNew: true,      // each SSH tab gets its own transport
+                multiplex: false,
             });
             socketRef.current = socket;
             if (session) {

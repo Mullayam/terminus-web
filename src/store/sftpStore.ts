@@ -49,6 +49,8 @@ export function getOrCreateSocket(tabId: string): Socket {
   socket = io(__config.API_URL, {
     query: { sessionId: tabId },
     autoConnect: true,
+    forceNew: true,        // each SFTP tab MUST get its own transport
+    multiplex: false,      // never share the underlying Manager
   });
   socketRegistry.set(tabId, socket);
   return socket;

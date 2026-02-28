@@ -24,7 +24,11 @@ export {
 export { searchExtensions, getExtension, getExtensionVersion, downloadVSIX } from "./openVSX";
 export type { OpenVSXExtension, OpenVSXSearchResult } from "./openVSX";
 export { extractVSIX } from "./extractVSIX";
-export type { VSIXContents, ExtTheme, ExtGrammar, ExtSnippet, ExtLanguage } from "./extractVSIX";
+export type {
+  VSIXContents, ExtTheme, ExtGrammar, ExtSnippet, ExtLanguage,
+  ExtCommand, ExtKeybinding, ExtConfiguration, ExtConfigurationProperty,
+  ExtColor, ExtIcon, ExtJsonValidation,
+} from "./extractVSIX";
 export {
   saveExtension,
   uninstallExtension,
@@ -35,10 +39,22 @@ export {
   getThemeById,
   getAllGrammars,
   getSnippetsByLanguage,
+  getAllSnippets,
+  getAllCommands,
+  getAllKeybindings,
+  getAllConfigurations,
+  getAllColors,
+  getAllIcons,
+  getAllJsonValidation,
   clearAllExtensions,
   toggleExtension,
 } from "./extensionStorage";
-export type { InstalledExtension, StoredTheme, StoredGrammar, StoredSnippet, ExtStatusBarItem, ExtMenuContribution, ExtViewContainer, ExtView } from "./extensionStorage";
+export type {
+  InstalledExtension, StoredTheme, StoredGrammar, StoredSnippet,
+  StoredCommand, StoredKeybinding, StoredConfiguration, StoredColor,
+  StoredIcon, StoredJsonValidation,
+  ExtStatusBarItem, ExtMenuContribution, ExtViewContainer, ExtView,
+} from "./extensionStorage";
 export {
   installExtensionFromOpenVSX,
   installExtensionFromVSIX,
@@ -47,6 +63,13 @@ export {
   loadAllExtensionThemes,
   loadAllExtensionGrammars,
   loadExtensionSnippets,
+  loadAllExtensionSnippets,
+  loadExtensionCommands,
+  loadExtensionKeybindings,
+  loadExtensionConfigurations,
+  getExtensionColorDefaults,
+  loadExtensionIcons,
+  loadExtensionJsonValidation,
   registerExtensionTheme,
   registerExtensionGrammar,
   getAvailableExtensionThemes,

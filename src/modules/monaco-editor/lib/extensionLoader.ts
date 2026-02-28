@@ -29,16 +29,38 @@ import {
   getEnabledExtensions,
   getAllThemes,
   getAllGrammars,
+  getAllSnippets,
   getSnippetsByLanguage,
   getThemeById,
   getGrammarByScope,
+  getAllCommands,
+  getAllKeybindings,
+  getAllConfigurations,
+  getAllColors,
+  getAllIcons,
+  getAllJsonValidation,
   type InstalledExtension,
   type StoredTheme,
   type StoredGrammar,
   type StoredSnippet,
+  type StoredCommand,
+  type StoredKeybinding,
+  type StoredConfiguration,
+  type StoredColor,
+  type StoredIcon,
+  type StoredJsonValidation,
 } from "./extensionStorage";
 
 type Monaco = typeof monacoNs;
+
+/**
+ * Typed accessor for `monaco.languages.json.jsonDefaults` which is
+ * marked deprecated at the type level but still available at runtime.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getJsonDefaults(monaco: Monaco): any {
+  return (monaco.languages as any).json?.jsonDefaults;
+}
 
 /* ── State ─────────────────────────────────────────────────── */
 
@@ -50,6 +72,18 @@ const registeredGrammars = new Set<string>();
 
 /** Track snippet disposables per language (extension-contributed) */
 const extensionSnippetDisposables = new Map<string, monacoNs.IDisposable[]>();
+
+/** Track registered command IDs (extension-contributed) */
+const registeredCommands = new Set<string>();
+
+/** Track command/keybinding action disposables */
+const commandDisposables: monacoNs.IDisposable[] = [];
+
+/** Track registered JSON schemas to avoid duplicates */
+const registeredSchemaUris = new Set<string>();
+
+/** Track injected icon style elements per extensionId */
+const iconStyleElements = new Map<string, HTMLStyleElement>();
 
 /** Install progress callback type */
 export type InstallProgress = (
@@ -249,6 +283,439 @@ export async function loadExtensionSnippets(
   return disposables;
 }
 
+/**
+ * Load snippets for ALL languages that have extension-contributed snippets.
+ * Groups stored snippets by language and registers a completion provider for each.
+ */
+export async function loadAllExtensionSnippets(
+  monaco: Monaco,
+): Promise<string[]> {
+  const allSnippets = await getAllSnippets();
+  if (allSnippets.length === 0) return [];
+
+  // Group by language
+  const byLang = new Map<string, StoredSnippet[]>();
+  for (const s of allSnippets) {
+    const arr = byLang.get(s.language) ?? [];
+    arr.push(s);
+    byLang.set(s.language, arr);
+  }
+
+  const loaded: string[] = [];
+  for (const langId of byLang.keys()) {
+    try {
+      await loadExtensionSnippets(monaco, langId);
+      loaded.push(langId);
+    } catch (err) {
+      console.warn(`[extensionLoader] Failed to load snippets for "${langId}":`, err);
+    }
+  }
+  return loaded;
+}
+
+/* ── Command Loading ───────────────────────────────────────── */
+
+/**
+ * Parse a VS Code keybinding string into a Monaco keybinding number.
+ * E.g. "ctrl+shift+k" → KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyK
+ */
+function parseKeybinding(monaco: Monaco, keyStr: string): number {
+  let mods = 0;
+  const parts = keyStr.toLowerCase().replace(/\s/g, "").split("+");
+  const key = parts.pop() ?? "";
+
+  for (const mod of parts) {
+    if (mod === "ctrl" || mod === "cmd" || mod === "ctrlcmd") mods |= monaco.KeyMod.CtrlCmd;
+    if (mod === "shift") mods |= monaco.KeyMod.Shift;
+    if (mod === "alt" || mod === "option") mods |= monaco.KeyMod.Alt;
+    if (mod === "win" || mod === "meta" || mod === "super") mods |= monaco.KeyMod.WinCtrl;
+  }
+
+  // Try to resolve the key code via KeyCode enum
+  // First try "Key" + uppercase letter for alpha keys (e.g., "k" → "KeyK")
+  const keyUpper = key.toUpperCase();
+  let keyCode: number | undefined;
+  const keyCodeMap = monaco.KeyCode as unknown as Record<string, number>;
+
+  // Single letter keys: a-z
+  if (key.length === 1 && /^[a-z]$/i.test(key)) {
+    keyCode = keyCodeMap[`Key${keyUpper}`];
+  }
+  // Digit keys: 0-9
+  else if (key.length === 1 && /^[0-9]$/.test(key)) {
+    keyCode = keyCodeMap[`Digit${key}`];
+  }
+  // Function keys: f1-f19
+  else if (/^f\d{1,2}$/.test(key)) {
+    keyCode = keyCodeMap[key.toUpperCase()];
+  }
+  // Named keys: enter, escape, tab, space, backspace, delete, etc.
+  else {
+    const nameMap: Record<string, string> = {
+      enter: "Enter",
+      return: "Enter",
+      escape: "Escape",
+      esc: "Escape",
+      tab: "Tab",
+      space: "Space",
+      backspace: "Backspace",
+      delete: "Delete",
+      del: "Delete",
+      insert: "Insert",
+      home: "Home",
+      end: "End",
+      pageup: "PageUp",
+      pagedown: "PageDown",
+      up: "UpArrow",
+      down: "DownArrow",
+      left: "LeftArrow",
+      right: "RightArrow",
+      "[": "BracketLeft",
+      "]": "BracketRight",
+      "\\": "Backslash",
+      "/": "Slash",
+      ";": "Semicolon",
+      "'": "Quote",
+      ",": "Comma",
+      ".": "Period",
+      "-": "Minus",
+      "=": "Equal",
+      "`": "Backquote",
+    };
+    const mapped = nameMap[key] ?? key.charAt(0).toUpperCase() + key.slice(1);
+    keyCode = keyCodeMap[mapped];
+  }
+
+  return mods | (keyCode ?? 0);
+}
+
+/**
+ * Register extension-contributed commands with the editor.
+ * Commands appear in the command palette (Ctrl+Shift+P).
+ */
+export async function loadExtensionCommands(
+  monaco: Monaco,
+  editor?: monacoNs.editor.ICodeEditor,
+): Promise<string[]> {
+  const commands = await getAllCommands();
+  if (commands.length === 0) return [];
+
+  // Also fetch keybindings so we can attach them to matching commands
+  const keybindings = await getAllKeybindings();
+  const kbMap = new Map<string, StoredKeybinding[]>();
+  for (const kb of keybindings) {
+    const arr = kbMap.get(kb.command) ?? [];
+    arr.push(kb);
+    kbMap.set(kb.command, arr);
+  }
+
+  const loaded: string[] = [];
+  for (const cmd of commands) {
+    if (registeredCommands.has(cmd.command)) continue;
+
+    const label = cmd.category ? `${cmd.category}: ${cmd.title}` : cmd.title;
+
+    // Resolve keybindings for this command
+    const cmdKeybindings: number[] = [];
+    const kbs = kbMap.get(cmd.command);
+    if (kbs) {
+      for (const kb of kbs) {
+        // Use platform-specific key if available
+        const isMac = navigator.platform?.toLowerCase().includes("mac");
+        const isLinux = navigator.platform?.toLowerCase().includes("linux");
+        const keyStr = (isMac && kb.mac) || (isLinux && kb.linux) || kb.key;
+        try {
+          cmdKeybindings.push(parseKeybinding(monaco, keyStr));
+        } catch {
+          // skip invalid keybindings
+        }
+      }
+    }
+
+    if (editor) {
+      try {
+        // addAction exists on IStandaloneCodeEditor but not the ICodeEditor base type
+        const standaloneEditor = editor as unknown as monacoNs.editor.IStandaloneCodeEditor;
+        const disposable = standaloneEditor.addAction({
+          id: cmd.command,
+          label,
+          keybindings: cmdKeybindings.length > 0 ? cmdKeybindings : undefined,
+          contextMenuGroupId: "extension",
+          run: () => {
+            console.log(`[extension] Command stub: ${cmd.command}`);
+          },
+        });
+        if (disposable) commandDisposables.push(disposable);
+        registeredCommands.add(cmd.command);
+        loaded.push(cmd.command);
+      } catch (err) {
+        console.warn(`[extensionLoader] Failed to register command "${cmd.command}":`, err);
+      }
+    } else {
+      // Without an editor instance, register a no-op placeholder
+      registeredCommands.add(cmd.command);
+      loaded.push(cmd.command);
+    }
+  }
+
+  return loaded;
+}
+
+/**
+ * Register standalone keybindings that aren't already attached to a command.
+ * If no matching command action was registered, create a minimal action.
+ */
+export async function loadExtensionKeybindings(
+  monaco: Monaco,
+  editor?: monacoNs.editor.ICodeEditor,
+): Promise<string[]> {
+  if (!editor) return [];
+
+  const keybindings = await getAllKeybindings();
+  const loaded: string[] = [];
+
+  for (const kb of keybindings) {
+    // Skip if the command was already registered with its keybinding
+    if (registeredCommands.has(kb.command)) continue;
+
+    const isMac = navigator.platform?.toLowerCase().includes("mac");
+    const isLinux = navigator.platform?.toLowerCase().includes("linux");
+    const keyStr = (isMac && kb.mac) || (isLinux && kb.linux) || kb.key;
+
+    try {
+      const binding = parseKeybinding(monaco, keyStr);
+      const standaloneEditor = editor as unknown as monacoNs.editor.IStandaloneCodeEditor;
+      const disposable = standaloneEditor.addAction({
+        id: kb.command,
+        label: kb.command,
+        keybindings: [binding],
+        precondition: kb.when,
+        run: () => {
+          console.log(`[extension] Keybinding stub: ${kb.command}`);
+        },
+      });
+      if (disposable) commandDisposables.push(disposable);
+      registeredCommands.add(kb.command);
+      loaded.push(kb.command);
+    } catch (err) {
+      console.warn(`[extensionLoader] Failed to register keybinding for "${kb.command}":`, err);
+    }
+  }
+
+  return loaded;
+}
+
+/* ── Configuration Loading ─────────────────────────────────── */
+
+/**
+ * Register extension configuration schemas.
+ * Merges all extension config properties into a JSON schema that
+ * provides validation/intellisense for settings.json files.
+ */
+export async function loadExtensionConfigurations(monaco: Monaco): Promise<number> {
+  const configs = await getAllConfigurations();
+  if (configs.length === 0) return 0;
+
+  const allProperties: Record<string, unknown> = {};
+  for (const cfg of configs) {
+    if (cfg.properties && typeof cfg.properties === "object") {
+      Object.assign(allProperties, cfg.properties);
+    }
+  }
+
+  const schemaUri = "terminus://extension-settings-schema.json";
+  if (registeredSchemaUris.has(schemaUri) && Object.keys(allProperties).length === 0) return 0;
+
+  try {
+    // Access existing diagnostic options and merge
+    const jsonDefaults = getJsonDefaults(monaco);
+    if (!jsonDefaults) return 0;
+    const existing = jsonDefaults.diagnosticsOptions;
+    const existingSchemas = existing?.schemas ?? [];
+
+    // Remove any previous extension-settings schema
+    const filtered = existingSchemas.filter((s: { uri?: string }) => s.uri !== schemaUri);
+
+    jsonDefaults.setDiagnosticsOptions({
+      validate: true,
+      allowComments: true,
+      schemas: [
+        ...filtered,
+        {
+          uri: schemaUri,
+          fileMatch: ["settings.json", "*.settings.json"],
+          schema: {
+            type: "object",
+            properties: allProperties,
+          },
+        },
+      ],
+    });
+
+    registeredSchemaUris.add(schemaUri);
+    return Object.keys(allProperties).length;
+  } catch (err) {
+    console.warn("[extensionLoader] Failed to register configuration schemas:", err);
+    return 0;
+  }
+}
+
+/* ── Color Loading ─────────────────────────────────────────── */
+
+/**
+ * Get all extension-contributed color defaults for the given theme type.
+ * These can be merged into theme `colors` when defining/updating a theme.
+ */
+export async function getExtensionColorDefaults(
+  themeType: "dark" | "light" | "hc" = "dark",
+): Promise<Record<string, string>> {
+  const colors = await getAllColors();
+  const result: Record<string, string> = {};
+
+  for (const color of colors) {
+    const value =
+      themeType === "dark"
+        ? color.defaults.dark
+        : themeType === "light"
+          ? color.defaults.light
+          : color.defaults.highContrast ?? color.defaults.dark;
+    if (value) {
+      result[color.colorId] = value;
+    }
+  }
+
+  return result;
+}
+
+/* ── Icon Loading ──────────────────────────────────────────── */
+
+/**
+ * Load extension-contributed custom icon fonts.
+ * Injects @font-face rules and per-icon CSS classes into the document.
+ * Returns the list of icon names that were loaded.
+ */
+export async function loadExtensionIcons(
+  extensionId?: string,
+): Promise<string[]> {
+  const icons = await getAllIcons();
+  if (icons.length === 0) return [];
+
+  // Group by extensionId
+  const byExt = new Map<string, StoredIcon[]>();
+  for (const icon of icons) {
+    if (extensionId && icon.extensionId !== extensionId) continue;
+    const arr = byExt.get(icon.extensionId) ?? [];
+    arr.push(icon);
+    byExt.set(icon.extensionId, arr);
+  }
+
+  const loaded: string[] = [];
+
+  for (const [extId, extIcons] of byExt) {
+    // Skip if already injected
+    if (iconStyleElements.has(extId)) continue;
+
+    // Collect unique font paths
+    const fontPaths = new Set<string>();
+    for (const icon of extIcons) {
+      if (icon.fontPath) fontPaths.add(icon.fontPath);
+    }
+
+    let css = "";
+
+    // Generate @font-face for each unique font
+    let fontIdx = 0;
+    const fontFamilies = new Map<string, string>();
+    for (const fp of fontPaths) {
+      const family = `ExtIcon_${extId.replace(/[^a-zA-Z0-9]/g, "_")}_${fontIdx++}`;
+      fontFamilies.set(fp, family);
+
+      // The font file should be stored in IDB as a raw file
+      // We create a blob URL for it
+      css += `/* Font: ${fp} */\n`;
+      css += `@font-face {\n`;
+      css += `  font-family: '${family}';\n`;
+      // If the file is stored in IDB, we'd need to create a blob URL
+      // For now, reference it as a data URI placeholder
+      css += `  src: url('data:font/woff2;base64,') format('woff2');\n`;
+      css += `  font-weight: normal;\n`;
+      css += `  font-style: normal;\n`;
+      css += `}\n\n`;
+    }
+
+    // Generate per-icon CSS classes
+    for (const icon of extIcons) {
+      const family = icon.fontPath ? fontFamilies.get(icon.fontPath) : undefined;
+      if (icon.fontCharacter && family) {
+        const safeName = icon.name.replace(/[^a-zA-Z0-9-_]/g, "-");
+        css += `.ext-icon-${safeName}::before {\n`;
+        css += `  content: '${icon.fontCharacter}';\n`;
+        css += `  font-family: '${family}';\n`;
+        css += `}\n`;
+        loaded.push(icon.name);
+      }
+    }
+
+    if (css) {
+      const style = document.createElement("style");
+      style.setAttribute("data-ext-icons", extId);
+      style.textContent = css;
+      document.head.appendChild(style);
+      iconStyleElements.set(extId, style);
+    }
+  }
+
+  return loaded;
+}
+
+/* ── JSON Validation Loading ───────────────────────────────── */
+
+/**
+ * Register extension-contributed JSON validation schemas with Monaco.
+ * Provides validation and intellisense for matching JSON files.
+ */
+export async function loadExtensionJsonValidation(monaco: Monaco): Promise<number> {
+  const validations = await getAllJsonValidation();
+  if (validations.length === 0) return 0;
+
+  try {
+    const jsonDefaults = getJsonDefaults(monaco);
+    if (!jsonDefaults) return 0;
+    const existing = jsonDefaults.diagnosticsOptions;
+    const existingSchemas = existing?.schemas ?? [];
+
+    // Build new schema entries from extension contributions
+    const newSchemas: Array<{ uri: string; fileMatch: string[]; schema: Record<string, unknown> }> = [];
+    for (const v of validations) {
+      const schemaUri = `terminus://ext-json-schema/${v.extensionId}/${v.url}`;
+      if (registeredSchemaUris.has(schemaUri)) continue;
+
+      if (v.schema) {
+        const fileMatch = Array.isArray(v.fileMatch) ? v.fileMatch : [v.fileMatch];
+        newSchemas.push({
+          uri: schemaUri,
+          fileMatch,
+          schema: v.schema,
+        });
+        registeredSchemaUris.add(schemaUri);
+      }
+    }
+
+    if (newSchemas.length === 0) return 0;
+
+    jsonDefaults.setDiagnosticsOptions({
+      validate: true,
+      allowComments: true,
+      schemas: [...existingSchemas, ...newSchemas],
+    });
+
+    return newSchemas.length;
+  } catch (err) {
+    console.warn("[extensionLoader] Failed to register JSON validation schemas:", err);
+    return 0;
+  }
+}
+
 /* ── Language Registration ─────────────────────────────────── */
 
 /**
@@ -340,6 +807,12 @@ export async function loadAllExtensions(
 ): Promise<{
   themes: string[];
   grammars: string[];
+  snippets: string[];
+  commands: string[];
+  keybindings: string[];
+  configProperties: number;
+  jsonSchemas: number;
+  icons: string[];
   extensions: InstalledExtension[];
 }> {
   const extensions = await getEnabledExtensions();
@@ -347,13 +820,23 @@ export async function loadAllExtensions(
   // Register languages first
   await registerExtensionLanguages(monaco);
 
-  // Then themes and grammars
-  const [themes, grammars] = await Promise.all([
+  // Then themes, grammars, and snippets
+  const [themes, grammars, snippets] = await Promise.all([
     loadAllExtensionThemes(monaco),
     loadAllExtensionGrammars(monaco, editor),
+    loadAllExtensionSnippets(monaco),
   ]);
 
-  return { themes, grammars, extensions };
+  // Load new contribution types
+  const [commands, keybindings, configProperties, jsonSchemas, icons] = await Promise.all([
+    loadExtensionCommands(monaco, editor),
+    loadExtensionKeybindings(monaco, editor),
+    loadExtensionConfigurations(monaco),
+    loadExtensionJsonValidation(monaco),
+    loadExtensionIcons(),
+  ]);
+
+  return { themes, grammars, snippets, commands, keybindings, configProperties, jsonSchemas, icons, extensions };
 }
 
 /**
@@ -470,6 +953,22 @@ export async function installExtensionFromOpenVSX(
       await registerExtensionGrammar(monaco, storedGrammar, editor);
     }
 
+    // Register snippets for all languages contributed by this extension
+    for (const snippet of vsix.snippets) {
+      try {
+        await loadExtensionSnippets(monaco, snippet.language);
+      } catch (err) {
+        console.warn(`[extensionLoader] Failed to load snippets for "${snippet.language}":`, err);
+      }
+    }
+
+    // Register new contribution types (commands, keybindings, config, colors, icons, jsonValidation)
+    await loadExtensionCommands(monaco, editor);
+    await loadExtensionKeybindings(monaco, editor);
+    await loadExtensionConfigurations(monaco);
+    await loadExtensionJsonValidation(monaco);
+    await loadExtensionIcons(installed.id);
+
     onProgress?.("done", installed.id);
     return installed;
   } catch (err) {
@@ -484,9 +983,14 @@ export async function installExtensionFromOpenVSX(
  * they'll be gone on next page load.
  */
 export async function uninstallExtensionFull(extensionId: string): Promise<void> {
+  // Clean up injected icon styles
+  const iconStyle = iconStyleElements.get(extensionId);
+  if (iconStyle) {
+    iconStyle.remove();
+    iconStyleElements.delete(extensionId);
+  }
+
   await uninstallExtension(extensionId);
-  // Mark themes as unregistered so they re-register next time if re-installed
-  // (Monaco doesn't support undefining themes, but they won't load on next session)
 }
 
 /**
@@ -576,6 +1080,22 @@ export async function installExtensionFromVSIX(
       };
       await registerExtensionGrammar(monaco, storedGrammar, editor);
     }
+
+    // Register snippets for all languages contributed by this extension
+    for (const snippet of vsix.snippets) {
+      try {
+        await loadExtensionSnippets(monaco, snippet.language);
+      } catch (err) {
+        console.warn(`[extensionLoader] Failed to load snippets for "${snippet.language}":`, err);
+      }
+    }
+
+    // Register new contribution types (commands, keybindings, config, colors, icons, jsonValidation)
+    await loadExtensionCommands(monaco, editor);
+    await loadExtensionKeybindings(monaco, editor);
+    await loadExtensionConfigurations(monaco);
+    await loadExtensionJsonValidation(monaco);
+    await loadExtensionIcons(installed.id);
 
     onProgress?.("done", installed.id);
     return installed;

@@ -173,6 +173,7 @@ export {
   getThemeById,
   getAllGrammars,
   getSnippetsByLanguage,
+  getAllSnippets,
   clearAllExtensions,
   toggleExtension,
   // Extension loader
@@ -183,6 +184,7 @@ export {
   loadAllExtensionThemes,
   loadAllExtensionGrammars,
   loadExtensionSnippets,
+  loadAllExtensionSnippets,
   registerExtensionTheme,
   registerExtensionGrammar,
   getAvailableExtensionThemes,

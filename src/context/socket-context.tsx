@@ -19,6 +19,11 @@ const SocketContextProvider = ({ children }: PropsWithChildren) => {
     const [isSftpConnected, setIsSftpConnected] = React.useState(false)
 
     React.useEffect(() => {
+        // Connect the global socket lazily — only when this provider mounts
+        if (!appSocket.connected) {
+            appSocket.connect();
+        }
+
         appSocket.once("connect", () => {
             setIsConnected(true)
             toast({
