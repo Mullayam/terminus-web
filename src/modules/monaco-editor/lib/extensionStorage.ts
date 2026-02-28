@@ -159,6 +159,7 @@ class ExtensionDB extends Dexie {
 
   constructor() {
     super("terminus-extensions");
+
     this.version(1).stores({
       extensions: "id, publisher, name, enabled",
       themes: "id, extensionId, themeId",
@@ -166,6 +167,24 @@ class ExtensionDB extends Dexie {
       snippets: "id, extensionId, language",
       files: "id, extensionId, path",
     });
+
+    // v2: migrate boolean `enabled` → numeric 1/0 so the index works
+    this.version(2)
+      .stores({
+        extensions: "id, publisher, name, enabled",
+        themes: "id, extensionId, themeId",
+        grammars: "id, extensionId, scopeName, language",
+        snippets: "id, extensionId, language",
+        files: "id, extensionId, path",
+      })
+      .upgrade((tx) =>
+        tx
+          .table("extensions")
+          .toCollection()
+          .modify((ext) => {
+            ext.enabled = ext.enabled ? 1 : 0;
+          }),
+      );
   }
 }
 
@@ -209,7 +228,7 @@ export async function saveExtension(
     iconUrl: meta?.iconUrl,
     categories: meta?.categories ?? (pkgJson.categories as string[]) ?? [],
     installedAt: Date.now(),
-    enabled: true,
+    enabled: 1 as unknown as boolean,
     readme: meta?.readme ?? vsix.readme,
     contributes: {
       themes: vsix.themes.map((t) => t.id),
@@ -307,23 +326,33 @@ export async function uninstallExtension(extensionId: string): Promise<void> {
  * Enable/disable an extension.
  */
 export async function toggleExtension(extensionId: string, enabled: boolean): Promise<void> {
-  await db.extensions.update(extensionId, { enabled });
+  // Store as 1/0 because IndexedDB cannot index booleans
+  await db.extensions.update(extensionId, { enabled: (enabled ? 1 : 0) as unknown as boolean });
 }
 
 /* ── Queries ───────────────────────────────────────────────── */
 
 /**
  * Get all installed extensions.
+ * Normalises the `enabled` field from its stored 1/0 number form back to boolean.
  */
 export async function getInstalledExtensions(): Promise<InstalledExtension[]> {
-  return db.extensions.toArray();
+  const rows = await db.extensions.toArray();
+  return rows.map(normalizeEnabled);
 }
 
 /**
  * Get enabled extensions only.
+ * IndexedDB stores `enabled` as 1/0 (booleans are not valid index keys).
  */
 export async function getEnabledExtensions(): Promise<InstalledExtension[]> {
-  return db.extensions.where("enabled").equals(1).toArray();
+  const rows = await db.extensions.where("enabled").equals(1).toArray();
+  return rows.map(normalizeEnabled);
+}
+
+/** Convert the stored 1/0 number back to a proper boolean. */
+function normalizeEnabled(ext: InstalledExtension): InstalledExtension {
+  return { ...ext, enabled: Boolean(ext.enabled) };
 }
 
 /**

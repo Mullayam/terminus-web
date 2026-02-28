@@ -488,6 +488,20 @@ export default function FileEditorMonacoPage() {
                         mouseWheelZoom: true,
                         stickyScroll: { enabled: true },
                     }}
+                    enableExtensions
+                    chatBaseUrl={__config.API_URL}
+                    onChatApplyCode={(code) => {
+                        // Apply AI-suggested code to the editor
+                        const editor = editorRef.current;
+                        if (editor) {
+                            editor.setValue(code);
+                            setModified(true);
+                            showEditorNotification("AI suggestion applied", "success", {
+                                source: "AI Chat",
+                                timeout: 3000,
+                            });
+                        }
+                    }}
                     onNotify={(msg, type) => {
                         showEditorNotification(msg, type as any, {
                             source: "Editor",

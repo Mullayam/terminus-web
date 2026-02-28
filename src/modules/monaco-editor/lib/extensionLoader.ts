@@ -17,6 +17,7 @@
 
 import type * as monacoNs from "monaco-editor";
 import { refreshLanguageCache } from "../utils/language-detect";
+import { convertVSCodeLanguageConfig } from "../utils/convert-language-config";
 
 import { getExtension, downloadVSIX, type OpenVSXExtension } from "./openVSX";
 import { extractVSIX, type VSIXContents, type ExtLanguage } from "./extractVSIX";
@@ -262,13 +263,15 @@ export async function loadExtensionSnippets(
  * don't have `languageConfigs` populated (backwards compatibility).
  */
 export async function registerExtensionLanguages(monaco: Monaco): Promise<void> {
-  const extensions = await getEnabledExtensions();
+ try {
+   const extensions = await getEnabledExtensions();
   const existingLangs = new Set(monaco.languages.getLanguages().map((l) => l.id));
   let registered = false;
-
+  
   for (const ext of extensions) {
     // Prefer full language configs (new format with extensions/aliases/filenames)
     const langConfigs = ext.contributes.languageConfigs;
+ 
     if (langConfigs && langConfigs.length > 0) {
       for (const lang of langConfigs) {
         if (!existingLangs.has(lang.id)) {
@@ -280,6 +283,16 @@ export async function registerExtensionLanguages(monaco: Monaco): Promise<void> 
           });
           existingLangs.add(lang.id);
           registered = true;
+        }
+
+        // Apply language configuration (brackets, auto-close, comments, etc.)
+        if (lang.configurationContent) {
+          try {
+            const monacoConfig = convertVSCodeLanguageConfig(lang.configurationContent);
+            monaco.languages.setLanguageConfiguration(lang.id, monacoConfig);
+          } catch (err) {
+            console.warn(`[extensionLoader] Failed to set language config for "${lang.id}":`, err);
+          }
         }
       }
     } else {
@@ -309,6 +322,10 @@ export async function registerExtensionLanguages(monaco: Monaco): Promise<void> 
   if (registered) {
     refreshLanguageCache(monaco);
   }
+ 
+ } catch (error) {
+  console.log(error)
+ }
 }
 
 /* ── Full Lifecycle ────────────────────────────────────────── */
@@ -326,7 +343,7 @@ export async function loadAllExtensions(
   extensions: InstalledExtension[];
 }> {
   const extensions = await getEnabledExtensions();
-
+ 
   // Register languages first
   await registerExtensionLanguages(monaco);
 
@@ -411,6 +428,16 @@ export async function installExtensionFromOpenVSX(
           filenames: lang.filenames,
         });
         existingLangs.add(lang.id);
+      }
+
+      // Apply language configuration (brackets, auto-close, comments, etc.)
+      if (lang.configurationContent) {
+        try {
+          const monacoConfig = convertVSCodeLanguageConfig(lang.configurationContent);
+          monaco.languages.setLanguageConfiguration(lang.id, monacoConfig);
+        } catch (err) {
+          console.warn(`[extensionLoader] Failed to set language config for "${lang.id}":`, err);
+        }
       }
     }
 
@@ -508,6 +535,16 @@ export async function installExtensionFromVSIX(
           aliases: lang.aliases,
           filenames: lang.filenames,
         });
+      }
+
+      // Apply language configuration (brackets, auto-close, comments, etc.)
+      if (lang.configurationContent) {
+        try {
+          const monacoConfig = convertVSCodeLanguageConfig(lang.configurationContent);
+          monaco.languages.setLanguageConfiguration(lang.id, monacoConfig);
+        } catch (err) {
+          console.warn(`[extensionLoader] Failed to set language config for "${lang.id}":`, err);
+        }
       }
     }
     if (vsix.languages.length > 0) {

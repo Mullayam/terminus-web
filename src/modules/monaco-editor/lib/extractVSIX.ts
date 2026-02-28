@@ -53,7 +53,46 @@ export interface ExtLanguage {
   aliases?: string[];
   extensions?: string[];
   filenames?: string[];
+  /** Relative path to the language-configuration.json in the VSIX */
   configuration?: string;
+  /** Parsed content of the language configuration file (brackets, auto-closing, comments, etc.) */
+  configurationContent?: VSCodeLanguageConfiguration;
+}
+
+/**
+ * Mirrors the VS Code language-configuration.json shape.
+ * This is the raw format as stored in VS Code extensions.
+ */
+export interface VSCodeLanguageConfiguration {
+  comments?: {
+    lineComment?: string;
+    blockComment?: [string, string];
+  };
+  brackets?: [string, string][];
+  autoClosingPairs?: Array<
+    | [string, string]
+    | { open: string; close: string; notIn?: string[] }
+  >;
+  surroundingPairs?: Array<[string, string] | { open: string; close: string }>;
+  colorizedBracketPairs?: [string, string][];
+  wordPattern?: string;
+  indentationRules?: {
+    increaseIndentPattern?: string;
+    decreaseIndentPattern?: string;
+    indentNextLinePattern?: string;
+    unIndentedLinePattern?: string;
+  };
+  folding?: {
+    offSide?: boolean;
+    markers?: { start?: string; end?: string };
+  };
+  onEnterRules?: Array<{
+    beforeText: string;
+    afterText?: string;
+    previousLineText?: string;
+    action: { indent: string; appendText?: string; removeText?: number };
+  }>;
+  autoCloseBefore?: string;
 }
 
 /** A contributed icon theme from the extension manifest */
@@ -264,12 +303,26 @@ export async function extractVSIX(buffer: ArrayBuffer): Promise<VSIXContents> {
   }>;
 
   for (const lDef of langContribs) {
+    // Read and parse the language-configuration.json if a path is specified
+    let configurationContent: VSCodeLanguageConfiguration | undefined;
+    if (lDef.configuration) {
+      try {
+        const configJson = await readJsonFile(zip, lDef.configuration);
+        if (configJson) {
+          configurationContent = configJson as unknown as VSCodeLanguageConfiguration;
+        }
+      } catch (err) {
+        console.warn(`[extractVSIX] Failed to parse language config for "${lDef.id}":`, err);
+      }
+    }
+
     contents.languages.push({
       id: lDef.id,
       aliases: lDef.aliases,
       extensions: lDef.extensions,
       filenames: lDef.filenames,
       configuration: lDef.configuration,
+      configurationContent,
     });
   }
 

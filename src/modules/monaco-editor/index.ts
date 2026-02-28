@@ -239,3 +239,28 @@ export type {
   AICompletionProvider,
   EditorSettingsPanelProps,
 } from "./components/EditorSettingsPanel";
+
+// ── AI Chat ─────────────────────────────────────────────────
+export {
+  ChatPanel,
+  ChatMessageView,
+  DiffPreview,
+  useChatStore,
+  fetchProviders,
+  streamChat,
+  extractCodeBlocks,
+} from "./chat";
+export type {
+  ChatProvider,
+  ChatModel,
+  ChatRole,
+  ChatMessage,
+  CodeBlock,
+  ChatRequest,
+  ChatStreamChunk,
+  ChatConversation,
+  ChatState,
+  ChatPanelProps,
+  ChatMessageProps,
+  DiffPreviewProps,
+} from "./chat";

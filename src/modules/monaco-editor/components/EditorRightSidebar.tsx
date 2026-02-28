@@ -32,10 +32,12 @@ import {
   Blocks,
   Palette,
   Settings,
+  MessageSquareCode,
 } from "lucide-react";
 import { ExtensionPanel } from "./ExtensionPanel";
 import { ThemeSidebar } from "./ThemeSidebar";
 import { EditorSettingsPanel, type EditorSettings } from "./EditorSettingsPanel";
+import { ChatPanel } from "../chat";
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -60,7 +62,7 @@ export interface DocumentSymbolItem {
   children?: DocumentSymbolItem[];
 }
 
-export type SidebarTab = "outline" | "problems" | "info" | "extensions" | "themes" | "settings";
+export type SidebarTab = "outline" | "problems" | "info" | "extensions" | "themes" | "settings" | "chat";
 
 export interface EditorRightSidebarProps {
   open: boolean;
@@ -93,11 +95,18 @@ export interface EditorRightSidebarProps {
   onSettingsChange?: (settings: EditorSettings) => void;
   /** Whether terminal integration is enabled (for settings panel) */
   enableTerminal?: boolean;
+  /** Base API URL for AI chat */
+  chatBaseUrl?: string;
+  /** Current file content (for AI chat context) */
+  chatFileContent?: string;
+  /** Called when AI chat applies code */
+  onChatApplyCode?: (code: string, language: string) => void;
 }
 
 /* ── Activity Bar Tab ──────────────────────────────────────── */
 
 const TABS: { id: SidebarTab; icon: React.FC<{ className?: string }>; label: string }[] = [
+  { id: "chat", icon: MessageSquareCode, label: "AI Chat" },
   { id: "outline", icon: List, label: "Outline" },
   { id: "problems", icon: AlertTriangle, label: "Problems" },
   { id: "info", icon: Info, label: "File Info" },
@@ -207,6 +216,9 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
   editorSettings,
   onSettingsChange,
   enableTerminal,
+  chatBaseUrl,
+  chatFileContent,
+  onChatApplyCode,
 }) => {
   const errorCount = useMemo(
     () => problems.filter((p) => p.severity === 8).length,
@@ -322,7 +334,7 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
           </div>
 
           {/* Panel Body */}
-          <div className="flex-1 overflow-y-auto text-sm sidebar-scroll">
+          <div className={`flex-1 text-sm sidebar-scroll ${activeTab === "chat" ? "overflow-hidden" : "overflow-y-auto"}`}>
             {activeTab === "outline" && (
               <OutlinePanel symbols={symbols} onClick={onSymbolClick} />
             )}
@@ -361,6 +373,15 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
                 settings={editorSettings}
                 onChange={onSettingsChange}
                 enableTerminal={enableTerminal}
+              />
+            )}
+            {activeTab === "chat" && chatBaseUrl && (
+              <ChatPanel
+                baseUrl={chatBaseUrl}
+                language={language}
+                fileContent={chatFileContent ?? ""}
+                filename={filename}
+                onApplyCode={onChatApplyCode}
               />
             )}
           </div>

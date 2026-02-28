@@ -63,12 +63,12 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   mouseWheelZoom: true,
   showStatusBar: true,
   showTerminal: false,
-  aiCompletionProvider: "ghost-text",
+  aiCompletionProvider: "none",
   parameterHints: true,
   hoverEnabled: true,
   quickSuggestions: true,
   definitionLinkEnabled: true,
-  enableLSP: true,
+  enableLSP: false,
 };
 
 const STORAGE_KEY = "terminus-editor-settings";

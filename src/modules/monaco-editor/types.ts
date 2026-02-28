@@ -306,6 +306,13 @@ export interface MonacoEditorConfig {
   enableVsixDrop?: boolean;
   /** Called after a VSIX extension is installed via drag-drop */
   onExtensionInstalled?: () => void;
+
+  // ── AI Chat integration ───────────────────────────────────
+
+  /** Base API URL for AI Chat (shows chat tab in sidebar when set) */
+  chatBaseUrl?: string;
+  /** Called when AI chat applies code to the editor */
+  onChatApplyCode?: (code: string, language: string) => void;
 }
 
 // ═══════════════════════════════════════════════════════════════

@@ -84,7 +84,7 @@ import {
   EditorNotifications,
   type EditorNotificationsHandle,
 } from "./components/EditorNotifications";
-import { setNotificationsHandle } from "./plugins/notification-plugin";
+import { setNotificationsHandle, showEditorNotification } from "./plugins/notification-plugin";
 
 // Disposable context with hidden __dispose
 type DisposableContext = PluginContext & { __dispose: () => void };
@@ -261,6 +261,9 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   // VSIX drag-and-drop
   enableVsixDrop,
   onExtensionInstalled,
+  // AI Chat
+  chatBaseUrl,
+  onChatApplyCode,
 }) => {
   const editorRef = useRef<MonacoEditorInstance | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
@@ -274,7 +277,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
 
   // Sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarTab, setSidebarTab] = useState<"outline" | "problems" | "info" | "extensions" | "themes" | "settings">("outline");
+  const [sidebarTab, setSidebarTab] = useState<"outline" | "problems" | "info" | "extensions" | "themes" | "settings" | "chat">("outline");
   const [symbols, setSymbols] = useState<DocumentSymbolItem[]>([]);
   const [problems, setProblems] = useState<monacoNs.editor.IMarkerData[]>([]);
   const [extensionCount, setExtensionCount] = useState(0);
@@ -454,6 +457,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
 
         const wsUrl = buildLSPWebSocketUrl(lspBaseUrl, resolvedLanguage);
         if (wsUrl) {
+          const lspName = resolvedLanguage.charAt(0).toUpperCase() + resolvedLanguage.slice(1);
           connectLanguageServer({
             languageId: resolvedLanguage,
             wsUrl,
@@ -462,11 +466,23 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
             editor,
             onConnected: () => {
               console.log(`[LSP] Connected: ${resolvedLanguage}`);
+              showEditorNotification(`Language server connected`, "info", {
+                source: `LSP: ${lspName}`,
+                timeout: 3000,
+              });
             },
-            onDisconnected: () => console.log(`[LSP] Disconnected: ${resolvedLanguage}`),
-            onError: (err) => console.warn(`[LSP] Error:`, err),
+            onDisconnected: () => {
+              console.log(`[LSP] Disconnected: ${resolvedLanguage}`);
+            },
+            onError: (err) => {
+              console.warn(`[LSP] Error:`, err);
+              showEditorNotification(err.message || "Language server error", "error", {
+                source: `LSP: ${lspName}`,
+                detail: String(err),
+                timeout: 8000,
+              });
+            },
             onServerMessage: (message, severity, langId) => {
-              // Map LSP severity → notification severity
               const severityMap: Record<string, "error" | "warning" | "info"> = {
                 error: "error",
                 warning: "warning",
@@ -474,17 +490,26 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
                 log: "info",
                 debug: "info",
               };
-              const lspName = langId.charAt(0).toUpperCase() + langId.slice(1);
-              notificationsRef.current?.addNotification({
-                message,
-                severity: severityMap[severity] ?? "info",
-                source: `LSP: ${lspName}`,
+              const srcName = langId.charAt(0).toUpperCase() + langId.slice(1);
+              showEditorNotification(message, severityMap[severity] ?? "info", {
+                source: `LSP: ${srcName}`,
                 timeout: severity === "error" ? 8000 : severity === "warning" ? 6000 : 4000,
               });
             },
           })
             .then((conn) => { lspRef.current = conn; })
-            .catch((err) => { console.warn("[MonacoEditor] LSP connection failed:", err); });
+            .catch((err) => {
+              console.warn("[MonacoEditor] LSP connection failed:", err);
+              showEditorNotification(
+                `Failed to connect to ${lspName} language server`,
+                "error",
+                {
+                  source: `LSP: ${lspName}`,
+                  detail: err?.message ?? String(err),
+                  timeout: 8000,
+                },
+              );
+            });
         }
       }
 
@@ -603,6 +628,62 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
     }
   }, [resolvedLanguage]);
 
+  // ── Plugin hot-swap: dispose removed plugins, mount added ones ──
+  const prevPluginIdsRef = useRef<string[]>([]);
+  useEffect(() => {
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    if (!editor || !monaco) return;
+
+    const currentPlugins = getAllPlugins();
+    const currentIds = currentPlugins.map((p) => p.id);
+    const prevIds = prevPluginIdsRef.current;
+
+    // Skip the very first render (mount handles initial plugins)
+    if (prevIds.length === 0) {
+      prevPluginIdsRef.current = currentIds;
+      return;
+    }
+
+    const removedIds = new Set(prevIds.filter((id) => !currentIds.includes(id)));
+    const addedPlugins = currentPlugins.filter((p) => !prevIds.includes(p.id));
+
+    // Dispose removed plugin contexts
+    if (removedIds.size > 0) {
+      const kept: PluginState[] = [];
+      for (const state of pluginStatesRef.current) {
+        if (removedIds.has(state.plugin.id)) {
+          try {
+            state.plugin.onDispose?.();
+            state.context?.__dispose();
+          } catch { /* swallow */ }
+        } else {
+          kept.push(state);
+        }
+      }
+      pluginStatesRef.current = kept;
+    }
+
+    // Mount newly added plugins
+    for (const plugin of addedPlugins) {
+      try {
+        const ctx = createPluginContext(monaco, editor, {
+          filePath,
+          onNotify,
+          eventBus: eventBusRef.current,
+        }) as DisposableContext;
+
+        plugin.onMount?.(ctx);
+        pluginStatesRef.current.push({ plugin, context: ctx });
+      } catch (err) {
+        console.error(`[MonacoEditor] Plugin "${plugin.id}" hot-mount error:`, err);
+        pluginStatesRef.current.push({ plugin, context: null });
+      }
+    }
+
+    prevPluginIdsRef.current = currentIds;
+  }, [plugins, getAllPlugins, filePath, onNotify]);
+
   // ── AI Completion Provider switching ──
   useEffect(() => {
     const editor = editorRef.current;
@@ -649,30 +730,53 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
       // Connect LSP
       const wsUrl = buildLSPWebSocketUrl(lspBaseUrl!, resolvedLanguage);
       if (wsUrl) {
+        const lspName = resolvedLanguage.charAt(0).toUpperCase() + resolvedLanguage.slice(1);
         connectLanguageServer({
           languageId: resolvedLanguage,
           wsUrl,
           documentUri,
           monaco,
           editor,
-          onConnected: () => console.log(`[LSP] Connected: ${resolvedLanguage}`),
+          onConnected: () => {
+            console.log(`[LSP] Connected: ${resolvedLanguage}`);
+            showEditorNotification(`Language server connected`, "info", {
+              source: `LSP: ${lspName}`,
+              timeout: 3000,
+            });
+          },
           onDisconnected: () => console.log(`[LSP] Disconnected: ${resolvedLanguage}`),
-          onError: (err) => console.warn(`[LSP] Error:`, err),
+          onError: (err) => {
+            console.warn(`[LSP] Error:`, err);
+            showEditorNotification(err.message || "Language server error", "error", {
+              source: `LSP: ${lspName}`,
+              detail: String(err),
+              timeout: 8000,
+            });
+          },
           onServerMessage: (message, severity, langId) => {
             const severityMap: Record<string, "error" | "warning" | "info"> = {
               error: "error", warning: "warning", info: "info", log: "info", debug: "info",
             };
-            const lspName = langId.charAt(0).toUpperCase() + langId.slice(1);
-            notificationsRef.current?.addNotification({
-              message,
-              severity: severityMap[severity] ?? "info",
-              source: `LSP: ${lspName}`,
+            const srcName = langId.charAt(0).toUpperCase() + langId.slice(1);
+            showEditorNotification(message, severityMap[severity] ?? "info", {
+              source: `LSP: ${srcName}`,
               timeout: severity === "error" ? 8000 : severity === "warning" ? 6000 : 4000,
             });
           },
         })
           .then((conn) => { lspRef.current = conn; })
-          .catch((err) => console.warn("[MonacoEditor] LSP connection failed:", err));
+          .catch((err) => {
+            console.warn("[MonacoEditor] LSP connection failed:", err);
+            showEditorNotification(
+              `Failed to connect to ${lspName} language server`,
+              "error",
+              {
+                source: `LSP: ${lspName}`,
+                detail: err?.message ?? String(err),
+                timeout: 8000,
+              },
+            );
+          });
       }
     } else if (!shouldConnect && lspRef.current) {
       // Disconnect LSP
@@ -940,6 +1044,9 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
             editorSettings={editorSettings}
             onSettingsChange={handleSettingsChange}
             enableTerminal={enableTerminal}
+            chatBaseUrl={chatBaseUrl}
+            chatFileContent={value ?? editorRef.current?.getValue() ?? ""}
+            onChatApplyCode={onChatApplyCode}
           />
         )}
       </div>

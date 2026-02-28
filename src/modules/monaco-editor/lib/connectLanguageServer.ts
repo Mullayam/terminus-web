@@ -225,8 +225,8 @@ export async function connectLanguageServer(
     monaco,
     editor,
     autoReconnect = true,
-    maxReconnectAttempts = 5,
-    reconnectDelay = 3000,
+    maxReconnectAttempts = 2,
+    reconnectDelay = 5000,
     onConnected,
     onDisconnected,
     onError,
@@ -316,6 +316,11 @@ export async function connectLanguageServer(
         connected = false;
         providerReg?.dispose();
         providerReg = null;
+
+        // Dispose the old client cleanly before reconnecting
+        try { lspClient?.dispose(); } catch { /* already closed */ }
+        lspClient = null;
+
         onDisconnected?.();
 
         // Auto-reconnect
@@ -325,8 +330,8 @@ export async function connectLanguageServer(
             `[LSP] Reconnecting to ${languageId} (attempt ${reconnectAttempts}/${maxReconnectAttempts})...`,
           );
           setTimeout(() => {
-            connect().catch(() => {
-              // Reconnect failed, will try again on next close
+            connect().catch((err) => {
+              console.warn(`[LSP] Reconnect failed for ${languageId}:`, err);
             });
           }, reconnectDelay);
         }
