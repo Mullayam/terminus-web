@@ -97,7 +97,7 @@ export default function FileEditorMonacoPage() {
         [socket],
     );
     const plugins = useMemo(
-        () => [...ALL_BUILTIN_PLUGINS,  notificationPlugin],
+        () => [...ALL_BUILTIN_PLUGINS, ghostTextPlugin, notificationPlugin],
         [ghostTextPlugin, notificationPlugin],
     );
 
@@ -447,15 +447,14 @@ export default function FileEditorMonacoPage() {
                         setCursorCol(col);
                     }}
                     // enableCopilot
-                    copilotEndpoint={`${__config.API_URL}/api/complete`}
+                    // copilotEndpoint={`${__config.API_URL}/api/complete`}
+                    // enableLSP
+                    // lspBaseUrl={__config.API_URL}
                     showSidebar
                     showStatusBar
                     enableTerminal
                     enableAutoClose
-                    // enableLSP
                     pluginDebounceMs={1200}
-                    enableLSP
-                    lspBaseUrl={__config.API_URL}
                     enableVsixDrop
                     terminalUrl={`${__config.API_URL}/dedicated-terminal`}
                     terminalSessionId={sessionId}

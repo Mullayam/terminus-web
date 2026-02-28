@@ -448,6 +448,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
 
       // ── LSP over WebSocket ──
       if (enableLSP && lspBaseUrl && hasLSPSupport(resolvedLanguage)) {
+
         const wsUrl = buildLSPWebSocketUrl(lspBaseUrl, resolvedLanguage);
         if (wsUrl) {
           connectLanguageServer({
@@ -686,7 +687,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
     if (shouldLoadExtensions && monacoRef.current) {
       loadAllExtensions(monacoRef.current, editorRef.current ?? undefined)
         .then(({ extensions }) => setExtensionCount(extensions.length))
-        .catch(() => {});
+        .catch(() => { });
     }
     onExtensionInstalled?.();
   }, [shouldLoadExtensions, onExtensionInstalled]);
@@ -825,7 +826,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
           cwd={terminalCwd}
         />
       )}
-  
+
       {/* Extension-contributed status bar */}
       {(showStatusBar || editorSettings.showStatusBar) && (
         <ExtensionStatusBar

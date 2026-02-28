@@ -37,18 +37,33 @@ export interface GhostTextPluginOptions {
   timeout?: number;
 }
 
+/* ── Request body type ──────────────────────────────────── */
+
+interface GhostTextRequestBody {
+  /** Filename (e.g. "vps.sh", "index.ts") */
+  filename: string;
+  /** Language ID (e.g. "shell", "typescript") */
+  language: string;
+  /** All text before the cursor */
+  textBeforeCursor: string;
+  /** All text after the cursor */
+  textAfterCursor: string;
+  /** Cursor line and column (1-based) */
+  cursorPosition: { lineNumber: number; column: number };
+}
+
 /* ── Helpers ───────────────────────────────────────────────── */
 
 /**
- * Build the prompt/question from the editor context around the cursor.
- * Sends prefix (code above cursor) and suffix (code below) so the model
- * understands where to insert.
+ * Build the structured request body from the editor context.
  */
-function buildQuestion(
+function buildRequestBody(
   model: monacoNs.editor.ITextModel,
   position: monacoNs.IPosition,
   maxContextLines: number,
-): string {
+  filename: string,
+  language: string,
+): GhostTextRequestBody {
   const lineCount = model.getLineCount();
   const cursorLine = position.lineNumber;
   const cursorCol = position.column;
@@ -72,20 +87,23 @@ function buildQuestion(
     suffixLines.push(model.getLineContent(i));
   }
 
-  const prefix = prefixLines.join("\n");
-  const suffix = suffixLines.join("\n");
-
-  return `<|prefix|>${prefix}<|suffix|>${suffix}<|middle|>`;
+  return {
+    filename,
+    language,
+    textBeforeCursor: prefixLines.join("\n"),
+    textAfterCursor: suffixLines.join("\n"),
+    cursorPosition: { lineNumber: cursorLine, column: cursorCol },
+  };
 }
 
 /**
  * Fetch a completion from the SSE `/api/stream` endpoint.
+ * Sends the structured body: { filename, language, textBeforeCursor, textAfterCursor, cursorPosition }
  * Returns the accumulated text from the stream.
  */
 async function fetchSSECompletion(
   endpoint: string,
-  question: string,
-  language: string,
+  body: GhostTextRequestBody,
   signal: AbortSignal,
   maxLength: number,
 ): Promise<string> {
@@ -94,7 +112,7 @@ async function fetchSSECompletion(
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question, language }),
+    body: JSON.stringify(body),
     signal,
   });
 
@@ -256,11 +274,20 @@ export function createGhostTextPlugin(
                   (model as any).getModeId?.() ??
                   language;
 
-                const question = buildQuestion(model, position, maxContextLines);
+                // Derive filename from model URI or fallback
+                const modelUri = model.uri?.path ?? model.uri?.toString() ?? "";
+                const currentFilename = modelUri.split("/").pop() || "untitled";
+
+                const body = buildRequestBody(
+                  model,
+                  position,
+                  maxContextLines,
+                  currentFilename,
+                  currentLang,
+                );
                 const completionText = await fetchSSECompletion(
                   endpoint,
-                  question,
-                  currentLang,
+                  body,
                   abortController!.signal,
                   maxCompletionLength,
                 );

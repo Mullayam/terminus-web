@@ -36,6 +36,23 @@ export interface CopilotOptions {
   maxContextLines?: number;
   /** Enable caching (default: true) */
   enableCaching?: boolean;
+  /**
+   * Custom request handler — overrides the default fetch to the endpoint.
+   * Receives `{ body: { completionMetadata } }` and must return
+   * `{ completion: string | null, error?: string }`.
+   *
+   * The endpoint (default or custom) must respond with JSON:
+   *   `{ completion: "…", error?: "…" }`
+   */
+  requestHandler?: (params: {
+    body: { completionMetadata: Record<string, any> };
+  }) => Promise<{ completion: string | null; error?: string }>;
+  /** Called when a ghost-text suggestion is shown in the editor */
+  onCompletionShown?: (completion: string, range: any) => void;
+  /** Called when the user accepts (Tab) a suggestion */
+  onCompletionAccepted?: () => void;
+  /** Called when the user rejects (types over / Escape) a suggestion */
+  onCompletionRejected?: () => void;
 }
 
 /**
@@ -59,6 +76,10 @@ export function registerCopilot(
     trigger = "onIdle",
     maxContextLines = 100,
     enableCaching = true,
+    requestHandler,
+    onCompletionShown,
+    onCompletionAccepted,
+    onCompletionRejected,
   } = options;
 
   const regOptions: RegisterCompletionOptions = {
@@ -67,7 +88,21 @@ export function registerCopilot(
     trigger,
     maxContextLines,
     enableCaching,
+
+    // Completion lifecycle callbacks
+    onCompletionShown,
+    onCompletionAccepted,
+    onCompletionRejected,
+
+    onCompletionRequested(params) {
+      console.debug("[Copilot] Request:", params.body.completionMetadata?.language);
+    },
   };
+
+  // Custom request handler (overrides the default fetch to endpoint)
+  if (requestHandler) {
+    regOptions.requestHandler = requestHandler;
+  }
 
   if (filename) {
     regOptions.filename = filename;

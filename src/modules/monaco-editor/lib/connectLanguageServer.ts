@@ -110,6 +110,7 @@ export const LSP_LANGUAGES: Record<string, { name: string; wsPath: string }> = {
   dart: { name: "Dart Analysis Server", wsPath: "dart" },
   // Shell / scripting
   shellscript: { name: "bash-language-server", wsPath: "shellscript" },
+  shell: { name: "bash-language-server", wsPath: "shellscript" },
   bash: { name: "bash-language-server", wsPath: "shellscript" },
   sh: { name: "bash-language-server", wsPath: "shellscript" },
   zsh: { name: "bash-language-server", wsPath: "shellscript" },
