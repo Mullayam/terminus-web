@@ -9,7 +9,7 @@
  */
 import React, { useState, useEffect } from "react";
 import type * as monacoNs from "monaco-editor";
-import { Terminal } from "lucide-react";
+import { Terminal, Bell } from "lucide-react";
 import { getEnabledExtensions } from "../lib/extensionStorage";
 import type { ExtStatusBarItem } from "../lib/extensionStorage";
 
@@ -42,6 +42,10 @@ export interface ExtensionStatusBarProps {
   extraItems?: StatusBarItemDef[];
   /** Extra CSS class for the bar */
   className?: string;
+  /** Notification count (for the bell badge) */
+  notificationCount?: number;
+  /** Callback when bell icon is clicked */
+  onNotificationToggle?: () => void;
   /** Whether terminal integration is enabled */
   enableTerminal?: boolean;
   /** Whether terminal panel is currently open */
@@ -93,6 +97,8 @@ export const ExtensionStatusBar: React.FC<ExtensionStatusBarProps> = ({
   insertSpaces = true,
   extraItems = [],
   className = "",
+  notificationCount = 0,
+  onNotificationToggle,
   enableTerminal = false,
   terminalOpen = false,
   onTerminalToggle,
@@ -189,6 +195,29 @@ export const ExtensionStatusBar: React.FC<ExtensionStatusBarProps> = ({
         <span className="shrink-0 opacity-70">
           {lineCount} lines · {charCount.toLocaleString()} chars
         </span>
+
+        {/* Notification bell */}
+        <button
+          onClick={onNotificationToggle}
+          title="Notifications"
+          className="flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors shrink-0 hover:bg-white/15 relative"
+        >
+          <Bell className="w-3 h-3" />
+          {notificationCount > 0 && (
+            <span
+              className="absolute -top-0.5 -right-0.5 flex items-center justify-center rounded-full text-[8px] font-bold leading-none"
+              style={{
+                background: "#f14c4c",
+                color: "#fff",
+                minWidth: 14,
+                height: 14,
+                padding: "0 3px",
+              }}
+            >
+              {notificationCount > 99 ? "99+" : notificationCount}
+            </span>
+          )}
+        </button>
 
         {/* Terminal toggle button */}
         {enableTerminal && onTerminalToggle && (

@@ -40,6 +40,7 @@ import {
   type InstallProgress,
 } from "../lib/extensionLoader";
 import type { InstalledExtension } from "../lib/extensionStorage";
+import { showEditorNotification, getNotificationsHandle } from "../plugins/notification-plugin";
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -127,12 +128,60 @@ export const ExtensionPanel: React.FC<ExtensionPanelProps> = ({
       if (!monaco) return;
 
       const extId = `${ext.namespace}.${ext.name}`;
+      const extLabel = ext.displayName || ext.name;
+
+      // Show a progress notification
+      const handle = getNotificationsHandle();
+      const notifId = handle?.addNotification({
+        message: `Installing ${extLabel}…`,
+        severity: "info",
+        source: "Extensions",
+        progress: "indeterminate",
+        timeout: 0,
+      }) ?? null;
+
       const onProgress: InstallProgress = (stage, detail) => {
         setInstallStates((prev) => {
           const next = new Map(prev);
           next.set(extId, { extensionId: extId, stage, error: stage === "error" ? detail : undefined });
           return next;
         });
+
+        // Update the notification with progress info
+        if (notifId && handle) {
+          switch (stage) {
+            case "fetching":
+              handle.updateNotification(notifId, { message: `Fetching ${extLabel}…`, progress: 10 });
+              break;
+            case "downloading":
+              handle.updateNotification(notifId, { message: `Downloading ${extLabel} v${detail ?? ""}…`, progress: 30 });
+              break;
+            case "extracting":
+              handle.updateNotification(notifId, { message: `Extracting ${extLabel}…`, progress: 55 });
+              break;
+            case "storing":
+              handle.updateNotification(notifId, { message: `Saving ${extLabel}…`, progress: 70 });
+              break;
+            case "loading":
+              handle.updateNotification(notifId, { message: `Loading ${extLabel} into editor…`, progress: 90 });
+              break;
+            case "done":
+              handle.updateNotification(notifId, {
+                message: `${extLabel} installed successfully`,
+                severity: "success",
+                progress: 100,
+              });
+              break;
+            case "error":
+              handle.updateNotification(notifId, {
+                message: `Failed to install ${extLabel}`,
+                detail: detail ?? "Unknown error",
+                severity: "error",
+                progress: undefined,
+              });
+              break;
+          }
+        }
       };
 
       try {

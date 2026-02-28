@@ -8,11 +8,10 @@
  * MonacoEditor module — all find/replace, go-to-line, undo/redo,
  * syntax highlighting, bracket matching etc. are built-in.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ApiCore } from "@/lib/api";
 import { __config } from "@/lib/config";
-import { useToast } from "@/hooks/use-toast";
 import {
     Loader2, Save, WrapText, RefreshCw, Info, X, Palette, Check,
 } from "lucide-react";
@@ -23,8 +22,11 @@ import {
     ALL_BUILTIN_PLUGINS,
     detectLanguage,
     createGhostTextPlugin,
+    createNotificationPlugin,
+    showEditorNotification,
 } from "@/modules/monaco-editor";
 import type { MonacoEditorInstance } from "@/modules/monaco-editor";
+import { SocketContext } from "@/context/socket-context";
 
 /* ── Constants ─────────────────────────────────────────────── */
 
@@ -83,14 +85,21 @@ export default function FileEditorMonacoPage() {
     const contentRef         = useRef(content);
     contentRef.current       = content;
 
-    const { toast } = useToast();
+    const { socket } = useContext(SocketContext);
 
     // Memoize plugins once so the array identity is stable
     const ghostTextPlugin = useMemo(
         () => createGhostTextPlugin({ endpoint: __config.API_URL }),
         [],
     );
-    const plugins = useMemo(() => [...ALL_BUILTIN_PLUGINS, ghostTextPlugin], [ghostTextPlugin]);
+    const notificationPlugin = useMemo(
+        () => createNotificationPlugin({ socket }),
+        [socket],
+    );
+    const plugins = useMemo(
+        () => [...ALL_BUILTIN_PLUGINS,  notificationPlugin],
+        [ghostTextPlugin, notificationPlugin],
+    );
 
     /* ── Document title + favicon ───────────────────────────── */
     useEffect(() => {
@@ -147,18 +156,24 @@ export default function FileEditorMonacoPage() {
             setModified(false);
             originalContentRef.current = toSave;
             setLastSaved(new Date());
-            toast({ title: "Saved", description: `${fileName} saved successfully`, duration: 2000 });
-        } catch (e: any) {
-            toast({
-                title: "Save failed",
-                description: e?.message ?? "Could not save the file",
-                variant: "destructive",
-                duration: 3000,
+            showEditorNotification(`${fileName} saved successfully`, "success", {
+                source: "File System",
+                timeout: 3000,
             });
+        } catch (e: any) {
+            showEditorNotification(
+                `Failed to save ${fileName}`,
+                "error",
+                {
+                    source: "File System",
+                    detail: e?.message ?? "Could not save the file",
+                    timeout: 6000,
+                },
+            );
         } finally {
             setSaving(false);
         }
-    }, [sessionId, filePath, saving, fileName, toast]);
+    }, [sessionId, filePath, saving, fileName]);
 
     /* ── Monaco callbacks ───────────────────────────────────── */
     const handleChange = useCallback((value: string) => {
@@ -178,6 +193,21 @@ export default function FileEditorMonacoPage() {
     };
 
     const lineCount = content.split("\n").length;
+
+    /* ── Status bar: last saved time ─────────────────────────── */
+    const statusBarItems = useMemo(() => {
+        if (!lastSaved) return [];
+        const fmt = lastSaved.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        return [
+            {
+                id: "last-saved",
+                text: `Saved ${fmt}`,
+                tooltip: `Last saved at ${lastSaved.toLocaleString()}`,
+                alignment: "right" as const,
+                priority: 100,
+            },
+        ];
+    }, [lastSaved]);
 
     /* ── Shortcut groups for help modal ─────────────────────── */
     const shortcutGroups = [
@@ -416,10 +446,14 @@ export default function FileEditorMonacoPage() {
                         setCursorLine(line);
                         setCursorCol(col);
                     }}
+                    // enableCopilot
+                    copilotEndpoint={`${__config.API_URL}/api/complete`}
                     showSidebar
                     showStatusBar
                     enableTerminal
                     enableAutoClose
+                    // enableLSP
+                    pluginDebounceMs={1200}
                     enableLSP
                     lspBaseUrl={__config.API_URL}
                     enableVsixDrop
@@ -429,6 +463,7 @@ export default function FileEditorMonacoPage() {
                     fontSize={14}
                     tabSize={2}
                     minimap={true}
+                    statusBarItems={statusBarItems}
                     options={{
                         renderWhitespace: "selection",
                         smoothScrolling: true,
@@ -440,16 +475,9 @@ export default function FileEditorMonacoPage() {
                         stickyScroll: { enabled: true },
                     }}
                     onNotify={(msg, type) => {
-                        toast({
-                            title:
-                                type === "error"
-                                    ? "Error"
-                                    : type === "warning"
-                                      ? "Warning"
-                                      : "Info",
-                            description: msg,
-                            variant: type === "error" ? "destructive" : "default",
-                            duration: 2000,
+                        showEditorNotification(msg, type as any, {
+                            source: "Editor",
+                            timeout: type === "error" ? 6000 : 3000,
                         });
                     }}
                 />

@@ -14,6 +14,8 @@ export { minimapColorsPlugin } from "./minimap-colors-plugin";
 export { vscodeClipboardPlugin } from "./vscode-clipboard-plugin";
 export { createGhostTextPlugin } from "./ghost-text-plugin";
 export type { GhostTextPluginOptions } from "./ghost-text-plugin";
+export { createNotificationPlugin, setNotificationsHandle, getNotificationsHandle, showEditorNotification, NOTIFICATION_EVENTS } from "./notification-plugin";
+export type { NotificationPluginOptions, BackendNotification, BackendNotificationUpdate } from "./notification-plugin";
 
 // Convenience array of all built-in plugins
 import { saveStatePlugin } from "./save-state-plugin";

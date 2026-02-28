@@ -79,6 +79,11 @@ import {
   loadEditorSettings,
   saveEditorSettings,
 } from "./components/EditorSettingsPanel";
+import {
+  EditorNotifications,
+  type EditorNotificationsHandle,
+} from "./components/EditorNotifications";
+import { setNotificationsHandle } from "./plugins/notification-plugin";
 
 // Disposable context with hidden __dispose
 type DisposableContext = PluginContext & { __dispose: () => void };
@@ -263,6 +268,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   const disposablesRef = useRef<monacoNs.IDisposable[]>([]);
   const copilotRef = useRef<CompletionRegistration | null>(null);
   const lspRef = useRef<LSPConnection | null>(null);
+  const notificationsRef = useRef<EditorNotificationsHandle | null>(null);
 
   // Sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -270,6 +276,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   const [symbols, setSymbols] = useState<DocumentSymbolItem[]>([]);
   const [problems, setProblems] = useState<monacoNs.editor.IMarkerData[]>([]);
   const [extensionCount, setExtensionCount] = useState(0);
+  const [notificationCount, setNotificationCount] = useState(0);
 
   // Internal cursor tracking (for status bar)
   const [cursorLine, setCursorLine] = useState(1);
@@ -721,7 +728,15 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
     <div style={{ display: "flex", flexDirection: "column", height, width }} className="monaco-editor-wrapper">
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
         {/* Editor area (optionally wrapped in VsixDropZone) */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
+          {/* VS Code-style notification overlay */}
+          <EditorNotifications
+            ref={(handle) => {
+              notificationsRef.current = handle;
+              setNotificationsHandle(handle);
+            }}
+            onCountChange={setNotificationCount}
+          />
           {shouldEnableVsixDrop ? (
             <VsixDropZone
               monaco={monacoRef.current}
@@ -824,6 +839,8 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
           wordWrap={editorSettings.wordWrap}
           tabSize={editorSettings.tabSize}
           extraItems={statusBarItems}
+          notificationCount={notificationCount}
+          onNotificationToggle={() => notificationsRef.current?.toggleCenter()}
           enableTerminal={enableTerminal}
           terminalOpen={terminalOpen}
           onTerminalToggle={handleTerminalToggle}

@@ -8,6 +8,7 @@ import React, { useState, useCallback, useRef } from "react";
 import type * as monacoNs from "monaco-editor";
 import { Upload, Loader2, CheckCircle2, XCircle, Package } from "lucide-react";
 import { installExtensionFromVSIX, type InstallProgress } from "../lib/extensionLoader";
+import { showEditorNotification, getNotificationsHandle } from "../plugins/notification-plugin";
 
 type Monaco = typeof monacoNs;
 
@@ -46,25 +47,40 @@ export const VsixDropZone: React.FC<VsixDropZoneProps> = ({
       setState("installing");
       setMessage(`Installing ${file.name}…`);
 
+      // Show a progress notification
+      const handle = getNotificationsHandle();
+      const notifId = handle?.addNotification({
+        message: `Installing ${file.name}…`,
+        severity: "info",
+        source: "Extensions",
+        progress: "indeterminate",
+        timeout: 0,
+      }) ?? null;
+
       const onProgress: InstallProgress = (stage, detail) => {
         switch (stage) {
           case "extracting":
             setMessage(`Extracting ${detail ?? file.name}…`);
+            if (notifId && handle) handle.updateNotification(notifId, { message: `Extracting ${detail ?? file.name}…`, progress: 30 });
             break;
           case "storing":
             setMessage("Saving to storage…");
+            if (notifId && handle) handle.updateNotification(notifId, { message: "Saving to storage…", progress: 60 });
             break;
           case "loading":
             setMessage("Loading into editor…");
+            if (notifId && handle) handle.updateNotification(notifId, { message: "Loading into editor…", progress: 85 });
             break;
           case "done":
             setState("success");
             setMessage(`Installed successfully!`);
             onInstalled?.(detail ?? "");
+            if (notifId && handle) handle.updateNotification(notifId, { message: `${file.name} installed successfully`, severity: "success", progress: 100 });
             break;
           case "error":
             setState("error");
             setMessage(detail ?? "Installation failed");
+            if (notifId && handle) handle.updateNotification(notifId, { message: `Failed to install ${file.name}`, detail: detail ?? "Unknown error", severity: "error", progress: undefined });
             break;
         }
       };

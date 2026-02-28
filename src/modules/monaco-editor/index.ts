@@ -116,9 +116,14 @@ export {
   minimapColorsPlugin,
   vscodeClipboardPlugin,
   createGhostTextPlugin,
+  createNotificationPlugin,
+  setNotificationsHandle,
+  getNotificationsHandle,
+  showEditorNotification,
+  NOTIFICATION_EVENTS,
   ALL_BUILTIN_PLUGINS,
 } from "./plugins";
-export type { GhostTextPluginOptions } from "./plugins";
+export type { GhostTextPluginOptions, NotificationPluginOptions, BackendNotification } from "./plugins";
 
 // ── Built-in Themes ─────────────────────────────────────────
 export {
