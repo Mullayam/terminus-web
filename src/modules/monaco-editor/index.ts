@@ -115,8 +115,10 @@ export {
   todoHighlightPlugin,
   minimapColorsPlugin,
   vscodeClipboardPlugin,
+  createGhostTextPlugin,
   ALL_BUILTIN_PLUGINS,
 } from "./plugins";
+export type { GhostTextPluginOptions } from "./plugins";
 
 // ── Built-in Themes ─────────────────────────────────────────
 export {
@@ -128,17 +130,14 @@ export {
   BUILT_IN_THEMES,
 } from "./themes";
 
-// ── Lib Utilities (TextMate, Themes, Snippets, Copilot, LSP, Extensions) ──
+// ── Lib Utilities (Themes, Snippets, Copilot, LSP, Extensions) ──
 export {
-  // TextMate scope mapping
-  getTextMateScope,
-  // TextMate grammars
-  loadTextMateGrammar,
-  preloadGrammars,
   // Custom themes
   loadCustomTheme,
   preloadThemes,
   isThemeLoaded,
+  // Language defaults (built-in IntelliSense)
+  configureLanguageDefaults,
   // Snippets
   loadSnippets,
   unloadSnippets,

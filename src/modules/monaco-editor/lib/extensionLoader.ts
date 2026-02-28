@@ -4,18 +4,18 @@
  * Loads installed extension data from IndexedDB into Monaco at runtime.
  * Handles:
  *  - Registering themes (defineTheme)
- *  - Wiring TextMate grammars (via monaco-textmate + vscode-oniguruma)
- *  - Registering snippet completion providers
  *  - Registering contributed languages
+ *  - Registering snippet completion providers
+ *
+ * Grammars from VSIX extensions are stored in IDB but language
+ * highlighting relies on Monaco's built-in tokenizers + LSP semantic
+ * tokens. No TextMate / vscode-oniguruma dependencies.
  *
  * Also provides the high-level `installExtensionFromOpenVSX()` function
  * that orchestrates: fetch metadata → download VSIX → extract → store → load.
  */
 
 import type * as monacoNs from "monaco-editor";
-import { Registry } from "monaco-textmate";
-import { loadWASM } from "vscode-oniguruma";
-import { wireTmGrammars } from "monaco-editor-textmate";
 import { refreshLanguageCache } from "../utils/language-detect";
 
 import { getExtension, downloadVSIX, type OpenVSXExtension } from "./openVSX";
@@ -41,13 +41,10 @@ type Monaco = typeof monacoNs;
 
 /* ── State ─────────────────────────────────────────────────── */
 
-let wasmLoaded = false;
-let wasmLoadPromise: Promise<void> | null = null;
-
 /** Track which extension themes have been registered with Monaco */
 const registeredThemes = new Set<string>();
 
-/** Track which extension grammars have been wired into Monaco */
+/** Track which extension grammars/languages have been registered */
 const registeredGrammars = new Set<string>();
 
 /** Track snippet disposables per language (extension-contributed) */
@@ -58,25 +55,6 @@ export type InstallProgress = (
   stage: "fetching" | "downloading" | "extracting" | "storing" | "loading" | "done" | "error",
   detail?: string,
 ) => void;
-
-/* ── Oniguruma ─────────────────────────────────────────────── */
-
-async function ensureOniguruma(): Promise<void> {
-  if (wasmLoaded) return;
-  if (wasmLoadPromise) return wasmLoadPromise;
-  wasmLoadPromise = (async () => {
-    try {
-      const response = await fetch("/onig.wasm");
-      const buffer = await response.arrayBuffer();
-      await loadWASM(buffer);
-      wasmLoaded = true;
-    } catch (err) {
-      wasmLoadPromise = null;
-      throw err;
-    }
-  })();
-  return wasmLoadPromise;
-}
 
 /* ── Theme Loading ─────────────────────────────────────────── */
 
@@ -117,12 +95,19 @@ export function registerExtensionTheme(monaco: Monaco, theme: StoredTheme): void
     }
   }
 
-  monaco.editor.defineTheme(theme.themeId, {
-    base,
-    inherit: true,
-    rules,
-    colors: content.colors ?? {},
-  });
+  try {
+    monaco.editor.defineTheme(theme.themeId, {
+      base,
+      inherit: true,
+      rules,
+      colors: content.colors ?? {},
+    });
+  } catch (err) {
+    // When @codingame/monaco-editor-wrapper replaces the standalone theme
+    // service, defineTheme may not exist — themes are handled via VS Code
+    // extension contributions instead.
+    console.warn(`[extensionLoader] defineTheme("${theme.themeId}") unavailable:`, err);
+  }
 
   registeredThemes.add(theme.themeId);
 }
@@ -144,66 +129,34 @@ export async function loadAllExtensionThemes(monaco: Monaco): Promise<string[]> 
   return loaded;
 }
 
-/* ── Grammar Loading ───────────────────────────────────────── */
+/* ── Grammar / Language Registration ───────────────────────── */
 
 /**
- * Wire a stored grammar into Monaco via TextMate.
+ * Register a grammar's associated language with Monaco.
+ * The grammar content is stored in IDB but we don't wire TextMate;
+ * Monaco's built-in tokenizer handles highlighting.
  */
 export async function registerExtensionGrammar(
   monaco: Monaco,
   grammar: StoredGrammar,
-  editor?: monacoNs.editor.ICodeEditor,
+  _editor?: monacoNs.editor.ICodeEditor,
 ): Promise<boolean> {
   if (registeredGrammars.has(grammar.scopeName)) return true;
 
   try {
-    await ensureOniguruma();
-
-    const grammarContent = grammar.parsed ?? JSON.parse(grammar.content);
-
-    const registry = new Registry({
-      getGrammarDefinition: async (scopeName: string) => {
-        // Check IDB for this scope
-        if (scopeName === grammar.scopeName) {
-          return { format: "json", content: grammarContent } as any;
-        }
-        // Try to find dependent grammars in IDB
-        const storedGrammar = await getGrammarByScope(scopeName);
-        if (storedGrammar) {
-          const content = storedGrammar.parsed ?? JSON.parse(storedGrammar.content);
-          return { format: "json", content } as any;
-        }
-        // Fallback: try fetching from /public/grammars/
-        try {
-          const fileBase = scopeName.replace(/^(source|text)\./, "").replace(/\./g, "-");
-          const res = await fetch(`/grammars/${fileBase}.tmLanguage.json`);
-          if (res.ok) {
-            const content = await res.json();
-            return { format: "json", content } as any;
-          }
-        } catch { /* Ignore */ }
-        return { format: "json", content: {} } as any;
-      },
-    });
-
     if (grammar.language) {
-      const langMap = new Map<string, string>();
-      langMap.set(grammar.language, grammar.scopeName);
-
-      // Ensure the language is registered
+      // Ensure the language is registered with Monaco
       const existing = monaco.languages.getLanguages().find((l) => l.id === grammar.language);
       if (!existing) {
         monaco.languages.register({ id: grammar.language });
       }
-
-      await wireTmGrammars(monaco, registry, langMap, editor);
       registeredGrammars.add(grammar.scopeName);
       return true;
     }
 
     return false;
   } catch (err) {
-    console.warn(`[extensionLoader] Failed to wire grammar "${grammar.scopeName}":`, err);
+    console.warn(`[extensionLoader] Failed to register grammar language "${grammar.scopeName}":`, err);
     return false;
   }
 }

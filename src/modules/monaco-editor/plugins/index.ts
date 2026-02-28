@@ -12,6 +12,8 @@ export { wordHighlightPlugin } from "./word-highlight-plugin";
 export { todoHighlightPlugin } from "./todo-highlight-plugin";
 export { minimapColorsPlugin } from "./minimap-colors-plugin";
 export { vscodeClipboardPlugin } from "./vscode-clipboard-plugin";
+export { createGhostTextPlugin } from "./ghost-text-plugin";
+export type { GhostTextPluginOptions } from "./ghost-text-plugin";
 
 // Convenience array of all built-in plugins
 import { saveStatePlugin } from "./save-state-plugin";

@@ -247,8 +247,6 @@ export interface MonacoEditorConfig {
 
   // ── Advanced / Full-featured options ───────────────────────
 
-  /** Enable TextMate grammar loading for richer syntax highlighting (default: true) */
-  enableTextMate?: boolean;
   /** Enable snippet loading for the detected language (default: true) */
   enableSnippets?: boolean;
   /** Enable auto-close HTML/JSX tags (default: true) */

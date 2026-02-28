@@ -2,16 +2,15 @@
  * @module monaco-editor/lib
  *
  * Internal barrel for Monaco utility libraries.
- * These provide TextMate, themes, snippets, auto-close, copilot, LSP,
+ * These provide themes, snippets, auto-close, copilot, LSP,
  * and the Open VSX extension system.
  */
 
-export { getTextMateScope } from "./monacoLanguageMap";
-export { loadTextMateGrammar, preloadGrammars } from "./loadTextMateGrammar";
 export { loadCustomTheme, preloadThemes, isThemeLoaded } from "./loadCustomTheme";
 export { loadSnippets, unloadSnippets, preloadSnippets } from "./loadSnippets";
 export { registerAutoClose } from "./registerAutoClose";
 export { registerCopilot, detectTechnologies, type CopilotOptions } from "./registerCopilot";
+export { configureLanguageDefaults } from "./configureLanguageDefaults";
 export {
   connectLanguageServer,
   buildLSPWebSocketUrl,

@@ -22,6 +22,7 @@ import {
     MonacoEditor,
     ALL_BUILTIN_PLUGINS,
     detectLanguage,
+    createGhostTextPlugin,
 } from "@/modules/monaco-editor";
 import type { MonacoEditorInstance } from "@/modules/monaco-editor";
 
@@ -85,7 +86,11 @@ export default function FileEditorMonacoPage() {
     const { toast } = useToast();
 
     // Memoize plugins once so the array identity is stable
-    const plugins = useMemo(() => [...ALL_BUILTIN_PLUGINS], []);
+    const ghostTextPlugin = useMemo(
+        () => createGhostTextPlugin({ endpoint: __config.API_URL }),
+        [],
+    );
+    const plugins = useMemo(() => [...ALL_BUILTIN_PLUGINS, ghostTextPlugin], [ghostTextPlugin]);
 
     /* ── Document title + favicon ───────────────────────────── */
     useEffect(() => {
@@ -414,6 +419,10 @@ export default function FileEditorMonacoPage() {
                     showSidebar
                     showStatusBar
                     enableTerminal
+                    enableAutoClose
+                    enableLSP
+                    lspBaseUrl={__config.API_URL}
+                    enableVsixDrop
                     terminalUrl={`${__config.API_URL}/dedicated-terminal`}
                     terminalSessionId={sessionId}
                     terminalCwd={terminalCwd}

@@ -6,7 +6,7 @@
  * Features:
  * - Full plugin lifecycle management
  * - Theme registration & custom theme loading
- * - Language detection + TextMate grammar support
+ * - Language detection
  * - Snippet registration
  * - Auto-close HTML/JSX tags
  * - Monacopilot AI completions
@@ -51,7 +51,6 @@ import { detectLanguage, initMonacoLanguages } from "./utils/language-detect";
 
 // Lib utilities (advanced features)
 import {
-  loadTextMateGrammar,
   loadCustomTheme,
   loadSnippets,
   registerAutoClose,
@@ -232,7 +231,6 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   onDispose,
   onSave,
   // Advanced props
-  enableTextMate = true,
   enableSnippets = true,
   enableAutoClose = true,
   enableCopilot = false,
@@ -411,13 +409,6 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
         });
       }
 
-      // ── TextMate grammar loading ──
-      if (enableTextMate) {
-        loadTextMateGrammar(monaco, resolvedLanguage, editor).catch(() => {
-          // Grammar not available — Monaco built-in tokenizer will be used
-        });
-      }
-
       // ── Snippet loading ──
       if (enableSnippets) {
         loadSnippets(monaco, resolvedLanguage).then((d) => {
@@ -456,6 +447,8 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
             languageId: resolvedLanguage,
             wsUrl,
             documentUri,
+            monaco,
+            editor,
             onConnected: () => console.log(`[LSP] Connected: ${resolvedLanguage}`),
             onDisconnected: () => console.log(`[LSP] Disconnected: ${resolvedLanguage}`),
             onError: (err) => console.warn(`[LSP] Error:`, err),
@@ -530,7 +523,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
     [
       onMountProp, onSave, filePath, onNotify, getAllPlugins,
       customTheme, resolvedLanguage, fileName, enableTerminal,
-      enableTextMate, enableSnippets, enableAutoClose,
+      enableSnippets, enableAutoClose,
       enableCopilot, copilotEndpoint,
       enableLSP, lspBaseUrl, documentUri,
       onCursorChange, showSidebar, shouldLoadExtensions,
