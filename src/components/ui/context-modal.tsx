@@ -13,6 +13,17 @@ import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { DialogTitle } from "@/components/ui/dialog";
 import { useDialogState } from "@/store";
 
+// ── Context for closing the modal from inside rendered content ──
+const ContextModalCloseContext = React.createContext<(() => void) | null>(null);
+
+/**
+ * Hook for child components to close the parent ContextModal dialog.
+ * Call `closeModal()` after a successful action (rename, delete, etc.)
+ */
+export function useContextModalClose() {
+  return React.useContext(ContextModalCloseContext);
+}
+
 interface ContextMenuItemType {
   label: string;
   action?: () => void;
@@ -40,6 +51,8 @@ export function ContextModal({
   const [open, setOpen] = React.useState(false);
   const [selectedContent, setSelectedContent] =
     React.useState<React.ReactNode>(null);
+
+  const closeModal = React.useCallback(() => setOpen(false), []);
 
   return (
     <>
@@ -103,7 +116,9 @@ export function ContextModal({
           <VisuallyHidden.Root>
             <DialogTitle>{title}</DialogTitle>
           </VisuallyHidden.Root>
-          {selectedContent}
+          <ContextModalCloseContext.Provider value={closeModal}>
+            {selectedContent}
+          </ContextModalCloseContext.Provider>
         </DialogContent>
       </Dialog>
     </>

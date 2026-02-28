@@ -8,12 +8,16 @@
  *
  * This does NOT replace the existing FileEditorApiPage at /ssh/sftp/edit.
  */
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { BaseContentProvider, FileEditor, createAllBuiltinPlugins } from "@/modules/editor";
 import { createAllMockPlugins } from "@/modules/editor/plugins/mock";
 import { ApiCore } from "@/lib/api";
 import { __config } from "@/lib/config";
+import { getIconForFile } from "vscode-icons-js";
+
+const ICON_CDN = "https://raw.githubusercontent.com/vscode-icons/vscode-icons/master/icons";
+import { cachedIconUrl } from "@/lib/iconCache";
 
 // ═══════════════════════════════════════════════════════════════
 //  API Content Provider  (REST)
@@ -60,6 +64,37 @@ export default function FileEditorModulePage() {
 
     const sessionId = params.get("tabId") ?? "";
     const remotePath = params.get("path") ?? "";
+    const fileName = remotePath.split("/").pop() || "Untitled";
+
+    useEffect(() => {
+        document.title = `${fileName} — Terminus Editor`;
+
+        // Set favicon to the file-type icon
+        const iconFile = getIconForFile(fileName);
+        const rawUrl = iconFile
+            ? `${ICON_CDN}/${iconFile}`
+            : `${ICON_CDN}/default_file.svg`;
+
+        let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+        const previousHref = link?.href;
+        if (!link) {
+            link = document.createElement("link");
+            link.rel = "icon";
+            document.head.appendChild(link);
+        }
+
+        // Use cached icon URL
+        let cancelled = false;
+        cachedIconUrl(rawUrl).then((url) => {
+            if (!cancelled && link) link.href = url;
+        });
+
+        return () => {
+            cancelled = true;
+            document.title = "Terminus";
+            if (link && previousHref) link.href = previousHref;
+        };
+    }, [fileName]);
 
     // Extract the directory from the remote file path (strip the filename)
     const terminalCwd = useMemo(() => {
@@ -69,7 +104,7 @@ export default function FileEditorModulePage() {
     }, [remotePath]);
 
     const provider = useMemo(() => new ApiContentProvider(), []);
-
+    
     // Memoize plugins so they are created once and not re-created on every render
     const plugins = useMemo(() => [...createAllMockPlugins(), ...createAllBuiltinPlugins()], []);
 

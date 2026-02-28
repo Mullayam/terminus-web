@@ -36,6 +36,8 @@ export interface TerminalEvents {
     data?: string;
     /** Terminal resize → backend (default `@@SSH_EMIT_RESIZE`) */
     resize?: string;
+    /** SSH ready signal from backend (default `@@SSH_READY`) */
+    ready?: string;
 }
 
 export interface XtermTerminalProps {
@@ -63,6 +65,7 @@ const DEFAULT_EVENTS: Required<TerminalEvents> = {
     input: "@@SSH_EMIT_INPUT",
     data: "@@SSH_EMIT_DATA",
     resize: "@@SSH_EMIT_RESIZE",
+    ready: "@@SSH_READY",
 };
 
 const DEFAULT_THEME = {
@@ -151,6 +154,37 @@ export const XtermTerminal = memo(function XtermTerminal(props: XtermTerminalPro
             });
         });
 
+        // ── Connection log helpers ───────────────────────────
+        let sshReady = false;
+        const connectionLogs: string[] = [];
+
+        const writeLog = (msg: string, color: string = "36") => {
+            const line = `\x1b[${color}m${msg}\x1b[0m\r\n`;
+            connectionLogs.push(line);
+            term.write(line);
+        };
+
+        const timestamp = () => {
+            const d = new Date();
+            return d.toLocaleTimeString("en-US", { hour12: false });
+        };
+
+        // Show connecting message
+        writeLog(`[${timestamp()}] Connecting to terminal via SFTP...`, "33");
+        writeLog(`[${timestamp()}] Session: ${sessionId}`, "90");
+        writeLog(`[${timestamp()}] Working directory: ${cwd}`, "90");
+        writeLog(`[${timestamp()}] Waiting for SSH connection...`, "33");
+
+        // Animated spinner
+        const spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+        let spinnerIdx = 0;
+        const spinnerInterval = setInterval(() => {
+            if (sshReady) return;
+            const frame = spinnerFrames[spinnerIdx % spinnerFrames.length];
+            term.write(`\r\x1b[33m ${frame} Establishing connection...\x1b[0m`);
+            spinnerIdx++;
+        }, 80);
+
         // 4. Create dedicated socket connection
         const socket = io(socketUrl, {
             query: { sessionId, cwd },
@@ -163,18 +197,53 @@ export const XtermTerminal = memo(function XtermTerminal(props: XtermTerminalPro
 
         // 5. Send initial resize after connect
         socket.on("connect", () => {
+            if (!sshReady) {
+                writeLog(`\r\x1b[K[${timestamp()}] Socket connected, waiting for SSH ready...`, "33");
+            }
             socket.emit(eventsRef.current.resize, {
                 cols: term.cols,
                 rows: term.rows,
             });
         });
 
-        // 6. Wire events: backend → terminal
-        socket.on(eventsRef.current.data, (payload: string) => {
-            term.write(payload);
+        // Buffer incoming data until SSH is ready
+        const pendingData: string[] = [];
+
+        // 6. Listen for SSH_READY event
+        socket.on(eventsRef.current.ready, (isReady: boolean) => {
+            if (isReady && !sshReady) {
+                sshReady = true;
+                clearInterval(spinnerInterval);
+
+                // Clear spinner line and show connected
+                term.write(`\r\x1b[K`);
+                writeLog(`[${timestamp()}] ✓ SSH connection established`, "32");
+                writeLog(`[${timestamp()}] Terminal ready.\r\n`, "32");
+
+                // Write any buffered data
+                for (const data of pendingData) {
+                    term.write(data);
+                }
+                pendingData.length = 0;
+
+                // Now wire normal data flow
+                socket.on(eventsRef.current.data, (payload: string) => {
+                    term.write(payload);
+                });
+            }
         });
 
-        // 7. Wire events: terminal → backend
+        // 7. Wire events: backend → terminal (buffer until ready)
+        socket.on(eventsRef.current.data, (payload: string) => {
+            if (sshReady) {
+                // Once ready, the listener in step 6 takes over.
+                // This early-bound listener only buffers before ready.
+                return;
+            }
+            pendingData.push(payload);
+        });
+
+        // 8. Wire events: terminal → backend (always active — user can type during wait)
         term.onData((input) => {
             socket.emit(eventsRef.current.input, input);
         });
@@ -183,22 +252,38 @@ export const XtermTerminal = memo(function XtermTerminal(props: XtermTerminalPro
             socket.emit(eventsRef.current.resize, size);
         });
 
-        // 8. ResizeObserver → refit (handles panel drag-resize AND window resize)
-        //    We track the previous cols so that a pure height-change (rows
-        //    only) does NOT emit a resize event that resets the backend PTY
-        //    column count.  The `term.onResize` handler already sends size
-        //    changes to the backend, so we only need to call `fit()`.
+        // 9. If SSH_READY never fires within timeout, fall through to normal mode
+        const readyTimeout = setTimeout(() => {
+            if (!sshReady) {
+                sshReady = true;
+                clearInterval(spinnerInterval);
+                term.write(`\r\x1b[K`);
+                writeLog(`[${timestamp()}] Connection timeout — falling back to direct mode`, "33");
+                writeLog("", "0");
+
+                // Flush buffered data
+                for (const data of pendingData) {
+                    term.write(data);
+                }
+                pendingData.length = 0;
+
+                // Wire normal data flow
+                socket.on(eventsRef.current.data, (payload: string) => {
+                    term.write(payload);
+                });
+            }
+        }, 15000); // 15s timeout
+
+        // 10. ResizeObserver → refit
         let prevCols = term.cols;
         const resizeObserver = new ResizeObserver(() => {
             fitAddon.fit();
-            // If cols haven't changed, suppress the backend resize so the
-            // remote PTY keeps its column width stable.
             if (term.cols === prevCols) return;
             prevCols = term.cols;
         });
         resizeObserver.observe(containerRef.current);
 
-        // 9. Right-click paste support
+        // 11. Right-click paste support
         const handleContextMenu = async (e: MouseEvent) => {
             e.preventDefault();
             const selection = term.getSelection()?.trim();
@@ -219,6 +304,8 @@ export const XtermTerminal = memo(function XtermTerminal(props: XtermTerminalPro
         // ── Cleanup ──────────────────────────────────────────
         const containerEl = containerRef.current;
         return () => {
+            clearInterval(spinnerInterval);
+            clearTimeout(readyTimeout);
             resizeObserver.disconnect();
             containerEl?.removeEventListener("contextmenu", handleContextMenu);
             socket.removeAllListeners();

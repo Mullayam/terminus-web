@@ -1,0 +1,62 @@
+{
+  "Package": {
+    "prefix": "pkg",
+    "body": ["package ${1:main}", "", "$0"],
+    "description": "Package declaration"
+  },
+  "Main Function": {
+    "prefix": "main",
+    "body": ["func main() {", "\t$0", "}"],
+    "description": "Main function"
+  },
+  "Function": {
+    "prefix": "func",
+    "body": ["func ${1:name}(${2:params}) ${3:returnType} {", "\t$0", "}"],
+    "description": "Function"
+  },
+  "Method": {
+    "prefix": "meth",
+    "body": ["func (${1:r} *${2:Receiver}) ${3:Name}(${4:params}) ${5:returnType} {", "\t$0", "}"],
+    "description": "Method with receiver"
+  },
+  "Struct": {
+    "prefix": "struct",
+    "body": ["type ${1:Name} struct {", "\t${2:Field} ${3:Type}", "\t$0", "}"],
+    "description": "Struct type"
+  },
+  "Interface": {
+    "prefix": "iface",
+    "body": ["type ${1:Name} interface {", "\t${2:Method}(${3:params}) ${4:returnType}", "\t$0", "}"],
+    "description": "Interface type"
+  },
+  "Error Check": {
+    "prefix": ["iferr", "ie"],
+    "body": ["if err != nil {", "\t${1:return ${2:err}}", "}"],
+    "description": "If error check"
+  },
+  "For Range": {
+    "prefix": "forr",
+    "body": ["for ${1:i}, ${2:v} := range ${3:collection} {", "\t$0", "}"],
+    "description": "For range loop"
+  },
+  "Goroutine": {
+    "prefix": "go",
+    "body": ["go func() {", "\t$0", "}()"],
+    "description": "Goroutine"
+  },
+  "Channel": {
+    "prefix": "chan",
+    "body": ["${1:ch} := make(chan ${2:Type}${3:, ${4:bufferSize}})"],
+    "description": "Make channel"
+  },
+  "Select": {
+    "prefix": "sel",
+    "body": ["select {", "case ${1:msg} := <-${2:ch}:", "\t$0", "default:", "\t", "}"],
+    "description": "Select statement"
+  },
+  "Printf": {
+    "prefix": "pf",
+    "body": ["fmt.Printf(\"${1:%v}\\n\", ${2:value})"],
+    "description": "fmt.Printf"
+  }
+}
