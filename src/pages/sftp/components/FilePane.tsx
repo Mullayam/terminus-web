@@ -142,12 +142,6 @@ export function FilePane({
 
   const treeContextActions = useMemo<TreeContextActions>(
     () => ({
-      onEditNewTab: (fullPath) => {
-        window.open(
-          `/ssh/sftp/edit?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? "")}`,
-          "_blank",
-        );
-      },
       onEditWithEditor: (fullPath) => {
         const host = sftpStore.sessions[sftpStore.activeTabId as any]?.host ?? "";
         window.open(

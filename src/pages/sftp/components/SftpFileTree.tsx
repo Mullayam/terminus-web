@@ -35,7 +35,6 @@ export interface TreeNode {
 
 export interface TreeContextActions {
   onEdit?: (fullPath: string, name: string, isDir: boolean) => void;
-  onEditNewTab?: (fullPath: string, name: string) => void;
   onEditWithEditor?: (fullPath: string, name: string) => void;
   onPreview?: (fullPath: string, name: string) => void;
   onRename?: (node: TreeNode) => void;
@@ -123,14 +122,6 @@ function buildContextItems(node: TreeNode, actions?: TreeContextActions) {
     content: !isDir
       ? actions.renderEdit?.(node.fullPath, node.name)
       : undefined,
-  });
-
-  // Edit in New Tab
-  items.push({
-    label: "Edit in New Tab",
-    icon: <ExternalLink className="w-4 h-4" />,
-    disabled: isDir,
-    action: () => actions.onEditNewTab?.(node.fullPath, node.name),
   });
 
   // Edit with Editor

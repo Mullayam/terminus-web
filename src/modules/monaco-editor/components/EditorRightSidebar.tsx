@@ -8,7 +8,7 @@
  *   - Info: file metadata (language, encoding, size, etc.)
  */
 
-import React, { useMemo } from "react";
+import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import type * as monacoNs from "monaco-editor";
 import {
   List,
@@ -232,6 +232,50 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
     [problems],
   );
 
+  /* ── Resizable panel width ── */
+  const MIN_WIDTH = 200;
+  const MAX_WIDTH = 600;
+  const DEFAULT_WIDTH = 280;
+  const [panelWidth, setPanelWidth] = useState(() => {
+    const saved = localStorage.getItem("editor-sidebar-width");
+    return saved ? Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, Number(saved))) : DEFAULT_WIDTH;
+  });
+  const isDraggingRef = useRef(false);
+  const startXRef = useRef(0);
+  const startWidthRef = useRef(DEFAULT_WIDTH);
+
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingRef.current = true;
+    startXRef.current = e.clientX;
+    startWidthRef.current = panelWidth;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }, [panelWidth]);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current) return;
+      // Dragging left of handle = making sidebar wider (since sidebar is on the right)
+      const delta = startXRef.current - e.clientX;
+      const newWidth = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, startWidthRef.current + delta));
+      setPanelWidth(newWidth);
+    };
+    const handleMouseUp = () => {
+      if (!isDraggingRef.current) return;
+      isDraggingRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      localStorage.setItem("editor-sidebar-width", String(panelWidth));
+    };
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [panelWidth]);
+
   return (
     <div className="flex h-full shrink-0">
       {/* ── Activity Bar (icon strip, always visible) ──────── */}
@@ -320,15 +364,20 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
         })()}
       </div>
 
-      {/* ── Panel Content (animated) ───────────────────────── */}
+      {/* ── Panel Content (resizable) ───────────────────────── */}
       <div
-        className={`bg-[#252526] border-l border-[#3c3c3c] flex flex-col transition-all duration-200 ease-in-out ${
-          open ? "w-[260px] opacity-100" : "w-0 opacity-0 pointer-events-none"
+        className={`bg-[#252526] border-l border-[#3c3c3c] flex flex-col transition-opacity duration-200 ease-in-out ${
+          open ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
-        style={{ overflow: "hidden" }}
+        style={{ width: open ? panelWidth : 0, overflow: "hidden", position: "relative", transition: open ? "opacity 200ms" : "width 200ms, opacity 200ms" }}
       >
-        {/* Fixed-width inner container prevents content from reflowing during transition */}
-        <div className="w-[260px] flex flex-col h-full">
+        {/* Drag handle on left edge */}
+        <div
+          className="absolute left-0 top-0 bottom-0 w-[4px] cursor-col-resize z-10 hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors"
+          onMouseDown={handleDragStart}
+        />
+        {/* Inner container at current width */}
+        <div className="flex flex-col h-full relative" style={{ minWidth: panelWidth }}>
           {/* Panel Header */}
           <div className="flex items-center gap-2 px-3 py-2 border-b border-[#3c3c3c] shrink-0">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
@@ -402,6 +451,239 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
     </div>
   );
 };
+
+/* ── Split components for ResizablePanelGroup layout ───────── */
+
+export interface EditorSidebarActivityBarProps {
+  open: boolean;
+  onToggle: () => void;
+  activeTab: SidebarTab;
+  onTabChange: (tab: SidebarTab) => void;
+  symbols: DocumentSymbolItem[];
+  problems: monacoNs.editor.IMarkerData[];
+  extensionCount?: number;
+}
+
+/** Activity bar icon strip (40 px, always visible, placed outside the resizable area). */
+export const EditorSidebarActivityBar: React.FC<EditorSidebarActivityBarProps> = ({
+  open, onToggle, activeTab, onTabChange, symbols, problems, extensionCount = 0,
+}) => {
+  const errorCount = useMemo(() => problems.filter((p) => p.severity === 8).length, [problems]);
+  const warningCount = useMemo(() => problems.filter((p) => p.severity === 4).length, [problems]);
+
+  return (
+    <div className="flex flex-col items-center w-[40px] bg-[#252526] border-l border-[#3c3c3c] py-2 gap-0.5 shrink-0 h-full">
+      {/* Toggle button */}
+      <button
+        onClick={onToggle}
+        className="p-2 rounded-md mb-2 transition-colors text-gray-500 hover:text-gray-300 hover:bg-[#37373d]"
+        title={open ? "Close Sidebar" : "Open Sidebar"}
+      >
+        {open ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
+      </button>
+
+      {/* Tab icons */}
+      {TABS.map((tab) => {
+        const isActive = open && activeTab === tab.id;
+        const Icon = tab.icon;
+        const badge =
+          tab.id === "problems" && (errorCount + warningCount) > 0
+            ? errorCount + warningCount
+            : tab.id === "outline" && symbols.length > 0
+              ? symbols.length
+              : tab.id === "extensions" && extensionCount > 0
+                ? extensionCount
+                : null;
+
+        return (
+          <button
+            key={tab.id}
+            onClick={() => {
+              if (open && activeTab === tab.id) {
+                onToggle();
+              } else {
+                onTabChange(tab.id);
+                if (!open) onToggle();
+              }
+            }}
+            className={`relative p-2 rounded-md transition-colors ${
+              isActive
+                ? "text-white bg-[#37373d]"
+                : "text-gray-500 hover:text-gray-300 hover:bg-[#37373d]"
+            }`}
+            title={tab.label}
+          >
+            <Icon className="w-4 h-4" />
+            {badge != null && badge > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] flex items-center justify-center text-[9px] font-bold rounded-full bg-[#007acc] text-white px-0.5">
+                {badge > 99 ? "99+" : badge}
+              </span>
+            )}
+          </button>
+        );
+      })}
+
+      <div className="flex-1" />
+
+      {/* Settings button (bottom) */}
+      {(() => {
+        const isActive = open && activeTab === SETTINGS_TAB.id;
+        const SettingsIcon = SETTINGS_TAB.icon;
+        return (
+          <button
+            onClick={() => {
+              if (open && activeTab === SETTINGS_TAB.id) {
+                onToggle();
+              } else {
+                onTabChange(SETTINGS_TAB.id);
+                if (!open) onToggle();
+              }
+            }}
+            className={`p-2 rounded-md mb-1 transition-colors ${
+              isActive
+                ? "text-white bg-[#37373d]"
+                : "text-gray-500 hover:text-gray-300 hover:bg-[#37373d]"
+            }`}
+            title={SETTINGS_TAB.label}
+          >
+            <SettingsIcon className="w-4 h-4" />
+          </button>
+        );
+      })()}
+    </div>
+  );
+};
+
+EditorSidebarActivityBar.displayName = "EditorSidebarActivityBar";
+
+/* ── Sidebar Content (lives inside a ResizablePanel) ───────── */
+
+export interface EditorSidebarContentProps {
+  activeTab: SidebarTab;
+  symbols: DocumentSymbolItem[];
+  problems: monacoNs.editor.IMarkerData[];
+  onSymbolClick: (symbol: DocumentSymbolItem) => void;
+  onProblemClick: (marker: monacoNs.editor.IMarkerData) => void;
+  filename: string;
+  language: string;
+  lineCount: number;
+  charCount: number;
+  fileSize: number;
+  monaco?: typeof monacoNs | null;
+  editor?: monacoNs.editor.IStandaloneCodeEditor | null;
+  onThemeApply?: (themeId: string) => void;
+  activeTheme?: string;
+  editorSettings?: EditorSettings;
+  onSettingsChange?: (settings: EditorSettings) => void;
+  enableTerminal?: boolean;
+  chatBaseUrl?: string;
+  chatHostId?: string;
+  chatFileContent?: string;
+  onChatApplyCode?: (code: string, language: string) => void;
+}
+
+/** Sidebar panel content (no width management – parent handles sizing via ResizablePanel). */
+export const EditorSidebarContent: React.FC<EditorSidebarContentProps> = ({
+  activeTab,
+  symbols,
+  problems,
+  onSymbolClick,
+  onProblemClick,
+  filename,
+  language,
+  lineCount,
+  charCount,
+  fileSize,
+  monaco: monacoProp,
+  editor: editorProp,
+  onThemeApply,
+  activeTheme,
+  editorSettings,
+  onSettingsChange,
+  enableTerminal,
+  chatBaseUrl,
+  chatHostId,
+  chatFileContent,
+  onChatApplyCode,
+}) => {
+  const errorCount = useMemo(() => problems.filter((p) => p.severity === 8).length, [problems]);
+  const warningCount = useMemo(() => problems.filter((p) => p.severity === 4).length, [problems]);
+
+  return (
+    <div className="flex flex-col h-full bg-[#252526] border-l border-[#3c3c3c]">
+      {/* Panel Header */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-[#3c3c3c] shrink-0">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+          {[...TABS, SETTINGS_TAB].find((t) => t.id === activeTab)?.label}
+        </span>
+      </div>
+
+      {/* Panel Body */}
+      <div className={`flex-1 text-sm sidebar-scroll ${activeTab === "chat" ? "overflow-hidden" : "overflow-y-auto"}`}>
+        {activeTab === "outline" && (
+          <OutlinePanel symbols={symbols} onClick={onSymbolClick} />
+        )}
+        {activeTab === "problems" && (
+          <ProblemsPanel problems={problems} onClick={onProblemClick} />
+        )}
+        {activeTab === "info" && (
+          <InfoPanel
+            filename={filename}
+            language={language}
+            lineCount={lineCount}
+            charCount={charCount}
+            fileSize={fileSize}
+            errorCount={errorCount}
+            warningCount={warningCount}
+            symbolCount={symbols.length}
+          />
+        )}
+        {activeTab === "extensions" && (
+          <ExtensionPanel
+            monaco={monacoProp ?? null}
+            editor={editorProp ?? null}
+            onThemeApply={onThemeApply}
+          />
+        )}
+        {activeTab === "themes" && (
+          <ThemeSidebar
+            monaco={monacoProp ?? null}
+            editor={editorProp ?? null}
+            activeTheme={activeTheme}
+            onThemeApply={onThemeApply}
+          />
+        )}
+        {activeTab === "settings" && editorSettings && onSettingsChange && (
+          <EditorSettingsPanel
+            settings={editorSettings}
+            onChange={onSettingsChange}
+            enableTerminal={enableTerminal}
+          />
+        )}
+        {activeTab === "chat" && chatBaseUrl && (
+          <ChatPanel
+            baseUrl={chatBaseUrl}
+            hostId={chatHostId}
+            language={language}
+            fileContent={chatFileContent ?? ""}
+            filename={filename}
+            onApplyCode={onChatApplyCode}
+          />
+        )}
+      </div>
+
+      {/* Scrollbar styling */}
+      <style>{`
+        .sidebar-scroll::-webkit-scrollbar { width: 5px; }
+        .sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+        .sidebar-scroll::-webkit-scrollbar-thumb { background: #5a5a5a; border-radius: 3px; }
+        .sidebar-scroll::-webkit-scrollbar-thumb:hover { background: #7a7a7a; }
+      `}</style>
+    </div>
+  );
+};
+
+EditorSidebarContent.displayName = "EditorSidebarContent";
 
 /* ── Outline Panel ─────────────────────────────────────────── */
 

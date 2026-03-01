@@ -8,12 +8,13 @@
  * MonacoEditor module — all find/replace, go-to-line, undo/redo,
  * syntax highlighting, bracket matching etc. are built-in.
  */
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ApiCore } from "@/lib/api";
 import { __config } from "@/lib/config";
 import {
-    Loader2, Save, WrapText, RefreshCw, Info, X, Palette, Check,
+    Loader2, Save, WrapText, RefreshCw, Info, X, Palette, Check, FolderTree,
+    Columns2, XIcon,
 } from "lucide-react";
 import FileIcon from "@/components/FileIcon";
 import { cachedIconUrl } from "@/lib/iconCache";
@@ -26,9 +27,13 @@ import {
     createNotificationPlugin,
     showEditorNotification,
     loadEditorSettings,
+    EditorFileTree,
 } from "@/modules/monaco-editor";
 import type { MonacoEditorInstance, AICompletionProvider } from "@/modules/monaco-editor";
 import { SocketContext } from "@/context/socket-context";
+import { SocketEventConstants } from "@/lib/sockets/event-constants";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import type { ImperativePanelHandle } from "react-resizable-panels";
 
 /* ── Constants ─────────────────────────────────────────────── */
 
@@ -46,6 +51,28 @@ const MONACO_THEMES = [
 ] as const;
 
 type ThemeId = (typeof MONACO_THEMES)[number]["id"];
+
+/* ── Editor Tab model ──────────────────────────────────────── */
+interface EditorTab {
+    id: string;
+    filePath: string;
+    fileName: string;
+    content: string | null;
+    originalContent: string;
+    modified: boolean;
+    loading: boolean;
+    error: string | null;
+}
+
+/** Splits: each split group has a list of tab ids and an active tab id */
+interface SplitGroup {
+    id: string;
+    tabIds: string[];
+    activeTabId: string | null;
+}
+
+let tabIdCounter = 0;
+function newTabId() { return `tab-${++tabIdCounter}-${Date.now()}`; }
 
 
 /* ── Component ─────────────────────────────────────────────── */
@@ -66,7 +93,7 @@ export default function FileEditorMonacoPage() {
     }, [filePath]);
 
     /* ── State ──────────────────────────────────────────────── */
-    const [content, setContent]           = useState("");
+    const [initialContent, setInitialContent] = useState<string | null>(null);
     const [loading, setLoading]           = useState(true);
     const [saving, setSaving]             = useState(false);
     const [error, setError]               = useState<string | null>(null);
@@ -85,10 +112,198 @@ export default function FileEditorMonacoPage() {
     const editorRef          = useRef<MonacoEditorInstance | null>(null);
     const originalContentRef = useRef("");
     const themePickerBtnRef  = useRef<HTMLButtonElement>(null);
-    const contentRef         = useRef(content);
-    contentRef.current       = content;
+    /** Tracks the latest editor content without triggering re-renders */
+    const contentRef         = useRef("");
+    /** Per-tab content refs keyed by tab id */
+    const tabContentRefs     = useRef<Record<string, string>>({});
 
     const { socket } = useContext(SocketContext);
+    const treePanelRef = useRef<ImperativePanelHandle>(null);
+
+    /* ── File tree state ────────────────────────────────────── */
+    const [treeFiles, setTreeFiles] = useState<any[]>([]);
+    const [treeDir, setTreeDir] = useState(() => {
+        // Start the tree at the parent directory of the current file
+        if (!filePath) return "/";
+        const dir = filePath.replace(/\/[^/]*$/, "");
+        return dir || "/";
+    });
+    const [treeCollapsed, setTreeCollapsed] = useState(false);
+
+    // Fetch directory listing on treeDir change
+    useEffect(() => {
+        if (!socket || !treeDir) return;
+        socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: treeDir });
+    }, [socket, treeDir]);
+
+    // Listen for file list events
+    useEffect(() => {
+        if (!socket) return;
+        const onFileList = (data: { path?: string; result?: any[] }) => {
+            if (data.result) {
+                setTreeFiles(data.result);
+            }
+        };
+        socket.on(SocketEventConstants.SFTP_FILES_LIST, onFileList);
+        return () => { socket.off(SocketEventConstants.SFTP_FILES_LIST, onFileList); };
+    }, [socket]);
+
+    const handleTreeNavigate = useCallback((path: string) => {
+        setTreeDir(path);
+    }, []);
+
+    const handleTreeRefresh = useCallback(() => {
+        if (!socket || !treeDir) return;
+        socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: treeDir });
+    }, [socket, treeDir]);
+
+    /* ── Tabs & Split state ─────────────────────────────────── */
+    const initialTabId = useMemo(() => newTabId(), []);
+    const [tabs, setTabs] = useState<Record<string, EditorTab>>(() => ({
+        [initialTabId]: {
+            id: initialTabId,
+            filePath,
+            fileName,
+            content: null,
+            originalContent: "",
+            modified: false,
+            loading: true,
+            error: null,
+        },
+    }));
+    const [splitGroups, setSplitGroups] = useState<SplitGroup[]>(() => [
+        { id: "group-1", tabIds: [initialTabId], activeTabId: initialTabId },
+    ]);
+    const [activeGroupId, setActiveGroupId] = useState("group-1");
+
+    // Convenience: active group's tab
+    const activeGroup = splitGroups.find((g) => g.id === activeGroupId) ?? splitGroups[0];
+    const activeTabId = activeGroup?.activeTabId;
+    const activeTab = activeTabId ? tabs[activeTabId] : null;
+
+    /** Open a file as a new editor tab (or focus if already open) */
+    const openFileInTab = useCallback((fullPath: string, groupId?: string) => {
+        const name = fullPath.split("/").pop() ?? "untitled";
+        const gId = groupId ?? activeGroupId;
+
+        // Check if already open in any group
+        const existingTab = Object.values(tabs).find((t) => t.filePath === fullPath);
+        if (existingTab) {
+            // Focus the existing tab
+            setSplitGroups((prev) =>
+                prev.map((g) => {
+                    if (g.tabIds.includes(existingTab.id)) {
+                        setActiveGroupId(g.id);
+                        return { ...g, activeTabId: existingTab.id };
+                    }
+                    return g;
+                }),
+            );
+            return;
+        }
+
+        const id = newTabId();
+        const newTab: EditorTab = {
+            id,
+            filePath: fullPath,
+            fileName: name,
+            content: null,
+            originalContent: "",
+            modified: false,
+            loading: true,
+            error: null,
+        };
+        setTabs((prev) => ({ ...prev, [id]: newTab }));
+        setSplitGroups((prev) =>
+            prev.map((g) =>
+                g.id === gId
+                    ? { ...g, tabIds: [...g.tabIds, id], activeTabId: id }
+                    : g,
+            ),
+        );
+        setActiveGroupId(gId);
+
+        // Fetch content for the new tab
+        ApiCore.fetchFileContent(sessionId, fullPath)
+            .then((data) => {
+                if (!data.status) throw new Error(data.message || "Failed to load file");
+                setTabs((prev) => ({
+                    ...prev,
+                    [id]: {
+                        ...prev[id],
+                        content: data.result,
+                        originalContent: data.result,
+                        loading: false,
+                    },
+                }));
+                tabContentRefs.current[id] = data.result;
+            })
+            .catch((e) => {
+                setTabs((prev) => ({
+                    ...prev,
+                    [id]: { ...prev[id], loading: false, error: e?.message ?? "Failed to load" },
+                }));
+            });
+    }, [tabs, activeGroupId, sessionId]);
+
+    /** Close a tab (initial tab from URL cannot be closed) */
+    const closeTab = useCallback((tabId: string) => {
+        if (tabId === initialTabId) return; // initial tab is pinned
+        delete tabContentRefs.current[tabId];
+        setTabs((prev) => {
+            const next = { ...prev };
+            delete next[tabId];
+            return next;
+        });
+        setSplitGroups((prev) => {
+            return prev
+                .map((g) => {
+                    if (!g.tabIds.includes(tabId)) return g;
+                    const newTabIds = g.tabIds.filter((id) => id !== tabId);
+                    let newActive = g.activeTabId === tabId
+                        ? newTabIds[Math.max(0, g.tabIds.indexOf(tabId) - 1)] ?? newTabIds[0] ?? null
+                        : g.activeTabId;
+                    return { ...g, tabIds: newTabIds, activeTabId: newActive };
+                })
+                .filter((g) => g.tabIds.length > 0); // Remove empty groups
+        });
+    }, []);
+
+    /** Split the active tab into a new group */
+    const splitTabToNewGroup = useCallback((tabId: string) => {
+        const tab = tabs[tabId];
+        if (!tab) return;
+        const newGroupId = `group-${Date.now()}`;
+        const newId = newTabId();
+        const clonedTab: EditorTab = {
+            ...tab,
+            id: newId,
+        };
+        setTabs((prev) => ({ ...prev, [newId]: clonedTab }));
+        tabContentRefs.current[newId] = tabContentRefs.current[tabId] ?? tab.content ?? "";
+        setSplitGroups((prev) => [
+            ...prev,
+            { id: newGroupId, tabIds: [newId], activeTabId: newId },
+        ]);
+        setActiveGroupId(newGroupId);
+    }, [tabs]);
+
+    /** Switch active tab in a group */
+    const switchTab = useCallback((groupId: string, tabId: string) => {
+        // Before switching, save current content to ref
+        if (activeTabId && editorRef.current) {
+            tabContentRefs.current[activeTabId] = editorRef.current.getValue();
+        }
+        setSplitGroups((prev) =>
+            prev.map((g) => (g.id === groupId ? { ...g, activeTabId: tabId } : g)),
+        );
+        setActiveGroupId(groupId);
+    }, [activeTabId]);
+
+    // Wire handleTreeFileOpen to use internal tabs
+    const handleTreeFileOpen = useCallback((fullPath: string, _name: string) => {
+        openFileInTab(fullPath);
+    }, [openFileInTab]);
 
     // AI completion provider from persisted settings
     const [aiProvider, setAIProvider] = useState<AICompletionProvider>(
@@ -119,9 +334,11 @@ export default function FileEditorMonacoPage() {
     }, []);
 
     /* ── Document title + favicon ───────────────────────────── */
+    const currentFileName = activeTab?.fileName ?? fileName;
+    const currentFilePath = activeTab?.filePath ?? filePath;
     useEffect(() => {
-        document.title = `${fileName} — Terminus Editor`;
-        const iconFile = getIconForFile(fileName);
+        document.title = `${currentFileName} — Terminus Editor`;
+        const iconFile = getIconForFile(currentFileName);
         const rawUrl   = iconFile ? `${ICON_CDN}/${iconFile}` : `${ICON_CDN}/default_file.svg`;
 
         let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
@@ -143,7 +360,7 @@ export default function FileEditorMonacoPage() {
             document.title = "Terminus";
             if (link && previousHref) link.href = previousHref;
         };
-    }, [fileName]);
+    }, [currentFileName]);
 
     /* ── Fetch file content ─────────────────────────────────── */
     const fetchContent = useCallback(async () => {
@@ -157,9 +374,25 @@ export default function FileEditorMonacoPage() {
         try {
             const data = await ApiCore.fetchFileContent(sessionId, filePath);
             if (!data.status) throw new Error(data.message || "Failed to load file content");
-            setContent(data.result);
+            contentRef.current = data.result;
             originalContentRef.current = data.result;
+            setInitialContent(data.result);
             setModified(false);
+            // Also update the initial tab
+            tabContentRefs.current[initialTabId] = data.result;
+            setTabs((prev) => ({
+                ...prev,
+                [initialTabId]: {
+                    ...prev[initialTabId],
+                    content: data.result,
+                    originalContent: data.result,
+                    loading: false,
+                },
+            }));
+            // If editor is already mounted (reload), push content into the model directly
+            if (editorRef.current) {
+                editorRef.current.setValue(data.result);
+            }
         } catch (e: any) {
             setError(e?.message ?? "Failed to load file");
         } finally {
@@ -172,20 +405,29 @@ export default function FileEditorMonacoPage() {
     /* ── Save file ──────────────────────────────────────────── */
     const handleSave = useCallback(async (value?: string) => {
         if (!sessionId || saving) return;
-        const toSave = value ?? contentRef.current;
+        const tab = activeTab;
+        const saveFilePath = tab?.filePath ?? filePath;
+        const saveFileName = tab?.fileName ?? fileName;
+        const toSave = value ?? (activeTabId ? tabContentRefs.current[activeTabId] : undefined) ?? contentRef.current;
         setSaving(true);
         try {
-            await ApiCore.saveFileContent(sessionId, filePath, toSave);
+            await ApiCore.saveFileContent(sessionId, saveFilePath, toSave);
             setModified(false);
             originalContentRef.current = toSave;
+            if (activeTabId) {
+                setTabs((prev) => ({
+                    ...prev,
+                    [activeTabId]: { ...prev[activeTabId], modified: false, originalContent: toSave },
+                }));
+            }
             setLastSaved(new Date());
-            showEditorNotification(`${fileName} saved successfully`, "success", {
+            showEditorNotification(`${saveFileName} saved successfully`, "success", {
                 source: "File System",
                 timeout: 3000,
             });
         } catch (e: any) {
             showEditorNotification(
-                `Failed to save ${fileName}`,
+                `Failed to save ${saveFileName}`,
                 "error",
                 {
                     source: "File System",
@@ -196,13 +438,26 @@ export default function FileEditorMonacoPage() {
         } finally {
             setSaving(false);
         }
-    }, [sessionId, filePath, saving, fileName]);
+    }, [sessionId, saving, activeTab, activeTabId, filePath, fileName]);
 
     /* ── Monaco callbacks ───────────────────────────────────── */
     const handleChange = useCallback((value: string) => {
-        setContent(value);
-        setModified(value !== originalContentRef.current);
-    }, []);
+        contentRef.current = value;
+        if (activeTabId) {
+            tabContentRefs.current[activeTabId] = value;
+            const tab = tabs[activeTabId];
+            const isModified = value !== (tab?.originalContent ?? originalContentRef.current);
+            setModified(isModified);
+            if (tab) {
+                setTabs((prev) => ({
+                    ...prev,
+                    [activeTabId]: { ...prev[activeTabId], modified: isModified },
+                }));
+            }
+        } else {
+            setModified(value !== originalContentRef.current);
+        }
+    }, [activeTabId, tabs]);
 
     const handleEditorMount = useCallback((editor: MonacoEditorInstance) => {
         editorRef.current = editor;
@@ -215,7 +470,7 @@ export default function FileEditorMonacoPage() {
         setShowThemePicker(false);
     };
 
-    const lineCount = content.split("\n").length;
+    const lineCount = (initialContent ?? "").split("\n").length;
 
     /* ── Status bar: last saved time ─────────────────────────── */
     const statusBarItems = useMemo(() => {
@@ -279,7 +534,7 @@ export default function FileEditorMonacoPage() {
     ];
 
     /* ── Error state ────────────────────────────────────────── */
-    if (error && !content) {
+    if (error && initialContent === null) {
         return (
             <div className="flex items-center justify-center h-screen bg-[#1e1e1e]">
                 <div className="text-center space-y-3">
@@ -319,19 +574,19 @@ export default function FileEditorMonacoPage() {
                 {/* Left: file info */}
                 <div className="flex items-center gap-2 min-w-0 overflow-hidden">
                     <span className="flex items-center space-x-1">
-                        <FileIcon name={fileName} isDirectory={false} className="w-4 h-4" />
+                        <FileIcon name={currentFileName} isDirectory={false} className="w-4 h-4" />
                         <span className="text-[13px] font-medium truncate text-gray-200">
-                            {fileName}
+                            {currentFileName}
                         </span>
                     </span>
-                    {modified && (
+                    {(activeTab?.modified ?? modified) && (
                         <span
                             className="w-2 h-2 rounded-full shrink-0 bg-orange-400"
                             title="Unsaved changes"
                         />
                     )}
                     <span className="text-[11px] font-mono truncate hidden sm:inline text-gray-500">
-                        {filePath}
+                        {currentFilePath}
                     </span>
                 </div>
 
@@ -441,7 +696,7 @@ export default function FileEditorMonacoPage() {
                     {/* Save */}
                     <button
                         onClick={() => handleSave()}
-                        disabled={saving || !modified}
+                        disabled={saving || !(activeTab?.modified ?? modified)}
                         className="inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-medium px-3 py-1.5 rounded-md transition-colors ml-1 bg-blue-600 text-white hover:bg-blue-700"
                     >
                         {saving ? (
@@ -451,73 +706,201 @@ export default function FileEditorMonacoPage() {
                         )}
                         {saving ? "Saving…" : "Save"}
                     </button>
+
+                    {/* Split editor */}
+                    {activeTabId && (
+                        <button
+                            onClick={() => splitTabToNewGroup(activeTabId)}
+                            title="Split Editor Right"
+                            className="p-1.5 rounded-md transition-colors text-gray-400 hover:text-gray-200 ml-0.5"
+                        >
+                            <Columns2 className="w-3.5 h-3.5" />
+                        </button>
+                    )}
                 </div>
             </div>
 
-            {/* ── Monaco Editor ───────────────────────────────── */}
+            {/* ── File Tree + Tab Bar + Split Editor ──────── */}
             <div className="flex-1 overflow-hidden">
-                <MonacoEditor
-                    value={content}
-                    filePath={filePath || fileName}
-                    theme={themeId}
-                    wordWrap={wordWrap ? "on" : "off"}
-                    plugins={plugins}
-                    onChange={handleChange}
-                    onSave={handleSave}
-                    onMount={handleEditorMount}
-                    onCursorChange={(line, col) => {
-                        setCursorLine(line);
-                        setCursorCol(col);
-                    }}
-                    copilotEndpoint={`${__config.API_URL}/api/complete`}
-                    onAIProviderChange={handleAIProviderChange}
-                    enableLSP
-                    lspBaseUrl={__config.API_URL}
-                    showSidebar
-                    showStatusBar
-                    enableTerminal
-                    enableAutoClose
-                    pluginDebounceMs={1200}
-                    enableVsixDrop
-                    terminalUrl={`${__config.API_URL}/dedicated-terminal`}
-                    terminalSessionId={sessionId}
-                    terminalCwd={terminalCwd}
-                    fontSize={14}
-                    tabSize={2}
-                    minimap={true}
-                    statusBarItems={statusBarItems}
-                    options={{
-                        renderWhitespace: "selection",
-                        smoothScrolling: true,
-                        cursorBlinking: "smooth",
-                        cursorSmoothCaretAnimation: "on",
-                        formatOnPaste: true,
-                        linkedEditing: true,
-                        mouseWheelZoom: true,
-                        stickyScroll: { enabled: true },
-                    }}
-                    enableExtensions
-                    chatBaseUrl={__config.API_URL}
-                    chatHostId={hostUser}
-                    onChatApplyCode={(code) => {
-                        // Apply AI-suggested code to the editor
-                        const editor = editorRef.current;
-                        if (editor) {
-                            editor.setValue(code);
-                            setModified(true);
-                            showEditorNotification("AI suggestion applied", "success", {
-                                source: "AI Chat",
-                                timeout: 3000,
-                            });
-                        }
-                    }}
-                    onNotify={(msg, type) => {
-                        showEditorNotification(msg, type as any, {
-                            source: "Editor",
-                            timeout: type === "error" ? 6000 : 3000,
-                        });
-                    }}
-                />
+                <ResizablePanelGroup direction="horizontal" className="h-full">
+                    {/* File tree panel (always rendered, collapsible) */}
+                    <ResizablePanel
+                        ref={treePanelRef}
+                        defaultSize={18}
+                        minSize={12}
+                        maxSize={35}
+                        collapsible
+                        collapsedSize={3}
+                        onCollapse={() => setTreeCollapsed(true)}
+                        onExpand={() => setTreeCollapsed(false)}
+                        className="h-full"
+                    >
+                        {treeCollapsed ? (
+                            <div className="flex items-start justify-center h-full bg-[#252526] pt-2">
+                                <button
+                                    onClick={() => treePanelRef.current?.expand()}
+                                    className="p-1 rounded-md hover:bg-[#37373d] transition-colors"
+                                    title="Show Explorer"
+                                >
+                                    <FolderTree className="h-4 w-4 text-gray-500" />
+                                </button>
+                            </div>
+                        ) : (
+                            <EditorFileTree
+                                currentDir={treeDir}
+                                files={treeFiles}
+                                onFileOpen={handleTreeFileOpen}
+                                onNavigate={handleTreeNavigate}
+                                onRefresh={handleTreeRefresh}
+                                collapsed={treeCollapsed}
+                                onCollapsedChange={(collapsed) => {
+                                    if (collapsed) treePanelRef.current?.collapse();
+                                    else treePanelRef.current?.expand();
+                                }}
+                                showHiddenFiles={false}
+                            />
+                        )}
+                    </ResizablePanel>
+                    <ResizableHandle withHandle className="bg-[#3c3c3c] hover:bg-blue-500/40 transition-colors" />
+                    {/* Editor area with split groups */}
+                    <ResizablePanel defaultSize={82} className="h-full">
+                        <ResizablePanelGroup direction="horizontal" className="h-full">
+                            {splitGroups.map((group, gi) => {
+                                const groupActiveTab = group.activeTabId ? tabs[group.activeTabId] : null;
+                                const isActiveGroup = group.id === activeGroupId;
+                                const editorContent = groupActiveTab
+                                    ? (tabContentRefs.current[groupActiveTab.id] ?? groupActiveTab.content ?? "")
+                                    : (initialContent ?? "");
+                                const editorFilePath = groupActiveTab?.filePath ?? filePath;
+                                const editorFileName = groupActiveTab?.fileName ?? fileName;
+                                return (
+                                    <React.Fragment key={group.id}>
+                                        {gi > 0 && <ResizableHandle withHandle className="bg-[#3c3c3c] hover:bg-blue-500/40 transition-colors" />}
+                                        <ResizablePanel minSize={20} className="h-full">
+                                            <div className="flex flex-col h-full">
+                                            {/* Tab bar */}
+                                            <div className="flex items-center bg-[#252526] border-b border-[#3c3c3c] shrink-0 overflow-x-auto tab-bar-scroll">
+                                                {group.tabIds.map((tid) => {
+                                                    const tab = tabs[tid];
+                                                    if (!tab) return null;
+                                                    const isActive = tid === group.activeTabId;
+                                                    return (
+                                                        <div
+                                                            key={tid}
+                                                            className={`group/tab flex items-center gap-1.5 px-3 py-1 cursor-pointer border-r border-[#3c3c3c] text-[12px] shrink-0 transition-colors ${
+                                                                isActive
+                                                                    ? "bg-[#1e1e1e] text-gray-200"
+                                                                    : "text-gray-500 hover:text-gray-300 hover:bg-[#2a2d2e]"
+                                                            }`}
+                                                            onClick={() => switchTab(group.id, tid)}
+                                                        >
+                                                            <FileIcon name={tab.fileName} isDirectory={false} size={14} />
+                                                            <span className="truncate max-w-[120px]">{tab.fileName}</span>
+                                                            {tab.modified && (
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
+                                                            )}
+                                                            {tab.loading && (
+                                                                <Loader2 className="w-3 h-3 animate-spin shrink-0 text-blue-400" />
+                                                            )}
+                                                            {tid !== initialTabId && (
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        closeTab(tid);
+                                                                    }}
+                                                                    className="ml-1 p-0.5 rounded opacity-0 group-hover/tab:opacity-100 hover:bg-[#3c3c3c] transition-all"
+                                                                    title="Close"
+                                                                >
+                                                                    <XIcon className="w-3 h-3" />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                            {/* Editor for active tab */}
+                                            <div className="flex-1 overflow-hidden" onClick={() => setActiveGroupId(group.id)}>
+                                                {groupActiveTab?.loading ? (
+                                                    <div className="flex items-center justify-center h-full bg-[#1e1e1e]">
+                                                        <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
+                                                    </div>
+                                                ) : groupActiveTab?.error ? (
+                                                    <div className="flex items-center justify-center h-full bg-[#1e1e1e]">
+                                                        <p className="text-sm text-red-400">{groupActiveTab.error}</p>
+                                                    </div>
+                                                ) : (
+                                                    <MonacoEditor
+                                                        key={group.activeTabId}
+                                                        defaultValue={editorContent}
+                                                        filePath={editorFilePath || editorFileName}
+                                                        theme={themeId}
+                                                        wordWrap={wordWrap ? "on" : "off"}
+                                                        plugins={plugins}
+                                                        onChange={handleChange}
+                                                        onSave={handleSave}
+                                                        onMount={handleEditorMount}
+                                                        onCursorChange={(line, col) => {
+                                                            setCursorLine(line);
+                                                            setCursorCol(col);
+                                                        }}
+                                                        copilotEndpoint={`${__config.API_URL}/api/complete`}
+                                                        onAIProviderChange={handleAIProviderChange}
+                                                        enableLSP
+                                                        lspBaseUrl={__config.API_URL}
+                                                        showSidebar={isActiveGroup && gi === splitGroups.length - 1}
+                                                        showStatusBar={isActiveGroup && gi === splitGroups.length - 1}
+                                                        enableTerminal={isActiveGroup && gi === splitGroups.length - 1}
+                                                        enableAutoClose
+                                                        pluginDebounceMs={1200}
+                                                        enableVsixDrop={isActiveGroup}
+                                                        terminalUrl={`${__config.API_URL}/dedicated-terminal`}
+                                                        terminalSessionId={sessionId}
+                                                        terminalCwd={terminalCwd}
+                                                        fontSize={14}
+                                                        tabSize={2}
+                                                        minimap={splitGroups.length === 1}
+                                                        statusBarItems={statusBarItems}
+                                                        options={{
+                                                            renderWhitespace: "selection",
+                                                            smoothScrolling: true,
+                                                            cursorBlinking: "smooth",
+                                                            cursorSmoothCaretAnimation: "on",
+                                                            formatOnPaste: true,
+                                                            linkedEditing: true,
+                                                            mouseWheelZoom: true,
+                                                            stickyScroll: { enabled: true },
+                                                        }}
+                                                        enableExtensions={isActiveGroup}
+                                                        chatBaseUrl={__config.API_URL}
+                                                        chatHostId={hostUser}
+                                                        onChatApplyCode={(code) => {
+                                                            const editor = editorRef.current;
+                                                            if (editor) {
+                                                                editor.setValue(code);
+                                                                setModified(true);
+                                                                showEditorNotification("AI suggestion applied", "success", {
+                                                                    source: "AI Chat",
+                                                                    timeout: 3000,
+                                                                });
+                                                            }
+                                                        }}
+                                                        onNotify={(msg, type) => {
+                                                            showEditorNotification(msg, type as any, {
+                                                                source: "Editor",
+                                                                timeout: type === "error" ? 6000 : 3000,
+                                                            });
+                                                        }}
+                                                    />
+                                                )}
+                                            </div>
+                                            </div>
+                                        </ResizablePanel>
+                                    </React.Fragment>
+                                );
+                            })}
+                        </ResizablePanelGroup>
+                    </ResizablePanel>
+                </ResizablePanelGroup>
             </div>
 
             {/* Theme picker backdrop */}
@@ -637,6 +1020,14 @@ export default function FileEditorMonacoPage() {
                     </div>
                 </div>
             )}
+
+            {/* Tab bar scrollbar styles */}
+            <style>{`
+                .tab-bar-scroll::-webkit-scrollbar { height: 3px; }
+                .tab-bar-scroll::-webkit-scrollbar-track { background: transparent; }
+                .tab-bar-scroll::-webkit-scrollbar-thumb { background: #5a5a5a; border-radius: 2px; }
+                .tab-bar-scroll::-webkit-scrollbar-thumb:hover { background: #7a7a7a; }
+            `}</style>
         </div>
     );
 }

@@ -213,10 +213,12 @@ export type {
 } from "./lib";
 
 // ── Sidebar Components ──────────────────────────────────────
-export { EditorRightSidebar } from "./components/EditorRightSidebar";
-export type { DocumentSymbolItem, SidebarTab, EditorRightSidebarProps } from "./components/EditorRightSidebar";
+export { EditorRightSidebar, EditorSidebarActivityBar, EditorSidebarContent } from "./components/EditorRightSidebar";
+export type { DocumentSymbolItem, SidebarTab, EditorRightSidebarProps, EditorSidebarActivityBarProps, EditorSidebarContentProps } from "./components/EditorRightSidebar";
 export { ExtensionPanel } from "./components/ExtensionPanel";
 export type { ExtensionPanelProps } from "./components/ExtensionPanel";
+export { EditorFileTree } from "./components/EditorFileTree";
+export type { FileTreeNode, EditorFileTreeProps } from "./components/EditorFileTree";
 
 // ── New UI Components ───────────────────────────────────────
 export { ExtensionDetailPage } from "./components/ExtensionDetailPage";

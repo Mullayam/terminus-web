@@ -810,18 +810,7 @@ export function FileList({
                                 />
                               ) : undefined,
                           },
-                          {
-                            label: "Edit in New Tab",
-                            icon: <ExternalLink className="w-4 h-4" />,
-                            disabled: row.original.type === "d",
-                            action: () => {
-                              const fullPath = `${currentDir}/${row.getValue("name")}`;
-                              window.open(
-                                `/ssh/sftp/edit?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? "")}`,
-                                "_blank",
-                              );
-                            },
-                          },
+
                           {
                             label: "Edit with Editor",
                             icon: <ExternalLink className="w-4 h-4" />,
