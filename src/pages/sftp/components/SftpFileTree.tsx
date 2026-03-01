@@ -261,14 +261,20 @@ function TreeItem({
   const handleClick = () => {
     if (isDir) {
       onToggle(node.fullPath);
-      onNavigate(node.fullPath);
+      // Only navigate/fetch when *expanding* (was collapsed → now opening)
+      if (!isExpanded) {
+        onNavigate(node.fullPath);
+      }
     }
   };
 
-  /** Chevron click: only toggle expand/collapse, don't navigate */
+  /** Chevron click: toggle expand/collapse; navigate only when expanding */
   const handleChevronClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     onToggle(node.fullPath);
+    if (!isExpanded) {
+      onNavigate(node.fullPath);
+    }
   };
 
   const contextItems = useMemo(

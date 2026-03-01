@@ -70,7 +70,10 @@ export default function SFTPTabClient({ tabId }: { tabId: string }) {
         const storedSession = useSFTPStore.getState().sessions[tabId];
         if (storedSession?.status === 'connected') {
             patch({ isSftpConnected: true, isConnected: true });
-            const savedDir = localStorage.getItem(`sftp_current_dir_${tabId}`) || '';
+            // Try tab-specific dir first, then host-based dir
+            const savedDir = localStorage.getItem(`sftp_current_dir_${tabId}`)
+                || (storedSession.host ? localStorage.getItem(`sftp_host_dir_${storedSession.host}`) : '')
+                || '';
             socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: savedDir });
         }
 
@@ -84,7 +87,11 @@ export default function SFTPTabClient({ tabId }: { tabId: string }) {
             patch({ isConnected: false });
         };
         const onSftpReady = () => {
-            const savedDir = localStorage.getItem(`sftp_current_dir_${tabId}`) || '';
+            // Restore last directory: prefer tab-specific, fall back to host-based
+            const sess = useSFTPStore.getState().sessions[tabId];
+            const savedDir = localStorage.getItem(`sftp_current_dir_${tabId}`)
+                || (sess?.host ? localStorage.getItem(`sftp_host_dir_${sess.host}`) : '')
+                || '';
             socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: savedDir });
             patch({ isSftpConnected: true, isConnecting: false, loading: false, status: 'connected' });
         };
@@ -103,6 +110,11 @@ export default function SFTPTabClient({ tabId }: { tabId: string }) {
                 currentDir: data.currentDir,
                 homeDir: data.workingDir,
             });
+            // Persist current dir per host so future tabs to the same host start here
+            const sess = useSFTPStore.getState().sessions[tabId];
+            if (sess?.host && data.currentDir) {
+                localStorage.setItem(`sftp_host_dir_${sess.host}`, data.currentDir);
+            }
         };
         const onError = (data: string) => {
             patch({ isError: true, isConnecting: false, status: 'error', error: data, loading: false });
@@ -166,6 +178,10 @@ export default function SFTPTabClient({ tabId }: { tabId: string }) {
         patch({ loading: true });
         const dirPath = path || session?.homeDir || '';
         localStorage.setItem(`sftp_current_dir_${tabId}`, dirPath);
+        // Also persist per host
+        if (session?.host) {
+            localStorage.setItem(`sftp_host_dir_${session.host}`, dirPath);
+        }
         socketRef.current?.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath });
     };
 

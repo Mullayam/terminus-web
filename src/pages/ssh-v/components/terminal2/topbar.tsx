@@ -1,10 +1,17 @@
-import { Menu, Plus } from 'lucide-react';
+import { Copy, Menu, Plus, PlusCircle, Power, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 
 import { HostDialog } from './hostDialog';
 import { useState } from 'react';
+import { v4 as uuid } from 'uuid';
 
 
 import { useSSHStore } from '@/store/sshStore';
@@ -38,7 +45,9 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
     updateStatus,
     removeSession,
     removeTab,
-    setActiveTab
+    setActiveTab,
+    addSession,
+    addTab,
   } = useSSHStore();
 
   const { removeLog } = useTerminalStore()
@@ -76,6 +85,41 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
       // TODO: re-emit socket event
     }
   };
+
+  /** Duplicate: open a new tab that connects to the same host */
+  const handleDuplicate = (tabId: string) => {
+    const tab = tabs.find((t) => t.id === tabId);
+    if (!tab) return;
+    const session = sessions[tab.sessionId];
+    if (!session) return;
+
+    const newId = uuid();
+    const baseHost = session.host;
+    const existingTitles = tabs.map((t) => t.title);
+    let title = baseHost;
+    if (existingTitles.includes(baseHost)) {
+      let max = 0;
+      const re = new RegExp(`^${baseHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\((\\d+)\\)$`);
+      existingTitles.forEach((t) => {
+        if (t === baseHost) max = Math.max(max, 0);
+        const m = t.match(re);
+        if (m) max = Math.max(max, parseInt(m[1]));
+      });
+      title = `${baseHost}(${max + 1})`;
+    }
+
+    addSession({
+      sessionId: newId,
+      host: session.host,
+      username: session.username,
+      status: 'connecting',
+      sftp_enabled: false,
+    });
+    addTab({ id: newId, title, sessionId: newId });
+  };
+
+  /** Open the host dialog for a fresh connection */
+  const handleNewSession = () => setOpen(true);
   return (
     <div className="flex flex-col border-b border-gray-800/50 shrink-0" style={{ backgroundColor: `${colors.background}dd` }}>
       <div className="h-12 flex items-center px-4">
@@ -89,32 +133,74 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
             <Menu className="h-4 w-4 text-gray-400" />
           </Button>
           <div className="flex space-x-2">
-            {tabs.map((tab, index) => (
-              <Button
-                key={index}
-                variant="ghost"
-                size="sm"
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  "px-3 h-8 transition-colors",
-                  tab.id === (activeTabId || "")
-                    ? "text-green-500 bg-[#24253a]"
-                    : "text-gray-400 hover:text-gray-300"
-                )}
-              >
-                {tab.title}
-                {tabs.length > 1 && (
-                  <span
-                    onClick={(e) => {
-                      e.stopPropagation(); // prevent triggering parent button's onClick
-                      handleRemoveTab(tab.id);
-                    }}
-                    className="ml-2 text-red-500 cursor-pointer">
-                    ✕
-                  </span>
-                )}
-              </Button>
-            ))}
+            {tabs.map((tab, index) => {
+              const tabSession = sessions[tab.sessionId];
+              const isActive = tab.id === (activeTabId || "");
+              return (
+              <ContextMenu key={index} modal>
+                <ContextMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cn(
+                      "px-3 h-8 transition-colors",
+                      isActive
+                        ? "text-green-500 bg-[#24253a]"
+                        : "text-gray-400 hover:text-gray-300"
+                    )}
+                  >
+                    {tabSession?.status === 'connected' && (
+                      <span className="size-1.5 rounded-full bg-green-500 mr-1.5 shrink-0" />
+                    )}
+                    {tab.title}
+                    {tabs.length > 1 && (
+                      <span
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveTab(tab.id);
+                        }}
+                        className="ml-2 text-red-500 cursor-pointer hover:text-red-400">
+                        <X className="h-3 w-3" />
+                      </span>
+                    )}
+                  </Button>
+                </ContextMenuTrigger>
+                <ContextMenuContent
+                  className="w-52 bg-[#1a1b26] border-gray-700"
+                  onCloseAutoFocus={(e) => e.preventDefault()}
+                >
+                  {tabSession?.status === 'connected' && (
+                    <>
+                      <ContextMenuItem
+                        onClick={() => handleDuplicate(tab.id)}
+                        className="cursor-pointer"
+                      >
+                        <Copy className="h-4 w-4 mr-2" />
+                        Duplicate Tab
+                      </ContextMenuItem>
+                      <ContextMenuSeparator className="bg-gray-700/50" />
+                    </>
+                  )}
+                  <ContextMenuItem
+                    onClick={handleNewSession}
+                    className="cursor-pointer"
+                  >
+                    <PlusCircle className="h-4 w-4 mr-2" />
+                    New Connection
+                  </ContextMenuItem>
+                  <ContextMenuSeparator className="bg-gray-700/50" />
+                  <ContextMenuItem
+                    onClick={() => handleRemoveTab(tab.id)}
+                    className="text-red-400 focus:text-red-300 focus:bg-red-500/10 cursor-pointer"
+                  >
+                    <Power className="h-4 w-4 mr-2" />
+                    Disconnect & Close
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
+              );
+            })}
 
             {tabs.length < 8 && (
               <Button variant={"outline"}

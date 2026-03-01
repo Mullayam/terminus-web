@@ -8,7 +8,7 @@
  * MonacoEditor module — all find/replace, go-to-line, undo/redo,
  * syntax highlighting, bracket matching etc. are built-in.
  */
-import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ApiCore } from "@/lib/api";
 import { __config } from "@/lib/config";
@@ -30,10 +30,10 @@ import {
     EditorFileTree,
 } from "@/modules/monaco-editor";
 import type { MonacoEditorInstance, AICompletionProvider } from "@/modules/monaco-editor";
-import { SocketContext } from "@/context/socket-context";
 import { SocketEventConstants } from "@/lib/sockets/event-constants";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import type { ImperativePanelHandle } from "react-resizable-panels";
+import { io, Socket } from "socket.io-client";
 
 /* ── Constants ─────────────────────────────────────────────── */
 
@@ -117,11 +117,36 @@ export default function FileEditorMonacoPage() {
     /** Per-tab content refs keyed by tab id */
     const tabContentRefs     = useRef<Record<string, string>>({});
 
-    const { socket } = useContext(SocketContext);
+    /* ── Dedicated SFTP socket on /sftp namespace ───────── */
+    const sftpSocketRef = useRef<Socket | null>(null);
+    const [socket, setSocket] = useState<Socket | null>(null);
+
+    useEffect(() => {
+        if (!sessionId) return;
+        const s = io(`${__config.API_URL}/sftp`, {
+            query: { sessionId },
+            autoConnect: true,
+            forceNew: true,
+            multiplex: false,
+        });
+        sftpSocketRef.current = s;
+        setSocket(s);
+        return () => {
+            // Clean up on unmount — don't leave orphan connections
+            s.removeAllListeners();
+            s.disconnect();
+            sftpSocketRef.current = null;
+        };
+    }, [sessionId]);
+
     const treePanelRef = useRef<ImperativePanelHandle>(null);
 
     /* ── File tree state ────────────────────────────────────── */
-    const [treeFiles, setTreeFiles] = useState<any[]>([]);
+    const [treeFiles, setTreeFiles] = useState<any[]>([
+      
+     
+        { name: "Loading files…", isDirectory: false, loading: true },
+    ]);
     const [treeDir, setTreeDir] = useState(() => {
         // Start the tree at the parent directory of the current file
         if (!filePath) return "/";
@@ -130,19 +155,50 @@ export default function FileEditorMonacoPage() {
     });
     const [treeCollapsed, setTreeCollapsed] = useState(false);
 
-    // Fetch directory listing on treeDir change
-    useEffect(() => {
-        if (!socket || !treeDir) return;
-        socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: treeDir });
-    }, [socket, treeDir]);
-
-    // Listen for file list events
+    // When the SFTP socket connects, request the initial directory listing
+    const [sftpReady, setSftpReady] = useState(false);
     useEffect(() => {
         if (!socket) return;
-        const onFileList = (data: { path?: string; result?: any[] }) => {
-            if (data.result) {
-                setTreeFiles(data.result);
+        const onSftpReady = () => {
+            setSftpReady(true);
+            socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: treeDir });
+        };
+        const onConnect = () => {
+            // If reconnecting after SFTP was already ready, re-fetch tree
+            if (sftpReady) {
+                socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: treeDir });
             }
+        };
+        socket.on(SocketEventConstants.SFTP_READY, onSftpReady);
+        socket.on('connect', onConnect);
+        // If socket already connected and SFTP already ready, fetch immediately
+        if (socket.connected && sftpReady) {
+            socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: treeDir });
+        }
+        return () => {
+            socket.off(SocketEventConstants.SFTP_READY, onSftpReady);
+            socket.off('connect', onConnect);
+        };
+    }, [socket, sftpReady]);
+
+    // Fetch directory listing on treeDir change (only after SFTP ready)
+    useEffect(() => {
+        if (!socket || !treeDir || !sftpReady) return;
+        socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: treeDir });
+    }, [socket, treeDir, sftpReady]);
+
+    // Listen for file list events (SFTP namespace format: { files: JSON string, currentDir, workingDir })
+    useEffect(() => {
+        if (!socket) return;
+        const onFileList = (data: any) => {
+            try {
+                const files = typeof data.files === 'string' ? JSON.parse(data.files) : data.files;
+                if (Array.isArray(files)) {
+                    setTreeFiles(files);
+                    // Keep tree dir in sync with what server returned
+                    if (data.currentDir) setTreeDir(data.currentDir);
+                }
+            } catch { /* ignore parse errors */ }
         };
         socket.on(SocketEventConstants.SFTP_FILES_LIST, onFileList);
         return () => { socket.off(SocketEventConstants.SFTP_FILES_LIST, onFileList); };
@@ -316,7 +372,7 @@ export default function FileEditorMonacoPage() {
         [],
     );
     const notificationPlugin = useMemo(
-        () => createNotificationPlugin({ socket }),
+        () => createNotificationPlugin({ socket: socket ?? undefined }),
         [socket],
     );
     const plugins = useMemo(
