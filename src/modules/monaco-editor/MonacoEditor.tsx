@@ -67,8 +67,13 @@ import type { CompletionRegistration } from "monacopilot";
 // Sidebar component
 import {
   EditorRightSidebar,
+  EditorSidebarActivityBar,
+  EditorSidebarContent,
   type DocumentSymbolItem,
 } from "./components/EditorRightSidebar";
+
+// Resizable panels
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 
 // New components
 import { VsixDropZone } from "./components/VsixDropZone";
@@ -276,6 +281,11 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   const lspRef = useRef<LSPConnection | null>(null);
   const notificationsRef = useRef<EditorNotificationsHandle | null>(null);
 
+  // Internal content tracking for sidebar stats (works in both controlled & uncontrolled mode)
+  const internalContentRef = useRef(value ?? defaultValue ?? "");
+  const [internalContent, setInternalContent] = useState(value ?? defaultValue ?? "");
+  const sidebarStatsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<"outline" | "problems" | "info" | "extensions" | "themes" | "settings" | "chat">("outline");
@@ -330,10 +340,10 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   // ── Extract document symbols for Outline panel ──
   const updateSymbols = useCallback(() => {
     if (!showSidebar) return;
-    const content = editorRef.current?.getValue() ?? value ?? "";
+    const content = editorRef.current?.getValue() ?? internalContentRef.current;
     const extracted = extractSymbolsFromContent(content, resolvedLanguage);
     setSymbols(extracted);
-  }, [showSidebar, value, resolvedLanguage]);
+  }, [showSidebar, resolvedLanguage]);
 
   // ── Extract markers/problems ──
   const updateProblems = useCallback(() => {
@@ -347,7 +357,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
     setProblems(markers);
   }, [showSidebar]);
 
-  // ── Update symbols + problems when content changes ──
+  // ── Update symbols + problems when internal content changes ──
   useEffect(() => {
     if (!showSidebar) return;
     const timer = setTimeout(() => {
@@ -355,7 +365,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
       updateProblems();
     }, 500);
     return () => clearTimeout(timer);
-  }, [value, showSidebar, updateSymbols, updateProblems]);
+  }, [internalContent, showSidebar, updateSymbols, updateProblems]);
 
   // ── Plugin lifecycle: onBeforeMount ──
   const handleBeforeMount: BeforeMount = useCallback(
@@ -591,7 +601,14 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   const handleChange = useCallback(
     (newValue: string | undefined) => {
       const val = newValue ?? "";
+      internalContentRef.current = val;
       onChange?.(val);
+
+      // Debounced sidebar stats update (avoids rapid re-renders)
+      if (sidebarStatsTimerRef.current) clearTimeout(sidebarStatsTimerRef.current);
+      sidebarStatsTimerRef.current = setTimeout(() => {
+        setInternalContent(val);
+      }, 300);
 
       // Debounced plugin notification
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
@@ -815,8 +832,9 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
       // Clear event bus
       eventBusRef.current.clear();
 
-      // Clear debounce
+      // Clear debounce timers
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      if (sidebarStatsTimerRef.current) clearTimeout(sidebarStatsTimerRef.current);
 
       // User callback
       onDispose?.();
@@ -897,8 +915,8 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
     ...options,
   };
 
-  // Content stats for sidebar info panel
-  const contentValue = value ?? "";
+  // Content stats for sidebar info panel (use internal tracking for uncontrolled mode)
+  const contentValue = value ?? internalContentRef.current;
   const lineCount = contentValue.split("\n").length;
   const charCount = contentValue.length;
   const fileSize = useMemo(() => new Blob([contentValue]).size, [contentValue]);
@@ -961,94 +979,113 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   return (
     <div style={{ display: "flex", flexDirection: "column", height, width }} className="monaco-editor-wrapper">
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-        {/* Editor area (optionally wrapped in VsixDropZone) */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
-          {/* VS Code-style notification overlay */}
-          <EditorNotifications
-            ref={(handle) => {
-              notificationsRef.current = handle;
-              setNotificationsHandle(handle);
-            }}
-            onCountChange={setNotificationCount}
-          />
-          {shouldEnableVsixDrop ? (
-            <VsixDropZone
-              monaco={monacoRef.current}
-              editor={editorRef.current}
-              onInstalled={handleVsixInstalled}
-            >
-              <Editor
-                height="100%"
-                width="100%"
-                language={resolvedLanguage}
-                theme={customTheme ?? theme}
-                value={value}
-                defaultValue={defaultValue}
-                options={mergedOptions}
-                beforeMount={handleBeforeMount}
-                onMount={handleMount}
-                onChange={handleChange}
-                loading={
-                  <div className="flex items-center justify-center h-full w-full bg-background text-muted-foreground">
-                    <div className="flex flex-col items-center gap-2">
-                      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                      <span className="text-sm">Loading editor…</span>
-                    </div>
-                  </div>
-                }
+        <ResizablePanelGroup direction="horizontal">
+          {/* Editor area */}
+          <ResizablePanel defaultSize={showSidebar && sidebarOpen ? 75 : 100}>
+            <div style={{ display: "flex", flexDirection: "column", overflow: "hidden", position: "relative", height: "100%" }}>
+              {/* VS Code-style notification overlay */}
+              <EditorNotifications
+                ref={(handle) => {
+                  notificationsRef.current = handle;
+                  setNotificationsHandle(handle);
+                }}
+                onCountChange={setNotificationCount}
               />
-            </VsixDropZone>
-          ) : (
-            <Editor
-              height="100%"
-              width="100%"
-              language={resolvedLanguage}
-              theme={customTheme ?? theme}
-              value={value}
-              defaultValue={defaultValue}
-              options={mergedOptions}
-              beforeMount={handleBeforeMount}
-              onMount={handleMount}
-              onChange={handleChange}
-              loading={
-                <div className="flex items-center justify-center h-full w-full bg-background text-muted-foreground">
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                    <span className="text-sm">Loading editor…</span>
-                  </div>
-                </div>
-              }
-            />
-          )}
-        </div>
+              {shouldEnableVsixDrop ? (
+                <VsixDropZone
+                  monaco={monacoRef.current}
+                  editor={editorRef.current}
+                  onInstalled={handleVsixInstalled}
+                >
+                  <Editor
+                    height="100%"
+                    width="100%"
+                    language={resolvedLanguage}
+                    theme={customTheme ?? theme}
+                    value={value}
+                    defaultValue={defaultValue}
+                    options={mergedOptions}
+                    beforeMount={handleBeforeMount}
+                    onMount={handleMount}
+                    onChange={handleChange}
+                    loading={
+                      <div className="flex items-center justify-center h-full w-full bg-background text-muted-foreground">
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                          <span className="text-sm">Loading editor…</span>
+                        </div>
+                      </div>
+                    }
+                  />
+                </VsixDropZone>
+              ) : (
+                <Editor
+                  height="100%"
+                  width="100%"
+                  language={resolvedLanguage}
+                  theme={customTheme ?? theme}
+                  value={value}
+                  defaultValue={defaultValue}
+                  options={mergedOptions}
+                  beforeMount={handleBeforeMount}
+                  onMount={handleMount}
+                  onChange={handleChange}
+                  loading={
+                    <div className="flex items-center justify-center h-full w-full bg-background text-muted-foreground">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                        <span className="text-sm">Loading editor…</span>
+                      </div>
+                    </div>
+                  }
+                />
+              )}
+            </div>
+          </ResizablePanel>
 
-        {/* Right Sidebar (VS Code style) */}
+          {/* Sidebar content panel (resizable) */}
+          {showSidebar && sidebarOpen && (
+            <>
+              <ResizableHandle withHandle className="bg-[#3c3c3c] hover:bg-blue-500/40 transition-colors" />
+              <ResizablePanel defaultSize={25} minSize={12} maxSize={40}>
+                <EditorSidebarContent
+                  activeTab={sidebarTab}
+                  symbols={symbols}
+                  problems={problems}
+                  onSymbolClick={handleSymbolClick}
+                  onProblemClick={handleProblemClick}
+                  filename={fileName}
+                  language={resolvedLanguage}
+                  lineCount={lineCount}
+                  charCount={charCount}
+                  fileSize={fileSize}
+                  monaco={monacoRef.current}
+                  editor={editorRef.current}
+                  onThemeApply={handleThemeApply}
+                  activeTheme={customTheme ?? theme}
+                  editorSettings={editorSettings}
+                  onSettingsChange={handleSettingsChange}
+                  enableTerminal={enableTerminal}
+                  chatBaseUrl={chatBaseUrl}
+                  chatHostId={chatHostId}
+                  chatFileContent={value ?? internalContentRef.current ?? editorRef.current?.getValue() ?? ""}
+                  onChatApplyCode={onChatApplyCode}
+                />
+              </ResizablePanel>
+            </>
+          )}
+        </ResizablePanelGroup>
+
+        {/* Activity bar (always visible when sidebar enabled, outside resizable area) */}
         {showSidebar && (
-          <EditorRightSidebar
+          <EditorSidebarActivityBar
             open={sidebarOpen}
             onToggle={() => setSidebarOpen((o) => !o)}
             activeTab={sidebarTab}
             onTabChange={setSidebarTab}
             symbols={symbols}
             problems={problems}
-            onSymbolClick={handleSymbolClick}
-            onProblemClick={handleProblemClick}
-            filename={fileName}
-            language={resolvedLanguage}
-            lineCount={lineCount}
-            charCount={charCount}
-            fileSize={fileSize}
-            monaco={monacoRef.current}
-            editor={editorRef.current}
-            onThemeApply={handleThemeApply}
             extensionCount={extensionCount}
-            editorSettings={editorSettings}
-            onSettingsChange={handleSettingsChange}
-            enableTerminal={enableTerminal}
-            chatBaseUrl={chatBaseUrl}
-            chatHostId={chatHostId}
-            chatFileContent={value ?? editorRef.current?.getValue() ?? ""}
-            onChatApplyCode={onChatApplyCode}
           />
         )}
       </div>

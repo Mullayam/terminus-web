@@ -46,7 +46,7 @@ export function getOrCreateSocket(tabId: string): Socket {
     }
     return socket;
   }
-  socket = io(__config.API_URL, {
+  socket = io(`${__config.API_URL}/sftp`, {
     query: { sessionId: tabId },
     autoConnect: true,
     forceNew: true,        // each SFTP tab MUST get its own transport

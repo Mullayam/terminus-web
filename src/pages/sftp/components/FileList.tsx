@@ -429,7 +429,7 @@ export function FileList({
   const { toast } = useToast();
   const { socket, tabId } = useSFTPContext();
   const sftpStore = useSFTPStore();
-  const homeDir = sftpStore.sessions[sftpStore.activeTabId as any]?.homeDir || '/';
+  const homeDir = tabId ? sftpStore.sessions[tabId]?.homeDir || '/' : '/';
   const [rowSelection, setRowSelection] = useState({});
   const { setLoading } = useLoadingState();
   const [stats, setStats] = useState<null | RootObject>(null);
@@ -461,11 +461,14 @@ export function FileList({
       setLoading(true);
       const newDir = `${currentDirRef.current}/${path}`;
       localStorage.setItem(`sftp_current_dir_${tabId}`, newDir);
+      // Also persist per host so future tabs to the same host start here
+      const host = tabId ? sftpStore.sessions[tabId]?.host : undefined;
+      if (host) localStorage.setItem(`sftp_host_dir_${host}`, newDir);
       socketRef.current?.emit(SocketEventConstants.SFTP_GET_FILE, {
         dirPath: newDir,
       });
     },
-    [setLoading, tabId],
+    [setLoading, tabId, sftpStore.sessions],
   );
   // Memoize columns so react-table doesn't re-render all cells on every state change
   const columns: ColumnDef<SFTP_FILES_LIST>[] = useMemo(
@@ -810,18 +813,7 @@ export function FileList({
                                 />
                               ) : undefined,
                           },
-                          {
-                            label: "Edit in New Tab",
-                            icon: <ExternalLink className="w-4 h-4" />,
-                            disabled: row.original.type === "d",
-                            action: () => {
-                              const fullPath = `${currentDir}/${row.getValue("name")}`;
-                              window.open(
-                                `/ssh/sftp/edit?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? "")}`,
-                                "_blank",
-                              );
-                            },
-                          },
+
                           {
                             label: "Edit with Editor",
                             icon: <ExternalLink className="w-4 h-4" />,
@@ -829,7 +821,7 @@ export function FileList({
                             action: () => {
                               const fullPath = `${currentDir}/${row.getValue("name")}`;
                               window.open(
-                                `/ssh/sftp/editor?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? "")}&user=${encodeURIComponent(sftpStore.sessions[sftpStore.activeTabId as any]?.host ?? "")}`,
+                                `/ssh/sftp/editor?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? "")}&user=${encodeURIComponent(tabId ? sftpStore.sessions[tabId]?.host ?? "" : "")}`,
                                 "_blank",
                               );
                             },
