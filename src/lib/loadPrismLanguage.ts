@@ -16,6 +16,27 @@
  */
 import Prism from "prismjs";
 
+// ── Vite-compatible lazy loader for Prism grammar files ──────
+// Vite cannot statically analyse bare template-literal imports like
+//   import(`prismjs/components/prism-${id}.js`)
+// Instead we use import.meta.glob which Vite resolves at build time.
+const prismGrammars = import.meta.glob(
+  "/node_modules/prismjs/components/prism-*.js",
+) as Record<string, () => Promise<unknown>>;
+
+/**
+ * Resolve a Prism language ID to its glob-matched module loader.
+ * Falls back to a runtime `import()` for any grammar not captured by the glob.
+ */
+function importGrammar(id: string): Promise<unknown> {
+  const key = `/node_modules/prismjs/components/prism-${id}.js`;
+  if (prismGrammars[key]) {
+    return prismGrammars[key]();
+  }
+  // Fallback for grammars outside the glob (shouldn't happen for bundled deps)
+  return import(/* @vite-ignore */ `prismjs/components/prism-${id}.js`);
+}
+
 // ── Dependency map from prismjs/components.json ──────────────
 // We inline the require/alias info so we don't need to import the
 // 80 KB components.json at runtime.  This covers all commonly used
@@ -149,10 +170,7 @@ export async function loadPrismLanguage(language: string): Promise<void> {
     // 2. Load the language itself
     if (!Prism.languages[id]) {
       try {
-        await import(
-          /* webpackChunkName: "prism-[request]" */
-          `prismjs/components/prism-${id}.js`
-        );
+        await importGrammar(id);
       } catch {
         console.warn(`Prism: language "${id}" not found, falling back to plaintext`);
       }

@@ -33,7 +33,8 @@ import type { MonacoEditorInstance, AICompletionProvider } from "@/modules/monac
 import { SocketEventConstants } from "@/lib/sockets/event-constants";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import type { ImperativePanelHandle } from "react-resizable-panels";
-import { io, Socket } from "socket.io-client";
+import { Socket } from "socket.io-client";
+import { getOrCreateSocket } from "@/store/sftpStore";
 
 /* ── Constants ─────────────────────────────────────────────── */
 
@@ -117,24 +118,25 @@ export default function FileEditorMonacoPage() {
     /** Per-tab content refs keyed by tab id */
     const tabContentRefs     = useRef<Record<string, string>>({});
 
-    /* ── Dedicated SFTP socket on /sftp namespace ───────── */
+    /* ── Reuse the existing SFTP socket from the tab's registry ─── */
+    /*
+     * The parent SFTPTabClient already created a socket for this sessionId
+     * via getOrCreateSocket(). We reuse it so the editor shares the same
+     * SFTP session — no need for a separate @@SFTP_CONNECT handshake.
+     * If navigated to directly (bookmark / refresh), getOrCreateSocket
+     * will create a new one and the SFTP_READY event will be needed.
+     */
     const sftpSocketRef = useRef<Socket | null>(null);
     const [socket, setSocket] = useState<Socket | null>(null);
 
     useEffect(() => {
         if (!sessionId) return;
-        const s = io(`${__config.API_URL}/sftp`, {
-            query: { sessionId },
-            autoConnect: true,
-            forceNew: true,
-            multiplex: false,
-        });
+        const s = getOrCreateSocket(sessionId);
         sftpSocketRef.current = s;
         setSocket(s);
+        // Don't destroy on unmount — the socket belongs to the tab registry.
+        // Only removeTab() should tear it down.
         return () => {
-            // Clean up on unmount — don't leave orphan connections
-            s.removeAllListeners();
-            s.disconnect();
             sftpSocketRef.current = null;
         };
     }, [sessionId]);
