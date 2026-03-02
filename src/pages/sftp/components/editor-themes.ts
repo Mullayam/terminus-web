@@ -28,6 +28,8 @@
 export interface EditorTheme {
     /** Display name shown in UI */
     name: string;
+    /** PrismJS CSS file name (without path) to load for syntax highlighting */
+    prismCss?: string;
     colors: {
         bg: string;
         bgSurface: string;
@@ -53,6 +55,7 @@ export interface EditorTheme {
 export const editorThemes: Record<string, EditorTheme> = {
     dracula: {
         name: "Dracula",
+        prismCss: "prism-vscode-dark.css",
         colors: {
             bg: "#282a36",
             bgSurface: "#21222c",
@@ -76,6 +79,7 @@ export const editorThemes: Record<string, EditorTheme> = {
     },
     "github-dark": {
         name: "GitHub Dark",
+        prismCss: "prism-vscode-dark.css",
         colors: {
             bg: "#0d1117",
             bgSurface: "#161b22",
@@ -99,6 +103,7 @@ export const editorThemes: Record<string, EditorTheme> = {
     },
     "monokai-pro": {
         name: "Monokai Pro",
+        prismCss: "prism-vscode-dark.css",
         colors: {
             bg: "#2d2a2e",
             bgSurface: "#221f22",
@@ -122,6 +127,7 @@ export const editorThemes: Record<string, EditorTheme> = {
     },
     "one-dark": {
         name: "One Dark",
+        prismCss: "prism-atom-dark.css",
         colors: {
             bg: "#282c34",
             bgSurface: "#21252b",
@@ -145,6 +151,7 @@ export const editorThemes: Record<string, EditorTheme> = {
     },
     "solarized-dark": {
         name: "Solarized Dark",
+        prismCss: "prism-vscode-dark.css",
         colors: {
             bg: "#002b36",
             bgSurface: "#073642",
@@ -168,6 +175,7 @@ export const editorThemes: Record<string, EditorTheme> = {
     },
     "nord": {
         name: "Nord",
+        prismCss: "prism-vscode-dark.css",
         colors: {
             bg: "#2e3440",
             bgSurface: "#3b4252",
@@ -191,6 +199,7 @@ export const editorThemes: Record<string, EditorTheme> = {
     },
     "tokyo-night": {
         name: "Tokyo Night",
+        prismCss: "prism-vscode-dark.css",
         colors: {
             bg: "#1a1b26",
             bgSurface: "#16161e",
@@ -214,6 +223,7 @@ export const editorThemes: Record<string, EditorTheme> = {
     },
     "catppuccin-mocha": {
         name: "Catppuccin Mocha",
+        prismCss: "prism-vscode-dark.css",
         colors: {
             bg: "#1e1e2e",
             bgSurface: "#181825",
@@ -235,6 +245,126 @@ export const editorThemes: Record<string, EditorTheme> = {
             scrollThumbHover: "#6c7086",
         },
     },
+    "synthwave-84": {
+        name: "Synthwave '84",
+        prismCss: "prism-synthwave84.css",
+        colors: {
+            bg: "#2a2139",
+            bgSurface: "#241b2f",
+            bgStatusBar: "#1a1525",
+            border: "#495495",
+            text: "#f92aad",
+            textMuted: "#8e8e8e",
+            textPlaceholder: "#6a5f7a",
+            accent: "#f92aad",
+            accentHover: "#ff6ac1",
+            accentText: "#2a2139",
+            selection: "#463465",
+            hover: "#34294f",
+            error: "#e2777a",
+            success: "#72f1b8",
+            warning: "#f87c32",
+            scrollTrack: "#241b2f",
+            scrollThumb: "#495495",
+            scrollThumbHover: "#6a5f7a",
+        },
+    },
+    "material-dark": {
+        name: "Material Dark",
+        prismCss: "prism-material-dark.css",
+        colors: {
+            bg: "#2f2f2f",
+            bgSurface: "#262626",
+            bgStatusBar: "#1a1a1a",
+            border: "#424242",
+            text: "#eee",
+            textMuted: "#757575",
+            textPlaceholder: "#616161",
+            accent: "#89ddff",
+            accentHover: "#a5e8ff",
+            accentText: "#2f2f2f",
+            selection: "#363636",
+            hover: "#3a3a3a",
+            error: "#ff6666",
+            success: "#a5e844",
+            warning: "#ffcb6b",
+            scrollTrack: "#262626",
+            scrollThumb: "#424242",
+            scrollThumbHover: "#616161",
+        },
+    },
+    "hopscotch": {
+        name: "Hopscotch",
+        prismCss: "prism-hopscotch.css",
+        colors: {
+            bg: "#322931",
+            bgSurface: "#2b2230",
+            bgStatusBar: "#221b27",
+            border: "#5b4a5e",
+            text: "#b9b5b8",
+            textMuted: "#797379",
+            textPlaceholder: "#5b4a5e",
+            accent: "#1290bf",
+            accentHover: "#14a8db",
+            accentText: "#ffffff",
+            selection: "#45384b",
+            hover: "#3d3244",
+            error: "#dd464c",
+            success: "#8fc13e",
+            warning: "#fd8b19",
+            scrollTrack: "#2b2230",
+            scrollThumb: "#5b4a5e",
+            scrollThumbHover: "#797379",
+        },
+    },
+    "atom-dark": {
+        name: "Atom Dark",
+        prismCss: "prism-atom-dark.css",
+        colors: {
+            bg: "#1d1f21",
+            bgSurface: "#181a1c",
+            bgStatusBar: "#111314",
+            border: "#383a3e",
+            text: "#c5c8c6",
+            textMuted: "#7C7C7C",
+            textPlaceholder: "#5a5a5a",
+            accent: "#96CBFE",
+            accentHover: "#b0daff",
+            accentText: "#1d1f21",
+            selection: "#373b41",
+            hover: "#2c2e30",
+            error: "#f92672",
+            success: "#A8FF60",
+            warning: "#fd971f",
+            scrollTrack: "#181a1c",
+            scrollThumb: "#383a3e",
+            scrollThumbHover: "#7C7C7C",
+        },
+    },
+    "vsc-dark-plus": {
+        name: "VS Code Dark+",
+        prismCss: "prism-vsc-dark-plus.css",
+        colors: {
+            bg: "#1e1e1e",
+            bgSurface: "#181818",
+            bgStatusBar: "#007acc",
+            border: "#3c3c3c",
+            text: "#d4d4d4",
+            textMuted: "#808080",
+            textPlaceholder: "#5a5a5a",
+            accent: "#569cd6",
+            accentHover: "#6cb6ff",
+            accentText: "#ffffff",
+            selection: "#264F78",
+            hover: "#2a2d2e",
+            error: "#f44747",
+            success: "#6a9955",
+            warning: "#d7ba7d",
+            scrollTrack: "#181818",
+            scrollThumb: "#424242",
+            scrollThumbHover: "#4f4f4f",
+        },
+    },
 };
 
 /** Default theme key */
@@ -248,4 +378,42 @@ export function getEditorTheme(key: string): EditorTheme {
 /** Get all theme keys for listing in a picker */
 export function getThemeKeys(): string[] {
     return Object.keys(editorThemes);
+}
+
+/* ── Prism CSS map (loaded as raw text) ──────────────────── */
+
+const prismCssModules: Record<string, () => Promise<string>> = {
+    "prism-vscode-dark.css": () => import("./prism-vscode-dark.css?raw").then((m) => m.default),
+    "prism-synthwave84.css": () => import("./prism-synthwave84.css?raw").then((m) => m.default),
+    "prism-material-dark.css": () => import("./prism-material-dark.css?raw").then((m) => m.default),
+    "prism-hopscotch.css": () => import("./prism-hopscotch.css?raw").then((m) => m.default),
+    "prism-atom-dark.css": () => import("./prism-atom-dark.css?raw").then((m) => m.default),
+    "prism-vsc-dark-plus.css": () => import("./prism-vsc-dark-plus.css?raw").then((m) => m.default),
+};
+
+const STYLE_ID = "prism-theme-dynamic";
+let activePrismCss: string | null = null;
+
+/**
+ * Dynamically swap the active PrismJS syntax-highlighting CSS.
+ * Injects raw CSS text into a managed `<style>` tag, replacing any previous theme.
+ */
+export async function applyPrismTheme(themeKey: string): Promise<void> {
+    const theme = getEditorTheme(themeKey);
+    const cssFile = theme.prismCss ?? "prism-vscode-dark.css";
+    if (cssFile === activePrismCss) return;
+
+    const loader = prismCssModules[cssFile];
+    if (!loader) return;
+
+    const cssText = await loader();
+
+    let style = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
+    if (!style) {
+        style = document.createElement("style");
+        style.id = STYLE_ID;
+        document.head.appendChild(style);
+    }
+    style.textContent = cssText;
+    activePrismCss = cssFile;
 }

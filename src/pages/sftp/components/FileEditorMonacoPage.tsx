@@ -615,8 +615,13 @@ export default function FileEditorMonacoPage() {
             const sidebarBg = isDark ? adjustBrightness(bg, 8) : adjustBrightness(bg, -8);
             const borderColor = isDark ? adjustBrightness(bg, 20) : adjustBrightness(bg, -20);
             const hoverBg = isDark ? adjustBrightness(bg, 14) : adjustBrightness(bg, -14);
-            // Status bar: use accent if saturated enough, otherwise derive from bg
-            const statusBarBg = accent && accent !== fg ? accent : (isDark ? adjustBrightness(bg, 30) : adjustBrightness(bg, -30));
+
+            // Status bar: prefer explicit theme color, then derive from bg (not accent)
+            const themeDef = getLoadedMonacoTheme(id);
+            const themeStatusBarBg = themeDef?.colors?.["statusBar.background"];
+            const statusBarBg = themeStatusBarBg
+                ? themeStatusBarBg
+                : (isDark ? adjustBrightness(bg, 20) : adjustBrightness(bg, -20));
             const root = document.documentElement;
             root.style.setProperty("--editor-bg", bg);
             root.style.setProperty("--editor-fg", fg ?? "#d4d4d4");

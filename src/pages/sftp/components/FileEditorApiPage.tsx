@@ -10,11 +10,10 @@ import {
     CaseSensitive, CaseUpper, CaseLower, ArrowUpDown,
     MessageSquareCode, SortAsc, Hash, Palette, Check,
 } from "lucide-react";
-import { editorThemes, getEditorTheme, getThemeKeys, DEFAULT_THEME_KEY, type EditorTheme } from "./editor-themes";
+import { editorThemes, getEditorTheme, getThemeKeys, DEFAULT_THEME_KEY, applyPrismTheme, type EditorTheme } from "./editor-themes";
 import FileIcon from "@/components/FileIcon";
 import Prism from "prismjs";
 import { loadLanguageForFile } from "@/lib/loadPrismLanguage";
-import './prism-vscode-dark.css'
 
 /** Detect language from file extension for the status bar */
 function detectLang(name: string): string {
@@ -90,7 +89,13 @@ export default function FileEditorApiPage() {
         setThemeKey(key);
         localStorage.setItem("editor-theme", key);
         setShowThemePicker(false);
+        applyPrismTheme(key);
     };
+
+    // Apply Prism CSS for the initial theme on mount
+    useEffect(() => {
+        applyPrismTheme(themeKey);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Inject dynamic scrollbar CSS matching theme ──────────
     useEffect(() => {

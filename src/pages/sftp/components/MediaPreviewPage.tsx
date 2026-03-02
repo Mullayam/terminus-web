@@ -15,7 +15,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { ApiCore } from "@/lib/api";
 import Prism from "prismjs";
 import { loadLanguageForFile } from "@/lib/loadPrismLanguage";
-import './prism-vscode-dark.css';
+import { applyPrismTheme, DEFAULT_THEME_KEY } from "./editor-themes";
 
 /** Extensions we treat as images */
 const IMAGE_EXTS = new Set([
@@ -98,6 +98,12 @@ export default function MediaPreviewPage() {
 
     // Keep track so we revoke on unmount
     const urlRef = useRef<string | null>(null);
+
+    // Apply Prism theme on mount (uses saved user preference)
+    useEffect(() => {
+        const themeKey = localStorage.getItem("editor-theme") ?? DEFAULT_THEME_KEY;
+        applyPrismTheme(themeKey);
+    }, []);
 
     useEffect(() => {
         if (!remotePath || !tabId) {
