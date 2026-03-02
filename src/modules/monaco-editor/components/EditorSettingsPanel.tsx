@@ -7,7 +7,7 @@
  *
  * Settings are persisted to localStorage and applied in real-time.
  */
-import React from "react";
+import React, { useState, useCallback } from "react";
 import {
   ChevronDown,
   RotateCcw,
@@ -15,6 +15,10 @@ import {
   Bot,
   Ghost,
   BrainCircuit,
+  Plus,
+  Trash2,
+  Link,
+  Globe,
 } from "lucide-react";
 
 /* ── Types ─────────────────────────────────────────────────── */
@@ -47,6 +51,12 @@ export interface EditorSettings {
   definitionLinkEnabled: boolean;
   /** Enable Language Server Protocol (LSP) features */
   enableLSP: boolean;
+  /** Enable GitHub-based VSCode extension loader (snippets, lang config) */
+  enableGitHubExtensions: boolean;
+  /** GitHub personal access token for higher rate limits (optional) */
+  githubToken: string;
+  /** Custom snippet URL entries — each has a URL and a target language ID */
+  customSnippetUrls: Array<{ url: string; languageId: string }>;
 }
 
 export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
@@ -69,6 +79,9 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   quickSuggestions: true,
   definitionLinkEnabled: true,
   enableLSP: false,
+  enableGitHubExtensions: false,
+  githubToken: "",
+  customSnippetUrls: [],
 };
 
 const STORAGE_KEY = "terminus-editor-settings";
@@ -283,6 +296,32 @@ export const EditorSettingsPanel: React.FC<EditorSettingsPanelProps> = ({
         )}
       </SettingsSection>
 
+      {/* ── Extensions Section ─────────────────────────── */}
+      <SettingsSection title="Extensions">
+        <ToggleSetting
+          label="GitHub Extensions"
+          value={settings.enableGitHubExtensions}
+          onChange={(v) => update("enableGitHubExtensions", v)}
+        />
+        {settings.enableGitHubExtensions && (
+          <TextSetting
+            label="GitHub Token"
+            placeholder="ghp_... (optional)"
+            value={settings.githubToken}
+            onChange={(v) => update("githubToken", v)}
+            type="password"
+          />
+        )}
+      </SettingsSection>
+
+      {/* ── Custom Snippets Section ────────────────────── */}
+      <SettingsSection title="Custom Snippets">
+        <CustomSnippetUrlList
+          urls={settings.customSnippetUrls}
+          onChange={(urls) => update("customSnippetUrls", urls)}
+        />
+      </SettingsSection>
+
       {/* Scrollbar styling */}
       <style>{`
         .settings-panel::-webkit-scrollbar { width: 5px; }
@@ -488,6 +527,148 @@ function NumberSetting({
           {value}
         </span>
       </div>
+    </div>
+  );
+}
+
+function TextSetting({
+  label,
+  value,
+  placeholder,
+  onChange,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  placeholder?: string;
+  onChange: (value: string) => void;
+  type?: "text" | "password";
+}) {
+  return (
+    <div className="flex flex-col gap-1 py-1 px-1 rounded hover:bg-[#2a2d2e] transition-colors group">
+      <span className="text-[12px] text-gray-400 group-hover:text-gray-200 transition-colors">
+        {label}
+      </span>
+      <input
+        type={type}
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        className="bg-[#3c3c3c] text-[11px] text-gray-300 px-2 py-1 rounded border border-[#555] hover:border-[#007acc] focus:border-[#007acc] focus:outline-none transition-colors w-full"
+      />
+    </div>
+  );
+}
+
+/** Manages a list of custom snippet URL entries */
+function CustomSnippetUrlList({
+  urls,
+  onChange,
+}: {
+  urls: Array<{ url: string; languageId: string }>;
+  onChange: (urls: Array<{ url: string; languageId: string }>) => void;
+}) {
+  const [newUrl, setNewUrl] = useState("");
+  const [newLang, setNewLang] = useState("javascript");
+
+  const commonLanguages = [
+    "javascript", "typescript", "python", "go", "rust", "java",
+    "csharp", "cpp", "ruby", "php", "html", "css", "json", "yaml",
+    "markdown", "shellscript", "sql", "dart", "kotlin", "swift",
+  ];
+
+  const addEntry = useCallback(() => {
+    const trimmed = newUrl.trim();
+    if (!trimmed) return;
+    // Avoid duplicates
+    if (urls.some((e) => e.url === trimmed && e.languageId === newLang)) return;
+    onChange([...urls, { url: trimmed, languageId: newLang }]);
+    setNewUrl("");
+  }, [newUrl, newLang, urls, onChange]);
+
+  const removeEntry = useCallback(
+    (index: number) => {
+      const next = urls.filter((_, i) => i !== index);
+      onChange(next);
+    },
+    [urls, onChange],
+  );
+
+  return (
+    <div className="flex flex-col gap-2">
+      {/* Existing entries */}
+      {urls.length > 0 && (
+        <div className="flex flex-col gap-1">
+          {urls.map((entry, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-1.5 px-1.5 py-1 rounded bg-[#2a2d2e] group"
+            >
+              <Link className="w-3 h-3 text-gray-500 shrink-0" />
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="text-[10px] text-gray-300 truncate" title={entry.url}>
+                  {entry.url}
+                </span>
+                <span className="text-[9px] text-gray-500">
+                  {entry.languageId}
+                </span>
+              </div>
+              <button
+                onClick={() => removeEntry(i)}
+                className="text-gray-600 hover:text-red-400 transition-colors shrink-0"
+                title="Remove"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add new entry */}
+      <div className="flex flex-col gap-1.5 px-1">
+        <div className="flex items-center gap-1">
+          <Globe className="w-3 h-3 text-gray-500 shrink-0" />
+          <input
+            type="text"
+            value={newUrl}
+            onChange={(e) => setNewUrl(e.target.value)}
+            placeholder="https://raw.githubusercontent.com/..."
+            className="bg-[#3c3c3c] text-[10px] text-gray-300 px-1.5 py-0.5 rounded border border-[#555] hover:border-[#007acc] focus:border-[#007acc] focus:outline-none transition-colors flex-1 min-w-0"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") addEntry();
+            }}
+          />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <select
+            value={newLang}
+            onChange={(e) => setNewLang(e.target.value)}
+            className="appearance-none bg-[#3c3c3c] text-[10px] text-gray-300 pl-1.5 pr-4 py-0.5 rounded border border-[#555] hover:border-[#007acc] focus:border-[#007acc] focus:outline-none transition-colors cursor-pointer flex-1"
+          >
+            {commonLanguages.map((lang) => (
+              <option key={lang} value={lang}>
+                {lang}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={addEntry}
+            disabled={!newUrl.trim()}
+            className="flex items-center gap-0.5 text-[10px] px-2 py-0.5 rounded bg-[#007acc] text-white hover:bg-[#006bb3] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+          >
+            <Plus className="w-3 h-3" />
+            Add
+          </button>
+        </div>
+      </div>
+
+      {urls.length === 0 && (
+        <p className="text-[10px] text-gray-600 px-1">
+          Add raw URLs to VS Code-compatible snippet JSON files.
+          They will be loaded into Monaco as completion providers.
+        </p>
+      )}
     </div>
   );
 }

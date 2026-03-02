@@ -65,6 +65,19 @@ import { detectTechnologies } from "./lib/registerCopilot";
 import type { LSPConnection } from "./lib/connectLanguageServer";
 import type { CompletionRegistration } from "monacopilot";
 
+// GitHub-based VSCode extension loader
+import {
+  initExtensionIndex,
+  onFileOpened as ghExtOnFileOpened,
+  loadAllCustomSnippets,
+  setGitHubToken,
+  spawnExtensionWorker,
+  terminateExtensionWorker,
+  workerInitIndex,
+  workerLoadFolder,
+} from "./extensions";
+import { resolveFileLanguage, getExtensionFolder } from "./extensions/languageMap";
+
 // Sidebar component
 import {
   EditorRightSidebar,
@@ -568,6 +581,57 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
           });
       }
 
+      // ── GitHub-based VSCode extension loader (Web Worker) ──
+      if (editorSettings.enableGitHubExtensions) {
+        if (editorSettings.githubToken) {
+          setGitHubToken(editorSettings.githubToken);
+        }
+
+        // Spawn the extension-loader Web Worker
+        spawnExtensionWorker(monaco);
+
+        // Init index + auto-load for current file via worker
+        const token = editorSettings.githubToken || undefined;
+        workerInitIndex(token)
+          .then((folders) => {
+            console.log(`[MonacoEditor] GitHub ext worker index: ${folders.length} folders`);
+            // Auto-load contributions for the current file's language
+            if (filePath) {
+              const { extensionFolder } = resolveFileLanguage(filePath);
+              if (extensionFolder) {
+                workerLoadFolder(extensionFolder, token)
+                  .then((data) => {
+                    if (data) {
+                      console.log(`[MonacoEditor] Worker loaded contributions for "${extensionFolder}"`);
+                    }
+                  })
+                  .catch(() => {});
+              }
+            }
+          })
+          .catch((err) => {
+            console.warn("[MonacoEditor] Worker ext index failed:", err);
+            // Fallback: use direct (main-thread) loader
+            initExtensionIndex()
+              .then((folders) => {
+                console.log(`[MonacoEditor] Fallback index: ${folders.length} folders`);
+                if (filePath) {
+                  ghExtOnFileOpened(filePath, monaco, editor).catch(() => {});
+                }
+              })
+              .catch(() => {});
+          });
+      }
+
+      // ── Load custom snippet URLs from settings ──
+      if (editorSettings.customSnippetUrls.length > 0) {
+        loadAllCustomSnippets(monaco, editorSettings.customSnippetUrls)
+          .then((count) => {
+            if (count > 0) console.log(`[MonacoEditor] Loaded ${count} custom snippet source(s)`);
+          })
+          .catch(() => {});
+      }
+
       disposablesRef.current = disposables;
 
       // ── User's onMount hook ──
@@ -658,7 +722,19 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
         }
       }
     }
-  }, [resolvedLanguage]);
+
+    // Load GitHub-based extension assets for the new language (via worker)
+    if (editorSettings.enableGitHubExtensions && monacoRef.current && filePath) {
+      const { extensionFolder } = resolveFileLanguage(filePath);
+      if (extensionFolder) {
+        const token = editorSettings.githubToken || undefined;
+        workerLoadFolder(extensionFolder, token).catch(() => {
+          // Fallback to main-thread if worker fails
+          ghExtOnFileOpened(filePath, monacoRef.current!, editorRef.current ?? undefined).catch(() => {});
+        });
+      }
+    }
+  }, [resolvedLanguage, filePath, editorSettings.enableGitHubExtensions]);
 
   // ── Plugin hot-swap: dispose removed plugins, mount added ones ──
   const prevPluginIdsRef = useRef<string[]>([]);
@@ -842,6 +918,9 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
       // Cleanup LSP
       try { lspRef.current?.dispose(); } catch { /* */ }
       lspRef.current = null;
+
+      // Terminate extension-loader Web Worker
+      terminateExtensionWorker();
 
       // Clear event bus
       eventBusRef.current.clear();

@@ -287,3 +287,21 @@ export type {
   ChatMessageProps,
   DiffPreviewProps,
 } from "./chat";
+
+// ── GitHub VSCode Extension Loader ──────────────────────────
+export {
+  initExtensionIndex,
+  onFileOpened as ghExtOnFileOpened,
+  loadSnippetsFromUrl,
+  loadAllCustomSnippets,
+  loadExtensionByFolder,
+  preloadPopularExtensions,
+  setGitHubToken,
+  resetManager as resetGhExtManager,
+  isIndexInitialized as isGhExtIndexInitialized,
+  clearExtensionCache as clearGhExtCache,
+  resolveFileLanguage,
+  getExtensionFolder,
+  getAllKnownLanguages,
+} from "./extensions";
+export type { GitHubEntry, GitHubFileContent } from "./extensions";
