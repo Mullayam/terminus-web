@@ -21,6 +21,7 @@ import { __config } from "@/lib/config";
 import { Loader2, RefreshCw } from "lucide-react";
 import { cachedIconUrl } from "@/lib/iconCache";
 import { getIconForFile } from "vscode-icons-js";
+import { useSFTPStore } from "@/store/sftpStore";
 import {
     MonacoEditor,
     ALL_BUILTIN_PLUGINS,
@@ -44,6 +45,7 @@ import {
 } from "./monaco-editor-parts";
 import { MONACO_THEMES } from "./monaco-editor-parts/ThemePicker";
 import { useFileOperations } from "@/modules/monaco-editor/components/file-tree/useFileOperations";
+import { getLoadedMonacoTheme } from "@/modules/monaco-editor/themes/monaco-themes-catalog";
 
 /* ── Constants ─────────────────────────────────────────────── */
 
@@ -80,6 +82,50 @@ export default function FileEditorMonacoPage() {
     const hostUser = params.get("user") ?? "";
     const fileName = filePath.split("/").pop() ?? "untitled";
     const lang = detectLanguage(filePath || fileName);
+
+    /* ── Mutable session-id ref (silently updated when old session disconnects) */
+    const sessionIdRef = useRef(sessionId);
+    // Keep ref in sync when URL changes normally
+    useEffect(() => { sessionIdRef.current = sessionId; }, [sessionId]);
+
+    /**
+     * Watch the SFTP store: if the session referenced in the URL is removed
+     * (disconnected), silently swap the URL param to the currently-active
+     * SFTP tab so a future page refresh will reconnect to the right session.
+     * Uses history.replaceState to avoid any React re-render / page reload.
+     */
+    useEffect(() => {
+        const unsub = useSFTPStore.subscribe((state, prev) => {
+            const currentId = sessionIdRef.current;
+            if (!currentId) return;
+
+            // Session still exists → nothing to do
+            if (state.sessions[currentId]) return;
+
+            // Session was just removed (existed in prev, gone in current)
+            if (!prev.sessions[currentId] && !state.sessions[currentId]) return;
+
+            // Pick the active tab, or fall back to any remaining tab
+            const newId =
+                state.activeTabId && state.sessions[state.activeTabId]
+                    ? state.activeTabId
+                    : state.tabs[0]?.id ?? "";
+
+            if (!newId || newId === currentId) return;
+
+            // Silently update the URL (no React re-render)
+            const url = new URL(window.location.href);
+            if (url.searchParams.has("sessionId")) {
+                url.searchParams.set("sessionId", newId);
+            }
+            if (url.searchParams.has("tabId")) {
+                url.searchParams.set("tabId", newId);
+            }
+            window.history.replaceState(null, "", url.toString());
+            sessionIdRef.current = newId;
+        });
+        return unsub;
+    }, []);
 
     // Extract directory from remote path for terminal cwd
     const terminalCwd = useMemo(() => {
@@ -436,9 +482,9 @@ export default function FileEditorMonacoPage() {
             // Prefer editor's own SFTP socket when connected (survives old session disconnect)
             if (editorSftpReady) {
                 fileData = await readFileViaSocket(filePath);
-            } else if (sessionId) {
+            } else if (sessionIdRef.current) {
                 // Fallback to API with URL-based sessionId
-                const data = await ApiCore.fetchFileContent(sessionId, filePath);
+                const data = await ApiCore.fetchFileContent(sessionIdRef.current, filePath);
                 if (!data.status) throw new Error(data.message || "Failed to load file content");
                 fileData = data.result;
             } else {
@@ -468,7 +514,7 @@ export default function FileEditorMonacoPage() {
         } finally {
             setLoading(false);
         }
-    }, [sessionId, filePath, editorSftpReady, readFileViaSocket]);
+    }, [filePath, editorSftpReady, readFileViaSocket]);
 
     useEffect(() => { fetchContent(); }, [fetchContent]);
 
@@ -476,7 +522,7 @@ export default function FileEditorMonacoPage() {
     const handleSave = useCallback(async (value?: string) => {
         if (saving) return;
         // Must have either editor SFTP or URL sessionId
-        if (!editorSftpReady && !sessionId) return;
+        if (!editorSftpReady && !sessionIdRef.current) return;
         const tab = activeTab;
         const saveFilePath = tab?.filePath ?? filePath;
         const saveFileName = tab?.fileName ?? fileName;
@@ -487,7 +533,7 @@ export default function FileEditorMonacoPage() {
             if (editorSftpReady) {
                 await writeFileViaSocket(saveFilePath, toSave);
             } else {
-                await ApiCore.saveFileContent(sessionId, saveFilePath, toSave);
+                await ApiCore.saveFileContent(sessionIdRef.current, saveFilePath, toSave);
             }
             setModified(false);
             originalContentRef.current = toSave;
@@ -515,7 +561,7 @@ export default function FileEditorMonacoPage() {
         } finally {
             setSaving(false);
         }
-    }, [sessionId, saving, activeTab, activeTabId, filePath, fileName, editorSftpReady, writeFileViaSocket]);
+    }, [saving, activeTab, activeTabId, filePath, fileName, editorSftpReady, writeFileViaSocket]);
 
     /* ── Monaco callbacks ───────────────────────────────────── */
     const handleChange = useCallback((value: string) => {
@@ -543,18 +589,36 @@ export default function FileEditorMonacoPage() {
     /* ── Theme & toggles ───────────────────────────────────── */
     /** Apply CSS variables from theme colors so sidebar/tabbar/toolbar match */
     const applyThemeCssVars = useCallback((id: string) => {
-        // Try to find display info from MONACO_THEMES
+        let bg: string | undefined;
+        let fg: string | undefined;
+        let accent: string | undefined;
+        let isDark = true;
+
+        // 1. Try the precomputed MONACO_THEMES list (built-in + monaco-themes package)
         const info = MONACO_THEMES.find((t) => t.id === id);
         if (info) {
-            const [bg, fg, accent] = info.displayColors;
-            const isDark = info.isDark;
+            [bg, fg, accent] = info.displayColors;
+            isDark = info.isDark;
+        } else {
+            // 2. Try extracting from a loaded theme definition (extension or custom)
+            const loaded = getLoadedMonacoTheme(id);
+            if (loaded) {
+                bg = loaded.colors["editor.background"] ?? "#1e1e1e";
+                fg = loaded.colors["editor.foreground"] ?? "#d4d4d4";
+                accent = loaded.colors["editorCursor.foreground"] ?? loaded.colors["editor.foreground"] ?? "#569cd6";
+                isDark = loaded.base === "vs-dark" || loaded.base === "hc-black";
+            }
+        }
+
+        // Apply if we found any colours
+        if (bg) {
             const sidebarBg = isDark ? adjustBrightness(bg, 8) : adjustBrightness(bg, -8);
             const borderColor = isDark ? adjustBrightness(bg, 20) : adjustBrightness(bg, -20);
             const hoverBg = isDark ? adjustBrightness(bg, 14) : adjustBrightness(bg, -14);
             const root = document.documentElement;
             root.style.setProperty("--editor-bg", bg);
-            root.style.setProperty("--editor-fg", fg);
-            root.style.setProperty("--editor-accent", accent);
+            root.style.setProperty("--editor-fg", fg ?? "#d4d4d4");
+            root.style.setProperty("--editor-accent", accent ?? "#569cd6");
             root.style.setProperty("--editor-sidebar-bg", sidebarBg);
             root.style.setProperty("--editor-border", borderColor);
             root.style.setProperty("--editor-hover-bg", hoverBg);
@@ -566,6 +630,13 @@ export default function FileEditorMonacoPage() {
         setThemeId(id);
         localStorage.setItem("monaco-editor-theme", id);
         setShowThemePicker(false);
+        applyThemeCssVars(id);
+    }, [applyThemeCssVars]);
+
+    /** Called when a theme is applied from inside MonacoEditor (e.g. right sidebar ThemeSidebar) */
+    const handleExternalThemeApply = useCallback((id: string) => {
+        setThemeId(id as ThemeId);
+        localStorage.setItem("monaco-editor-theme", id);
         applyThemeCssVars(id);
     }, [applyThemeCssVars]);
 
@@ -724,6 +795,7 @@ export default function FileEditorMonacoPage() {
                                                             onChange={handleChange}
                                                             onSave={handleSave}
                                                             onMount={handleEditorMount}
+                                                            onThemeApply={handleExternalThemeApply}
                                                             onCursorChange={(line, col) => {
                                                                 setCursorLine(line);
                                                                 setCursorCol(col);
@@ -737,7 +809,7 @@ export default function FileEditorMonacoPage() {
                                                             pluginDebounceMs={1200}
                                                             enableVsixDrop={isActiveGroup}
                                                             terminalUrl={`${__config.API_URL}/dedicated-terminal`}
-                                                            terminalSessionId={sessionId}
+                                                            terminalSessionId={sessionIdRef.current}
                                                             terminalCwd={terminalCwd}
                                                             fontSize={14}
                                                             tabSize={2}

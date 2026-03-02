@@ -37,6 +37,7 @@ import {
 } from "../lib/extensionStorage";
 import type { MonacoThemeDef } from "../types";
 import type { StoredTheme } from "../lib/extensionStorage";
+import { getAllThemeDisplayInfo, loadMonacoTheme } from "../themes/monaco-themes-catalog";
 
 type Monaco = typeof monacoNs;
 
@@ -46,7 +47,7 @@ interface ThemeEntry {
   id: string;
   name: string;
   base: "vs" | "vs-dark" | "hc-black" | "hc-light";
-  source: "builtin" | "extension" | "custom";
+  source: "builtin" | "extension" | "custom" | "package";
   /** Extension ID (if from extension) */
   extensionId?: string;
   /** Preview colors */
@@ -113,6 +114,21 @@ export const ThemeSidebar: React.FC<ThemeSidebarProps> = ({
       });
     }
 
+    // 1.5. Package themes (monaco-themes npm package)
+    const packageThemes = getAllThemeDisplayInfo();
+    for (const pt of packageThemes) {
+      if (entries.some((e) => e.id === pt.id)) continue;
+      entries.push({
+        id: pt.id,
+        name: pt.name,
+        base: pt.isDark ? "vs-dark" : "vs",
+        source: "package",
+        bg: pt.displayColors[0],
+        fg: pt.displayColors[1],
+        accent: pt.displayColors[2],
+      });
+    }
+
     // 2. Extension themes from IDB
     try {
       const extThemes = await getAvailableExtensionThemes();
@@ -165,6 +181,18 @@ export const ThemeSidebar: React.FC<ThemeSidebarProps> = ({
           const storedTheme = await getExtThemeById(themeId);
           if (storedTheme) {
             registerExtensionTheme(monaco, storedTheme);
+          }
+        } catch {
+          // may already be registered
+        }
+      }
+
+      // If package theme, lazy-load and register
+      if (source === "package") {
+        try {
+          const themeDef = await loadMonacoTheme(themeId);
+          if (themeDef) {
+            registerTheme(monaco, themeDef);
           }
         } catch {
           // may already be registered

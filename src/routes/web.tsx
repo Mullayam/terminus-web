@@ -1,7 +1,9 @@
-import { lazy } from "react";
+import { lazy, Suspense } from "react";
 import App from "@/App";
 import SelectService from "@/pages";
 import ProtectedLayout from "@/pages/layout";
+import RouteErrorBoundary from "@/components/RouteErrorBoundary";
+import { Loader2 } from "lucide-react";
 
 
 
@@ -15,6 +17,22 @@ const MediaPreviewPage = lazy(() => import("@/pages/sftp/components/MediaPreview
 
 const TerminalComponent = lazy(() => import("@/pages/shared-terminal"));
 
+/** Inline loading spinner shown while a lazy route chunk is being fetched */
+function RouteLoader() {
+  return (
+    <div className="flex items-center justify-center h-screen w-full bg-[#1e1e2e]">
+      <div className="flex flex-col items-center gap-3">
+        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+        <span className="text-sm text-gray-500">Loading…</span>
+      </div>
+    </div>
+  );
+}
+
+/** Wrap a lazy element in Suspense with the route loader */
+function withSuspense(element: React.ReactNode) {
+  return <Suspense fallback={<RouteLoader />}>{element}</Suspense>;
+}
 
 
 import { createBrowserRouter } from "react-router-dom";
@@ -24,6 +42,7 @@ export const router = createBrowserRouter([
         path: "/",
         index: true,
         element: <App />,
+        errorElement: <RouteErrorBoundary />,
 
     },
     {
@@ -32,15 +51,17 @@ export const router = createBrowserRouter([
     },
     {
         path: "/ssh/terminal/:sessionid",
+        errorElement: <RouteErrorBoundary />,
         element: (
             <SocketContextProvider>
-                <TerminalComponent />
+                {withSuspense(<TerminalComponent />)}
             </SocketContextProvider>
         ),
     },
     {
         path: "/ssh",
         element: <ProtectedLayout />,
+        errorElement: <RouteErrorBoundary />,
         children: [
             {
                 index: true,
@@ -55,16 +76,16 @@ export const router = createBrowserRouter([
 
             {
                 path: "sftp",
-                element: <SFTP />,
+                element: withSuspense(<SFTP />),
             },
             {
                 path: "sftp/editor",
-                element: <FileEditorMonacoPage />,
+                element: withSuspense(<FileEditorMonacoPage />),
             },
 
             {
                 path: "sftp/preview",
-                element: <MediaPreviewPage />,
+                element: withSuspense(<MediaPreviewPage />),
             },
 
 

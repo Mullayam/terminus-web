@@ -1081,7 +1081,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
           {/* Sidebar content panel (resizable) */}
           {showSidebar && sidebarOpen && (
             <>
-              <ResizableHandle withHandle className="bg-[#3c3c3c] hover:bg-blue-500/40 transition-colors" />
+              <ResizableHandle withHandle className="bg-[var(--editor-border,#3c3c3c)] hover:bg-blue-500/40 transition-colors" />
               <ResizablePanel defaultSize={25} minSize={12} maxSize={40}>
                 <EditorSidebarContent
                   activeTab={sidebarTab}

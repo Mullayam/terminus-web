@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import vsix from "@codingame/monaco-vscode-rollup-vsix-plugin";
 
+
 export default defineConfig({
   plugins: [react(), vsix()],
   resolve: {
@@ -10,6 +11,18 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+  },
+  worker: {
+    format: 'es'
+  },
+  optimizeDeps: {
+    exclude: [
+      'monaco-editor',
+      'monaco-languageclient',
+      '@codingame/monaco-vscode-api',
+      '@codingame/monaco-vscode-files-service-override',
+      'vscode',
+    ],
   },
   build: {
     chunkSizeWarningLimit: 600,

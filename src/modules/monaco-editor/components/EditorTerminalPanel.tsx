@@ -106,7 +106,7 @@ export const EditorTerminalPanel = memo(function EditorTerminalPanel({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        className="h-[4px] cursor-ns-resize shrink-0 hover:bg-[#007acc] transition-colors"
+        className="h-[4px] cursor-ns-resize shrink-0 hover:bg-[var(--editor-accent,#007acc)] transition-colors"
         style={{ touchAction: "none" }}
       />
 
@@ -183,7 +183,7 @@ function PanelBtn({
     <button
       onClick={onClick}
       title={title}
-      className="flex items-center justify-center w-[22px] h-[22px] rounded text-gray-500 hover:text-gray-200 hover:bg-[#3c3c3c] transition-colors"
+      className="flex items-center justify-center w-[22px] h-[22px] rounded text-gray-500 hover:text-gray-200 hover:bg-[var(--editor-hover-bg,#3c3c3c)] transition-colors"
     >
       {icon}
     </button>

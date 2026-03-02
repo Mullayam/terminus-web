@@ -40,6 +40,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@codingame/esbuild-import-meta-url-plugin": "^1.0.3",
+    "@codingame/monaco-vscode-api": "^26.2.1",
+    "@codingame/monaco-vscode-files-service-override": "^26.2.1",
     "@codingame/monaco-vscode-rollup-vsix-plugin": "^26.2.1",
     "@dnd-kit/core": "^6.3.1",
     "@enjoys/react-api": "^0.0.1",
@@ -104,10 +107,13 @@
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^11.18.2",
     "idb": "^8.0.3",
+    "import-meta-resolve": "2.2.1",
     "input-otp": "^1.4.2",
+    "install": "^0.13.0",
     "jszip": "^3.10.1",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.460.0",
+    "monaco-languageclient": "^10.7.0",
     "monaco-themes": "^0.4.8",
     "monacopilot": "^1.2.12",
     "next-themes": "^0.4.6",
@@ -127,6 +133,7 @@
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^11.1.0",
     "vaul": "^1.1.2",
+    "vite-plugin-monaco-editor": "^1.1.0",
     "vscode-icons-js": "^11.6.1",
     "vscode-ws-jsonrpc": "^3.5.0",
     "zod": "^3.25.76",
@@ -148,7 +155,6 @@
     "postcss": "^8.5.6",
     "tailwindcss": "3.4.17",
     "typescript": "^5.9.3",
-    "vite": "^5.4.21",
-    "vscode-languageserver-protocol": "^3.17.5"
+    "vite": "^5.4.21"
   }
 }

@@ -286,7 +286,7 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
         {/* Toggle button */}
         <button
           onClick={onToggle}
-          className="p-2 rounded-md mb-2 transition-colors text-gray-500 hover:text-gray-300 hover:bg-[#37373d]"
+          className="p-2 rounded-md mb-2 transition-colors text-gray-500 hover:text-gray-300 hover:bg-[var(--editor-hover-bg,#37373d)]"
           title={open ? "Close Sidebar" : "Open Sidebar"}
         >
           {open ? (
@@ -322,14 +322,14 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
               }}
               className={`relative p-2 rounded-md transition-colors ${
                 isActive
-                  ? "text-white bg-[#37373d]"
-                  : "text-gray-500 hover:text-gray-300 hover:bg-[#37373d]"
+                  ? "text-white bg-[var(--editor-hover-bg,#37373d)]"
+                  : "text-gray-500 hover:text-gray-300 hover:bg-[var(--editor-hover-bg,#37373d)]"
               }`}
               title={tab.label}
             >
               <Icon className="w-4 h-4" />
               {badge != null && badge > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] flex items-center justify-center text-[9px] font-bold rounded-full bg-[#007acc] text-white px-0.5">
+                <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] flex items-center justify-center text-[9px] font-bold rounded-full bg-[var(--editor-accent,#007acc)] text-white px-0.5">
                   {badge > 99 ? "99+" : badge}
                 </span>
               )}
@@ -356,8 +356,8 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
               }}
               className={`p-2 rounded-md mb-1 transition-colors ${
                 isActive
-                  ? "text-white bg-[#37373d]"
-                  : "text-gray-500 hover:text-gray-300 hover:bg-[#37373d]"
+                  ? "text-white bg-[var(--editor-hover-bg,#37373d)]"
+                  : "text-gray-500 hover:text-gray-300 hover:bg-[var(--editor-hover-bg,#37373d)]"
               }`}
               title={SETTINGS_TAB.label}
             >
@@ -482,7 +482,7 @@ export const EditorSidebarActivityBar: React.FC<EditorSidebarActivityBarProps> =
       {/* Toggle button */}
       <button
         onClick={onToggle}
-        className="p-2 rounded-md mb-2 transition-colors text-gray-500 hover:text-gray-300 hover:bg-[#37373d]"
+        className="p-2 rounded-md mb-2 transition-colors text-gray-500 hover:text-gray-300 hover:bg-[var(--editor-hover-bg,#37373d)]"
         title={open ? "Close Sidebar" : "Open Sidebar"}
       >
         {open ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
@@ -514,14 +514,14 @@ export const EditorSidebarActivityBar: React.FC<EditorSidebarActivityBarProps> =
             }}
             className={`relative p-2 rounded-md transition-colors ${
               isActive
-                ? "text-white bg-[#37373d]"
-                : "text-gray-500 hover:text-gray-300 hover:bg-[#37373d]"
+                ? "text-white bg-[var(--editor-hover-bg,#37373d)]"
+                : "text-gray-500 hover:text-gray-300 hover:bg-[var(--editor-hover-bg,#37373d)]"
             }`}
             title={tab.label}
           >
             <Icon className="w-4 h-4" />
             {badge != null && badge > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] flex items-center justify-center text-[9px] font-bold rounded-full bg-[#007acc] text-white px-0.5">
+              <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] flex items-center justify-center text-[9px] font-bold rounded-full bg-[var(--editor-accent,#007acc)] text-white px-0.5">
                 {badge > 99 ? "99+" : badge}
               </span>
             )}
@@ -547,8 +547,8 @@ export const EditorSidebarActivityBar: React.FC<EditorSidebarActivityBarProps> =
             }}
             className={`p-2 rounded-md mb-1 transition-colors ${
               isActive
-                ? "text-white bg-[#37373d]"
-                : "text-gray-500 hover:text-gray-300 hover:bg-[#37373d]"
+                ? "text-white bg-[var(--editor-hover-bg,#37373d)]"
+                : "text-gray-500 hover:text-gray-300 hover:bg-[var(--editor-hover-bg,#37373d)]"
             }`}
             title={SETTINGS_TAB.label}
           >
