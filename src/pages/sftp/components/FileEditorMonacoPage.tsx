@@ -615,6 +615,8 @@ export default function FileEditorMonacoPage() {
             const sidebarBg = isDark ? adjustBrightness(bg, 8) : adjustBrightness(bg, -8);
             const borderColor = isDark ? adjustBrightness(bg, 20) : adjustBrightness(bg, -20);
             const hoverBg = isDark ? adjustBrightness(bg, 14) : adjustBrightness(bg, -14);
+            // Status bar: use accent if saturated enough, otherwise derive from bg
+            const statusBarBg = accent && accent !== fg ? accent : (isDark ? adjustBrightness(bg, 30) : adjustBrightness(bg, -30));
             const root = document.documentElement;
             root.style.setProperty("--editor-bg", bg);
             root.style.setProperty("--editor-fg", fg ?? "#d4d4d4");
@@ -622,6 +624,7 @@ export default function FileEditorMonacoPage() {
             root.style.setProperty("--editor-sidebar-bg", sidebarBg);
             root.style.setProperty("--editor-border", borderColor);
             root.style.setProperty("--editor-hover-bg", hoverBg);
+            root.style.setProperty("--editor-statusbar-bg", statusBarBg);
             root.style.setProperty("--editor-is-dark", isDark ? "1" : "0");
         }
     }, []);

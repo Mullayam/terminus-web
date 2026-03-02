@@ -367,6 +367,7 @@ export const ThemeSidebar: React.FC<ThemeSidebarProps> = ({
     : themes;
 
   const builtinThemes = filtered.filter((t) => t.source === "builtin");
+  const packageThemes = filtered.filter((t) => t.source === "package");
   const extensionThemes = filtered.filter((t) => t.source === "extension");
   const customThemes = filtered.filter((t) => t.source === "custom");
 
@@ -406,6 +407,9 @@ export const ThemeSidebar: React.FC<ThemeSidebarProps> = ({
           <>
             {builtinThemes.length > 0 && (
               <ThemeGroup title="Built-in" themes={builtinThemes} activeTheme={activeTheme} onApply={handleApply} />
+            )}
+            {packageThemes.length > 0 && (
+              <ThemeGroup title="Monaco Themes" themes={packageThemes} activeTheme={activeTheme} onApply={handleApply} />
             )}
             {extensionThemes.length > 0 && (
               <ThemeGroup

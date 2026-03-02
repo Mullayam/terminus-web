@@ -329,7 +329,7 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
             >
               <Icon className="w-4 h-4" />
               {badge != null && badge > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] flex items-center justify-center text-[9px] font-bold rounded-full bg-[var(--editor-accent,#007acc)] text-white px-0.5">
+                <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] flex items-center justify-center text-[9px] font-bold rounded-full bg-[#007acc] text-white px-0.5">
                   {badge > 99 ? "99+" : badge}
                 </span>
               )}
@@ -521,7 +521,7 @@ export const EditorSidebarActivityBar: React.FC<EditorSidebarActivityBarProps> =
           >
             <Icon className="w-4 h-4" />
             {badge != null && badge > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] flex items-center justify-center text-[9px] font-bold rounded-full bg-[var(--editor-accent,#007acc)] text-white px-0.5">
+              <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] flex items-center justify-center text-[9px] font-bold rounded-full bg-[#007acc] text-white px-0.5">
                 {badge > 99 ? "99+" : badge}
               </span>
             )}
