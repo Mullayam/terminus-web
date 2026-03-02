@@ -98,8 +98,8 @@ export const EditorTerminalPanel = memo(function EditorTerminalPanel({
 
   return (
     <div
-      className="flex flex-col shrink-0 border-t border-[#3c3c3c]"
-      style={{ height, minHeight: 100, contain: "layout paint style" }}
+      className="flex flex-col shrink-0"
+      style={{ height, minHeight: 100, contain: "layout paint style", borderTop: "1px solid var(--editor-border, #3c3c3c)" }}
     >
       {/* ── Resize handle ────────────────────────────────── */}
       <div
@@ -111,7 +111,10 @@ export const EditorTerminalPanel = memo(function EditorTerminalPanel({
       />
 
       {/* ── Header bar ───────────────────────────────────── */}
-      <div className="flex items-center justify-between px-3 h-[30px] min-h-[30px] bg-[#252526] border-b border-[#3c3c3c] select-none shrink-0">
+      <div
+        className="flex items-center justify-between px-3 h-[30px] min-h-[30px] select-none shrink-0"
+        style={{ background: "var(--editor-sidebar-bg, #252526)", borderBottom: "1px solid var(--editor-border, #3c3c3c)" }}
+      >
         <div className="flex items-center gap-2">
           <Terminal className="w-3.5 h-3.5 text-[#007acc]" />
           <span className="text-[11px] font-medium uppercase tracking-wider text-gray-400">
@@ -138,7 +141,7 @@ export const EditorTerminalPanel = memo(function EditorTerminalPanel({
       </div>
 
       {/* ── Body ─────────────────────────────────────────── */}
-      <div className="flex-1 min-h-0 overflow-hidden bg-[#1e1e2e]">
+      <div className="flex-1 min-h-0 overflow-hidden" style={{ background: "var(--editor-bg, #1e1e2e)" }}>
         {terminalUrl ? (
           <XtermTerminal
             socketUrl={terminalUrl}

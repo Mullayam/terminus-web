@@ -390,6 +390,38 @@ function parseKeybinding(monaco: Monaco, keyStr: string): number {
 }
 
 /**
+ * Check if a parsed keybinding is safe to register.
+ * Bare printable-character keybindings (no modifier) would intercept
+ * normal typing, so we reject them.
+ */
+function isSafeKeybinding(binding: number, monaco: Monaco): boolean {
+  // Extract modifiers (high bits)
+  const CtrlCmd = monaco.KeyMod.CtrlCmd;
+  const Shift = monaco.KeyMod.Shift;
+  const Alt = monaco.KeyMod.Alt;
+  const WinCtrl = monaco.KeyMod.WinCtrl;
+  const mods = binding & (CtrlCmd | Shift | Alt | WinCtrl);
+
+  if (mods !== 0) return true; // Has at least one modifier — always safe
+
+  // No modifiers — only allow non-printable keys (function keys, arrows, etc.)
+  const keyCode = binding & 0xffff;
+  const KC = monaco.KeyCode;
+
+  // Safe without modifiers: function keys, arrows, escape, tab, etc.
+  const safeKeys = new Set([
+    KC.Escape, KC.Tab, KC.Enter, KC.Backspace, KC.Delete, KC.Insert,
+    KC.Home, KC.End, KC.PageUp, KC.PageDown,
+    KC.UpArrow, KC.DownArrow, KC.LeftArrow, KC.RightArrow,
+    KC.F1, KC.F2, KC.F3, KC.F4, KC.F5, KC.F6,
+    KC.F7, KC.F8, KC.F9, KC.F10, KC.F11, KC.F12,
+    KC.F13, KC.F14, KC.F15, KC.F16, KC.F17, KC.F18, KC.F19,
+  ]);
+
+  return safeKeys.has(keyCode);
+}
+
+/**
  * Register extension-contributed commands with the editor.
  * Commands appear in the command palette (Ctrl+Shift+P).
  */
@@ -425,7 +457,10 @@ export async function loadExtensionCommands(
         const isLinux = navigator.platform?.toLowerCase().includes("linux");
         const keyStr = (isMac && kb.mac) || (isLinux && kb.linux) || kb.key;
         try {
-          cmdKeybindings.push(parseKeybinding(monaco, keyStr));
+          const binding = parseKeybinding(monaco, keyStr);
+          if (isSafeKeybinding(binding, monaco)) {
+            cmdKeybindings.push(binding);
+          }
         } catch {
           // skip invalid keybindings
         }
@@ -484,6 +519,8 @@ export async function loadExtensionKeybindings(
 
     try {
       const binding = parseKeybinding(monaco, keyStr);
+      // Reject bare-key bindings that would intercept normal typing
+      if (!isSafeKeybinding(binding, monaco)) continue;
       const standaloneEditor = editor as unknown as monacoNs.editor.IStandaloneCodeEditor;
       const disposable = standaloneEditor.addAction({
         id: kb.command,

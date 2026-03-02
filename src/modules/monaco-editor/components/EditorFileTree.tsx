@@ -16,13 +16,28 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ChevronRight,
   FolderTree,
+  Loader2,
   PanelLeftClose,
   PanelLeftOpen,
+  PlugZap,
   RefreshCw,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import FileIcon from "@/components/FileIcon";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import type { EditorSftpStatus } from "@/store/editorSftpStore";
 
 /* ── Tree data model ─────────────────────────────────────── */
 
@@ -54,6 +69,16 @@ export interface EditorFileTreeProps {
   showHiddenFiles?: boolean;
   /** Optional render custom children below the tree */
   children?: React.ReactNode;
+
+  /* ── SFTP connection props ─────────────────────────────── */
+  /** Current SFTP connection status for the editor tree */
+  sftpStatus?: EditorSftpStatus;
+  /** Error message when sftpStatus === "error" */
+  sftpError?: string;
+  /** Called when user confirms they want to connect */
+  onConnect?: () => void;
+  /** The host name to display in the connect dialog */
+  hostLabel?: string;
 }
 
 /* ── Helpers ──────────────────────────────────────────────── */
@@ -239,7 +264,12 @@ export function EditorFileTree({
   onCollapsedChange,
   showHiddenFiles = false,
   children,
+  sftpStatus = "idle",
+  sftpError,
+  onConnect,
+  hostLabel,
 }: EditorFileTreeProps) {
+  const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [root, setRoot] = useState<FileTreeNode>(() => ({
     name: "/",
     fullPath: "/",
@@ -340,21 +370,33 @@ export function EditorFileTree({
   }, [root, showHiddenFiles]);
 
   return (
-    <div className="flex flex-col h-full bg-[#1e1e1e] border-r border-[#3c3c3c] transition-all duration-200 ease-in-out">
+    <div
+      className="flex flex-col h-full transition-all duration-200 ease-in-out"
+      style={{
+        background: "var(--editor-bg, #1e1e1e)",
+        borderRight: "1px solid var(--editor-border, #3c3c3c)",
+      }}
+    >
       {collapsed ? (
         <div className="flex flex-col items-center py-2 h-full">
           <button
             onClick={() => onCollapsedChange?.(false)}
-            className="p-1.5 rounded-md hover:bg-[#37373d] transition-colors"
+            className="p-1.5 rounded-md transition-colors"
+            style={{ color: "var(--editor-fg, #d4d4d4)" }}
             title="Show Explorer"
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--editor-hover-bg, #37373d)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
           >
-            <PanelLeftOpen className="h-4 w-4 text-gray-500" />
+            <PanelLeftOpen className="h-4 w-4 opacity-60" />
           </button>
         </div>
       ) : (
         <>
           {/* Header */}
-          <div className="flex items-center justify-between px-3 py-2 border-b border-[#3c3c3c] shrink-0">
+          <div
+            className="flex items-center justify-between px-3 py-2 shrink-0"
+            style={{ borderBottom: "1px solid var(--editor-border, #3c3c3c)" }}
+          >
             <div className="flex items-center gap-1.5">
               <FolderTree className="h-3.5 w-3.5 text-gray-500" />
               <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
@@ -400,8 +442,60 @@ export function EditorFileTree({
                   />
                 ))
               ) : (
-                <div className="px-3 py-6 text-[11px] text-gray-500 text-center">
-                  Navigate to a directory to populate the tree
+                <div className="px-3 py-6 text-center space-y-3">
+                  {sftpStatus === "connected" ? (
+                    /* Connected but no files yet — normal empty state */
+                    <p className="text-[11px] text-gray-500">
+                      Navigate to a directory to populate the tree
+                    </p>
+                  ) : sftpStatus === "connecting" ? (
+                    /* Connecting spinner */
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
+                      <p className="text-[11px] text-gray-400">Connecting to SFTP…</p>
+                    </div>
+                  ) : sftpStatus === "error" ? (
+                    /* Error state — allow retry */
+                    <div className="flex flex-col items-center gap-2">
+                      <WifiOff className="h-5 w-5 text-red-400" />
+                      <p className="text-[11px] text-red-400">
+                        {sftpError || "Connection failed"}
+                      </p>
+                      {onConnect && (
+                        <button
+                          onClick={() => setShowConnectDialog(true)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-md bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                          Retry
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    /* Idle — show connect button */
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="p-3 rounded-full bg-blue-500/10">
+                        <PlugZap className="h-6 w-6 text-blue-400" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[12px] font-medium text-gray-300">
+                          SFTP Tree
+                        </p>
+                        <p className="text-[11px] text-gray-500">
+                          Connect to browse remote files
+                        </p>
+                      </div>
+                      {onConnect && (
+                        <button
+                          onClick={() => setShowConnectDialog(true)}
+                          className="inline-flex items-center gap-1.5 px-4 py-1.5 text-[11px] font-medium rounded-md bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                        >
+                          <Wifi className="h-3 w-3" />
+                          Connect to SFTP
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -412,6 +506,44 @@ export function EditorFileTree({
           {children}
         </>
       )}
+
+      {/* ── Connect confirmation dialog ──────────────────────── */}
+      <AlertDialog open={showConnectDialog} onOpenChange={setShowConnectDialog}>
+        <AlertDialogContent className="sm:max-w-[420px]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <PlugZap className="h-5 w-5 text-blue-400" />
+              Connect to SFTP
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {hostLabel ? (
+                <>
+                  You are about to open an SFTP session to{" "}
+                  <span className="font-semibold text-foreground">{hostLabel}</span>.
+                  This will let you browse and edit files on the remote server from
+                  this editor.
+                </>
+              ) : (
+                <>
+                  Are you sure you want to connect here and work here?
+                  This will open a new SFTP session for the file tree.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowConnectDialog(false);
+                onConnect?.();
+              }}
+            >
+              Yes, Connect
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

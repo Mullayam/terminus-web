@@ -19,7 +19,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Socket } from 'socket.io-client';
 import { SocketEventConstants } from '@/lib/sockets/event-constants';
-import { useSFTPStore, getOrCreateSocket } from '@/store/sftpStore';
+import { useSFTPStore, getOrCreateSocket, type SFTPSession } from '@/store/sftpStore';
 import { useToast } from '@/hooks/use-toast';
 import type { DownloadProgressType } from '@/pages/sftp/components/SFTPTabClient';
 
@@ -50,9 +50,15 @@ export function useSftpSocket(
   const { updateSession } = useSFTPStore();
   const { toast } = useToast();
 
+  // Keep callbacks in refs so the effect closure never goes stale
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
+
   // Stable reference to the store patcher
   const patch = useCallback(
-    (p: Partial<Parameters<typeof updateSession>[1]>) => updateSession(tabId, p),
+    (p: Partial<SFTPSession>) => updateSession(tabId, p),
     [tabId, updateSession],
   );
 
@@ -146,7 +152,7 @@ export function useSftpSocket(
     };
 
     const onFileUploaded = (data: string) => {
-      toast({
+      toastRef.current({
         title: 'File Uploaded',
         description: 'File uploaded successfully at ' + data,
         variant: 'default',
@@ -179,17 +185,17 @@ export function useSftpSocket(
         error: data,
         loading: false,
       });
-      toast({ title: 'SFTP Error', description: data, variant: 'destructive' });
+      toastRef.current({ title: 'SFTP Error', description: data, variant: 'destructive' });
     };
 
     const onSftpEnded = (msg: string) => {
       setIsReady(false);
       patch({ isSftpConnected: false, status: 'idle', isConnecting: false });
-      toast({ title: 'SFTP Disconnected', description: msg || 'Session ended.', variant: 'default' });
+      toastRef.current({ title: 'SFTP Disconnected', description: msg || 'Session ended.', variant: 'default' });
     };
 
     const onSuccess = (data: string) => {
-      toast({ description: data, variant: 'default' });
+      toastRef.current({ description: data, variant: 'default' });
     };
 
     const onDownloadProgress = (data: DownloadProgressType) => {
@@ -202,7 +208,7 @@ export function useSftpSocket(
           [data.name]: data,
         };
       }
-      options?.onDownloadProgress?.({ ...downloadProgressRef.current });
+      optionsRef.current?.onDownloadProgress?.({ ...downloadProgressRef.current });
     };
 
     /* ── Register ──────────────────────────────────────────── */

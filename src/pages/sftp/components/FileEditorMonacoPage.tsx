@@ -4,19 +4,21 @@
  * Monaco Editor-powered file editor page.
  * Route: /ssh/sftp/edit-monaco?tabId=xxx&path=/remote/file
  *
- * Replaces the hand-rolled textarea editor with the reusable
- * MonacoEditor module — all find/replace, go-to-line, undo/redo,
- * syntax highlighting, bracket matching etc. are built-in.
+ * Split into sub-components under `monaco-editor-parts/` to keep
+ * this orchestrator lean and prevent unnecessary re-renders:
+ *
+ *   useEditorSftpTree  — dedicated SFTP socket + file-tree state
+ *   EditorToolbar      — top bar (memoized)
+ *   EditorTabBar       — per-group tab strip (memoized)
+ *   FileTreePanel      — left sidebar tree (memoized)
+ *   ThemePicker        — theme dropdown (memoized, inside toolbar)
+ *   ShortcutsModal     — keyboard shortcuts dialog (memoized)
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ApiCore } from "@/lib/api";
 import { __config } from "@/lib/config";
-import {
-    Loader2, Save, WrapText, RefreshCw, Info, X, Palette, Check, FolderTree,
-    Columns2, XIcon,
-} from "lucide-react";
-import FileIcon from "@/components/FileIcon";
+import { Loader2, RefreshCw } from "lucide-react";
 import { cachedIconUrl } from "@/lib/iconCache";
 import { getIconForFile } from "vscode-icons-js";
 import {
@@ -27,42 +29,34 @@ import {
     createNotificationPlugin,
     showEditorNotification,
     loadEditorSettings,
-    EditorFileTree,
 } from "@/modules/monaco-editor";
 import type { MonacoEditorInstance, AICompletionProvider } from "@/modules/monaco-editor";
-import { SocketEventConstants } from "@/lib/sockets/event-constants";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
-import type { ImperativePanelHandle } from "react-resizable-panels";
-import { Socket } from "socket.io-client";
-import { getOrCreateSocket } from "@/store/sftpStore";
+
+import {
+    useEditorSftpTree,
+    EditorToolbar,
+    EditorTabBar,
+    FileTreePanel,
+    ShortcutsModal,
+    type ThemeId,
+    type EditorTab,
+} from "./monaco-editor-parts";
+import { MONACO_THEMES } from "./monaco-editor-parts/ThemePicker";
 
 /* ── Constants ─────────────────────────────────────────────── */
 
 const ICON_CDN =
     "https://raw.githubusercontent.com/vscode-icons/vscode-icons/master/icons";
 
-/** Monaco theme options with display metadata */
-const MONACO_THEMES = [
-    { id: "one-dark",    name: "One Dark",          colors: ["#61afef", "#282c34", "#abb2bf"] },
-    { id: "dracula",     name: "Dracula",           colors: ["#bd93f9", "#282a36", "#f8f8f2"] },
-    { id: "github-dark", name: "GitHub Dark",       colors: ["#58a6ff", "#0d1117", "#c9d1d9"] },
-    { id: "monokai",     name: "Monokai",           colors: ["#a6e22e", "#272822", "#f8f8f2"] },
-    { id: "nord",        name: "Nord",              colors: ["#88c0d0", "#2e3440", "#d8dee9"] },
-    { id: "vs-dark",     name: "VS Dark (Default)", colors: ["#569cd6", "#1e1e1e", "#d4d4d4"] },
-] as const;
-
-type ThemeId = (typeof MONACO_THEMES)[number]["id"];
-
-/* ── Editor Tab model ──────────────────────────────────────── */
-interface EditorTab {
-    id: string;
-    filePath: string;
-    fileName: string;
-    content: string | null;
-    originalContent: string;
-    modified: boolean;
-    loading: boolean;
-    error: string | null;
+/** Lighten or darken a hex colour by `amount` (positive = lighter). */
+function adjustBrightness(hex: string, amount: number): string {
+    const c = hex.replace("#", "");
+    const num = parseInt(c.length === 3 ? c.split("").map((x) => x + x).join("") : c, 16);
+    const r = Math.min(255, Math.max(0, ((num >> 16) & 0xff) + amount));
+    const g = Math.min(255, Math.max(0, ((num >> 8) & 0xff) + amount));
+    const b = Math.min(255, Math.max(0, (num & 0xff) + amount));
+    return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
 }
 
 /** Splits: each split group has a list of tab ids and an active tab id */
@@ -80,11 +74,11 @@ function newTabId() { return `tab-${++tabIdCounter}-${Date.now()}`; }
 
 export default function FileEditorMonacoPage() {
     const [params] = useSearchParams();
-    const filePath  = params.get("path") ?? "";
+    const filePath = params.get("path") ?? "";
     const sessionId = params.get("sessionId") ?? params.get("tabId") ?? "";
-    const hostUser  = params.get("user") ?? "";
-    const fileName  = filePath.split("/").pop() ?? "untitled";
-    const lang      = detectLanguage(filePath || fileName);
+    const hostUser = params.get("user") ?? "";
+    const fileName = filePath.split("/").pop() ?? "untitled";
+    const lang = detectLanguage(filePath || fileName);
 
     // Extract directory from remote path for terminal cwd
     const terminalCwd = useMemo(() => {
@@ -95,126 +89,50 @@ export default function FileEditorMonacoPage() {
 
     /* ── State ──────────────────────────────────────────────── */
     const [initialContent, setInitialContent] = useState<string | null>(null);
-    const [loading, setLoading]           = useState(true);
-    const [saving, setSaving]             = useState(false);
-    const [error, setError]               = useState<string | null>(null);
-    const [modified, setModified]         = useState(false);
-    const [lastSaved, setLastSaved]       = useState<Date | null>(null);
-    const [wordWrap, setWordWrap]         = useState(true);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [modified, setModified] = useState(false);
+    const [lastSaved, setLastSaved] = useState<Date | null>(null);
+    const [wordWrap, setWordWrap] = useState(true);
     const [showShortcuts, setShowShortcuts] = useState(false);
     const [showThemePicker, setShowThemePicker] = useState(false);
-    const [cursorLine, setCursorLine]     = useState(1);
-    const [cursorCol, setCursorCol]       = useState(1);
-    const [themeId, setThemeId]           = useState<ThemeId>(
+    const [cursorLine, setCursorLine] = useState(1);
+    const [cursorCol, setCursorCol] = useState(1);
+    const [themeId, setThemeId] = useState<ThemeId>(
         () => (localStorage.getItem("monaco-editor-theme") as ThemeId) ?? "one-dark",
     );
 
     /* ── Refs ───────────────────────────────────────────────── */
-    const editorRef          = useRef<MonacoEditorInstance | null>(null);
+    const editorRef = useRef<MonacoEditorInstance | null>(null);
     const originalContentRef = useRef("");
-    const themePickerBtnRef  = useRef<HTMLButtonElement>(null);
     /** Tracks the latest editor content without triggering re-renders */
-    const contentRef         = useRef("");
+    const contentRef = useRef("");
     /** Per-tab content refs keyed by tab id */
-    const tabContentRefs     = useRef<Record<string, string>>({});
+    const tabContentRefs = useRef<Record<string, string>>({});
 
-    /* ── Reuse the existing SFTP socket from the tab's registry ─── */
-    /*
-     * The parent SFTPTabClient already created a socket for this sessionId
-     * via getOrCreateSocket(). We reuse it so the editor shares the same
-     * SFTP session — no need for a separate @@SFTP_CONNECT handshake.
-     * If navigated to directly (bookmark / refresh), getOrCreateSocket
-     * will create a new one and the SFTP_READY event will be needed.
-     */
-    const sftpSocketRef = useRef<Socket | null>(null);
-    const [socket, setSocket] = useState<Socket | null>(null);
-
-    useEffect(() => {
-        if (!sessionId) return;
-        const s = getOrCreateSocket(sessionId);
-        sftpSocketRef.current = s;
-        setSocket(s);
-        // Don't destroy on unmount — the socket belongs to the tab registry.
-        // Only removeTab() should tear it down.
-        return () => {
-            sftpSocketRef.current = null;
-        };
-    }, [sessionId]);
-
-    const treePanelRef = useRef<ImperativePanelHandle>(null);
-
-    /* ── File tree state ────────────────────────────────────── */
-    const [treeFiles, setTreeFiles] = useState<any[]>([
-      
-     
-        { name: "Loading files…", isDirectory: false, loading: true },
-    ]);
-    const [treeDir, setTreeDir] = useState(() => {
-        // Start the tree at the parent directory of the current file
+    /* ── File-tree hook (dedicated socket — isolated state) ── */
+    const initialDir = useMemo(() => {
         if (!filePath) return "/";
         const dir = filePath.replace(/\/[^/]*$/, "");
         return dir || "/";
-    });
-    const [treeCollapsed, setTreeCollapsed] = useState(false);
+    }, [filePath]);
 
-    // When the SFTP socket connects, request the initial directory listing
-    const [sftpReady, setSftpReady] = useState(false);
-    useEffect(() => {
-        if (!socket) return;
-        const onSftpReady = () => {
-            setSftpReady(true);
-            socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: treeDir });
-        };
-        const onConnect = () => {
-            // If reconnecting after SFTP was already ready, re-fetch tree
-            if (sftpReady) {
-                socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: treeDir });
-            }
-        };
-        socket.on(SocketEventConstants.SFTP_READY, onSftpReady);
-        socket.on('connect', onConnect);
-        // If socket already connected and SFTP already ready, fetch immediately
-        if (socket.connected && sftpReady) {
-            socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: treeDir });
-        }
-        return () => {
-            socket.off(SocketEventConstants.SFTP_READY, onSftpReady);
-            socket.off('connect', onConnect);
-        };
-    }, [socket, sftpReady]);
-
-    // Fetch directory listing on treeDir change (only after SFTP ready)
-    useEffect(() => {
-        if (!socket || !treeDir || !sftpReady) return;
-        socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: treeDir });
-    }, [socket, treeDir, sftpReady]);
-
-    // Listen for file list events (SFTP namespace format: { files: JSON string, currentDir, workingDir })
-    useEffect(() => {
-        if (!socket) return;
-        const onFileList = (data: any) => {
-            try {
-                const files = typeof data.files === 'string' ? JSON.parse(data.files) : data.files;
-                if (Array.isArray(files)) {
-                    setTreeFiles(files);
-                    // Keep tree dir in sync with what server returned
-                    if (data.currentDir) setTreeDir(data.currentDir);
-                }
-            } catch { /* ignore parse errors */ }
-        };
-        socket.on(SocketEventConstants.SFTP_FILES_LIST, onFileList);
-        return () => { socket.off(SocketEventConstants.SFTP_FILES_LIST, onFileList); };
-    }, [socket]);
-
-    const handleTreeNavigate = useCallback((path: string) => {
-        setTreeDir(path);
-    }, []);
-
-    const handleTreeRefresh = useCallback(() => {
-        if (!socket || !treeDir) return;
-        socket.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: treeDir });
-    }, [socket, treeDir]);
-
+    const {
+        socket: treeSocket,
+        editorSftpReady,
+        treeFiles,
+        treeDir,
+        treeCollapsed,
+        setTreeCollapsed,
+        handleTreeNavigate,
+        handleTreeRefresh,
+        readFileViaSocket,
+        connectToHost,
+        editorSftpStatus,
+        editorSftpError,
+    } = useEditorSftpTree({ sessionId, initialDir, hostUser });
+ 
     /* ── Tabs & Split state ─────────────────────────────────── */
     const initialTabId = useMemo(() => newTabId(), []);
     const [tabs, setTabs] = useState<Record<string, EditorTab>>(() => ({
@@ -281,20 +199,19 @@ export default function FileEditorMonacoPage() {
         );
         setActiveGroupId(gId);
 
-        // Fetch content for the new tab
-        ApiCore.fetchFileContent(sessionId, fullPath)
-            .then((data) => {
-                if (!data.status) throw new Error(data.message || "Failed to load file");
+        // Fetch content via socket (no HTTP download needed)
+        readFileViaSocket(fullPath)
+            .then((content) => {
                 setTabs((prev) => ({
                     ...prev,
                     [id]: {
                         ...prev[id],
-                        content: data.result,
-                        originalContent: data.result,
+                        content,
+                        originalContent: content,
                         loading: false,
                     },
                 }));
-                tabContentRefs.current[id] = data.result;
+                tabContentRefs.current[id] = content;
             })
             .catch((e) => {
                 setTabs((prev) => ({
@@ -302,7 +219,7 @@ export default function FileEditorMonacoPage() {
                     [id]: { ...prev[id], loading: false, error: e?.message ?? "Failed to load" },
                 }));
             });
-    }, [tabs, activeGroupId, sessionId]);
+    }, [tabs, activeGroupId, readFileViaSocket]);
 
     /** Close a tab (initial tab from URL cannot be closed) */
     const closeTab = useCallback((tabId: string) => {
@@ -374,8 +291,8 @@ export default function FileEditorMonacoPage() {
         [],
     );
     const notificationPlugin = useMemo(
-        () => createNotificationPlugin({ socket: socket ?? undefined }),
-        [socket],
+        () => createNotificationPlugin({ socket: treeSocket ?? undefined }),
+        [treeSocket],
     );
     const plugins = useMemo(
         () => [
@@ -397,7 +314,7 @@ export default function FileEditorMonacoPage() {
     useEffect(() => {
         document.title = `${currentFileName} — Terminus Editor`;
         const iconFile = getIconForFile(currentFileName);
-        const rawUrl   = iconFile ? `${ICON_CDN}/${iconFile}` : `${ICON_CDN}/default_file.svg`;
+        const rawUrl = iconFile ? `${ICON_CDN}/${iconFile}` : `${ICON_CDN}/default_file.svg`;
 
         let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
         const previousHref = link?.href;
@@ -420,7 +337,7 @@ export default function FileEditorMonacoPage() {
         };
     }, [currentFileName]);
 
-    /* ── Fetch file content ─────────────────────────────────── */
+    /* ── Fetch file content (API-based) ──────────────────────── */
     const fetchContent = useCallback(async () => {
         if (!sessionId || !filePath || !hostUser) {
             setError(!sessionId ? "Missing sessionId in URL" : !filePath ? "Missing file path in URL" : "Missing host user in URL");
@@ -436,7 +353,6 @@ export default function FileEditorMonacoPage() {
             originalContentRef.current = data.result;
             setInitialContent(data.result);
             setModified(false);
-            // Also update the initial tab
             tabContentRefs.current[initialTabId] = data.result;
             setTabs((prev) => ({
                 ...prev,
@@ -460,7 +376,7 @@ export default function FileEditorMonacoPage() {
 
     useEffect(() => { fetchContent(); }, [fetchContent]);
 
-    /* ── Save file ──────────────────────────────────────────── */
+    /* ── Save file (API-based) ──────────────────────────────── */
     const handleSave = useCallback(async (value?: string) => {
         if (!sessionId || saving) return;
         const tab = activeTab;
@@ -521,14 +437,43 @@ export default function FileEditorMonacoPage() {
         editorRef.current = editor;
     }, []);
 
-    /* ── Theme switcher ─────────────────────────────────────── */
-    const handleThemeChange = (id: ThemeId) => {
+    /* ── Theme & toggles ───────────────────────────────────── */
+    /** Apply CSS variables from theme colors so sidebar/tabbar/toolbar match */
+    const applyThemeCssVars = useCallback((id: string) => {
+        // Try to find display info from MONACO_THEMES
+        const info = MONACO_THEMES.find((t) => t.id === id);
+        if (info) {
+            const [bg, fg, accent] = info.displayColors;
+            const isDark = info.isDark;
+            const sidebarBg = isDark ? adjustBrightness(bg, 8) : adjustBrightness(bg, -8);
+            const borderColor = isDark ? adjustBrightness(bg, 20) : adjustBrightness(bg, -20);
+            const hoverBg = isDark ? adjustBrightness(bg, 14) : adjustBrightness(bg, -14);
+            const root = document.documentElement;
+            root.style.setProperty("--editor-bg", bg);
+            root.style.setProperty("--editor-fg", fg);
+            root.style.setProperty("--editor-accent", accent);
+            root.style.setProperty("--editor-sidebar-bg", sidebarBg);
+            root.style.setProperty("--editor-border", borderColor);
+            root.style.setProperty("--editor-hover-bg", hoverBg);
+            root.style.setProperty("--editor-is-dark", isDark ? "1" : "0");
+        }
+    }, []);
+
+    const handleThemeSelect = useCallback((id: ThemeId) => {
         setThemeId(id);
         localStorage.setItem("monaco-editor-theme", id);
         setShowThemePicker(false);
-    };
+        applyThemeCssVars(id);
+    }, [applyThemeCssVars]);
 
-    const lineCount = (initialContent ?? "").split("\n").length;
+    // Apply CSS vars on initial load
+    useEffect(() => {
+        applyThemeCssVars(themeId);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    const toggleThemePicker = useCallback(() => setShowThemePicker((v) => !v), []);
+    const toggleWordWrap = useCallback(() => setWordWrap((w) => !w), []);
+    const openShortcuts = useCallback(() => setShowShortcuts(true), []);
+    const closeShortcuts = useCallback(() => setShowShortcuts(false), []);
 
     /* ── Status bar: last saved time ─────────────────────────── */
     const statusBarItems = useMemo(() => {
@@ -545,56 +490,16 @@ export default function FileEditorMonacoPage() {
         ];
     }, [lastSaved]);
 
-    /* ── Shortcut groups for help modal ─────────────────────── */
-    const shortcutGroups = [
-        {
-            title: "File",
-            items: [
-                { keys: "Ctrl+S", desc: "Save file" },
-                { keys: "Ctrl+F", desc: "Find" },
-                { keys: "Ctrl+H", desc: "Find & Replace" },
-                { keys: "Ctrl+G", desc: "Go to Line" },
-                { keys: "Ctrl+P", desc: "Quick Open (Command Palette)" },
-            ],
-        },
-        {
-            title: "Editing",
-            items: [
-                { keys: "Ctrl+Z", desc: "Undo" },
-                { keys: "Ctrl+Shift+Z", desc: "Redo" },
-                { keys: "Ctrl+X", desc: "Cut line / selection" },
-                { keys: "Ctrl+C", desc: "Copy line / selection" },
-                { keys: "Ctrl+Shift+K", desc: "Delete line" },
-                { keys: "Ctrl+D", desc: "Select next occurrence" },
-                { keys: "Ctrl+/", desc: "Toggle line comment" },
-                { keys: "Ctrl+Shift+A", desc: "Toggle block comment" },
-            ],
-        },
-        {
-            title: "Navigation",
-            items: [
-                { keys: "Alt+Up", desc: "Move line up" },
-                { keys: "Alt+Down", desc: "Move line down" },
-                { keys: "Alt+Shift+Up", desc: "Copy line up" },
-                { keys: "Alt+Shift+Down", desc: "Copy line down" },
-                { keys: "Ctrl+Shift+\\", desc: "Jump to bracket" },
-            ],
-        },
-        {
-            title: "Multi-cursor",
-            items: [
-                { keys: "Alt+Click", desc: "Add cursor" },
-                { keys: "Ctrl+Alt+Up", desc: "Add cursor above" },
-                { keys: "Ctrl+Alt+Down", desc: "Add cursor below" },
-                { keys: "Ctrl+Shift+L", desc: "Select all occurrences" },
-            ],
-        },
-    ];
+    /* ── Stable toolbar callbacks ──────────────────────────── */
+    const handleToolbarSave = useCallback(() => handleSave(), [handleSave]);
+    const handleToolbarSplit = useCallback(() => {
+        if (activeTabId) splitTabToNewGroup(activeTabId);
+    }, [activeTabId, splitTabToNewGroup]);
 
     /* ── Error state ────────────────────────────────────────── */
     if (error && initialContent === null) {
         return (
-            <div className="flex items-center justify-center h-screen bg-[#1e1e1e]">
+            <div className="flex items-center justify-center h-screen" style={{ background: "var(--editor-bg, #1e1e1e)" }}>
                 <div className="text-center space-y-3">
                     <p className="text-sm text-red-400">{error}</p>
                     <p className="text-xs text-gray-500">
@@ -614,10 +519,10 @@ export default function FileEditorMonacoPage() {
     /* ── Loading state ──────────────────────────────────────── */
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-screen bg-[#1e1e1e]">
+            <div className="flex items-center justify-center h-screen" style={{ background: "var(--editor-bg, #1e1e1e)" }}>
                 <div className="flex flex-col items-center gap-3">
                     <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
-                    <span className="text-sm text-gray-300">Loading {fileName}…</span>
+                    <span className="text-sm" style={{ color: "var(--editor-fg, #d4d4d4)" }}>Loading {fileName}…</span>
                 </div>
             </div>
         );
@@ -625,201 +530,44 @@ export default function FileEditorMonacoPage() {
 
     /* ── Main render ────────────────────────────────────────── */
     return (
-        <div className="h-screen w-full overflow-hidden flex flex-col bg-[#1e1e1e]">
+        <div className="h-screen w-full overflow-hidden flex flex-col" style={{ background: "var(--editor-bg, #1e1e1e)", color: "var(--editor-fg, #d4d4d4)" }}>
 
-            {/* ── Toolbar ─────────────────────────────────────── */}
-            <div className="flex items-center justify-between px-3 py-1.5 shrink-0 select-none bg-[#252526] border-b border-[#3c3c3c]">
-                {/* Left: file info */}
-                <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-                    <span className="flex items-center space-x-1">
-                        <FileIcon name={currentFileName} isDirectory={false} className="w-4 h-4" />
-                        <span className="text-[13px] font-medium truncate text-gray-200">
-                            {currentFileName}
-                        </span>
-                    </span>
-                    {(activeTab?.modified ?? modified) && (
-                        <span
-                            className="w-2 h-2 rounded-full shrink-0 bg-orange-400"
-                            title="Unsaved changes"
-                        />
-                    )}
-                    <span className="text-[11px] font-mono truncate hidden sm:inline text-gray-500">
-                        {currentFilePath}
-                    </span>
-                </div>
+            {/* Toolbar (memoized) */}
+            <EditorToolbar
+                currentFileName={currentFileName}
+                currentFilePath={currentFilePath}
+                modified={activeTab?.modified ?? modified}
+                loading={loading}
+                saving={saving}
+                wordWrap={wordWrap}
+                themeId={themeId}
+                showThemePicker={showThemePicker}
+                canSplit={!!activeTabId}
+                onReload={fetchContent}
+                onToggleWordWrap={toggleWordWrap}
+                onToggleThemePicker={toggleThemePicker}
+                onThemeSelect={handleThemeSelect}
+                onShowShortcuts={openShortcuts}
+                onSave={handleToolbarSave}
+                onSplit={handleToolbarSplit}
+            />
 
-                {/* Right: actions */}
-                <div className="flex items-center gap-1 shrink-0">
-                    {/* Reload */}
-                    <button
-                        onClick={fetchContent}
-                        disabled={loading}
-                        title="Reload file from server"
-                        className="p-1.5 rounded-md transition-colors text-gray-400 hover:text-gray-200"
-                    >
-                        <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-                    </button>
-
-                    {/* Word wrap toggle */}
-                    <button
-                        onClick={() => setWordWrap((w) => !w)}
-                        title={wordWrap ? "Disable word wrap" : "Enable word wrap"}
-                        className="p-1.5 rounded-md transition-colors"
-                        style={{
-                            background: wordWrap ? "#3c3c3c" : "transparent",
-                            color: wordWrap ? "#d4d4d4" : "#808080",
-                        }}
-                    >
-                        <WrapText className="w-3.5 h-3.5" />
-                    </button>
-
-                    {/* Theme picker */}
-                    <div className="relative">
-                        <button
-                            ref={themePickerBtnRef}
-                            onClick={() => setShowThemePicker((v) => !v)}
-                            title="Change theme"
-                            className="p-1.5 rounded-md transition-colors"
-                            style={{
-                                color: showThemePicker ? "#d4d4d4" : "#808080",
-                                background: showThemePicker ? "#3c3c3c" : "transparent",
-                            }}
-                        >
-                            <Palette className="w-3.5 h-3.5" />
-                        </button>
-
-                        {showThemePicker && (() => {
-                            const btnRect     = themePickerBtnRef.current?.getBoundingClientRect();
-                            const dropdownTop = btnRect ? btnRect.bottom + 4 : 40;
-                            const dropdownRight = btnRect
-                                ? window.innerWidth - btnRect.right
-                                : 8;
-                            return (
-                                <div
-                                    className="fixed z-[9999] w-52 p-1.5 rounded-lg shadow-2xl shadow-black/50 max-h-64 overflow-y-auto bg-[#252526] border border-[#3c3c3c]"
-                                    style={{ top: dropdownTop, right: dropdownRight }}
-                                >
-                                    {MONACO_THEMES.map((t) => {
-                                        const isActive = t.id === themeId;
-                                        return (
-                                            <button
-                                                key={t.id}
-                                                onClick={() => handleThemeChange(t.id)}
-                                                className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[13px] transition-colors"
-                                                style={{
-                                                    color: isActive ? "#d4d4d4" : "#808080",
-                                                    background: isActive ? "#3c3c3c" : "transparent",
-                                                }}
-                                                onMouseEnter={(e) => {
-                                                    e.currentTarget.style.background = "#3c3c3c";
-                                                    e.currentTarget.style.color = "#d4d4d4";
-                                                }}
-                                                onMouseLeave={(e) => {
-                                                    if (!isActive) {
-                                                        e.currentTarget.style.background = "transparent";
-                                                        e.currentTarget.style.color = "#808080";
-                                                    }
-                                                }}
-                                            >
-                                                <span className="flex gap-0.5 shrink-0">
-                                                    {t.colors.map((c, i) => (
-                                                        <span
-                                                            key={i}
-                                                            className="w-2.5 h-2.5 rounded-full"
-                                                            style={{ background: c }}
-                                                        />
-                                                    ))}
-                                                </span>
-                                                <span className="flex-1 text-left">{t.name}</span>
-                                                {isActive && (
-                                                    <Check className="w-3.5 h-3.5 shrink-0 text-blue-400" />
-                                                )}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            );
-                        })()}
-                    </div>
-
-                    {/* Shortcuts help */}
-                    <button
-                        onClick={() => setShowShortcuts(true)}
-                        title="Keyboard Shortcuts"
-                        className="p-1.5 rounded-md transition-colors text-gray-400 hover:text-gray-200"
-                    >
-                        <Info className="w-3.5 h-3.5" />
-                    </button>
-
-                    {/* Save */}
-                    <button
-                        onClick={() => handleSave()}
-                        disabled={saving || !(activeTab?.modified ?? modified)}
-                        className="inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-medium px-3 py-1.5 rounded-md transition-colors ml-1 bg-blue-600 text-white hover:bg-blue-700"
-                    >
-                        {saving ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                            <Save className="w-3.5 h-3.5" />
-                        )}
-                        {saving ? "Saving…" : "Save"}
-                    </button>
-
-                    {/* Split editor */}
-                    {activeTabId && (
-                        <button
-                            onClick={() => splitTabToNewGroup(activeTabId)}
-                            title="Split Editor Right"
-                            className="p-1.5 rounded-md transition-colors text-gray-400 hover:text-gray-200 ml-0.5"
-                        >
-                            <Columns2 className="w-3.5 h-3.5" />
-                        </button>
-                    )}
-                </div>
-            </div>
-
-            {/* ── File Tree + Tab Bar + Split Editor ──────── */}
             <div className="flex-1 overflow-hidden">
                 <ResizablePanelGroup direction="horizontal" className="h-full">
-                    {/* File tree panel (always rendered, collapsible) */}
-                    <ResizablePanel
-                        ref={treePanelRef}
-                        defaultSize={18}
-                        minSize={12}
-                        maxSize={35}
-                        collapsible
-                        collapsedSize={3}
-                        onCollapse={() => setTreeCollapsed(true)}
-                        onExpand={() => setTreeCollapsed(false)}
-                        className="h-full"
-                    >
-                        {treeCollapsed ? (
-                            <div className="flex items-start justify-center h-full bg-[#252526] pt-2">
-                                <button
-                                    onClick={() => treePanelRef.current?.expand()}
-                                    className="p-1 rounded-md hover:bg-[#37373d] transition-colors"
-                                    title="Show Explorer"
-                                >
-                                    <FolderTree className="h-4 w-4 text-gray-500" />
-                                </button>
-                            </div>
-                        ) : (
-                            <EditorFileTree
-                                currentDir={treeDir}
-                                files={treeFiles}
-                                onFileOpen={handleTreeFileOpen}
-                                onNavigate={handleTreeNavigate}
-                                onRefresh={handleTreeRefresh}
-                                collapsed={treeCollapsed}
-                                onCollapsedChange={(collapsed) => {
-                                    if (collapsed) treePanelRef.current?.collapse();
-                                    else treePanelRef.current?.expand();
-                                }}
-                                showHiddenFiles={false}
-                            />
-                        )}
-                    </ResizablePanel>
-                    <ResizableHandle withHandle className="bg-[#3c3c3c] hover:bg-blue-500/40 transition-colors" />
+                    {/* Left sidebar (memoized — tree state is isolated in hook) */}
+                    <FileTreePanel
+                        treeDir={treeDir}
+                        treeFiles={treeFiles}
+                        treeCollapsed={treeCollapsed}
+                        onFileOpen={handleTreeFileOpen}
+                        onNavigate={handleTreeNavigate}
+                        onRefresh={handleTreeRefresh}
+                        onCollapsedChange={setTreeCollapsed}
+                        sftpStatus={editorSftpStatus}
+                        sftpError={editorSftpError}
+                        onConnect={connectToHost}
+                        hostLabel={hostUser}
+                    />
                     {/* Editor area with split groups */}
                     <ResizablePanel defaultSize={82} className="h-full">
                         <ResizablePanelGroup direction="horizontal" className="h-full">
@@ -833,124 +581,92 @@ export default function FileEditorMonacoPage() {
                                 const editorFileName = groupActiveTab?.fileName ?? fileName;
                                 return (
                                     <React.Fragment key={group.id}>
-                                        {gi > 0 && <ResizableHandle withHandle className="bg-[#3c3c3c] hover:bg-blue-500/40 transition-colors" />}
+                                        {gi > 0 && <ResizableHandle withHandle className="hover:bg-blue-500/40 transition-colors" style={{ background: "var(--editor-border, #3c3c3c)" }} />}
                                         <ResizablePanel minSize={20} className="h-full">
                                             <div className="flex flex-col h-full">
-                                            {/* Tab bar */}
-                                            <div className="flex items-center bg-[#252526] border-b border-[#3c3c3c] shrink-0 overflow-x-auto tab-bar-scroll">
-                                                {group.tabIds.map((tid) => {
-                                                    const tab = tabs[tid];
-                                                    if (!tab) return null;
-                                                    const isActive = tid === group.activeTabId;
-                                                    return (
-                                                        <div
-                                                            key={tid}
-                                                            className={`group/tab flex items-center gap-1.5 px-3 py-1 cursor-pointer border-r border-[#3c3c3c] text-[12px] shrink-0 transition-colors ${
-                                                                isActive
-                                                                    ? "bg-[#1e1e1e] text-gray-200"
-                                                                    : "text-gray-500 hover:text-gray-300 hover:bg-[#2a2d2e]"
-                                                            }`}
-                                                            onClick={() => switchTab(group.id, tid)}
-                                                        >
-                                                            <FileIcon name={tab.fileName} isDirectory={false} size={14} />
-                                                            <span className="truncate max-w-[120px]">{tab.fileName}</span>
-                                                            {tab.modified && (
-                                                                <span className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
-                                                            )}
-                                                            {tab.loading && (
-                                                                <Loader2 className="w-3 h-3 animate-spin shrink-0 text-blue-400" />
-                                                            )}
-                                                            {tid !== initialTabId && (
-                                                                <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        closeTab(tid);
-                                                                    }}
-                                                                    className="ml-1 p-0.5 rounded opacity-0 group-hover/tab:opacity-100 hover:bg-[#3c3c3c] transition-all"
-                                                                    title="Close"
-                                                                >
-                                                                    <XIcon className="w-3 h-3" />
-                                                                </button>
-                                                            )}
+                                                {/* Tab bar (memoized) */}
+                                                <EditorTabBar
+                                                    tabIds={group.tabIds}
+                                                    tabs={tabs}
+                                                    activeTabId={group.activeTabId}
+                                                    pinnedTabId={initialTabId}
+                                                    groupId={group.id}
+                                                    onSwitch={switchTab}
+                                                    onClose={closeTab}
+                                                />
+                                                {/* Editor for active tab */}
+                                                <div className="flex-1 overflow-hidden" onClick={() => setActiveGroupId(group.id)}>
+                                                    {groupActiveTab?.loading ? (
+                                                        <div className="flex items-center justify-center h-full" style={{ background: "var(--editor-bg, #1e1e1e)" }}>
+                                                            <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
                                                         </div>
-                                                    );
-                                                })}
-                                            </div>
-                                            {/* Editor for active tab */}
-                                            <div className="flex-1 overflow-hidden" onClick={() => setActiveGroupId(group.id)}>
-                                                {groupActiveTab?.loading ? (
-                                                    <div className="flex items-center justify-center h-full bg-[#1e1e1e]">
-                                                        <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
-                                                    </div>
-                                                ) : groupActiveTab?.error ? (
-                                                    <div className="flex items-center justify-center h-full bg-[#1e1e1e]">
-                                                        <p className="text-sm text-red-400">{groupActiveTab.error}</p>
-                                                    </div>
-                                                ) : (
-                                                    <MonacoEditor
-                                                        key={group.activeTabId}
-                                                        defaultValue={editorContent}
-                                                        filePath={editorFilePath || editorFileName}
-                                                        theme={themeId}
-                                                        wordWrap={wordWrap ? "on" : "off"}
-                                                        plugins={plugins}
-                                                        onChange={handleChange}
-                                                        onSave={handleSave}
-                                                        onMount={handleEditorMount}
-                                                        onCursorChange={(line, col) => {
-                                                            setCursorLine(line);
-                                                            setCursorCol(col);
-                                                        }}
-                                                        copilotEndpoint={`${__config.API_URL}/api/complete`}
-                                                        onAIProviderChange={handleAIProviderChange}
-                                                        enableLSP
-                                                        lspBaseUrl={__config.API_URL}
-                                                        showSidebar={isActiveGroup && gi === splitGroups.length - 1}
-                                                        showStatusBar={isActiveGroup && gi === splitGroups.length - 1}
-                                                        enableTerminal={isActiveGroup && gi === splitGroups.length - 1}
-                                                        enableAutoClose
-                                                        pluginDebounceMs={1200}
-                                                        enableVsixDrop={isActiveGroup}
-                                                        terminalUrl={`${__config.API_URL}/dedicated-terminal`}
-                                                        terminalSessionId={sessionId}
-                                                        terminalCwd={terminalCwd}
-                                                        fontSize={14}
-                                                        tabSize={2}
-                                                        minimap={splitGroups.length === 1}
-                                                        statusBarItems={statusBarItems}
-                                                        options={{
-                                                            renderWhitespace: "selection",
-                                                            smoothScrolling: true,
-                                                            cursorBlinking: "smooth",
-                                                            cursorSmoothCaretAnimation: "on",
-                                                            formatOnPaste: true,
-                                                            linkedEditing: true,
-                                                            mouseWheelZoom: true,
-                                                            stickyScroll: { enabled: true },
-                                                        }}
-                                                        enableExtensions={isActiveGroup}
-                                                        chatBaseUrl={__config.API_URL}
-                                                        chatHostId={hostUser}
-                                                        onChatApplyCode={(code) => {
-                                                            const editor = editorRef.current;
-                                                            if (editor) {
-                                                                editor.setValue(code);
-                                                                setModified(true);
-                                                                showEditorNotification("AI suggestion applied", "success", {
-                                                                    source: "AI Chat",
-                                                                    timeout: 3000,
+                                                    ) : groupActiveTab?.error ? (
+                                                        <div className="flex items-center justify-center h-full" style={{ background: "var(--editor-bg, #1e1e1e)" }}>
+                                                            <p className="text-sm text-red-400">{groupActiveTab.error}</p>
+                                                        </div>
+                                                    ) : (
+                                                        <MonacoEditor
+                                                            key={group.activeTabId}
+                                                            defaultValue={editorContent}
+                                                            filePath={editorFilePath || editorFileName}
+                                                            theme={themeId}
+                                                            wordWrap={wordWrap ? "on" : "off"}
+                                                            plugins={plugins}
+                                                            onChange={handleChange}
+                                                            onSave={handleSave}
+                                                            onMount={handleEditorMount}
+                                                            onCursorChange={(line, col) => {
+                                                                setCursorLine(line);
+                                                                setCursorCol(col);
+                                                            }}
+                                                            copilotEndpoint={`${__config.API_URL}/api/complete`}
+                                                            onAIProviderChange={handleAIProviderChange}                                                             
+                                                            showSidebar={isActiveGroup && gi === splitGroups.length - 1}
+                                                            showStatusBar={isActiveGroup && gi === splitGroups.length - 1}
+                                                            enableTerminal={isActiveGroup && gi === splitGroups.length - 1}
+                                                            enableAutoClose
+                                                            pluginDebounceMs={1200}
+                                                            enableVsixDrop={isActiveGroup}
+                                                            terminalUrl={`${__config.API_URL}/dedicated-terminal`}
+                                                            terminalSessionId={sessionId}
+                                                            terminalCwd={terminalCwd}
+                                                            fontSize={14}
+                                                            tabSize={2}
+                                                            minimap={splitGroups.length === 1}
+                                                            statusBarItems={statusBarItems}
+                                                            options={{
+                                                                renderWhitespace: "selection",
+                                                                smoothScrolling: true,
+                                                                cursorBlinking: "smooth",
+                                                                cursorSmoothCaretAnimation: "on",
+                                                                formatOnPaste: true,
+                                                                linkedEditing: true,
+                                                                mouseWheelZoom: true,
+                                                                stickyScroll: { enabled: true },
+                                                            }}
+                                                            enableExtensions={isActiveGroup}
+                                                            chatBaseUrl={__config.API_URL}
+                                                            chatHostId={hostUser}
+                                                            onChatApplyCode={(code) => {
+                                                                const editor = editorRef.current;
+                                                                if (editor) {
+                                                                    editor.setValue(code);
+                                                                    setModified(true);
+                                                                    showEditorNotification("AI suggestion applied", "success", {
+                                                                        source: "AI Chat",
+                                                                        timeout: 3000,
+                                                                    });
+                                                                }
+                                                            }}
+                                                            onNotify={(msg, type) => {
+                                                                showEditorNotification(msg, type as any, {
+                                                                    source: "Editor",
+                                                                    timeout: type === "error" ? 6000 : 3000,
                                                                 });
-                                                            }
-                                                        }}
-                                                        onNotify={(msg, type) => {
-                                                            showEditorNotification(msg, type as any, {
-                                                                source: "Editor",
-                                                                timeout: type === "error" ? 6000 : 3000,
-                                                            });
-                                                        }}
-                                                    />
-                                                )}
-                                            </div>
+                                                            }}
+                                                        />
+                                                    )}
+                                                </div>
                                             </div>
                                         </ResizablePanel>
                                     </React.Fragment>
@@ -961,123 +677,8 @@ export default function FileEditorMonacoPage() {
                 </ResizablePanelGroup>
             </div>
 
-            {/* Theme picker backdrop */}
-            {showThemePicker && (
-                <div
-                    className="fixed inset-0 z-[9998]"
-                    onClick={() => setShowThemePicker(false)}
-                />
-            )}
-
-            {/* ── Shortcuts help modal ────────────────────────── */}
-            {showShortcuts && (
-                <div
-                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm"
-                    onClick={() => setShowShortcuts(false)}
-                >
-                    <div
-                        className="rounded-xl shadow-2xl shadow-black/50 w-[560px] max-w-[90vw] max-h-[80vh] overflow-hidden flex flex-col bg-[#252526] border border-[#3c3c3c]"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        {/* Header */}
-                        <div className="flex items-center justify-between px-5 py-3 border-b border-[#3c3c3c]">
-                            <div className="flex items-center gap-2">
-                                <Info className="w-4 h-4 text-blue-400" />
-                                <span className="text-[14px] font-semibold text-gray-200">
-                                    Keyboard Shortcuts
-                                </span>
-                            </div>
-                            <button
-                                onClick={() => setShowShortcuts(false)}
-                                className="p-1 rounded-md text-gray-400 hover:text-gray-200 hover:bg-[#3c3c3c] transition-colors"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-
-                        {/* Body */}
-                        <div className="overflow-y-auto p-5 space-y-5">
-                            {shortcutGroups.map((group) => (
-                                <div key={group.title}>
-                                    <h3 className="text-[12px] font-semibold uppercase tracking-wider mb-2 text-blue-400">
-                                        {group.title}
-                                    </h3>
-                                    <div className="space-y-1">
-                                        {group.items.map((item) => (
-                                            <div
-                                                key={item.keys}
-                                                className="flex items-center justify-between py-1.5 px-2 rounded-md hover:bg-[#1e1e1e] transition-colors"
-                                            >
-                                                <span className="text-[13px] text-gray-200">
-                                                    {item.desc}
-                                                </span>
-                                                <div className="flex items-center gap-1">
-                                                    {item.keys.split("+").map((key, ki) => (
-                                                        <span key={ki}>
-                                                            <kbd className="px-1.5 py-0.5 rounded text-[11px] font-mono shadow-sm bg-[#1e1e1e] border border-[#3c3c3c] text-gray-200">
-                                                                {key.trim()}
-                                                            </kbd>
-                                                            {ki < item.keys.split("+").length - 1 && (
-                                                                <span className="text-[10px] mx-0.5 text-gray-500">
-                                                                    +
-                                                                </span>
-                                                            )}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
-
-                            {/* Tips section */}
-                            <div className="pt-4 border-t border-[#3c3c3c]">
-                                <h3 className="text-[12px] font-semibold uppercase tracking-wider mb-2 text-green-400">
-                                    Tips
-                                </h3>
-                                <ul className="space-y-1.5 text-[12px] text-gray-300">
-                                    <li className="flex items-start gap-2">
-                                        <span className="mt-0.5 text-blue-400">•</span>
-                                        Ctrl+F opens Monaco's built-in find with regex, case-sensitive, and
-                                        whole word options
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="mt-0.5 text-blue-400">•</span>
-                                        Ctrl+Shift+P opens the Command Palette for all available actions
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="mt-0.5 text-blue-400">•</span>
-                                        Use Alt+Click to place multiple cursors for simultaneous editing
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="mt-0.5 text-blue-400">•</span>
-                                        Ctrl+C/X with no selection copies/cuts the entire current line
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="mt-0.5 text-blue-400">•</span>
-                                        The minimap on the right gives a bird's-eye view of the full file
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="mt-0.5 text-blue-400">•</span>
-                                        Unsaved changes show an orange dot next to the filename
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-
-                        {/* Footer */}
-                        <div className="px-5 py-2.5 flex justify-end border-t border-[#3c3c3c]">
-                            <button
-                                onClick={() => setShowShortcuts(false)}
-                                className="text-[12px] px-4 py-1.5 rounded-md font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-                            >
-                                Got it
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* Shortcuts modal (memoized, conditionally rendered) */}
+            {showShortcuts && <ShortcutsModal onClose={closeShortcuts} />}
 
             {/* Tab bar scrollbar styles */}
             <style>{`

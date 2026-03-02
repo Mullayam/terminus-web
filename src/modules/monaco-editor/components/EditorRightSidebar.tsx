@@ -279,7 +279,10 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
   return (
     <div className="flex h-full shrink-0">
       {/* ── Activity Bar (icon strip, always visible) ──────── */}
-      <div className="flex flex-col items-center w-[40px] bg-[#252526] border-l border-[#3c3c3c] py-2 gap-0.5">
+      <div
+        className="flex flex-col items-center w-[40px] py-2 gap-0.5"
+        style={{ background: "var(--editor-sidebar-bg, #252526)", borderLeft: "1px solid var(--editor-border, #3c3c3c)" }}
+      >
         {/* Toggle button */}
         <button
           onClick={onToggle}
@@ -366,10 +369,10 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
 
       {/* ── Panel Content (resizable) ───────────────────────── */}
       <div
-        className={`bg-[#252526] border-l border-[#3c3c3c] flex flex-col transition-opacity duration-200 ease-in-out ${
+        className={`flex flex-col transition-opacity duration-200 ease-in-out ${
           open ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
-        style={{ width: open ? panelWidth : 0, overflow: "hidden", position: "relative", transition: open ? "opacity 200ms" : "width 200ms, opacity 200ms" }}
+        style={{ background: "var(--editor-sidebar-bg, #252526)", borderLeft: "1px solid var(--editor-border, #3c3c3c)", width: open ? panelWidth : 0, overflow: "hidden", position: "relative", transition: open ? "opacity 200ms" : "width 200ms, opacity 200ms" }}
       >
         {/* Drag handle on left edge */}
         <div
@@ -379,7 +382,7 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
         {/* Inner container at current width */}
         <div className="flex flex-col h-full relative" style={{ minWidth: panelWidth }}>
           {/* Panel Header */}
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-[#3c3c3c] shrink-0">
+          <div className="flex items-center gap-2 px-3 py-2 shrink-0" style={{ borderBottom: "1px solid var(--editor-border, #3c3c3c)" }}>
             <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
               {[...TABS, SETTINGS_TAB].find((t) => t.id === activeTab)?.label}
             </span>
@@ -472,7 +475,10 @@ export const EditorSidebarActivityBar: React.FC<EditorSidebarActivityBarProps> =
   const warningCount = useMemo(() => problems.filter((p) => p.severity === 4).length, [problems]);
 
   return (
-    <div className="flex flex-col items-center w-[40px] bg-[#252526] border-l border-[#3c3c3c] py-2 gap-0.5 shrink-0 h-full">
+    <div
+      className="flex flex-col items-center w-[40px] py-2 gap-0.5 shrink-0 h-full"
+      style={{ background: "var(--editor-sidebar-bg, #252526)", borderLeft: "1px solid var(--editor-border, #3c3c3c)" }}
+    >
       {/* Toggle button */}
       <button
         onClick={onToggle}
@@ -610,9 +616,9 @@ export const EditorSidebarContent: React.FC<EditorSidebarContentProps> = ({
   const warningCount = useMemo(() => problems.filter((p) => p.severity === 4).length, [problems]);
 
   return (
-    <div className="flex flex-col h-full bg-[#252526] border-l border-[#3c3c3c]">
+    <div className="flex flex-col h-full" style={{ background: "var(--editor-sidebar-bg, #252526)", borderLeft: "1px solid var(--editor-border, #3c3c3c)" }}>
       {/* Panel Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-[#3c3c3c] shrink-0">
+      <div className="flex items-center gap-2 px-3 py-2 shrink-0" style={{ borderBottom: "1px solid var(--editor-border, #3c3c3c)" }}>
         <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
           {[...TABS, SETTINGS_TAB].find((t) => t.id === activeTab)?.label}
         </span>

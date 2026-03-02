@@ -438,6 +438,7 @@ export function FileList({
   // Refs keep latest values so memoized callbacks never go stale
   const socketRef = useRef(socket);
   const currentDirRef = useRef(currentDir);
+  const fileListContainerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     socketRef.current = socket;
   }, [socket]);
@@ -592,6 +593,14 @@ export function FileList({
   };
   // Listen for keyboard events
   const handleKeydown = (event: KeyboardEvent) => {
+    // Only handle shortcuts when focus is inside the file list area
+    if (
+      fileListContainerRef.current &&
+      !fileListContainerRef.current.contains(event.target as Node)
+    ) {
+      return;
+    }
+
     const keyCombo = `${event.ctrlKey ? "Ctrl+" : ""}${event.shiftKey ? "Shift+" : ""}${event.key.toUpperCase()}`;
 
     if (shortcutMap[keyCombo]) {
@@ -759,7 +768,7 @@ export function FileList({
       };
     }, [socket]);
     return (
-      <div className="w-full">
+      <div className="w-full" ref={fileListContainerRef}>
         <div className="rounded-md border">
           <Table>
             <TableHeader>

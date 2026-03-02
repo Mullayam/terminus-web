@@ -45,8 +45,9 @@ import type {
 import { createPluginContext } from "./core/plugin-context";
 import { EventBus } from "./core/event-bus";
 import { pluginRegistry } from "./core/plugin-registry";
-import { registerThemes } from "./core/theme-registry";
+import { registerTheme, registerThemes } from "./core/theme-registry";
 import { BUILT_IN_THEMES } from "./themes";
+import { loadMonacoTheme } from "./themes/monaco-themes-catalog";
 import { detectLanguage, initMonacoLanguages } from "./utils/language-detect";
 
 // Lib utilities (advanced features)
@@ -432,6 +433,19 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
         });
       }
 
+      // ── Load initial theme from monaco-themes package if needed ──
+      {
+        const { hasTheme: isRegistered } = await import("./core/theme-registry");
+        const initialTheme = customTheme ?? theme;
+        if (initialTheme && !isRegistered(initialTheme) && initialTheme !== "vs" && initialTheme !== "vs-dark" && initialTheme !== "hc-black" && initialTheme !== "hc-light") {
+          const themeDef = await loadMonacoTheme(initialTheme);
+          if (themeDef) {
+            registerTheme(monaco, themeDef);
+            monaco.editor.setTheme(initialTheme);
+          }
+        }
+      }
+
       // ── Snippet loading ──
       if (enableSnippets) {
         loadSnippets(monaco, resolvedLanguage).then((d) => {
@@ -588,7 +602,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
     },
     [
       onMountProp, onSave, filePath, onNotify, getAllPlugins,
-      customTheme, resolvedLanguage, fileName, enableTerminal,
+      customTheme, theme, resolvedLanguage, fileName, enableTerminal,
       enableSnippets, enableAutoClose,
       enableCopilot, copilotEndpoint,
       enableLSP, lspBaseUrl, documentUri,
@@ -861,8 +875,29 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
     editor.focus();
   }, []);
 
-  const handleThemeApply = useCallback((themeId: string) => {
-    monacoRef.current?.editor.setTheme(themeId);
+  const handleThemeApply = useCallback(async (themeId: string) => {
+    const monaco = monacoRef.current;
+    if (!monaco) return;
+    // If it's a built-in or already registered, apply directly
+    const { hasTheme } = await import("./core/theme-registry");
+    if (hasTheme(themeId)) {
+      monaco.editor.setTheme(themeId);
+      onThemeApply?.(themeId);
+      return;
+    }
+    // Try loading from monaco-themes package
+    const themeDef = await loadMonacoTheme(themeId);
+    if (themeDef) {
+      registerTheme(monaco, themeDef);
+      monaco.editor.setTheme(themeId);
+      onThemeApply?.(themeId);
+      return;
+    }
+    // Fallback: try loading from /public/themes/
+    const ok = await loadCustomTheme(monaco, themeId);
+    if (ok) {
+      monaco.editor.setTheme(themeId);
+    }
     onThemeApply?.(themeId);
   }, [onThemeApply]);
 
