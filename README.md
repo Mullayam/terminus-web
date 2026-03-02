@@ -133,3 +133,6 @@ You can optionally save your connection details by providing a local name.
 ----------
 
 Thank you for exploring this project! Feedback and contributions are always welcome.
+
+Todo
+https://github.com/TypeFox/monaco-languageclient/blob/main/docs/guides/getting-started.md

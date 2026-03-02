@@ -126,7 +126,7 @@ export const FileTreeContextMenu = React.memo(function FileTreeContextMenu({
           <>
             <ContextMenuItem
               className={menuItemClass}
-              onClick={() => actions.onOpen?.(node)}
+              onSelect={() => actions.onOpen?.(node)}
             >
               <FileIcon className="h-3.5 w-3.5 opacity-70" />
               Open
@@ -140,14 +140,14 @@ export const FileTreeContextMenu = React.memo(function FileTreeContextMenu({
           <>
             <ContextMenuItem
               className={menuItemClass}
-              onClick={() => actions.onNewFile?.(dir)}
+              onSelect={() => actions.onNewFile?.(dir)}
             >
               <FilePlus2 className="h-3.5 w-3.5 opacity-70" />
               New File
             </ContextMenuItem>
             <ContextMenuItem
               className={menuItemClass}
-              onClick={() => actions.onNewFolder?.(dir)}
+              onSelect={() => actions.onNewFolder?.(dir)}
             >
               <FolderPlus className="h-3.5 w-3.5 opacity-70" />
               New Folder
@@ -159,7 +159,7 @@ export const FileTreeContextMenu = React.memo(function FileTreeContextMenu({
         {/* ── Cut / Copy / Paste ─────────────────────────── */}
         <ContextMenuItem
           className={menuItemClass}
-          onClick={() => actions.onCut?.(node)}
+          onSelect={() => actions.onCut?.(node)}
         >
           <Scissors className="h-3.5 w-3.5 opacity-70" />
           Cut
@@ -168,7 +168,7 @@ export const FileTreeContextMenu = React.memo(function FileTreeContextMenu({
 
         <ContextMenuItem
           className={menuItemClass}
-          onClick={() => actions.onCopy?.(node)}
+          onSelect={() => actions.onCopy?.(node)}
         >
           <Copy className="h-3.5 w-3.5 opacity-70" />
           Copy
@@ -179,7 +179,7 @@ export const FileTreeContextMenu = React.memo(function FileTreeContextMenu({
           <ContextMenuItem
             className={menuItemClass}
             disabled={!hasClipboard}
-            onClick={() => actions.onPaste?.(dir)}
+            onSelect={() => actions.onPaste?.(dir)}
           >
             <ClipboardPaste className="h-3.5 w-3.5 opacity-70" />
             Paste
@@ -192,7 +192,7 @@ export const FileTreeContextMenu = React.memo(function FileTreeContextMenu({
         {/* ── Copy Path ──────────────────────────────────── */}
         <ContextMenuItem
           className={menuItemClass}
-          onClick={() => actions.onCopyPath?.(node.fullPath)}
+          onSelect={() => actions.onCopyPath?.(node.fullPath)}
         >
           <ClipboardCopy className="h-3.5 w-3.5 opacity-70" />
           Copy Path
@@ -204,7 +204,7 @@ export const FileTreeContextMenu = React.memo(function FileTreeContextMenu({
         {/* ── Rename ─────────────────────────────────────── */}
         <ContextMenuItem
           className={menuItemClass}
-          onClick={() => actions.onRename?.(node)}
+          onSelect={() => actions.onRename?.(node)}
         >
           <PenLine className="h-3.5 w-3.5 opacity-70" />
           Rename
@@ -214,7 +214,7 @@ export const FileTreeContextMenu = React.memo(function FileTreeContextMenu({
         {/* ── Move ───────────────────────────────────────── */}
         <ContextMenuItem
           className={menuItemClass}
-          onClick={() => actions.onMove?.(node)}
+          onSelect={() => actions.onMove?.(node)}
         >
           <Move className="h-3.5 w-3.5 opacity-70" />
           Move to…
@@ -223,7 +223,7 @@ export const FileTreeContextMenu = React.memo(function FileTreeContextMenu({
         {/* ── Delete ─────────────────────────────────────── */}
         <ContextMenuItem
           className={menuItemClass}
-          onClick={() => actions.onDelete?.(node)}
+          onSelect={() => actions.onDelete?.(node)}
         >
           <Trash2 className="h-3.5 w-3.5 text-red-400 opacity-80" />
           <span className="text-red-400">Delete</span>
@@ -236,14 +236,14 @@ export const FileTreeContextMenu = React.memo(function FileTreeContextMenu({
             <ContextMenuSeparator style={separatorStyle} />
             <ContextMenuItem
               className={menuItemClass}
-              onClick={() => actions.onUploadFile?.(dir)}
+              onSelect={() => actions.onUploadFile?.(dir)}
             >
               <Upload className="h-3.5 w-3.5 opacity-70" />
               Upload File
             </ContextMenuItem>
             <ContextMenuItem
               className={menuItemClass}
-              onClick={() => actions.onUploadFolder?.(dir)}
+              onSelect={() => actions.onUploadFolder?.(dir)}
             >
               <UploadCloud className="h-3.5 w-3.5 opacity-70" />
               Upload Folder

@@ -130,6 +130,7 @@ export default function FileEditorMonacoPage() {
         handleTreeNavigate,
         handleTreeRefresh,
         readFileViaSocket,
+        writeFileViaSocket,
         connectToHost,
         editorSftpStatus,
         editorSftpError,
@@ -268,6 +269,84 @@ export default function FileEditorMonacoPage() {
         setActiveGroupId(newGroupId);
     }, [tabs]);
 
+    /** Close all tabs to the left of the given tab in its group */
+    const closeTabsToLeft = useCallback((tabId: string) => {
+        setSplitGroups((prev) =>
+            prev.map((g) => {
+                const idx = g.tabIds.indexOf(tabId);
+                if (idx <= 0) return g;
+                const toClose = g.tabIds.slice(0, idx).filter((id) => id !== initialTabId);
+                toClose.forEach((id) => { delete tabContentRefs.current[id]; });
+                const newTabIds = g.tabIds.filter((id) => !toClose.includes(id));
+                return { ...g, tabIds: newTabIds, activeTabId: g.activeTabId };
+            }),
+        );
+        setTabs((prev) => {
+            const next = { ...prev };
+            // Clean up removed tabs from state
+            Object.keys(next).forEach((id) => {
+                if (id === initialTabId || id === tabId) return;
+                const inAnyGroup = splitGroups.some((g) => {
+                    const idx = g.tabIds.indexOf(tabId);
+                    const toClose = g.tabIds.slice(0, idx).filter((tid) => tid !== initialTabId);
+                    return toClose.includes(id);
+                });
+                // Let the splitGroups update handle it
+            });
+            return next;
+        });
+    }, [initialTabId, splitGroups]);
+
+    /** Close all tabs to the right of the given tab in its group */
+    const closeTabsToRight = useCallback((tabId: string) => {
+        setSplitGroups((prev) =>
+            prev.map((g) => {
+                const idx = g.tabIds.indexOf(tabId);
+                if (idx < 0 || idx >= g.tabIds.length - 1) return g;
+                const toClose = g.tabIds.slice(idx + 1).filter((id) => id !== initialTabId);
+                toClose.forEach((id) => { delete tabContentRefs.current[id]; });
+                const newTabIds = g.tabIds.filter((id) => !toClose.includes(id));
+                const newActive = newTabIds.includes(g.activeTabId ?? "")
+                    ? g.activeTabId
+                    : newTabIds[newTabIds.length - 1] ?? null;
+                return { ...g, tabIds: newTabIds, activeTabId: newActive };
+            }),
+        );
+    }, [initialTabId]);
+
+    /** Close all tabs in the active group (except pinned) */
+    const closeAllTabs = useCallback(() => {
+        setSplitGroups((prev) =>
+            prev.map((g) => {
+                if (g.id !== activeGroupId) return g;
+                const toClose = g.tabIds.filter((id) => id !== initialTabId);
+                toClose.forEach((id) => { delete tabContentRefs.current[id]; });
+                const newTabIds = g.tabIds.filter((id) => id === initialTabId);
+                return { ...g, tabIds: newTabIds, activeTabId: newTabIds[0] ?? null };
+            }).filter((g) => g.tabIds.length > 0),
+        );
+    }, [activeGroupId, initialTabId]);
+
+    /** Close all non-modified (saved) tabs in the active group (except pinned) */
+    const closeSavedTabs = useCallback(() => {
+        setSplitGroups((prev) =>
+            prev.map((g) => {
+                if (g.id !== activeGroupId) return g;
+                const toClose = g.tabIds.filter((id) => {
+                    if (id === initialTabId) return false;
+                    const tab = tabs[id];
+                    return tab && !tab.modified;
+                });
+                toClose.forEach((id) => { delete tabContentRefs.current[id]; });
+                const newTabIds = g.tabIds.filter((id) => !toClose.includes(id));
+                const newActive = newTabIds.includes(g.activeTabId ?? "")
+                    ? g.activeTabId
+                    : newTabIds[newTabIds.length - 1] ?? null;
+                return { ...g, tabIds: newTabIds, activeTabId: newActive };
+            }).filter((g) => g.tabIds.length > 0),
+        );
+    }, [activeGroupId, initialTabId, tabs]);
+
     /** Switch active tab in a group */
     const switchTab = useCallback((groupId: string, tabId: string) => {
         // Before switching, save current content to ref
@@ -342,55 +421,74 @@ export default function FileEditorMonacoPage() {
         };
     }, [currentFileName]);
 
-    /* ── Fetch file content (API-based) ──────────────────────── */
+    /* ── Fetch file content ─────────────────────────────────── */
     const fetchContent = useCallback(async () => {
-        if (!sessionId || !filePath || !hostUser) {
-            setError(!sessionId ? "Missing sessionId in URL" : !filePath ? "Missing file path in URL" : "Missing host user in URL");
+        if (!filePath) {
+            setError("Missing file path in URL");
             setLoading(false);
             return;
         }
         setLoading(true);
         setError(null);
         try {
-            const data = await ApiCore.fetchFileContent(sessionId, filePath);
-            if (!data.status) throw new Error(data.message || "Failed to load file content");
-            contentRef.current = data.result;
-            originalContentRef.current = data.result;
-            setInitialContent(data.result);
+            let fileData: string;
+
+            // Prefer editor's own SFTP socket when connected (survives old session disconnect)
+            if (editorSftpReady) {
+                fileData = await readFileViaSocket(filePath);
+            } else if (sessionId) {
+                // Fallback to API with URL-based sessionId
+                const data = await ApiCore.fetchFileContent(sessionId, filePath);
+                if (!data.status) throw new Error(data.message || "Failed to load file content");
+                fileData = data.result;
+            } else {
+                throw new Error("No SFTP session available. Connect the editor SFTP to browse files.");
+            }
+
+            contentRef.current = fileData;
+            originalContentRef.current = fileData;
+            setInitialContent(fileData);
             setModified(false);
-            tabContentRefs.current[initialTabId] = data.result;
+            tabContentRefs.current[initialTabId] = fileData;
             setTabs((prev) => ({
                 ...prev,
                 [initialTabId]: {
                     ...prev[initialTabId],
-                    content: data.result,
-                    originalContent: data.result,
+                    content: fileData,
+                    originalContent: fileData,
                     loading: false,
                 },
             }));
             // If editor is already mounted (reload), push content into the model directly
             if (editorRef.current) {
-                editorRef.current.setValue(data.result);
+                editorRef.current.setValue(fileData);
             }
         } catch (e: any) {
             setError(e?.message ?? "Failed to load file");
         } finally {
             setLoading(false);
         }
-    }, [sessionId, filePath]);
+    }, [sessionId, filePath, editorSftpReady, readFileViaSocket]);
 
     useEffect(() => { fetchContent(); }, [fetchContent]);
 
-    /* ── Save file (API-based) ──────────────────────────────── */
+    /* ── Save file ─────────────────────────────────────────── */
     const handleSave = useCallback(async (value?: string) => {
-        if (!sessionId || saving) return;
+        if (saving) return;
+        // Must have either editor SFTP or URL sessionId
+        if (!editorSftpReady && !sessionId) return;
         const tab = activeTab;
         const saveFilePath = tab?.filePath ?? filePath;
         const saveFileName = tab?.fileName ?? fileName;
         const toSave = value ?? (activeTabId ? tabContentRefs.current[activeTabId] : undefined) ?? contentRef.current;
         setSaving(true);
         try {
-            await ApiCore.saveFileContent(sessionId, saveFilePath, toSave);
+            // Prefer editor's own SFTP socket when connected
+            if (editorSftpReady) {
+                await writeFileViaSocket(saveFilePath, toSave);
+            } else {
+                await ApiCore.saveFileContent(sessionId, saveFilePath, toSave);
+            }
             setModified(false);
             originalContentRef.current = toSave;
             if (activeTabId) {
@@ -417,7 +515,7 @@ export default function FileEditorMonacoPage() {
         } finally {
             setSaving(false);
         }
-    }, [sessionId, saving, activeTab, activeTabId, filePath, fileName]);
+    }, [sessionId, saving, activeTab, activeTabId, filePath, fileName, editorSftpReady, writeFileViaSocket]);
 
     /* ── Monaco callbacks ───────────────────────────────────── */
     const handleChange = useCallback((value: string) => {
@@ -599,6 +697,11 @@ export default function FileEditorMonacoPage() {
                                                     groupId={group.id}
                                                     onSwitch={switchTab}
                                                     onClose={closeTab}
+                                                    onCloseToLeft={closeTabsToLeft}
+                                                    onCloseToRight={closeTabsToRight}
+                                                    onCloseAll={closeAllTabs}
+                                                    onCloseSaved={closeSavedTabs}
+                                                    onSplitRight={splitTabToNewGroup}
                                                 />
                                                 {/* Editor for active tab */}
                                                 <div className="flex-1 overflow-hidden" onClick={() => setActiveGroupId(group.id)}>

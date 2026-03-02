@@ -256,6 +256,48 @@ export function useEditorSftpTree({ sessionId, initialDir, hostUser }: UseEditor
         [],
     );
 
+    /* ── writeFileViaSocket (save files through editor SFTP) ── */
+    const writeFileViaSocket = useCallback(
+        (remotePath: string, content: string): Promise<void> => {
+            return new Promise((resolve, reject) => {
+                const s = sftpSocketRef.current;
+                if (!s || !s.connected) {
+                    return reject(new Error("SFTP socket not connected"));
+                }
+
+                const timeout = setTimeout(() => {
+                    s.off(SocketEventConstants.SFTP_EDIT_FILE_DONE, onDone);
+                    s.off(SocketEventConstants.SFTP_EMIT_ERROR, onError);
+                    reject(new Error("File save timed out"));
+                }, 30_000);
+
+                const onDone = () => {
+                    clearTimeout(timeout);
+                    s.off(SocketEventConstants.SFTP_EDIT_FILE_DONE, onDone);
+                    s.off(SocketEventConstants.SFTP_EMIT_ERROR, onError);
+                    resolve();
+                };
+
+                const onError = (msg: string | { message?: string }) => {
+                    clearTimeout(timeout);
+                    s.off(SocketEventConstants.SFTP_EDIT_FILE_DONE, onDone);
+                    s.off(SocketEventConstants.SFTP_EMIT_ERROR, onError);
+                    reject(
+                        new Error(typeof msg === "string" ? msg : msg?.message ?? "Failed to save file"),
+                    );
+                };
+
+                s.on(SocketEventConstants.SFTP_EDIT_FILE_DONE, onDone);
+                s.on(SocketEventConstants.SFTP_EMIT_ERROR, onError);
+                s.emit(SocketEventConstants.SFTP_EDIT_FILE_DONE, {
+                    path: remotePath,
+                    content,
+                });
+            });
+        },
+        [],
+    );
+
     return {
         /** The raw socket (needed for notification plugin) */
         socket,
@@ -269,6 +311,8 @@ export function useEditorSftpTree({ sessionId, initialDir, hostUser }: UseEditor
         handleTreeNavigate,
         handleTreeRefresh,
         readFileViaSocket,
+        /** Save a file through the editor's own SFTP socket */
+        writeFileViaSocket,
         /** Initiates the SFTP connection (user must confirm first) */
         connectToHost,
         /** Current connection status: idle | connecting | connected | error */

@@ -151,6 +151,9 @@ function TreeItem({
   renamingPath,
   onRenameSubmit,
   onRenameCancel,
+  newItemState,
+  onNewItemSubmit,
+  onNewItemCancel,
 }: {
   node: FileTreeNode;
   depth: number;
@@ -166,6 +169,9 @@ function TreeItem({
   renamingPath: string | null;
   onRenameSubmit: (oldPath: string, newName: string) => void;
   onRenameCancel: () => void;
+  newItemState: { parentDir: string; type: "file" | "folder" } | null;
+  onNewItemSubmit: (name: string) => void;
+  onNewItemCancel: () => void;
 }) {
   const isDir = node.type === "d";
   const isActive = node.fullPath === currentDir;
@@ -302,8 +308,25 @@ function TreeItem({
                 renamingPath={renamingPath}
                 onRenameSubmit={onRenameSubmit}
                 onRenameCancel={onRenameCancel}
+                newItemState={newItemState}
+                onNewItemSubmit={onNewItemSubmit}
+                onNewItemCancel={onNewItemCancel}
               />
             ))}
+            {/* Inline input for new file/folder inside this directory */}
+            {newItemState && newItemState.parentDir === node.fullPath && (
+              <InlineTreeInput
+                isDirectory={newItemState.type === "folder"}
+                depth={depth + 1}
+                onSubmit={onNewItemSubmit}
+                onCancel={onNewItemCancel}
+                placeholder={
+                  newItemState.type === "folder"
+                    ? "Folder name…"
+                    : "File name…"
+                }
+              />
+            )}
           </div>
         </div>
       )}
@@ -556,12 +579,6 @@ export function EditorFileTree({
     });
   }, [root, showHiddenFiles]);
 
-  /** Find depth of a dir in the tree so new-item input can be indented correctly */
-  const newItemDepth = useMemo(() => {
-    if (!newItemState) return 0;
-    return pathSegments(newItemState.parentDir).length;
-  }, [newItemState]);
-
   return (
     <div
       className="flex flex-col h-full transition-all duration-200 ease-in-out"
@@ -644,23 +661,10 @@ export function EditorFileTree({
                         renamingPath={renamingPath}
                         onRenameSubmit={handleRenameSubmit}
                         onRenameCancel={handleRenameCancel}
+                        newItemState={newItemState}
+                        onNewItemSubmit={handleNewItemSubmit}
+                        onNewItemCancel={handleNewItemCancel}
                       />
-                      {/* Render new-item inline input after the parent dir node */}
-                      {newItemState &&
-                        child.type === "d" &&
-                        child.fullPath === newItemState.parentDir && (
-                          <InlineTreeInput
-                            isDirectory={newItemState.type === "folder"}
-                            depth={newItemDepth}
-                            onSubmit={handleNewItemSubmit}
-                            onCancel={handleNewItemCancel}
-                            placeholder={
-                              newItemState.type === "folder"
-                                ? "Folder name…"
-                                : "File name…"
-                            }
-                          />
-                        )}
                     </React.Fragment>
                   ))}
                   {/* New item at root level when parentDir is "/" */}
