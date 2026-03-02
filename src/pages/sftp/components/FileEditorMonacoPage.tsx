@@ -43,6 +43,7 @@ import {
     type EditorTab,
 } from "./monaco-editor-parts";
 import { MONACO_THEMES } from "./monaco-editor-parts/ThemePicker";
+import { useFileOperations } from "@/modules/monaco-editor/components/file-tree/useFileOperations";
 
 /* ── Constants ─────────────────────────────────────────────── */
 
@@ -120,6 +121,7 @@ export default function FileEditorMonacoPage() {
 
     const {
         socket: treeSocket,
+        sftpSocketRef,
         editorSftpReady,
         treeFiles,
         treeDir,
@@ -132,6 +134,9 @@ export default function FileEditorMonacoPage() {
         editorSftpStatus,
         editorSftpError,
     } = useEditorSftpTree({ sessionId, initialDir, hostUser });
+
+    /* ── File operations for context menu ───────────────────── */
+    const fileOps = useFileOperations(sftpSocketRef, handleTreeRefresh ? () => handleTreeRefresh() : undefined);
  
     /* ── Tabs & Split state ─────────────────────────────────── */
     const initialTabId = useMemo(() => newTabId(), []);
@@ -567,6 +572,7 @@ export default function FileEditorMonacoPage() {
                         sftpError={editorSftpError}
                         onConnect={connectToHost}
                         hostLabel={hostUser}
+                        fileOps={fileOps}
                     />
                     {/* Editor area with split groups */}
                     <ResizablePanel defaultSize={82} className="h-full">

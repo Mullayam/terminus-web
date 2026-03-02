@@ -259,6 +259,8 @@ export function useEditorSftpTree({ sessionId, initialDir, hostUser }: UseEditor
     return {
         /** The raw socket (needed for notification plugin) */
         socket,
+        /** Ref to the raw SFTP socket (for file operations) */
+        sftpSocketRef,
         editorSftpReady,
         treeFiles,
         treeDir,

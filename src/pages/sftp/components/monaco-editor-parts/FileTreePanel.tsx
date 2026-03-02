@@ -8,6 +8,7 @@ import { EditorFileTree } from "@/modules/monaco-editor";
 import { ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import type { ImperativePanelHandle } from "react-resizable-panels";
 import type { EditorSftpStatus } from "@/store/editorSftpStore";
+import type { FileOperations } from "@/modules/monaco-editor/components/file-tree/useFileOperations";
 
 interface FileTreePanelProps {
     treeDir: string;
@@ -22,6 +23,8 @@ interface FileTreePanelProps {
     sftpError?: string;
     onConnect?: () => void;
     hostLabel?: string;
+    /** File operations — forwarded to EditorFileTree for context menu */
+    fileOps?: FileOperations;
 }
 
 function FileTreePanelInner({
@@ -36,6 +39,7 @@ function FileTreePanelInner({
     sftpError,
     onConnect,
     hostLabel,
+    fileOps,
 }: FileTreePanelProps) {
     const panelRef = useRef<ImperativePanelHandle>(null);
 
@@ -81,6 +85,7 @@ function FileTreePanelInner({
                         sftpError={sftpError}
                         onConnect={onConnect}
                         hostLabel={hostLabel}
+                        fileOps={fileOps}
                     />
                 )}
             </ResizablePanel>

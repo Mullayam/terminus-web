@@ -6,6 +6,7 @@ import vsix from "@codingame/monaco-vscode-rollup-vsix-plugin";
 export default defineConfig({
   plugins: [react(), vsix()],
   resolve: {
+    dedupe: ['vscode'],
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },

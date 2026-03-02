@@ -220,6 +220,25 @@ export type { ExtensionPanelProps } from "./components/ExtensionPanel";
 export { EditorFileTree } from "./components/EditorFileTree";
 export type { FileTreeNode, EditorFileTreeProps } from "./components/EditorFileTree";
 
+// ── File-tree context menu components ───────────────────────
+export {
+  useFileOperations,
+  FileTreeContextMenu,
+  FileUploadDialog,
+  InlineTreeInput,
+  ConfirmDeleteDialog,
+  MoveToDialog,
+} from "./components/file-tree";
+export type {
+  FileOperations,
+  ContextMenuActions,
+  FileTreeContextMenuProps,
+  FileUploadDialogProps,
+  InlineTreeInputProps,
+  ConfirmDeleteDialogProps,
+  MoveToDialogProps,
+} from "./components/file-tree";
+
 // ── New UI Components ───────────────────────────────────────
 export { ExtensionDetailPage } from "./components/ExtensionDetailPage";
 export type { ExtensionDetailPageProps } from "./components/ExtensionDetailPage";
