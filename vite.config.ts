@@ -16,13 +16,7 @@ export default defineConfig({
     format: 'es'
   },
   optimizeDeps: {
-    exclude: [
-      'monaco-editor',
-      'monaco-languageclient',
-      '@codingame/monaco-vscode-api',
-      '@codingame/monaco-vscode-files-service-override',
-      'vscode',
-    ],
+    exclude: ['vscode'],
   },
   build: {
     chunkSizeWarningLimit: 600,

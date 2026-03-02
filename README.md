@@ -136,3 +136,4 @@ Thank you for exploring this project! Feedback and contributions are always welc
 
 Todo
 https://github.com/TypeFox/monaco-languageclient/blob/main/docs/guides/getting-started.md
+https://cdn.jsdelivr.net/npm/

@@ -1,0 +1,901 @@
+name: monaco-lsp-esm-sw-setup
+version: 2.0.0
+description: >
+  AI Agent instruction set for Monaco Editor with dynamic LSP support.
+  Extensions loaded from esm.sh CDN on demand.
+  Service Worker caches all esm.sh requests (offline support).
+  Fully reusable — user opts in per component.
+  No npm installs for language extensions. No in-memory file system.
+
+# ============================================================
+# ARCHITECTURE OVERVIEW
+# ============================================================
+architecture:
+  flow: |
+    User opens file (e.g. main.py)
+      → getLanguageId('main.py')              → 'python'
+      → loadLanguageExtension('python')
+          → import('https://esm.sh/@codingame/...python...')
+              → Service Worker intercepts
+                  CACHE HIT  → return from CacheStorage ✅ instant
+                  CACHE MISS → fetch esm.sh → cache ALL sub-imports → return ✅
+      → stop old LanguageClientWrapper
+      → connect ws://localhost:30000/lsp?language=python
+      → Monaco + Python LSP ready ✅
+
+  layers:
+    - name: languageMap
+      role: file extension → languageId string
+    - name: extensionLoader
+      role: dynamic import from esm.sh, promise dedup, session cache
+    - name: serviceWorker
+      role: intercept + cache ALL esm.sh network requests in CacheStorage
+    - name: editorSetup
+      role: MonacoVscodeApiWrapper — init once per app
+    - name: lspManager
+      role: LanguageClientWrapper — start/stop per file open
+    - name: useMonacoEditor (hook)
+      role: reusable React hook — user opts in when needed
+    - name: MonacoEditor (component)
+      role: reusable drop-in React component wrapping the hook
+
+# ============================================================
+# FILE STRUCTURE
+# ============================================================
+file_structure:
+  public:
+    - sw.js                          # Service Worker (must be in public/)
+  src:
+    editor:
+      - languageMap.ts               # ext → languageId
+      - extensionLoader.ts           # esm.sh dynamic import + session cache
+      - editorSetup.ts               # MonacoVscodeApiWrapper (init once)
+      - lspManager.ts                # LanguageClientWrapper per file
+      hooks:
+        - useMonacoEditor.ts         # reusable React hook
+      components:
+        - MonacoEditor.tsx           # reusable drop-in component
+    main.tsx                         # register SW here
+
+# ============================================================
+# STEP 1 — Service Worker
+# ============================================================
+step_1_service_worker:
+  file: public/sw.js
+  critical_rules:
+    - MUST be in public/ folder — Vite serves it at root /sw.js
+    - Intercepts ALL fetch requests to https://esm.sh/@codingame/
+    - Caches main file AND all sub-imports automatically
+    - Uses CacheStorage (not IDB) — native browser cache API, perfect for ESM
+    - Never intercepts non-esm.sh requests
+    - CACHE_VERSION controls invalidation — bump to force re-fetch
+
+  code: |
+    const CACHE_NAME = 'monaco-extensions-v1';
+    // Bump this version to invalidate all cached extensions
+    const CACHE_VERSION = '1.0.0';
+    const ESM_ORIGIN = 'https://esm.sh';
+
+    // On install — activate immediately
+    self.addEventListener('install', (event) => {
+      console.log('[SW] Installed - version:', CACHE_VERSION);
+      self.skipWaiting();
+    });
+
+    // On activate — claim all clients immediately
+    self.addEventListener('activate', (event) => {
+      event.waitUntil(
+        Promise.all([
+          self.clients.claim(),
+          // Clean up old cache versions
+          caches.keys().then(keys =>
+            Promise.all(
+              keys
+                .filter(key => key.startsWith('monaco-extensions-') && key !== CACHE_NAME)
+                .map(key => {
+                  console.log('[SW] Deleting old cache:', key);
+                  return caches.delete(key);
+                })
+            )
+          )
+        ])
+      );
+    });
+
+    // Intercept fetch — cache esm.sh @codingame requests
+    self.addEventListener('fetch', (event) => {
+      const url = event.request.url;
+
+      // Only intercept esm.sh @codingame requests
+      if (!url.startsWith(ESM_ORIGIN)) return;
+      if (!url.includes('@codingame/')) return;
+
+      event.respondWith(
+        caches.open(CACHE_NAME).then(async (cache) => {
+          // Check cache first
+          const cached = await cache.match(event.request);
+          if (cached) {
+            console.log('[SW] Cache HIT:', url);
+            return cached;
+          }
+
+          // Cache MISS — fetch from esm.sh
+          console.log('[SW] Cache MISS — fetching:', url);
+          try {
+            const response = await fetch(event.request);
+            if (response.ok) {
+              // Clone before consuming — cache the clone
+              cache.put(event.request, response.clone());
+              console.log('[SW] Cached:', url);
+            }
+            return response;
+          } catch (err) {
+            console.error('[SW] Fetch failed:', url, err);
+            throw err;
+          }
+        })
+      );
+    });
+
+    // Message handler — allows app to control SW
+    self.addEventListener('message', (event) => {
+      // Clear cache on demand (e.g. version update)
+      if (event.data?.type === 'CLEAR_EXTENSION_CACHE') {
+        caches.delete(CACHE_NAME).then(() => {
+          console.log('[SW] Extension cache cleared');
+          event.ports[0]?.postMessage({ success: true });
+        });
+      }
+
+      // List cached URLs
+      if (event.data?.type === 'LIST_CACHED') {
+        caches.open(CACHE_NAME).then(cache =>
+          cache.keys().then(keys => {
+            event.ports[0]?.postMessage({
+              urls: keys.map(r => r.url)
+            });
+          })
+        );
+      }
+    });
+
+# ============================================================
+# STEP 2 — Register Service Worker
+# ============================================================
+step_2_sw_registration:
+  file: src/main.tsx
+  purpose: Register SW once at app startup — before anything else
+  critical_rules:
+    - Register in main.tsx not in any component
+    - Check for serviceWorker support first
+    - Log registration errors but do not crash app
+
+  code: |
+    import React from 'react'
+    import ReactDOM from 'react-dom/client'
+    import App from './App'
+
+    // Register Service Worker for esm.sh extension caching
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker
+        .register('/sw.js', { scope: '/' })
+        .then(reg => console.log('[SW] Registered:', reg.scope))
+        .catch(err => console.error('[SW] Registration failed:', err))
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')!).render(
+      <React.StrictMode>
+        <App />
+      </React.StrictMode>
+    )
+
+# ============================================================
+# STEP 3 — languageMap.ts
+# ============================================================
+step_3_language_map:
+  file: src/editor/languageMap.ts
+  purpose: Pure function — maps file extension to LSP languageId
+  code: |
+    export function getLanguageId(filename: string): string {
+      const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+      const map: Record<string, string> = {
+        py:    'python',
+        ts:    'typescript',
+        tsx:   'typescriptreact',
+        js:    'javascript',
+        jsx:   'javascriptreact',
+        json:  'json',
+        go:    'go',
+        rs:    'rust',
+        java:  'java',
+        cpp:   'cpp',
+        c:     'c',
+        cs:    'csharp',
+        css:   'css',
+        scss:  'scss',
+        html:  'html',
+        md:    'markdown',
+        yaml:  'yaml',
+        yml:   'yaml',
+        sh:    'shellscript',
+        rb:    'ruby',
+        php:   'php',
+      };
+      return map[ext] ?? 'plaintext';
+    }
+
+# ============================================================
+# STEP 4 — extensionLoader.ts
+# ============================================================
+step_4_extension_loader:
+  file: src/editor/extensionLoader.ts
+  purpose: >
+    Load @codingame extensions dynamically from esm.sh.
+    Service Worker handles caching transparently.
+    Session cache (Set + Map) prevents duplicate imports.
+  critical_rules:
+    - Never static import any @codingame extension at file top
+    - Use loadingPromises Map to deduplicate concurrent calls
+    - loadedExtensions Set prevents re-import in same session
+    - Browser HTTP cache + SW handle persistence across sessions
+    - Version in URL = cache busting (bump version → fresh fetch)
+
+  esm_sh_note: >
+    esm.sh serves ESM with sub-imports pointing to its own domain.
+    Direct import(url) works because sub-imports resolve against esm.sh.
+    Service Worker intercepts ALL those sub-import fetches and caches them.
+    Result: after first load, zero network requests needed.
+
+  code: |
+    const ESM_SH = 'https://esm.sh';
+
+    // Bump this when @codingame packages update
+    const CODINGAME_VERSION = '26.2.1';
+
+    // Map languageId → @codingame package name
+    const EXTENSION_MAP: Record<string, string> = {
+      json:            '@codingame/monaco-vscode-json-default-extension',
+      python:          '@codingame/monaco-vscode-python-default-extension',
+      typescript:      '@codingame/monaco-vscode-typescript-default-extension',
+      typescriptreact: '@codingame/monaco-vscode-typescript-default-extension',
+      javascript:      '@codingame/monaco-vscode-javascript-default-extension',
+      javascriptreact: '@codingame/monaco-vscode-javascript-default-extension',
+      css:             '@codingame/monaco-vscode-css-default-extension',
+      scss:            '@codingame/monaco-vscode-css-default-extension',
+      html:            '@codingame/monaco-vscode-html-default-extension',
+      go:              '@codingame/monaco-vscode-go-default-extension',
+      rust:            '@codingame/monaco-vscode-rust-default-extension',
+      java:            '@codingame/monaco-vscode-java-default-extension',
+      cpp:             '@codingame/monaco-vscode-cpp-default-extension',
+      csharp:          '@codingame/monaco-vscode-csharp-default-extension',
+      yaml:            '@codingame/monaco-vscode-yaml-default-extension',
+      shellscript:     '@codingame/monaco-vscode-shellscript-default-extension',
+    };
+
+    // Session cache — avoids re-importing in same session
+    const loadedExtensions  = new Set<string>();
+    // In-flight dedup — avoids parallel imports of same extension
+    const loadingPromises   = new Map<string, Promise<void>>();
+
+    export function loadLanguageExtension(languageId: string): Promise<void> {
+      // Already loaded this session
+      if (loadedExtensions.has(languageId)) return Promise.resolve();
+
+      // Already loading (concurrent calls) — return same promise
+      if (loadingPromises.has(languageId)) return loadingPromises.get(languageId)!;
+
+      const pkg = EXTENSION_MAP[languageId];
+      if (!pkg) {
+        console.warn(`[extensionLoader] No extension mapped for: ${languageId}`);
+        return Promise.resolve();
+      }
+
+      // esm.sh URL — SW will cache this + all sub-imports
+      const url = `${ESM_SH}/${pkg}@${CODINGAME_VERSION}`;
+
+      const promise = import(/* @vite-ignore */ url)
+        .then(() => {
+          loadedExtensions.add(languageId);
+          loadingPromises.delete(languageId);
+          console.log(`[extensionLoader] ✅ Loaded: ${languageId} from ${url}`);
+        })
+        .catch(err => {
+          loadingPromises.delete(languageId);
+          console.error(`[extensionLoader] ❌ Failed: ${languageId}`, err);
+          // Do not rethrow — editor still opens without extension
+        });
+
+      loadingPromises.set(languageId, promise);
+      return promise;
+    }
+
+    // Utility: clear SW cache + session cache (call on version update)
+    export async function clearExtensionCache(): Promise<void> {
+      // Clear session cache
+      loadedExtensions.clear();
+      loadingPromises.clear();
+
+      // Tell SW to clear CacheStorage
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        return new Promise((resolve) => {
+          const channel = new MessageChannel();
+          channel.port1.onmessage = () => resolve();
+          navigator.serviceWorker.controller!.postMessage(
+            { type: 'CLEAR_EXTENSION_CACHE' },
+            [channel.port2]
+          );
+        });
+      }
+    }
+
+    // Utility: list all cached extension URLs from SW
+    export async function listCachedExtensions(): Promise<string[]> {
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        return new Promise((resolve) => {
+          const channel = new MessageChannel();
+          channel.port1.onmessage = (e) => resolve(e.data.urls);
+          navigator.serviceWorker.controller!.postMessage(
+            { type: 'LIST_CACHED' },
+            [channel.port2]
+          );
+        });
+      }
+      return [];
+    }
+
+# ============================================================
+# STEP 5 — editorSetup.ts
+# ============================================================
+step_5_editor_setup:
+  file: src/editor/editorSetup.ts
+  purpose: Initialize MonacoVscodeApiWrapper ONCE for entire app
+  critical_rules:
+    - Guard with `started` boolean — never call twice
+    - No file system setup here
+    - configureDefaultWorkerFactory handles Monaco web workers
+
+  code: |
+    import {
+      MonacoVscodeApiWrapper,
+      type MonacoVscodeApiConfig
+    } from 'monaco-languageclient/vscodeApiWrapper';
+    import { configureDefaultWorkerFactory } from 'monaco-languageclient/workerFactory';
+    import { LogLevel } from '@codingame/monaco-vscode-api';
+
+    let started = false;
+
+    export async function initEditorApi(htmlContainer: HTMLElement): Promise<void> {
+      if (started) return;
+      started = true;
+
+      const config: MonacoVscodeApiConfig = {
+        $type: 'extended',
+        viewsConfig: {
+          $type: 'EditorService',
+          htmlContainer
+        },
+        logLevel: LogLevel.Info,
+        userConfiguration: {
+          json: JSON.stringify({
+            'workbench.colorTheme':                 'Default Dark Modern',
+            'editor.fontSize':                       14,
+            'editor.tabSize':                        2,
+            'editor.fontFamily':                     'Fira Code, Consolas, monospace',
+            'editor.wordWrap':                       'on',
+            'editor.minimap.enabled':                true,
+            'editor.lineNumbers':                    'on',
+            'editor.quickSuggestions':               true,
+            'editor.wordBasedSuggestions':           'off',
+            'editor.parameterHints.enabled':         true,
+            'editor.lightbulb.enabled':              'On',
+            'editor.guides.bracketPairsHorizontal':  'active',
+            'editor.experimental.asyncTokenization': true
+          })
+        },
+        monacoWorkerFactory: configureDefaultWorkerFactory
+      };
+
+      const wrapper = new MonacoVscodeApiWrapper(config);
+      await wrapper.start();
+      console.log('[editorSetup] MonacoVscodeApiWrapper started');
+    }
+
+# ============================================================
+# STEP 6 — lspManager.ts
+# ============================================================
+step_6_lsp_manager:
+  file: src/editor/lspManager.ts
+  purpose: >
+    Manage LanguageClientWrapper lifecycle.
+    One client at a time. Stop previous before starting new.
+    WebSocket URL includes ?language= query param.
+  critical_rules:
+    - Always await currentLcWrapper.stop() before starting new one
+    - Pass real file URI — not fake /workspace/ path
+    - EditorApp started once, reused after
+    - WS URL pattern: ws://YOUR_SERVER/lsp?language={languageId}
+
+  code: |
+    import {
+      LanguageClientWrapper,
+      type LanguageClientConfig
+    } from 'monaco-languageclient/lcwrapper';
+    import {
+      EditorApp,
+      type EditorAppConfig
+    } from 'monaco-languageclient/editorApp';
+    import * as vscode from 'vscode';
+    import { loadLanguageExtension } from './extensionLoader';
+    import { getLanguageId } from './languageMap';
+
+    const WS_BASE = 'ws://localhost:30000/lsp';
+
+    let currentLcWrapper: LanguageClientWrapper | null = null;
+    let currentEditorApp: EditorApp | null = null;
+
+    export interface OpenFileOptions {
+      htmlContainer: HTMLElement;
+      fileUri: string;      // real URI: 'file:///C:/project/main.py'
+      filename: string;     // for extension detection: 'main.py'
+      content: string;      // file content
+      wsBase?: string;      // override WS server URL
+    }
+
+    export async function openFileInEditor(options: OpenFileOptions): Promise<void> {
+      const {
+        htmlContainer,
+        fileUri,
+        filename,
+        content,
+        wsBase = WS_BASE
+      } = options;
+
+      // 1. Detect language
+      const languageId = getLanguageId(filename);
+      console.log(`[lspManager] ${filename} → ${languageId}`);
+
+      // 2. Load extension from esm.sh (SW caches it)
+      await loadLanguageExtension(languageId);
+
+      // 3. Stop previous LSP client
+      if (currentLcWrapper) {
+        console.log('[lspManager] Stopping previous client...');
+        await currentLcWrapper.stop();
+        currentLcWrapper = null;
+      }
+
+      // 4. Skip LSP for plaintext
+      if (languageId === 'plaintext') {
+        console.warn('[lspManager] plaintext — skipping LSP');
+        return;
+      }
+
+      // 5. Build WS URL with language param
+      const wsUrl = `${wsBase}?language=${languageId}`;
+
+      // 6. Language client config
+      const languageClientConfig: LanguageClientConfig = {
+        languageId,
+        connection: {
+          options: {
+            $type: 'WebSocketUrl',
+            url: wsUrl
+          }
+        },
+        clientOptions: {
+          documentSelector: [languageId],
+          workspaceFolder: {
+            index: 0,
+            name: 'workspace',
+            uri: vscode.Uri.parse(fileUri).with({ path: '/' })
+          }
+        }
+      };
+
+      // 7. Editor app — start once, reuse after
+      const editorAppConfig: EditorAppConfig = {
+        codeResources: {
+          modified: { text: content, uri: fileUri }
+        }
+      };
+
+      if (!currentEditorApp) {
+        currentEditorApp = new EditorApp(editorAppConfig);
+        await currentEditorApp.start(htmlContainer);
+      }
+
+      // 8. Start new LSP client
+      currentLcWrapper = new LanguageClientWrapper(languageClientConfig);
+      await currentLcWrapper.start();
+      console.log(`[lspManager] ✅ LSP ready: ${languageId} @ ${wsUrl}`);
+    }
+
+    export async function stopLsp(): Promise<void> {
+      if (currentLcWrapper) {
+        await currentLcWrapper.stop();
+        currentLcWrapper = null;
+        console.log('[lspManager] LSP stopped');
+      }
+    }
+
+# ============================================================
+# STEP 7 — useMonacoEditor.ts (Reusable Hook)
+# ============================================================
+step_7_hook:
+  file: src/editor/hooks/useMonacoEditor.ts
+  purpose: >
+    Reusable React hook. User imports this hook whenever they
+    want a Monaco editor with LSP in any component.
+    Handles init, file open, cleanup automatically.
+  usage_example: |
+    // Any component can use this:
+    const { containerRef, openFile, stopLsp, isReady } = useMonacoEditor()
+
+  code: |
+    import { useEffect, useRef, useState, useCallback } from 'react';
+    import { initEditorApi } from '../editorSetup';
+    import { openFileInEditor, stopLsp as stopLspManager } from '../lspManager';
+
+    export interface FileEntry {
+      fileUri: string;   // 'file:///C:/project/main.py'
+      filename: string;  // 'main.py'
+      content: string;   // file content string
+    }
+
+    export interface UseMonacoEditorOptions {
+      wsBase?: string;   // override WebSocket server URL
+      autoInit?: boolean; // auto-init on mount (default: true)
+    }
+
+    export interface UseMonacoEditorReturn {
+      containerRef: React.RefObject<HTMLDivElement>;
+      isReady: boolean;
+      isLoading: boolean;
+      error: string | null;
+      openFile: (file: FileEntry) => Promise<void>;
+      stopLsp: () => Promise<void>;
+    }
+
+    export function useMonacoEditor(
+      options: UseMonacoEditorOptions = {}
+    ): UseMonacoEditorReturn {
+      const { wsBase, autoInit = true } = options;
+
+      const containerRef = useRef<HTMLDivElement>(null);
+      const [isReady, setIsReady]     = useState(false);
+      const [isLoading, setIsLoading] = useState(false);
+      const [error, setError]         = useState<string | null>(null);
+
+      // Init editor API on mount
+      useEffect(() => {
+        if (!autoInit) return;
+
+        async function init() {
+          if (!containerRef.current) return;
+          setIsLoading(true);
+          try {
+            await initEditorApi(containerRef.current);
+            setIsReady(true);
+          } catch (err: any) {
+            setError(err?.message ?? 'Editor init failed');
+            console.error('[useMonacoEditor] Init error:', err);
+          } finally {
+            setIsLoading(false);
+          }
+        }
+
+        init();
+
+        // Cleanup on unmount
+        return () => { stopLspManager(); };
+      }, [autoInit]);
+
+      // Open a file — stable reference with useCallback
+      const openFile = useCallback(async (file: FileEntry) => {
+        if (!containerRef.current) return;
+        setIsLoading(true);
+        setError(null);
+        try {
+          await openFileInEditor({
+            htmlContainer: containerRef.current,
+            fileUri: file.fileUri,
+            filename: file.filename,
+            content: file.content,
+            wsBase
+          });
+        } catch (err: any) {
+          setError(err?.message ?? 'Failed to open file');
+          console.error('[useMonacoEditor] openFile error:', err);
+        } finally {
+          setIsLoading(false);
+        }
+      }, [wsBase]);
+
+      const stopLsp = useCallback(() => stopLspManager(), []);
+
+      return { containerRef, isReady, isLoading, error, openFile, stopLsp };
+    }
+
+# ============================================================
+# STEP 8 — MonacoEditor.tsx (Reusable Component)
+# ============================================================
+step_8_component:
+  file: src/editor/components/MonacoEditor.tsx
+  purpose: >
+    Drop-in reusable React component.
+    User places <MonacoEditor /> anywhere — passes files as props.
+    Wraps useMonacoEditor hook with UI (sidebar + editor pane).
+  props:
+    files:        "FileEntry[]  — list of files to show in sidebar"
+    wsBase:       "string?      — override WebSocket server URL"
+    height:       "string?      — editor height (default: 100%)"
+    onFileOpen:   "callback?    — called when file is opened"
+    onError:      "callback?    — called on error"
+    showSidebar:  "boolean?     — show file sidebar (default: true)"
+
+  code: |
+    import { useState } from 'react';
+    import { useMonacoEditor, type FileEntry } from '../hooks/useMonacoEditor';
+
+    export interface MonacoEditorProps {
+      files?: FileEntry[];
+      wsBase?: string;
+      height?: string;
+      showSidebar?: boolean;
+      onFileOpen?: (file: FileEntry) => void;
+      onError?: (error: string) => void;
+    }
+
+    export function MonacoEditor({
+      files = [],
+      wsBase,
+      height = '100%',
+      showSidebar = true,
+      onFileOpen,
+      onError
+    }: MonacoEditorProps) {
+      const [activeFile, setActiveFile] = useState<string | null>(null);
+      const { containerRef, isReady, isLoading, error, openFile } =
+        useMonacoEditor({ wsBase });
+
+      async function handleFileClick(file: FileEntry) {
+        setActiveFile(file.filename);
+        await openFile(file);
+        onFileOpen?.(file);
+        if (error) onError?.(error);
+      }
+
+      return (
+        <div style={{ display: 'flex', height, overflow: 'hidden' }}>
+
+          {/* Sidebar */}
+          {showSidebar && (
+            <div style={{
+              width: 200,
+              background: '#1e1e1e',
+              borderRight: '1px solid #333',
+              display: 'flex',
+              flexDirection: 'column',
+              flexShrink: 0
+            }}>
+              <div style={{
+                padding: '8px 12px',
+                fontSize: 11,
+                color: '#888',
+                textTransform: 'uppercase',
+                letterSpacing: 1,
+                borderBottom: '1px solid #333'
+              }}>
+                Explorer
+              </div>
+              {files.map(file => (
+                <div
+                  key={file.filename}
+                  onClick={() => handleFileClick(file)}
+                  style={{
+                    padding: '5px 12px',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    color: activeFile === file.filename ? '#fff' : '#bbb',
+                    background: activeFile === file.filename
+                      ? '#094771' : 'transparent',
+                    borderLeft: activeFile === file.filename
+                      ? '2px solid #0078d4' : '2px solid transparent',
+                    userSelect: 'none',
+                  }}
+                >
+                  {file.filename}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Editor pane */}
+          <div style={{ flex: 1, position: 'relative', background: '#1e1e1e' }}>
+
+            {/* Loading overlay */}
+            {isLoading && (
+              <div style={{
+                position: 'absolute', inset: 0, zIndex: 10,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'rgba(30,30,30,0.8)', color: '#aaa', fontSize: 13
+              }}>
+                Loading LSP...
+              </div>
+            )}
+
+            {/* Error banner */}
+            {error && (
+              <div style={{
+                position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10,
+                background: '#5a1d1d', color: '#f48771',
+                padding: '6px 12px', fontSize: 12
+              }}>
+                ⚠ {error}
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!activeFile && !isLoading && (
+              <div style={{
+                position: 'absolute', inset: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#555', fontSize: 14
+              }}>
+                {isReady ? 'Select a file to open' : 'Initializing editor...'}
+              </div>
+            )}
+
+            {/* Monaco mounts here */}
+            <div ref={containerRef} style={{ height: '100%', width: '100%' }} />
+          </div>
+        </div>
+      );
+    }
+
+    export default MonacoEditor;
+
+# ============================================================
+# STEP 9 — Usage Examples
+# ============================================================
+step_9_usage:
+  purpose: >
+    Show how any user/developer can drop in the reusable
+    component or hook with minimal setup.
+
+  example_1_component_basic:
+    title: Drop-in component — simplest usage
+    code: |
+      import { MonacoEditor } from './editor/components/MonacoEditor'
+
+      const files = [
+        {
+          filename: 'main.py',
+          fileUri: 'file:///C:/project/main.py',
+          content: 'def hello():\n    print("Hello")\n'
+        },
+        {
+          filename: 'index.ts',
+          fileUri: 'file:///C:/project/index.ts',
+          content: 'const greet = (name: string) => `Hello ${name}`\n'
+        }
+      ]
+
+      export default function MyPage() {
+        return (
+          <div style={{ height: '100vh' }}>
+            <MonacoEditor
+              files={files}
+              wsBase="ws://localhost:30000/lsp"
+            />
+          </div>
+        )
+      }
+
+  example_2_component_custom_server:
+    title: Custom WebSocket server
+    code: |
+      <MonacoEditor
+        files={files}
+        wsBase="wss://my-lsp-server.com/lsp"   // ← your server
+        height="600px"
+        showSidebar={false}                     // ← hide sidebar
+        onFileOpen={(file) => console.log('Opened:', file.filename)}
+        onError={(err) => toast.error(err)}
+      />
+
+  example_3_hook_custom_ui:
+    title: Hook only — build your own UI
+    code: |
+      import { useMonacoEditor } from './editor/hooks/useMonacoEditor'
+
+      export default function CustomEditor() {
+        const { containerRef, isReady, isLoading, openFile } = useMonacoEditor({
+          wsBase: 'ws://localhost:30000/lsp'
+        })
+
+        return (
+          <div>
+            <button
+              disabled={!isReady || isLoading}
+              onClick={() => openFile({
+                filename: 'app.go',
+                fileUri: 'file:///C:/project/app.go',
+                content: 'package main\n\nfunc main() {}\n'
+              })}
+            >
+              Open app.go
+            </button>
+            <div ref={containerRef} style={{ height: 500 }} />
+          </div>
+        )
+      }
+
+  example_4_cache_control:
+    title: Clear extension cache (on version update)
+    code: |
+      import { clearExtensionCache, listCachedExtensions } from './editor/extensionLoader'
+
+      // Clear all cached extensions (forces re-fetch from esm.sh)
+      await clearExtensionCache()
+
+      // See what's cached
+      const urls = await listCachedExtensions()
+      console.log('Cached:', urls)
+
+# ============================================================
+# AGENT DECISION RULES
+# ============================================================
+agent_rules:
+
+  on_file_open:
+    - getLanguageId(filename)
+    - loadLanguageExtension(languageId)       # esm.sh → SW caches it
+    - await currentLcWrapper?.stop()
+    - connect ws://SERVER/lsp?language=ID
+    - new LanguageClientWrapper().start()
+
+  on_unknown_language:
+    action: set languageId = 'plaintext', skip LSP, open editor only
+
+  on_extension_load_fail:
+    action: log error, continue — editor opens without LSP features
+
+  on_ws_connection_fail:
+    action: log error, editor remains open — no LSP features
+
+  on_version_update:
+    steps:
+      - bump CODINGAME_VERSION in extensionLoader.ts
+      - bump CACHE_NAME in sw.js (e.g. monaco-extensions-v2)
+      - call clearExtensionCache() or user hard-refreshes
+
+  never_do:
+    - Static import any @codingame extension at file top
+    - Use RegisteredFileSystemProvider / RegisteredMemoryFile
+    - Call initEditorApi() more than once
+    - Run two LanguageClientWrappers simultaneously
+    - Fetch esm.sh in extensionLoader and try to use Blob URL
+
+# ============================================================
+# CACHE LIFECYCLE
+# ============================================================
+cache_lifecycle:
+  first_load:
+    - import('https://esm.sh/@codingame/...python...')
+    - SW intercepts → cache MISS → fetch from esm.sh
+    - SW also caches all sub-imports automatically
+    - extension loaded ✅
+
+  subsequent_loads_same_session:
+    - loadedExtensions Set hit → return immediately
+    - zero network, zero SW involvement ✅
+
+  subsequent_loads_new_session:
+    - SW intercepts → cache HIT → return from CacheStorage
+    - zero network requests ✅ works offline ✅
+
+  version_update:
+    - bump CACHE_NAME in sw.js → old cache deleted on SW activate
+    - bump CODINGAME_VERSION in extensionLoader.ts → new URL → cache miss
+    - fresh fetch from esm.sh → cached under new cache name ✅

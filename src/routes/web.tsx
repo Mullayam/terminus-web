@@ -16,6 +16,7 @@ const FileEditorMonacoPage = lazy(() => import("@/pages/sftp/components/FileEdit
 const MediaPreviewPage = lazy(() => import("@/pages/sftp/components/MediaPreviewPage"));
 
 const TerminalComponent = lazy(() => import("@/pages/shared-terminal"));
+const LspEditorDemo = lazy(() => import("@/pages/lsp-demo"));
 
 /** Inline loading spinner shown while a lazy route chunk is being fetched */
 function RouteLoader() {
@@ -48,6 +49,11 @@ export const router = createBrowserRouter([
     {
         path: "about",
         element: <div>About</div>,
+    },
+    {
+        path: "lsp-demo",
+        element: withSuspense(<LspEditorDemo />),
+        errorElement: <RouteErrorBoundary />,
     },
     {
         path: "/ssh/terminal/:sessionid",
