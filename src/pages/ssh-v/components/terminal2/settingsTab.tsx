@@ -1,7 +1,6 @@
 
 import { Palette, Save, Type } from 'lucide-react';
 import { useTabStore } from '@/store/rightSidebarTabStore';
-import { Badge } from '@/components/ui/badge';
 import { XtermTheme, ThemeName, themeNames } from '@/pages/ssh-v/components/themes';
 import { useSSHStore } from '@/store/sshStore';
 import { useSessionTheme } from '@/hooks/useSessionTheme';
@@ -50,7 +49,7 @@ export default function SettingsTab() {
     }
   };
 
-  const handleToggleSetting = (key: 'notifications' | 'autoSave') => {
+  const handleToggleSetting = (key: 'notifications' | 'autoSave' | 'autocomplete') => {
     updateSettings({ [key]: !settings[key] });
   };
 
@@ -212,12 +211,29 @@ export default function SettingsTab() {
 
     
 
-      {/* Autocomplete status */}
-      <div className="flex items-center justify-between p-4">
-        <span className="text-sm" style={{ color: `${colors.foreground}cc` }}>Autocomplete</span>
-        <Badge variant="outline" style={{ backgroundColor: `${colors.foreground}15`, color: `${colors.foreground}cc`, borderColor: `${colors.foreground}20` }}>
-          Disabled
-        </Badge>
+      {/* Autocomplete */}
+      <div className="flex items-center justify-between p-2 rounded" style={{ backgroundColor: `${colors.foreground}10` }}>
+        <div className="flex items-center space-x-2">
+          <Type size={14} style={{ color: `${colors.foreground}cc` }} />
+          <div>
+            <p className="font-medium text-xs" style={{ color: colors.foreground }}>Autocomplete</p>
+            <p className="text-xs" style={{ color: `${colors.foreground}80` }}>Ghost text &amp; suggestions</p>
+          </div>
+        </div>
+        <button
+          onClick={() => handleToggleSetting('autocomplete')}
+          className={`
+            relative inline-flex h-4 w-7 items-center rounded-full transition-colors
+            ${settings.autocomplete ? 'bg-blue-600' : 'bg-neutral-600'}
+          `}
+        >
+          <span
+            className={`
+              inline-block h-3 w-3 transform rounded-full bg-white transition-transform
+              ${settings.autocomplete ? 'translate-x-4' : 'translate-x-0.5'}
+            `}
+          />
+        </button>
       </div>
     </div>
   );

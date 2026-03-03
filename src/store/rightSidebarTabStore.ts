@@ -24,6 +24,7 @@ interface Settings {
   theme: ThemeName;
   notifications: boolean;
   autoSave: boolean;
+  autocomplete: boolean;
   fontSize: 'small' | 'medium' | 'large';
 }
 
@@ -114,6 +115,7 @@ export const useTabStore = create<TabState>((set, get) => ({
     theme: 'custom',
     notifications: true,
     autoSave: true,
+    autocomplete: true,
     fontSize: 'medium'
   },
   setActiveTab: (tab) => set({ activeTab: tab }),

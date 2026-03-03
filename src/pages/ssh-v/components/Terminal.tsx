@@ -23,8 +23,7 @@ import { useCommandStore } from "@/store";
 import { sound } from "@/lib/utils";
 import { Socket } from "socket.io-client";
 import { useTerminalStore } from "@/store/terminalStore";
-import { useSSHStore } from "@/store/sshStore";
-import AISuggestionBox from "./terminal2/suggestion-box";
+import { useSSHStore } from "@/store/sshStore";import { useTabStore } from '@/store/rightSidebarTabStore';import AISuggestionBox from "./terminal2/suggestion-box";
 import GhostText from "./terminal2/ghost-text";
 import useAudio from "@/hooks/useAudio";
 import { XtermTheme, ThemeName } from "./themes";
@@ -43,6 +42,7 @@ const XTerminal = ({
   const { play } = useAudio(sound)
   const isRendered = useRef(false);
   const { sessions } = useSSHStore();
+  const autocomplete = useTabStore((s) => s.settings.autocomplete);
   const sessionTheme = useSSHStore((s) => s.sessionThemes[sessionId]) || 'custom';
   const { fontSize = 15, fontWeight = '400', fontWeightBold = '700' } = useSSHStore((s) => s.sessionFonts[sessionId]) || {};
 
@@ -481,24 +481,28 @@ const XTerminal = ({
       {/* Suggestion box positioned relative to .xterm-helper-textarea */}
 
       {/* Ghost text inline autocomplete (grey overlay at cursor) */}
-      <GhostText
-        termRef={termRef}
-        commandBuffer={commandBuffer}
-        suggestions={filteredSuggestions}
-        onAccept={handleGhostAccept}
-        containerRef={terminalRef}
-      />
+      {autocomplete && (
+        <GhostText
+          termRef={termRef}
+          commandBuffer={commandBuffer}
+          suggestions={filteredSuggestions}
+          onAccept={handleGhostAccept}
+          containerRef={terminalRef}
+        />
+      )}
 
-      <AISuggestionBox
-        suggestionPos={suggestionPos}
-        isVisible={isVisible}
-        suggestions={filteredSuggestions}
-        terminalHeight={terminalRef.current?.offsetHeight || 600}
-        terminalWidth={terminalRef.current?.offsetWidth || 800}
-        setSuggestions={setSuggestions}
-        hostKey={hostKey}
-        commandBuffer={commandBuffer}
-      />
+      {autocomplete && (
+        <AISuggestionBox
+          suggestionPos={suggestionPos}
+          isVisible={isVisible}
+          suggestions={filteredSuggestions}
+          terminalHeight={terminalRef.current?.offsetHeight || 600}
+          terminalWidth={terminalRef.current?.offsetWidth || 800}
+          setSuggestions={setSuggestions}
+          hostKey={hostKey}
+          commandBuffer={commandBuffer}
+        />
+      )}
     </div>
   );
 };
