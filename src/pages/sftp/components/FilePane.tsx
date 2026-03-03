@@ -13,7 +13,7 @@ import {
   Upload,
 } from "lucide-react";
 import { FileList } from "./FileList";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { SFTP_FILES_LIST } from "./interface";
 
 import { ApiCore } from "@/lib/api";
@@ -70,6 +70,10 @@ export function FilePane({
   const [treeCollapsed, setTreeCollapsed] = useState(false);
   const [treeStats, setTreeStats] = useState<RootObject | null>(null);
   const [newItemDialog, setNewItemDialog] = useState<{ open: boolean; type: "file" | "folder" }>({ open: false, type: "file" });
+
+  // ── Directory tree for path suggestions ──
+  const dirTreeRef = useRef<Set<string>>(new Set());
+  const [dirTreePaths, setDirTreePaths] = useState<string[]>([]);
 
   // Get homeDir from the store — always use own tabId, never activeTabId
   const session = tabId ? sftpStore.sessions[tabId] : undefined;
@@ -138,6 +142,56 @@ export function FilePane({
     const onStats = (data: RootObject) => setTreeStats(data);
     socket.on(SocketEventConstants.SFTP_FILE_STATS, onStats);
     return () => { socket.off(SocketEventConstants.SFTP_FILE_STATS, onStats); };
+  }, [socket]);
+
+  // ── Fetch dir tree on SFTP ready & on every directory change ──
+  useEffect(() => {
+    if (!socket || !path) return;
+
+    // Emit request for 2-depth tree from the current path
+    socket.emit(SocketEventConstants.SFTP_GET_DIR_TREE, { dirPath: path, depth: 2 });
+  }, [socket, path]);
+
+  // ── Listen for dir tree response and merge without duplicates ──
+  useEffect(() => {
+    if (!socket) return;
+
+    /** Recursively collect all directory paths from `{ name, path, children }` nodes */
+    const flattenTree = (nodes: any[], collected: string[]) => {
+      if (!Array.isArray(nodes)) return;
+      for (const node of nodes) {
+        if (!node || typeof node !== "object") continue;
+        const nodePath: string = node.path || "";
+        if (nodePath) collected.push(nodePath);
+        if (Array.isArray(node.children)) {
+          flattenTree(node.children, collected);
+        }
+      }
+    };
+
+    const onDirTree = (data: { root: any; dirPath: string; depth: number }) => {
+      const collected: string[] = [];
+
+      // root can be a single node or an array of nodes
+      const nodes = Array.isArray(data.root) ? data.root : [data.root];
+      flattenTree(nodes, collected);
+
+      // Merge into existing set (no duplicates)
+      const set = dirTreeRef.current;
+      let added = false;
+      for (const p of collected) {
+        if (!set.has(p)) {
+          set.add(p);
+          added = true;
+        }
+      }
+      if (added) {
+        setDirTreePaths(Array.from(set).sort());
+      }
+    };
+
+    socket.on(SocketEventConstants.SFTP_DIR_TREE, onDirTree);
+    return () => { socket.off(SocketEventConstants.SFTP_DIR_TREE, onDirTree); };
   }, [socket]);
 
   const treeContextActions = useMemo<TreeContextActions>(
@@ -494,10 +548,11 @@ export function FilePane({
                   <PathBreadcrumb
                     handleSetCurrentDir={handleSetCurrentDir}
                     loading={loading}
-                    fetchFolderSuggestions={async (path: string) => [
-                      "Comming Soon , till Then wait, hahahah",
-                      "Busy in Jobs :)",
-                    ]}
+                    fetchFolderSuggestions={async (query: string) => {
+                      if (!query) return [];
+                      const q = query.toLowerCase();
+                      return dirTreePaths.filter((p) => p.toLowerCase().includes(q));
+                    }}
                     currentPath={path}
                   />
                 </div>

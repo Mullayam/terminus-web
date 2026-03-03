@@ -283,6 +283,23 @@ const XTerminal = ({
       addLogLine(sessionId, input);
     });
 
+    // Server sends shell history after ready — merge into suggestions
+    socket.on(SocketEventConstants.SSH_EXEC_SILENT_RESULT, (history: string[]) => {
+      if (!Array.isArray(history)) return;
+      setSuggestions((prev) => {
+        const set = new Set(prev);
+        let added = false;
+        for (const cmd of history) {
+          const trimmed = typeof cmd === "string" ? cmd.trim() : "";
+          if (trimmed && !set.has(trimmed)) {
+            set.add(trimmed);
+            added = true;
+          }
+        }
+        return added ? Array.from(set) : prev;
+      });
+    });
+
     window.addEventListener("resize", handleResize);
 
 
@@ -297,6 +314,7 @@ const XTerminal = ({
     return () => {
       window.removeEventListener("resize", handleResize);
       socket.off(SocketEventConstants.SSH_EMIT_DATA);
+      socket.off(SocketEventConstants.SSH_EXEC_SILENT_RESULT);
       term.dispose();
       termRef.current = null;
     };
