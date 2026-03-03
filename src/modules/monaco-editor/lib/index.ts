@@ -75,3 +75,13 @@ export {
   getAvailableExtensionThemes,
 } from "./extensionLoader";
 export type { InstallProgress } from "./extensionLoader";
+
+// AI Completions (dynamic endpoint, IDB-cached, debounce-fetched)
+export {
+  registerAICompletions,
+  resolveKind,
+  type AICompletionConfig,
+  type AICompletionItem,
+  type AICompletionResponse,
+  type AICompletionRegistration,
+} from "./aiCompletions";

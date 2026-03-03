@@ -78,6 +78,9 @@ export type { GitHubEntry, GitHubFileContent } from "./githubApi";
 // Cache
 export { cachedFetch, invalidateCache, clearExtensionCache, setGlobalFetchHeaders } from "./cache";
 
+// JSONC parser (state-machine, string-safe)
+export { stripJsoncComments } from "./jsonc";
+
 // IDB (Dexie-based storage)
 export { idbGet, idbSet, idbDelete, idbGetAllByPrefix, idbBulkPut, idbClearStore, getExtDb } from "./idb";
 export type { StoreName, ExtensionIndexRecord, AssetRecord } from "./idb";

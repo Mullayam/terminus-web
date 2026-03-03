@@ -8,6 +8,7 @@
 
 import { idbGet, idbSet, STORE_ASSETS } from "../idb";
 import { cachedFetch } from "../cache";
+import { stripJsoncComments } from "../jsonc";
 import type { SnippetContribution } from "../packageReader";
 
 /* ── Constants ────────────────────────────────────────────── */
@@ -39,12 +40,6 @@ async function fetchAndDecode(url: string): Promise<string | null> {
     console.warn(`[monaco-ext] Snippet fetch error`, e);
     return null;
   }
-}
-
-function stripJsonComments(text: string): string {
-  return text
-    .replace(/\/\/.*$/gm, "")
-    .replace(/\/\*[\s\S]*?\*\//g, "");
 }
 
 /* ── State ────────────────────────────────────────────────── */
@@ -93,7 +88,7 @@ export async function fetchSnippets(
     }
 
     try {
-      const cleaned = stripJsonComments(content);
+      const cleaned = stripJsoncComments(content);
       const snippetMap = JSON.parse(cleaned) as Record<
         string,
         { prefix?: string | string[]; body?: string | string[]; description?: string }

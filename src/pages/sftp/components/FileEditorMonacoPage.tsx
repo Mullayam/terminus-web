@@ -809,7 +809,8 @@ export default function FileEditorMonacoPage() {
                                                                 setCursorCol(col);
                                                             }}
                                                             copilotEndpoint={`${__config.API_URL}/api/complete`}
-                                                            onAIProviderChange={handleAIProviderChange}                                                             
+                                                            aiCompletionsEndpoint={`${__config.API_URL}/api/completions`}
+                                                            onAIProviderChange={handleAIProviderChange}
                                                             showSidebar={isActiveGroup && gi === splitGroups.length - 1}
                                                             showStatusBar={isActiveGroup && gi === splitGroups.length - 1}
                                                             enableTerminal={isActiveGroup && gi === splitGroups.length - 1}

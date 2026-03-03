@@ -60,10 +60,12 @@ import {
   buildLSPWebSocketUrl,
   hasLSPSupport,
   loadAllExtensions,
+  registerAICompletions,
 } from "./lib";
 import { detectTechnologies } from "./lib/registerCopilot";
 import type { LSPConnection } from "./lib/connectLanguageServer";
 import type { CompletionRegistration } from "monacopilot";
+import type { AICompletionRegistration } from "./lib/aiCompletions";
 
 // GitHub-based VSCode extension loader
 import {
@@ -261,6 +263,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   enableAutoClose = true,
   enableCopilot = false,
   copilotEndpoint = "/api/complete",
+  aiCompletionsEndpoint: aiCompletionsEndpointProp,
   enableLSP = false,
   lspBaseUrl,
   documentUri,
@@ -293,6 +296,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const disposablesRef = useRef<monacoNs.IDisposable[]>([]);
   const copilotRef = useRef<CompletionRegistration | null>(null);
+  const aiCompletionsRef = useRef<AICompletionRegistration | null>(null);
   const lspRef = useRef<LSPConnection | null>(null);
   const notificationsRef = useRef<EditorNotificationsHandle | null>(null);
 
@@ -912,7 +916,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
     prevPluginIdsRef.current = currentIds;
   }, [plugins, getAllPlugins, filePath, onNotify]);
 
-  // ── AI Completion Provider switching ──
+  // ── Copilot / Ghost-text provider switching ──
   useEffect(() => {
     const editor = editorRef.current;
     const monaco = monacoRef.current;
@@ -921,7 +925,6 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
     const provider = editorSettings.aiCompletionProvider;
 
     if (provider === "copilot") {
-      // Register copilot if not already registered
       if (!copilotRef.current) {
         try {
           const techs = detectTechnologies(resolvedLanguage, fileName);
@@ -938,13 +941,52 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
         }
       }
     } else {
-      // Deregister copilot when switching away
+      // Deregister copilot when not "copilot"
       if (copilotRef.current) {
         try { copilotRef.current.deregister(); } catch { /* */ }
         copilotRef.current = null;
       }
     }
   }, [editorSettings.aiCompletionProvider, resolvedLanguage, fileName, copilotEndpoint]);
+
+  // ── AI Completions (dropdown suggestions) — independent of copilot/ghost-text ──
+  // Registers whenever an endpoint is available (prop or settings).
+  // Dropdown completion items don't conflict with inline ghost-text.
+  useEffect(() => {
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    if (!editor || !monaco) return;
+
+    const endpoint = editorSettings.aiCompletionsEndpoint || aiCompletionsEndpointProp;
+
+    if (endpoint) {
+      if (aiCompletionsRef.current) {
+        // Update endpoint if already registered (handles runtime URL change)
+        aiCompletionsRef.current.setEndpoint(endpoint);
+      } else {
+        try {
+          const registration = registerAICompletions(monaco, editor, {
+            endpoint,
+            languageId: resolvedLanguage,
+            filename: fileName,
+            debounceMs: 2000,
+            onError: (err) => console.warn("[MonacoEditor] AI completions fetch error:", err),
+            onCompletionsUpdated: (count) =>
+              console.log(`[MonacoEditor] AI completions updated: ${count} items for ${resolvedLanguage}`),
+          });
+          aiCompletionsRef.current = registration;
+        } catch (err) {
+          console.warn("[MonacoEditor] AI completions registration failed:", err);
+        }
+      }
+    } else {
+      // No endpoint — dispose if active
+      if (aiCompletionsRef.current) {
+        try { aiCompletionsRef.current.dispose(); } catch { /* */ }
+        aiCompletionsRef.current = null;
+      }
+    }
+  }, [editorSettings.aiCompletionsEndpoint, aiCompletionsEndpointProp, resolvedLanguage, fileName]);
 
   // ── LSP toggle switching ──
   useEffect(() => {
@@ -1034,6 +1076,10 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
       // Cleanup copilot
       try { copilotRef.current?.deregister(); } catch { /* */ }
       copilotRef.current = null;
+
+      // Cleanup AI completions
+      try { aiCompletionsRef.current?.dispose(); } catch { /* */ }
+      aiCompletionsRef.current = null;
 
       // Cleanup LSP
       try { lspRef.current?.dispose(); } catch { /* */ }
@@ -1130,6 +1176,8 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
     mouseWheelZoom: editorSettings.mouseWheelZoom,
     stickyScroll: { enabled: editorSettings.stickyScroll },
     renderWhitespace: editorSettings.renderWhitespace,
+    // CodeLens (used by AI Suggest buttons on functions/classes)
+    codeLens: true,
     // IntelliSense / text hint settings
     parameterHints: { enabled: editorSettings.parameterHints },
     hover: { enabled: editorSettings.hoverEnabled },

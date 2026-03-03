@@ -23,7 +23,7 @@ import {
 
 /* ── Types ─────────────────────────────────────────────────── */
 
-export type AICompletionProvider = "none" | "ghost-text" | "copilot";
+export type AICompletionProvider = "none" | "ghost-text" | "copilot" | "ai-completions";
 
 export interface EditorSettings {
   fontSize: number;
@@ -41,6 +41,8 @@ export interface EditorSettings {
   showTerminal: boolean;
   /** AI inline completion provider — only one can be active at a time */
   aiCompletionProvider: AICompletionProvider;
+  /** Dynamic AI completions endpoint URL */
+  aiCompletionsEndpoint: string;
   /** Enable parameter hints (function signature help) */
   parameterHints: boolean;
   /** Enable hover information (type definitions, docs) */
@@ -74,6 +76,7 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   showStatusBar: true,
   showTerminal: false,
   aiCompletionProvider: "none",
+  aiCompletionsEndpoint: "",
   parameterHints: true,
   hoverEnabled: true,
   quickSuggestions: true,
@@ -249,6 +252,14 @@ export const EditorSettingsPanel: React.FC<EditorSettingsPanelProps> = ({
           value={settings.aiCompletionProvider}
           onChange={(v) => update("aiCompletionProvider", v)}
         />
+        {settings.aiCompletionProvider === "ai-completions" && (
+          <TextSetting
+            label="AI Endpoint"
+            placeholder="https://api.example.com/completions"
+            value={settings.aiCompletionsEndpoint}
+            onChange={(v) => update("aiCompletionsEndpoint", v)}
+          />
+        )}
       </SettingsSection>
 
       {/* ── IntelliSense Section ───────────────────────── */}
@@ -361,6 +372,12 @@ function AIProviderSetting({
       label: "Copilot",
       desc: "Monacopilot AI completions",
       icon: <BrainCircuit className="w-4 h-4" />,
+    },
+    {
+      id: "ai-completions",
+      label: "AI Completions",
+      desc: "Dynamic endpoint AI suggestions",
+      icon: <Sparkles className="w-4 h-4" />,
     },
   ];
 

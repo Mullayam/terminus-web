@@ -10,6 +10,7 @@
 
 import { idbGet, idbSet, STORE_ASSETS } from "../idb";
 import { cachedFetch } from "../cache";
+import { stripJsoncComments } from "../jsonc";
 import type { LanguageContribution } from "../packageReader";
 
 /* ── Constants ────────────────────────────────────────────── */
@@ -45,13 +46,6 @@ async function fetchAndDecode(url: string): Promise<string | null> {
     console.warn(`[monaco-ext] Fetch error: ${url}`, e);
     return null;
   }
-}
-
-/** Strip // and /* comments from JSONC content. */
-function stripJsonComments(text: string): string {
-  return text
-    .replace(/\/\/.*$/gm, "")
-    .replace(/\/\*[\s\S]*?\*\//g, "");
 }
 
 /* ── State ────────────────────────────────────────────────── */
@@ -94,7 +88,7 @@ export async function fetchLanguageConfigurations(
     }
 
     try {
-      const cleaned = stripJsonComments(content);
+      const cleaned = stripJsoncComments(content);
       const config = JSON.parse(cleaned);
       appliedLangs.add(lang.id);
       results.push({ langId: lang.id, config });

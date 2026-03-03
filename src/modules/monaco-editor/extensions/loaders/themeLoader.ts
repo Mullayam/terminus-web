@@ -8,6 +8,7 @@
 
 import { idbGet, idbSet, STORE_ASSETS } from "../idb";
 import { cachedFetch } from "../cache";
+import { stripJsoncComments } from "../jsonc";
 import type { ThemeContribution } from "../packageReader";
 
 /* ── Constants ────────────────────────────────────────────── */
@@ -39,12 +40,6 @@ async function fetchAndDecode(url: string): Promise<string | null> {
     console.warn(`[monaco-ext] Theme fetch error`, e);
     return null;
   }
-}
-
-function stripJsonComments(text: string): string {
-  return text
-    .replace(/\/\/.*$/gm, "")
-    .replace(/\/\*[\s\S]*?\*\//g, "");
 }
 
 /* ── State ────────────────────────────────────────────────── */
@@ -172,7 +167,7 @@ export async function fetchThemes(
     }
 
     try {
-      const cleaned = stripJsonComments(content);
+      const cleaned = stripJsoncComments(content);
       const themeJson: VSCodeThemeJson = JSON.parse(cleaned);
 
       const themeData: ThemeData = {
