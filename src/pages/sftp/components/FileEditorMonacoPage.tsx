@@ -425,10 +425,13 @@ export default function FileEditorMonacoPage() {
         () => loadEditorSettings().aiCompletionProvider,
     );
 
+    // Ghost text endpoint — use settings value if set, else default API_URL
+    const ghostTextEndpoint = loadEditorSettings().ghostTextEndpoint || __config.API_URL;
+
     // Memoize plugins — ghost text is only included when selected
     const ghostTextPlugin = useMemo(
-        () => createGhostTextPlugin({ endpoint: __config.API_URL }),
-        [],
+        () => createGhostTextPlugin({ endpoint: ghostTextEndpoint }),
+        [ghostTextEndpoint],
     );
     const notificationPlugin = useMemo(
         () => createNotificationPlugin({ socket: treeSocket ?? undefined }),

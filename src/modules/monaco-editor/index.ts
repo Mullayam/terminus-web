@@ -211,6 +211,7 @@ export type {
   ExtView,
   InstallProgress,
   CustomContextMenuItem,
+  CustomHoverEntry,
 } from "./lib";
 
 // ── Sidebar Components ──────────────────────────────────────

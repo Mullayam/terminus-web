@@ -35,12 +35,14 @@ import {
   MessageSquareCode,
   Sparkles,
   Menu,
+  FileText,
 } from "lucide-react";
 import { ExtensionPanel } from "./ExtensionPanel";
 import { ThemeSidebar } from "./ThemeSidebar";
 import { EditorSettingsPanel, type EditorSettings } from "./EditorSettingsPanel";
 import { AICompletionsPanel } from "./AICompletionsPanel";
 import { CustomContextMenuPanel } from "./CustomContextMenuPanel";
+import { HoverProviderPanel } from "./HoverProviderPanel";
 import { ChatPanel } from "../chat";
 
 /* ── Types ─────────────────────────────────────────────────── */
@@ -66,7 +68,7 @@ export interface DocumentSymbolItem {
   children?: DocumentSymbolItem[];
 }
 
-export type SidebarTab = "outline" | "problems" | "info" | "extensions" | "themes" | "settings" | "chat" | "ai" | "context-menu";
+export type SidebarTab = "outline" | "problems" | "info" | "extensions" | "themes" | "settings" | "chat" | "ai" | "context-menu" | "hover";
 
 export interface EditorRightSidebarProps {
   open: boolean;
@@ -104,8 +106,8 @@ export interface EditorRightSidebarProps {
   /** Host identifier for AI chat (session / tab id) */
   chatHostId?: string;
   /** Current file content (for AI chat context) */
-  chatFileContent?: string;
-  /** Called when AI chat applies code */
+  chatFileContent?: string;  /** Currently selected text (for AI chat context) */
+  chatSelectedText?: string;  /** Called when AI chat applies code */
   onChatApplyCode?: (code: string, language: string) => void;
 }
 
@@ -115,6 +117,7 @@ const TABS: { id: SidebarTab; icon: React.FC<{ className?: string }>; label: str
   { id: "chat", icon: MessageSquareCode, label: "AI Chat" },
   { id: "ai", icon: Sparkles, label: "AI Completions" },
   { id: "context-menu", icon: Menu, label: "Context Menu" },
+  { id: "hover", icon: FileText, label: "Hover Providers" },
   { id: "outline", icon: List, label: "Outline" },
   { id: "problems", icon: AlertTriangle, label: "Problems" },
   { id: "info", icon: Info, label: "File Info" },
@@ -227,6 +230,7 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
   chatBaseUrl,
   chatHostId,
   chatFileContent,
+  chatSelectedText,
   onChatApplyCode,
 }) => {
   const errorCount = useMemo(
@@ -442,6 +446,7 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
                 hostId={chatHostId}
                 language={language}
                 fileContent={chatFileContent ?? ""}
+                selectedText={chatSelectedText}
                 filename={filename}
                 onApplyCode={onChatApplyCode}
               />
@@ -591,6 +596,7 @@ export interface EditorSidebarContentProps {
   chatBaseUrl?: string;
   chatHostId?: string;
   chatFileContent?: string;
+  chatSelectedText?: string;
   onChatApplyCode?: (code: string, language: string) => void;
 }
 
@@ -616,6 +622,7 @@ export const EditorSidebarContent: React.FC<EditorSidebarContentProps> = ({
   chatBaseUrl,
   chatHostId,
   chatFileContent,
+  chatSelectedText,
   onChatApplyCode,
 }) => {
   const errorCount = useMemo(() => problems.filter((p) => p.severity === 8).length, [problems]);
@@ -684,12 +691,19 @@ export const EditorSidebarContent: React.FC<EditorSidebarContentProps> = ({
             onChange={(items) => onSettingsChange({ ...editorSettings, customContextMenuItems: items })}
           />
         )}
+        {activeTab === "hover" && editorSettings && onSettingsChange && (
+          <HoverProviderPanel
+            entries={editorSettings.customHoverProviders}
+            onChange={(entries) => onSettingsChange({ ...editorSettings, customHoverProviders: entries })}
+          />
+        )}
         {activeTab === "chat" && chatBaseUrl && (
           <ChatPanel
             baseUrl={chatBaseUrl}
             hostId={chatHostId}
             language={language}
             fileContent={chatFileContent ?? ""}
+            selectedText={chatSelectedText}
             filename={filename}
             onApplyCode={onChatApplyCode}
           />

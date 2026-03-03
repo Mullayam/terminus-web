@@ -132,7 +132,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     sendMessage({
       question: text,
       language,
-      context: fileContent,
+      context: selectedText || fileContent,
       filename,
       selection: selectedText,
       cursorPosition,

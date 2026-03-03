@@ -2,7 +2,7 @@
  * @module components/CustomContextMenuPanel
  *
  * Dedicated sidebar panel for managing custom editor context menu items.
- * Supports four action types: command, url, insert, and js.
+ * Supports three action types: command, url, and insert.
  */
 import React, { useState, useCallback } from "react";
 import { Plus, Trash2, Menu, Zap } from "lucide-react";
@@ -22,20 +22,18 @@ export const CustomContextMenuPanel: React.FC<CustomContextMenuPanelProps> = ({
 }) => {
   const [newLabel, setNewLabel] = useState("");
   const [newAction, setNewAction] = useState("");
-  const [actionType, setActionType] = useState<"command" | "url" | "insert" | "js">("command");
+  const [actionType, setActionType] = useState<"command" | "url" | "insert">("command");
 
   const actionPrefixes: Record<string, string> = {
     command: "command:",
     url: "url:",
     insert: "insert:",
-    js: "js:",
   };
 
   const actionPlaceholders: Record<string, string> = {
     command: "editor.action.formatDocument",
     url: "https://api.example.com/ai-tool",
     insert: "// TODO: implement",
-    js: "editor.trigger('source', 'editor.action.triggerSuggest', {})",
   };
 
   const addEntry = useCallback(() => {
@@ -70,7 +68,6 @@ export const CustomContextMenuPanel: React.FC<CustomContextMenuPanelProps> = ({
     command: "#007acc",
     url: "#4ec9b0",
     insert: "#ce9178",
-    js: "#dcdcaa",
   };
 
   return (
@@ -152,7 +149,6 @@ export const CustomContextMenuPanel: React.FC<CustomContextMenuPanelProps> = ({
               <option value="command">Command</option>
               <option value="url">URL (AI Tool)</option>
               <option value="insert">Insert Text</option>
-              <option value="js">JavaScript</option>
             </select>
             <input
               type="text"
@@ -188,11 +184,7 @@ export const CustomContextMenuPanel: React.FC<CustomContextMenuPanelProps> = ({
             <p className="text-gray-700">
               <strong>Command</strong> — run a Monaco command<br />
               <strong>URL</strong> — POST editor context to an endpoint<br />
-              <strong>Insert</strong> — insert text at cursor<br />
-              <strong>JS</strong> — run custom JavaScript with{" "}
-              <code className="text-[9px] bg-[#3c3c3c] px-0.5 rounded">editor</code>,{" "}
-              <code className="text-[9px] bg-[#3c3c3c] px-0.5 rounded">monaco</code>,{" "}
-              <code className="text-[9px] bg-[#3c3c3c] px-0.5 rounded">selection</code> in scope
+              <strong>Insert</strong> — insert text at cursor
             </p>
           </div>
         </div>

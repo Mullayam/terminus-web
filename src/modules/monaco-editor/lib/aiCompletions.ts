@@ -32,7 +32,6 @@ export interface CustomContextMenuItem {
    *  - `"command:<monaco-command-id>"` — run a built-in Monaco command
    *  - `"url:<endpoint>"` — POST the current selection/context to a URL
    *  - `"insert:<text>"` — insert literal text at cursor
-   *  - `"js:<code>"` — evaluate inline JS with `editor`, `monaco`, `selection` in scope
    */
   action: string;
   /** Optional keyboard shortcut description (display only, not bound) */
@@ -570,15 +569,6 @@ export function registerAICompletions(
                 [{ range: sel ?? { startLineNumber: pos.lineNumber, startColumn: pos.column, endLineNumber: pos.lineNumber, endColumn: pos.column }, text }],
                 () => null,
               );
-            }
-          } else if (action.startsWith("js:")) {
-            // Execute inline JS with editor context
-            const code = action.slice("js:".length);
-            try {
-              const fn = new Function("editor", "monaco", "selection", "model", code);
-              fn(ed, monaco, selectedText, model);
-            } catch (err) {
-              console.error(`[Custom Context Menu] JS action error:`, err);
             }
           } else {
             // Fallback: treat as Monaco command ID

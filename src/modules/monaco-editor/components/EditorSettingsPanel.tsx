@@ -39,6 +39,10 @@ export interface EditorSettings {
   aiCompletionProvider: AICompletionProvider;
   /** Dynamic AI completions endpoint URL */
   aiCompletionsEndpoint: string;
+  /** Ghost Text SSE streaming endpoint URL (default: uses plugin endpoint prop) */
+  ghostTextEndpoint: string;
+  /** Copilot (monacopilot) endpoint URL (default: /api/complete) */
+  copilotEndpoint: string;
   /** Enable parameter hints (function signature help) */
   parameterHints: boolean;
   /** Enable hover information (type definitions, docs) */
@@ -57,6 +61,8 @@ export interface EditorSettings {
   customSnippetUrls: Array<{ url: string; languageId: string }>;
   /** User-defined custom context menu items for the editor right-click menu */
   customContextMenuItems: Array<{ label: string; action: string }>;
+  /** User-defined hover providers — word → Markdown per language */
+  customHoverProviders: Array<{ languageId: string; hoversJson: string }>;
 }
 
 export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
@@ -75,6 +81,8 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   showTerminal: false,
   aiCompletionProvider: "none",
   aiCompletionsEndpoint: "",
+  ghostTextEndpoint: "",
+  copilotEndpoint: "",
   parameterHints: true,
   hoverEnabled: true,
   quickSuggestions: true,
@@ -84,6 +92,7 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   githubToken: "",
   customSnippetUrls: [],
   customContextMenuItems: [],
+  customHoverProviders: [],
 };
 
 const STORAGE_KEY = "terminus-editor-settings";

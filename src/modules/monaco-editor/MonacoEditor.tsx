@@ -66,6 +66,7 @@ import { detectTechnologies } from "./lib/registerCopilot";
 import type { LSPConnection } from "./lib/connectLanguageServer";
 import type { CompletionRegistration } from "monacopilot";
 import type { AICompletionRegistration } from "./lib/aiCompletions";
+import { registerCustomHoverProviders } from "./lib/hoverProvider";
 
 // GitHub-based VSCode extension loader
 import {
@@ -298,6 +299,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   const copilotRef = useRef<CompletionRegistration | null>(null);
   const aiCompletionsRef = useRef<AICompletionRegistration | null>(null);
   const lspRef = useRef<LSPConnection | null>(null);
+  const hoverProviderRef = useRef<monacoNs.IDisposable | null>(null);
   const notificationsRef = useRef<EditorNotificationsHandle | null>(null);
 
   // Flips to true once Monaco editor is ready (handleMount has fired).
@@ -311,7 +313,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
 
   // Sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarTab, setSidebarTab] = useState<"outline" | "problems" | "info" | "extensions" | "themes" | "settings" | "chat" | "ai" | "context-menu">("outline");
+  const [sidebarTab, setSidebarTab] = useState<"outline" | "problems" | "info" | "extensions" | "themes" | "settings" | "chat" | "ai" | "context-menu" | "hover">("outline");
   const [symbols, setSymbols] = useState<DocumentSymbolItem[]>([]);
   const [problems, setProblems] = useState<monacoNs.editor.IMarkerData[]>([]);
   const [extensionCount, setExtensionCount] = useState(0);
@@ -320,6 +322,9 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   // Internal cursor tracking (for status bar)
   const [cursorLine, setCursorLine] = useState(1);
   const [cursorCol, setCursorCol] = useState(1);
+
+  // Track selected text (for AI chat context)
+  const [selectedText, setSelectedText] = useState("");
 
   // Editor settings (persisted to localStorage)
   const [editorSettings, setEditorSettings] = useState<EditorSettings>(() => loadEditorSettings());
@@ -486,10 +491,11 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
       if (enableCopilot || editorSettings.aiCompletionProvider === "copilot") {
         try {
           const techs = detectTechnologies(resolvedLanguage, fileName);
+          const effectiveCopilotEndpoint = editorSettings.copilotEndpoint || copilotEndpoint;
           const registration = registerCopilot(monaco, editor, {
             language: resolvedLanguage,
             filename: fileName,
-            endpoint: copilotEndpoint,
+            endpoint: effectiveCopilotEndpoint,
             technologies: techs,
             trigger: "onIdle",
           });
@@ -569,6 +575,19 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
           onCursorChange?.(e.position.lineNumber, e.position.column);
         });
         disposables.push(cursorDisposable);
+      }
+
+      // ── Selection tracking (for AI chat context) ──
+      {
+        const selectionDisposable = editor.onDidChangeCursorSelection(() => {
+          const sel = editor.getSelection();
+          if (sel && !sel.isEmpty()) {
+            setSelectedText(editor.getModel()?.getValueInRange(sel) ?? "");
+          } else {
+            setSelectedText("");
+          }
+        });
+        disposables.push(selectionDisposable);
       }
 
       // ── Marker tracking (for problems panel) ──
@@ -728,6 +747,12 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
             if (count > 0) console.log(`[MonacoEditor] Loaded ${count} custom snippet source(s)`);
           })
           .catch(() => {});
+      }
+
+      // ── Register custom hover providers from settings ──
+      if (editorSettings.customHoverProviders.length > 0) {
+        hoverProviderRef.current = registerCustomHoverProviders(monaco, editorSettings.customHoverProviders);
+        console.log(`[MonacoEditor] Registered ${editorSettings.customHoverProviders.length} custom hover provider(s)`);
       }
 
       disposablesRef.current = disposables;
@@ -933,10 +958,11 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
       if (!copilotRef.current) {
         try {
           const techs = detectTechnologies(resolvedLanguage, fileName);
+          const effectiveCopilotEndpoint = editorSettings.copilotEndpoint || copilotEndpoint;
           const registration = registerCopilot(monaco, editor, {
             language: resolvedLanguage,
             filename: fileName,
-            endpoint: copilotEndpoint,
+            endpoint: effectiveCopilotEndpoint,
             technologies: techs,
             trigger: "onIdle",
           });
@@ -952,7 +978,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
         copilotRef.current = null;
       }
     }
-  }, [editorSettings.aiCompletionProvider, resolvedLanguage, fileName, copilotEndpoint]);
+  }, [editorSettings.aiCompletionProvider, editorSettings.copilotEndpoint, resolvedLanguage, fileName, copilotEndpoint]);
 
   // ── AI Completions (dropdown suggestions) — independent of copilot/ghost-text ──
   // Registers whenever an endpoint is available (prop or settings).
@@ -1004,6 +1030,30 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
       }
     };
   }, [editorReady, editorSettings.aiCompletionsEndpoint, aiCompletionsEndpointProp, resolvedLanguage, fileName, editorSettings.customContextMenuItems]);
+
+  // ── Custom Hover Providers — re-register whenever the entries change ──
+  useEffect(() => {
+    const monaco = monacoRef.current;
+    if (!monaco || !editorReady) return;
+
+    // Dispose previous
+    if (hoverProviderRef.current) {
+      hoverProviderRef.current.dispose();
+      hoverProviderRef.current = null;
+    }
+
+    if (editorSettings.customHoverProviders.length > 0) {
+      hoverProviderRef.current = registerCustomHoverProviders(monaco, editorSettings.customHoverProviders);
+      console.log(`[MonacoEditor] Re-registered ${editorSettings.customHoverProviders.length} custom hover provider(s)`);
+    }
+
+    return () => {
+      if (hoverProviderRef.current) {
+        hoverProviderRef.current.dispose();
+        hoverProviderRef.current = null;
+      }
+    };
+  }, [editorReady, editorSettings.customHoverProviders]);
 
   // ── LSP toggle switching ──
   useEffect(() => {
@@ -1368,6 +1418,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
                   chatBaseUrl={chatBaseUrl}
                   chatHostId={chatHostId}
                   chatFileContent={value ?? internalContentRef.current ?? editorRef.current?.getValue() ?? ""}
+                  chatSelectedText={selectedText}
                   onChatApplyCode={onChatApplyCode}
                 />
               </ResizablePanel>

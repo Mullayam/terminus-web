@@ -86,3 +86,11 @@ export {
   type AICompletionRegistration,
   type CustomContextMenuItem,
 } from "./aiCompletions";
+
+// Custom Hover Providers (user-defined word → Markdown per language)
+export {
+  registerCustomHoverProviders,
+  parseHovers,
+  getGoHoverDemoJson,
+  type CustomHoverEntry,
+} from "./hoverProvider";
