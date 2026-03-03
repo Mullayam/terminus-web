@@ -300,6 +300,10 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   const lspRef = useRef<LSPConnection | null>(null);
   const notificationsRef = useRef<EditorNotificationsHandle | null>(null);
 
+  // Flips to true once Monaco editor is ready (handleMount has fired).
+  // Used as a dependency so effects that need editorRef/monacoRef can retry.
+  const [editorReady, setEditorReady] = useState(false);
+
   // Internal content tracking for sidebar stats (works in both controlled & uncontrolled mode)
   const internalContentRef = useRef(value ?? defaultValue ?? "");
   const [internalContent, setInternalContent] = useState(value ?? defaultValue ?? "");
@@ -418,6 +422,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
     async (editor, monaco) => {
       editorRef.current = editor;
       monacoRef.current = monaco;
+      setEditorReady(true);
       const disposables: monacoNs.IDisposable[] = [];
 
       // ── Ctrl+S / Cmd+S save handler ──
@@ -952,41 +957,53 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   // ── AI Completions (dropdown suggestions) — independent of copilot/ghost-text ──
   // Registers whenever an endpoint is available (prop or settings).
   // Dropdown completion items don't conflict with inline ghost-text.
+  // Depends on editorReady so it re-runs after handleMount.
   useEffect(() => {
     const editor = editorRef.current;
     const monaco = monacoRef.current;
-    if (!editor || !monaco) return;
+    if (!editor || !monaco || !editorReady) return;
 
     const endpoint = editorSettings.aiCompletionsEndpoint || aiCompletionsEndpointProp;
 
-    if (endpoint) {
-      if (aiCompletionsRef.current) {
-        // Update endpoint if already registered (handles runtime URL change)
-        aiCompletionsRef.current.setEndpoint(endpoint);
-      } else {
-        try {
-          const registration = registerAICompletions(monaco, editor, {
-            endpoint,
-            languageId: resolvedLanguage,
-            filename: fileName,
-            debounceMs: 2000,
-            onError: (err) => console.warn("[MonacoEditor] AI completions fetch error:", err),
-            onCompletionsUpdated: (count) =>
-              console.log(`[MonacoEditor] AI completions updated: ${count} items for ${resolvedLanguage}`),
-          });
-          aiCompletionsRef.current = registration;
-        } catch (err) {
-          console.warn("[MonacoEditor] AI completions registration failed:", err);
-        }
-      }
-    } else {
+    if (!endpoint) {
       // No endpoint — dispose if active
       if (aiCompletionsRef.current) {
         try { aiCompletionsRef.current.dispose(); } catch { /* */ }
         aiCompletionsRef.current = null;
       }
+      return;
     }
-  }, [editorSettings.aiCompletionsEndpoint, aiCompletionsEndpointProp, resolvedLanguage, fileName]);
+
+    // Always dispose & re-register when any dep changes (language, filename, endpoint).
+    // This ensures completion provider + CodeLens are registered for the correct language.
+    if (aiCompletionsRef.current) {
+      try { aiCompletionsRef.current.dispose(); } catch { /* */ }
+      aiCompletionsRef.current = null;
+    }
+
+    try {
+      const registration = registerAICompletions(monaco, editor, {
+        endpoint,
+        languageId: resolvedLanguage,
+        filename: fileName,
+        debounceMs: 2000,
+        onError: (err) => console.warn("[MonacoEditor] AI completions fetch error:", err),
+        onCompletionsUpdated: (count) =>
+          console.log(`[MonacoEditor] AI completions updated: ${count} items for ${resolvedLanguage}`),
+      });
+      aiCompletionsRef.current = registration;
+    } catch (err) {
+      console.warn("[MonacoEditor] AI completions registration failed:", err);
+    }
+
+    // Cleanup on deps change / unmount
+    return () => {
+      if (aiCompletionsRef.current) {
+        try { aiCompletionsRef.current.dispose(); } catch { /* */ }
+        aiCompletionsRef.current = null;
+      }
+    };
+  }, [editorReady, editorSettings.aiCompletionsEndpoint, aiCompletionsEndpointProp, resolvedLanguage, fileName]);
 
   // ── LSP toggle switching ──
   useEffect(() => {
