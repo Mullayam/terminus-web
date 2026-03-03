@@ -33,10 +33,14 @@ import {
   Palette,
   Settings,
   MessageSquareCode,
+  Sparkles,
+  Menu,
 } from "lucide-react";
 import { ExtensionPanel } from "./ExtensionPanel";
 import { ThemeSidebar } from "./ThemeSidebar";
 import { EditorSettingsPanel, type EditorSettings } from "./EditorSettingsPanel";
+import { AICompletionsPanel } from "./AICompletionsPanel";
+import { CustomContextMenuPanel } from "./CustomContextMenuPanel";
 import { ChatPanel } from "../chat";
 
 /* ── Types ─────────────────────────────────────────────────── */
@@ -62,7 +66,7 @@ export interface DocumentSymbolItem {
   children?: DocumentSymbolItem[];
 }
 
-export type SidebarTab = "outline" | "problems" | "info" | "extensions" | "themes" | "settings" | "chat";
+export type SidebarTab = "outline" | "problems" | "info" | "extensions" | "themes" | "settings" | "chat" | "ai" | "context-menu";
 
 export interface EditorRightSidebarProps {
   open: boolean;
@@ -109,6 +113,8 @@ export interface EditorRightSidebarProps {
 
 const TABS: { id: SidebarTab; icon: React.FC<{ className?: string }>; label: string }[] = [
   { id: "chat", icon: MessageSquareCode, label: "AI Chat" },
+  { id: "ai", icon: Sparkles, label: "AI Completions" },
+  { id: "context-menu", icon: Menu, label: "Context Menu" },
   { id: "outline", icon: List, label: "Outline" },
   { id: "problems", icon: AlertTriangle, label: "Problems" },
   { id: "info", icon: Info, label: "File Info" },
@@ -664,6 +670,18 @@ export const EditorSidebarContent: React.FC<EditorSidebarContentProps> = ({
             settings={editorSettings}
             onChange={onSettingsChange}
             enableTerminal={enableTerminal}
+          />
+        )}
+        {activeTab === "ai" && editorSettings && onSettingsChange && (
+          <AICompletionsPanel
+            settings={editorSettings}
+            onChange={onSettingsChange}
+          />
+        )}
+        {activeTab === "context-menu" && editorSettings && onSettingsChange && (
+          <CustomContextMenuPanel
+            items={editorSettings.customContextMenuItems}
+            onChange={(items) => onSettingsChange({ ...editorSettings, customContextMenuItems: items })}
           />
         )}
         {activeTab === "chat" && chatBaseUrl && (

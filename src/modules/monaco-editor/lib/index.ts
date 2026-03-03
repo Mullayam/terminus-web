@@ -76,7 +76,7 @@ export {
 } from "./extensionLoader";
 export type { InstallProgress } from "./extensionLoader";
 
-// AI Completions (dynamic endpoint, IDB-cached, debounce-fetched)
+// AI Completions (dynamic endpoint, IDB-cached, fetch-on-mount)
 export {
   registerAICompletions,
   resolveKind,
@@ -84,4 +84,5 @@ export {
   type AICompletionItem,
   type AICompletionResponse,
   type AICompletionRegistration,
+  type CustomContextMenuItem,
 } from "./aiCompletions";

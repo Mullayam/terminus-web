@@ -14,6 +14,16 @@ import { editorThemes, getEditorTheme, getThemeKeys, DEFAULT_THEME_KEY, applyPri
 import FileIcon from "@/components/FileIcon";
 import Prism from "prismjs";
 import { loadLanguageForFile } from "@/lib/loadPrismLanguage";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 /** Detect language from file extension for the status bar */
 function detectLang(name: string): string {
@@ -56,6 +66,7 @@ export default function FileEditorApiPage() {
     const [cursorCol, setCursorCol] = useState(1);
     const [modified, setModified] = useState(false);
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
+    const [reloadConfirmOpen, setReloadConfirmOpen] = useState(false);
     const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
     const [showShortcuts, setShowShortcuts] = useState(false);
     const [showFind, setShowFind] = useState(false);
@@ -206,6 +217,19 @@ export default function FileEditorApiPage() {
     }, [sessionId, filePath, fileName]);
 
     useEffect(() => {
+        fetchContent();
+    }, [fetchContent]);
+
+    const handleReloadFromServer = useCallback(() => {
+        if (!modified) {
+            fetchContent();
+            return;
+        }
+        setReloadConfirmOpen(true);
+    }, [modified, fetchContent]);
+
+    const confirmReload = useCallback(() => {
+        setReloadConfirmOpen(false);
         fetchContent();
     }, [fetchContent]);
 
@@ -931,7 +955,7 @@ export default function FileEditorApiPage() {
                         <Hash className="w-3.5 h-3.5" />
                     </button>
                     <button
-                        onClick={fetchContent}
+                        onClick={handleReloadFromServer}
                         disabled={loading}
                         title="Reload file from server"
                         className="p-1.5 rounded-md transition-colors"
@@ -1329,6 +1353,28 @@ export default function FileEditorApiPage() {
                     </div>
                 </div>
             )}
+
+            {/* Reload confirmation dialog */}
+            <AlertDialog open={reloadConfirmOpen} onOpenChange={setReloadConfirmOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Reload file from server?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            You have unsaved changes. Reloading will discard all local edits and
+                            replace the content with the latest version from the server.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>No, keep my changes</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={confirmReload}
+                            className="bg-red-600 text-white hover:bg-red-700"
+                        >
+                            Yes, reload
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

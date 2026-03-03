@@ -33,6 +33,16 @@ import {
 } from "@/modules/monaco-editor";
 import type { MonacoEditorInstance, AICompletionProvider } from "@/modules/monaco-editor";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 import {
     useEditorSftpTree,
@@ -672,6 +682,24 @@ export default function FileEditorMonacoPage() {
         ];
     }, [lastSaved]);
 
+    /* ── Reload-from-server confirmation ─────────────────────── */
+    const [reloadConfirmOpen, setReloadConfirmOpen] = useState(false);
+
+    const handleReloadFromServer = useCallback(() => {
+        // If nothing is modified, reload immediately without prompting
+        const isModified = (activeTab?.modified ?? modified);
+        if (!isModified) {
+            fetchContent();
+            return;
+        }
+        setReloadConfirmOpen(true);
+    }, [activeTab?.modified, modified, fetchContent]);
+
+    const confirmReload = useCallback(() => {
+        setReloadConfirmOpen(false);
+        fetchContent();
+    }, [fetchContent]);
+
     /* ── Stable toolbar callbacks ──────────────────────────── */
     const handleToolbarSave = useCallback(() => handleSave(), [handleSave]);
     const handleToolbarSplit = useCallback(() => {
@@ -725,7 +753,7 @@ export default function FileEditorMonacoPage() {
                 themeId={themeId}
                 showThemePicker={showThemePicker}
                 canSplit={!!activeTabId}
-                onReload={fetchContent}
+                onReload={handleReloadFromServer}
                 onToggleWordWrap={toggleWordWrap}
                 onToggleThemePicker={toggleThemePicker}
                 onThemeSelect={handleThemeSelect}
@@ -869,6 +897,28 @@ export default function FileEditorMonacoPage() {
 
             {/* Shortcuts modal (memoized, conditionally rendered) */}
             {showShortcuts && <ShortcutsModal onClose={closeShortcuts} />}
+
+            {/* Reload confirmation dialog */}
+            <AlertDialog open={reloadConfirmOpen} onOpenChange={setReloadConfirmOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Reload file from server?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            You have unsaved changes. Reloading will discard all local edits and
+                            replace the content with the latest version from the server.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>No, keep my changes</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={confirmReload}
+                            className="bg-red-600 text-white hover:bg-red-700"
+                        >
+                            Yes, reload
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             {/* Tab bar scrollbar styles */}
             <style>{`

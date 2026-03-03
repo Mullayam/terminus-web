@@ -21,6 +21,24 @@ type Monaco = typeof monacoNs;
 
 /* ── Public types ──────────────────────────────────────────── */
 
+/** A user-defined custom right-click context menu entry */
+export interface CustomContextMenuItem {
+  /** Unique identifier (auto-generated if omitted) */
+  id?: string;
+  /** Display label in the context menu */
+  label: string;
+  /**
+   * What happens when the item is clicked. One of:
+   *  - `"command:<monaco-command-id>"` — run a built-in Monaco command
+   *  - `"url:<endpoint>"` — POST the current selection/context to a URL
+   *  - `"insert:<text>"` — insert literal text at cursor
+   *  - `"js:<code>"` — evaluate inline JS with `editor`, `monaco`, `selection` in scope
+   */
+  action: string;
+  /** Optional keyboard shortcut description (display only, not bound) */
+  shortcut?: string;
+}
+
 export interface AICompletionConfig {
   /** API endpoint URL that returns AI completion items */
   endpoint: string;
@@ -43,6 +61,8 @@ export interface AICompletionConfig {
   onCompletionsUpdated?: (count: number) => void;
   /** Enable CodeLens "AI Suggest" buttons on functions/classes (default: true) */
   enableCodeLens?: boolean;
+  /** User-defined custom context menu items registered on the editor */
+  customContextMenuItems?: CustomContextMenuItem[];
 }
 
 /** Shape of a single completion item returned by the AI API */
@@ -418,33 +438,20 @@ export function registerAICompletions(
     });
   }
 
-  /* ── Load from IDB on startup, then fire initial fetch ── */
+  /* ── Load from IDB on startup — only fetch if cache is empty ── */
   loadCachedItems(languageId).then((items) => {
     console.log(`[AI Completions] IDB cache load for ${languageId}: ${items.length} items`);
     if (!disposed && items.length > 0) {
       cachedItems = items;
-    }
-    if (!disposed) {
+      onCompletionsUpdated?.(cachedItems.length);
+    } else if (!disposed) {
+      // No cached items — auto-fetch once on mount
+      console.log(`[AI Completions] No cache for ${languageId}, fetching from server…`);
       fetchCompletions();
     }
   });
 
-  /* ── Debounced content-change listener (background refresh) */
-  function scheduleFetch(): void {
-    if (disposed) return;
-    if (debounceTimer) clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
-      fetchCompletions();
-    }, debounceMs);
-  }
-
-  disposables.push(
-    editor.onDidChangeModelContent(() => {
-      scheduleFetch();
-    }),
-  );
-
-  /* ── Completion provider (returns cached instantly, refreshes in background) */
+  /* ── Completion provider (returns cached instantly — no background fetch) */
   disposables.push(
     monaco.languages.registerCompletionItemProvider(languageId, {
       triggerCharacters,
@@ -454,20 +461,9 @@ export function registerAICompletions(
         position: monacoNs.Position,
         _ctx: monacoNs.languages.CompletionContext,
       ): monacoNs.languages.CompletionList {
-        // Return cached items immediately — never block the suggest widget
+        // Return cached items immediately — user must manually fetch via
+        // context menu / Ctrl+Alt+A / CodeLens to refresh from server
         const suggestions = toSuggestions(cachedItems, model, position);
-
-        // Fire a background fetch; when it resolves, re-trigger suggest
-        // so the widget updates with fresh data
-        if (!fetchInProgress) {
-          fetchCompletions(position).then((freshItems) => {
-            if (!disposed && freshItems.length > 0) {
-              // Re-trigger suggest widget to show fresh items
-              editor.trigger("ai-completions", "editor.action.triggerSuggest", {});
-            }
-          });
-        }
-
         return { suggestions };
       },
     }),
@@ -498,6 +494,100 @@ export function registerAICompletions(
       },
     }),
   );
+
+  /* ── User-defined custom context menu items ────────────── */
+  const customItems = config.customContextMenuItems ?? [];
+  for (let i = 0; i < customItems.length; i++) {
+    const item = customItems[i];
+    const actionId = item.id ?? `custom-ctx-menu.${i}.${item.label.replace(/\s+/g, "-").toLowerCase()}`;
+
+    disposables.push(
+      editor.addAction({
+        id: actionId,
+        label: item.label,
+        contextMenuGroupId: "2_custom",
+        contextMenuOrder: i + 1,
+        run: (ed) => {
+          const action = item.action;
+          const model = ed.getModel();
+          const sel = ed.getSelection();
+          const selectedText = sel && model ? model.getValueInRange(sel) : "";
+
+          if (action.startsWith("command:")) {
+            // Run a built-in Monaco command
+            const cmdId = action.slice("command:".length).trim();
+            ed.trigger("custom-ctx", cmdId, {});
+          } else if (action.startsWith("url:")) {
+            // POST context to a URL endpoint
+            const url = action.slice("url:".length).trim();
+            const body = JSON.stringify({
+              language: model?.getLanguageId() ?? languageId,
+              filename: configFilename ?? model?.uri?.path?.split("/").pop() ?? "untitled",
+              selection: selectedText,
+              content: model?.getValue() ?? "",
+              position: ed.getPosition()
+                ? { line: ed.getPosition()!.lineNumber, column: ed.getPosition()!.column }
+                : undefined,
+            });
+            fetch(url, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", ...headers },
+              body,
+            })
+              .then(async (res) => {
+                if (!res.ok) throw new Error(`Custom action endpoint returned ${res.status}`);
+                const data = await res.json();
+                // If the response has `insertText`, insert it at cursor
+                if (data.insertText && typeof data.insertText === "string") {
+                  const pos = ed.getPosition();
+                  if (pos && model) {
+                    model.pushEditOperations(
+                      [],
+                      [{ range: sel ?? { startLineNumber: pos.lineNumber, startColumn: pos.column, endLineNumber: pos.lineNumber, endColumn: pos.column }, text: data.insertText }],
+                      () => null,
+                    );
+                  }
+                }
+                // If the response has `items` (AI completions format), update cache
+                if (Array.isArray(data.items) && data.items.length > 0) {
+                  cachedItems = data.items;
+                  saveCachedItems(languageId, cachedItems).catch(() => {});
+                  onCompletionsUpdated?.(cachedItems.length);
+                  ed.trigger("custom-ctx", "editor.action.triggerSuggest", {});
+                }
+              })
+              .catch((err) => {
+                console.error(`[Custom Context Menu] URL action failed:`, err);
+                onError?.(err instanceof Error ? err : new Error(String(err)));
+              });
+          } else if (action.startsWith("insert:")) {
+            // Insert literal text at cursor/selection
+            const text = action.slice("insert:".length);
+            const pos = ed.getPosition();
+            if (pos && model) {
+              model.pushEditOperations(
+                [],
+                [{ range: sel ?? { startLineNumber: pos.lineNumber, startColumn: pos.column, endLineNumber: pos.lineNumber, endColumn: pos.column }, text }],
+                () => null,
+              );
+            }
+          } else if (action.startsWith("js:")) {
+            // Execute inline JS with editor context
+            const code = action.slice("js:".length);
+            try {
+              const fn = new Function("editor", "monaco", "selection", "model", code);
+              fn(ed, monaco, selectedText, model);
+            } catch (err) {
+              console.error(`[Custom Context Menu] JS action error:`, err);
+            }
+          } else {
+            // Fallback: treat as Monaco command ID
+            ed.trigger("custom-ctx", action, {});
+          }
+        },
+      }),
+    );
+  }
 
   /* ── CodeLens: "✨ AI Suggest" on functions/classes ────── */
   let codeLensDisposable: monacoNs.IDisposable | null = null;

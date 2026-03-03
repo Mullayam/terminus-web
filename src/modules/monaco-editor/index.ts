@@ -210,6 +210,7 @@ export type {
   ExtViewContainer,
   ExtView,
   InstallProgress,
+  CustomContextMenuItem,
 } from "./lib";
 
 // ── Sidebar Components ──────────────────────────────────────

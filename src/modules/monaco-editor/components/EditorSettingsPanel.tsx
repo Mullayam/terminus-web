@@ -11,10 +11,6 @@ import React, { useState, useCallback } from "react";
 import {
   ChevronDown,
   RotateCcw,
-  Sparkles,
-  Bot,
-  Ghost,
-  BrainCircuit,
   Plus,
   Trash2,
   Link,
@@ -59,6 +55,8 @@ export interface EditorSettings {
   githubToken: string;
   /** Custom snippet URL entries — each has a URL and a target language ID */
   customSnippetUrls: Array<{ url: string; languageId: string }>;
+  /** User-defined custom context menu items for the editor right-click menu */
+  customContextMenuItems: Array<{ label: string; action: string }>;
 }
 
 export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
@@ -85,6 +83,7 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   enableGitHubExtensions: false,
   githubToken: "",
   customSnippetUrls: [],
+  customContextMenuItems: [],
 };
 
 const STORAGE_KEY = "terminus-editor-settings";
@@ -246,22 +245,6 @@ export const EditorSettingsPanel: React.FC<EditorSettingsPanelProps> = ({
         />
       </SettingsSection>
 
-      {/* ── AI Completions Section ─────────────────────── */}
-      <SettingsSection title="AI Completions">
-        <AIProviderSetting
-          value={settings.aiCompletionProvider}
-          onChange={(v) => update("aiCompletionProvider", v)}
-        />
-        {settings.aiCompletionProvider === "ai-completions" && (
-          <TextSetting
-            label="AI Endpoint"
-            placeholder="https://api.example.com/completions"
-            value={settings.aiCompletionsEndpoint}
-            onChange={(v) => update("aiCompletionsEndpoint", v)}
-          />
-        )}
-      </SettingsSection>
-
       {/* ── IntelliSense Section ───────────────────────── */}
       <SettingsSection title="IntelliSense">
         <ToggleSetting
@@ -332,7 +315,6 @@ export const EditorSettingsPanel: React.FC<EditorSettingsPanelProps> = ({
           onChange={(urls) => update("customSnippetUrls", urls)}
         />
       </SettingsSection>
-
       {/* Scrollbar styling */}
       <style>{`
         .settings-panel::-webkit-scrollbar { width: 5px; }
@@ -345,92 +327,6 @@ export const EditorSettingsPanel: React.FC<EditorSettingsPanelProps> = ({
 };
 
 /* ── Sub-components ────────────────────────────────────────── */
-
-/** Mutually exclusive AI completion provider radio selector */
-function AIProviderSetting({
-  value,
-  onChange,
-}: {
-  value: AICompletionProvider;
-  onChange: (value: AICompletionProvider) => void;
-}) {
-  const providers: { id: AICompletionProvider; label: string; desc: string; icon: React.ReactNode }[] = [
-    {
-      id: "none",
-      label: "Off",
-      desc: "No AI completions",
-      icon: <span className="w-4 h-4 rounded-full border border-[#555] inline-block" />,
-    },
-    {
-      id: "ghost-text",
-      label: "Ghost Text",
-      desc: "SSE streaming inline suggestions",
-      icon: <Ghost className="w-4 h-4" />,
-    },
-    {
-      id: "copilot",
-      label: "Copilot",
-      desc: "Monacopilot AI completions",
-      icon: <BrainCircuit className="w-4 h-4" />,
-    },
-    {
-      id: "ai-completions",
-      label: "AI Completions",
-      desc: "Dynamic endpoint AI suggestions",
-      icon: <Sparkles className="w-4 h-4" />,
-    },
-  ];
-
-  return (
-    <div className="flex flex-col gap-1 py-0.5">
-      {providers.map((p) => {
-        const isActive = value === p.id;
-        return (
-          <button
-            key={p.id}
-            onClick={() => onChange(p.id)}
-            className="flex items-center gap-2.5 px-2 py-1.5 rounded-md text-left transition-colors w-full"
-            style={{
-              background: isActive ? "#007acc22" : "transparent",
-              border: isActive ? "1px solid #007acc" : "1px solid transparent",
-            }}
-            onMouseEnter={(e) => {
-              if (!isActive) e.currentTarget.style.background = "#2a2d2e";
-            }}
-            onMouseLeave={(e) => {
-              if (!isActive) e.currentTarget.style.background = "transparent";
-            }}
-          >
-            {/* Radio dot */}
-            <span
-              className="w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0"
-              style={{
-                borderColor: isActive ? "#007acc" : "#555",
-              }}
-            >
-              {isActive && (
-                <span className="w-1.5 h-1.5 rounded-full bg-[#007acc]" />
-              )}
-            </span>
-            {/* Icon */}
-            <span className={isActive ? "text-[#007acc]" : "text-gray-500"}>
-              {p.icon}
-            </span>
-            {/* Label + description */}
-            <div className="flex flex-col min-w-0">
-              <span className={`text-[12px] font-medium ${isActive ? "text-gray-200" : "text-gray-400"}`}>
-                {p.label}
-              </span>
-              <span className="text-[10px] text-gray-600 truncate">
-                {p.desc}
-              </span>
-            </div>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 function SettingsSection({
   title,

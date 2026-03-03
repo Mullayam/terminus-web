@@ -311,7 +311,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
 
   // Sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarTab, setSidebarTab] = useState<"outline" | "problems" | "info" | "extensions" | "themes" | "settings" | "chat">("outline");
+  const [sidebarTab, setSidebarTab] = useState<"outline" | "problems" | "info" | "extensions" | "themes" | "settings" | "chat" | "ai" | "context-menu">("outline");
   const [symbols, setSymbols] = useState<DocumentSymbolItem[]>([]);
   const [problems, setProblems] = useState<monacoNs.editor.IMarkerData[]>([]);
   const [extensionCount, setExtensionCount] = useState(0);
@@ -986,10 +986,10 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
         endpoint,
         languageId: resolvedLanguage,
         filename: fileName,
-        debounceMs: 2000,
         onError: (err) => console.warn("[MonacoEditor] AI completions fetch error:", err),
         onCompletionsUpdated: (count) =>
           console.log(`[MonacoEditor] AI completions updated: ${count} items for ${resolvedLanguage}`),
+        customContextMenuItems: editorSettings.customContextMenuItems,
       });
       aiCompletionsRef.current = registration;
     } catch (err) {
@@ -1003,7 +1003,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
         aiCompletionsRef.current = null;
       }
     };
-  }, [editorReady, editorSettings.aiCompletionsEndpoint, aiCompletionsEndpointProp, resolvedLanguage, fileName]);
+  }, [editorReady, editorSettings.aiCompletionsEndpoint, aiCompletionsEndpointProp, resolvedLanguage, fileName, editorSettings.customContextMenuItems]);
 
   // ── LSP toggle switching ──
   useEffect(() => {
