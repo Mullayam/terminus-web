@@ -49,6 +49,8 @@ interface SSHStore {
   sessions: Record<string, SSHSession>;
   tabs: SSHTab[];
   activeTabId?: string;
+  splitMode: 'none' | 'horizontal' | 'vertical';
+  splitTabId: string | null;
   sessionThemes: Record<string, ThemeName>;
   sessionFonts: Record<string, SessionFontSettings>;
   addSession: (session: SSHSession) => void;
@@ -58,6 +60,8 @@ interface SSHStore {
   setActiveTab: (tabId: string) => void;
   addTab: (tab: SSHTab) => void;
   removeTab: (tabId: string) => void;
+  setSplit: (mode: 'horizontal' | 'vertical', tabId: string) => void;
+  clearSplit: () => void;
   setSessionTheme: (sessionId: string, theme: ThemeName) => void;
   getSessionTheme: (sessionId: string) => ThemeName;
   loadSessionTheme: (sessionId: string) => Promise<void>;
@@ -71,6 +75,8 @@ export const useSSHStore = create<SSHStore>((set, get) => ({
   tabs: [],
   activeTabId: undefined,
   sftp_enabled: false,
+  splitMode: 'none',
+  splitTabId: null,
   sessionThemes: {},
   sessionFonts: loadAllFontsFromLS(),
   addSession: (session) =>
@@ -119,8 +125,16 @@ export const useSSHStore = create<SSHStore>((set, get) => ({
       state.activeTabId === tabId
         ? remaining[remaining.length - 1]?.id
         : state.activeTabId;
-    return { tabs: remaining, activeTabId: newActive };
+    // Clear split if the removed tab was in the split pane
+    const shouldClearSplit = state.splitTabId === tabId || state.activeTabId === tabId;
+    return {
+      tabs: remaining,
+      activeTabId: newActive,
+      ...(shouldClearSplit ? { splitMode: 'none' as const, splitTabId: null } : {}),
+    };
   }),
+  setSplit: (mode, tabId) => set({ splitMode: mode, splitTabId: tabId }),
+  clearSplit: () => set({ splitMode: 'none', splitTabId: null }),
   setActiveTab: (tabId) => set(() => ({ activeTabId: tabId })),
   setSessionTheme: (sessionId, theme) => {
     set((state) => ({

@@ -1,4 +1,4 @@
-import { Copy, Menu, Plus, PlusCircle, Power, X } from 'lucide-react';
+import { Columns2, Copy, Menu, Plus, PlusCircle, Power, Rows2, Square, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
@@ -48,6 +48,10 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
     setActiveTab,
     addSession,
     addTab,
+    splitMode,
+    splitTabId,
+    setSplit,
+    clearSplit,
   } = useSSHStore();
 
   const { removeLog } = useTerminalStore()
@@ -136,6 +140,7 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
             {tabs.map((tab, index) => {
               const tabSession = sessions[tab.sessionId];
               const isActive = tab.id === (activeTabId || "");
+              const isSplit = tab.id === splitTabId && splitMode !== 'none';
               return (
               <ContextMenu key={index} modal>
                 <ContextMenuTrigger asChild>
@@ -147,7 +152,9 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
                       "px-3 h-8 transition-colors",
                       isActive
                         ? "text-green-500 bg-[#24253a]"
-                        : "text-gray-400 hover:text-gray-300"
+                        : isSplit
+                          ? "text-blue-400 bg-blue-500/10 border border-blue-500/30"
+                          : "text-gray-400 hover:text-gray-300"
                     )}
                   >
                     {tabSession?.status === 'connected' && (
@@ -182,6 +189,39 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
                       <ContextMenuSeparator className="bg-gray-700/50" />
                     </>
                   )}
+                  {/* Split options — only for non-active connected tabs when 2+ tabs exist */}
+                  {tabSession?.status === 'connected' && tab.id !== activeTabId && tabs.length >= 2 && (
+                    <>
+                      <ContextMenuItem
+                        onClick={() => setSplit('vertical', tab.id)}
+                        className="cursor-pointer"
+                      >
+                        <Columns2 className="h-4 w-4 mr-2" />
+                        Split Right
+                      </ContextMenuItem>
+                      <ContextMenuItem
+                        onClick={() => setSplit('horizontal', tab.id)}
+                        className="cursor-pointer"
+                      >
+                        <Rows2 className="h-4 w-4 mr-2" />
+                        Split Down
+                      </ContextMenuItem>
+                      <ContextMenuSeparator className="bg-gray-700/50" />
+                    </>
+                  )}
+                  {/* Unsplit option when split is active */}
+                  {splitMode !== 'none' && (
+                    <>
+                      <ContextMenuItem
+                        onClick={clearSplit}
+                        className="cursor-pointer"
+                      >
+                        <Square className="h-4 w-4 mr-2" />
+                        Unsplit
+                      </ContextMenuItem>
+                      <ContextMenuSeparator className="bg-gray-700/50" />
+                    </>
+                  )}
                   <ContextMenuItem
                     onClick={handleNewSession}
                     className="cursor-pointer"
@@ -207,6 +247,20 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
                 onClick={() => setOpen(true)}
                 className={"p-3 h-8  rounded-full transition-colors text-gray-400 hover:text-gray-300"}>
                 <Plus className="h-4 w-4" />
+              </Button>
+            )}
+
+            {/* Active split indicator + unsplit button */}
+            {splitMode !== 'none' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearSplit}
+                className="h-8 px-2 text-blue-400 hover:text-blue-300 gap-1"
+                title="Click to unsplit"
+              >
+                {splitMode === 'vertical' ? <Columns2 className="h-3.5 w-3.5" /> : <Rows2 className="h-3.5 w-3.5" />}
+                <X className="h-3 w-3" />
               </Button>
             )}
 

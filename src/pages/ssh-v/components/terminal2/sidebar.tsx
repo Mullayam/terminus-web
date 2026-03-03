@@ -28,17 +28,20 @@ export function Sidebar() {
 
   useEffect(() => {
     if (sessions && activeTabId && sessions[activeTabId]) {
-      const mySession = sessions[activeTabId];
-      // Only add SFTP if it isn't already in the list
+      const currentHost = sessions[activeTabId]?.host;
+      // Show SFTP if any session connected to the same host has SFTP enabled
+      const anySftpEnabled = Object.values(sessions).some(
+        (s) => s.host === currentHost && s.sftp_enabled
+      );
       const hasSftp = navItems.some((item) => item.label === "SFTP");
-      if (!hasSftp && mySession.sftp_enabled) {
+      if (!hasSftp && anySftpEnabled) {
         setNavItems((prev) => [
           ...prev,
           {
             label: "SFTP",
             icon: FilesIcon,
             url: "/ssh/sftp",
-            state: mySession.sftp_enabled,
+            state: true,
           },
         ]);
       }

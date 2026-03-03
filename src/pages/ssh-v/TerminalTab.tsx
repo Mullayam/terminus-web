@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { z } from 'zod';
 import { useStore } from '@/store';
 import { io, Socket } from 'socket.io-client';
@@ -76,8 +76,28 @@ export default function TerminalTab({ sessionId }: Props) {
     const { addSharedSession, addPermissions, deletePermission, deleteSharedSession } = useTerminalStore()
     const { activeItem } = useSidebarState();
 
-    const { tabs, sessions, addSession, updateStatus, updateSftpStatus, activeTabId, loadSessionTheme, loadSessionFont } = useSSHStore();
+    const { tabs, sessions, addSession, updateStatus, updateSftpStatus, activeTabId, loadSessionTheme, loadSessionFont, splitMode, splitTabId } = useSSHStore();
     const socketRef = useRef<Socket | null>(null);
+
+    // Check if SFTP is available on any session connected to the same host
+    const sftpAvailableForHost = useMemo(() => {
+      const host = sessions[sessionId]?.host;
+      if (!host) return false;
+      return Object.values(sessions).some(s => s.host === host && s.sftp_enabled);
+    }, [sessions, sessionId]);
+
+    // Get the socket that has SFTP enabled (prefer current session, fall back to same-host session)
+    const sftpSocket = useMemo(() => {
+      if (sessions[sessionId]?.sftp_enabled) return null; // will use socketRef.current
+      const host = sessions[sessionId]?.host;
+      if (!host) return null;
+      const sftpSession = Object.values(sessions).find(s => s.host === host && s.sftp_enabled);
+      return sftpSession?.socket ?? null;
+    }, [sessions, sessionId]);
+
+    // Split view: get the split session's socket
+    const splitSession = splitMode !== 'none' && splitTabId && splitTabId !== sessionId ? sessions[splitTabId] : null;
+    const splitSocket = splitSession?.socket ?? null;
 
     const form = useForm<FormValues>({
         resolver: zodResolver(formSchema),
@@ -218,12 +238,24 @@ export default function TerminalTab({ sessionId }: Props) {
                     <div className="flex-1 min-h-0 overflow-hidden">
                         <TerminalLayout>
                             <div style={{ display: activeItem === 'Terminal' ? 'contents' : 'none' }}>
-                                <XTerminal sessionId={sessionId} socket={socketRef.current} />
+                                {splitMode !== 'none' && splitSocket ? (
+                                    <div className={`flex ${splitMode === 'horizontal' ? 'flex-col' : 'flex-row'} w-full h-full`}>
+                                        <div className="flex-1 min-w-0 min-h-0 overflow-hidden">
+                                            <XTerminal sessionId={sessionId} socket={socketRef.current} />
+                                        </div>
+                                        <div className={`${splitMode === 'horizontal' ? 'h-[2px]' : 'w-[2px]'} shrink-0`} style={{ backgroundColor: `${colors.foreground}30` }} />
+                                        <div className="flex-1 min-w-0 min-h-0 overflow-hidden">
+                                            <XTerminal key={`split-${splitTabId}`} sessionId={splitTabId!} socket={splitSocket} />
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <XTerminal sessionId={sessionId} socket={socketRef.current} />
+                                )}
                             </div>
-                            {activeItem === 'SFTP' && sessions[sessionId]?.sftp_enabled && (
-                                <SSHSftpViewer socket={socketRef.current} host={sessions[sessionId]?.host || 'SFTP Host'} />
+                            {activeItem === 'SFTP' && sftpAvailableForHost && (
+                                <SSHSftpViewer socket={(sftpSocket || socketRef.current)!} host={sessions[sessionId]?.host || 'SFTP Host'} />
                             )}
-                            {activeItem === 'SFTP' && !sessions[sessionId]?.sftp_enabled && (
+                            {activeItem === 'SFTP' && !sftpAvailableForHost && (
                                 <div className="flex items-center justify-center h-full text-gray-400 text-sm">
                                     SFTP is not available for this session.
                                 </div>
@@ -238,7 +270,7 @@ export default function TerminalTab({ sessionId }: Props) {
                                         target="_blank" rel="noopener noreferrer" className="inline-block text-gray-200 dark:text-neutral-200 hover:underline" >
                                         {sessions[sessionId].host} </a></span>
                                     <span>Username: {sessions[sessionId].username}</span>
-                                    <span>SFTP:  {sessions[sessionId].sftp_enabled ? 'Enabled' : 'Disabled'} </span>
+                                    <span>SFTP:  {sftpAvailableForHost ? 'Enabled' : 'Disabled'} </span>
                                 </div>
                                 <div className="flex flex-row gap-4">
                                     <div>
