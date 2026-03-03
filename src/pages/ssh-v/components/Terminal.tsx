@@ -23,8 +23,16 @@ import { useCommandStore } from "@/store";
 import { sound } from "@/lib/utils";
 import { Socket } from "socket.io-client";
 import { useTerminalStore } from "@/store/terminalStore";
-import { useSSHStore } from "@/store/sshStore";import { useTabStore } from '@/store/rightSidebarTabStore';import AISuggestionBox from "./terminal2/suggestion-box";
+import { useSSHStore } from "@/store/sshStore";
+import { useTabStore } from '@/store/rightSidebarTabStore';
+import AISuggestionBox from "./terminal2/suggestion-box";
 import GhostText from "./terminal2/ghost-text";
+import {
+  useDiagnostics,
+  TerminalInfoOverlay,
+  DiagnosticsStatus,
+  DiagnosticsChat,
+} from "./terminal2/diagnostics";
 import useAudio from "@/hooks/useAudio";
 import { XtermTheme, ThemeName } from "./themes";
 
@@ -43,8 +51,15 @@ const XTerminal = ({
   const isRendered = useRef(false);
   const { sessions } = useSSHStore();
   const autocomplete = useTabStore((s) => s.settings.autocomplete);
+  const diagnosticsEnabled = useTabStore((s) => s.settings.diagnostics);
   const sessionTheme = useSSHStore((s) => s.sessionThemes[sessionId]) || 'custom';
   const { fontSize = 15, fontWeight = '400', fontWeightBold = '700' } = useSSHStore((s) => s.sessionFonts[sessionId]) || {};
+
+  // ── Diagnostics (error/warning detection) ──
+  const { entries: diagEntries, counts: diagCounts, feed: diagFeed, clear: diagClear } = useDiagnostics();
+  const [showDiagChat, setShowDiagChat] = useState(false);
+  const [diagFilter, setDiagFilter] = useState<'error' | 'warning' | 'all'>('all');
+  const [showInfoOverlay, setShowInfoOverlay] = useState(true);
 
   // Derive localStorage key from the session host/IP
   const hostKey = useMemo(() => {
@@ -281,6 +296,8 @@ const XTerminal = ({
       term.write(input);
       term.scrollToBottom();
       addLogLine(sessionId, input);
+      // Feed output to diagnostics scanner (only if enabled)
+      diagFeed(input);
     });
 
     // Server sends shell history after ready — merge into suggestions
@@ -501,6 +518,33 @@ const XTerminal = ({
           setSuggestions={setSuggestions}
           hostKey={hostKey}
           commandBuffer={commandBuffer}
+        />
+      )}
+
+      {/* Info overlay — shown once on connect */}
+      {showInfoOverlay && (
+        <TerminalInfoOverlay onDismiss={() => setShowInfoOverlay(false)} />
+      )}
+
+      {/* Diagnostics status bar (inside terminal, bottom-left) */}
+      {diagnosticsEnabled && (diagCounts.errors > 0 || diagCounts.warnings > 0) && (
+        <div className="absolute bottom-1 left-2 z-10">
+          <DiagnosticsStatus
+            counts={diagCounts}
+            onClickErrors={() => { setDiagFilter('error'); setShowDiagChat(true); }}
+            onClickWarnings={() => { setDiagFilter('warning'); setShowDiagChat(true); }}
+            onClear={diagClear}
+          />
+        </div>
+      )}
+
+      {/* Diagnostics AI chat modal */}
+      {diagnosticsEnabled && showDiagChat && (
+        <DiagnosticsChat
+          entries={diagEntries}
+          initialFilter={diagFilter}
+          onClose={() => setShowDiagChat(false)}
+          onClear={diagClear}
         />
       )}
     </div>

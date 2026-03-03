@@ -24,16 +24,18 @@ export default function PathBreadcrumb({
 
     const splitedPath = currentPath.split('/').filter(Boolean);
 
-    // Debounced fetch
+    // Keep a stable ref to the latest fetchFolderSuggestions so the
+    // debounced callback never captures a stale closure.
+    const fetchRef = useRef(fetchFolderSuggestions);
+    fetchRef.current = fetchFolderSuggestions;
+
     const debouncedFetchSuggestions = useRef(
-        // debounce(
         async (query: string) => {
             if (!query) return;
-            const results = await fetchFolderSuggestions(query);
+            const results = await fetchRef.current(query);
             setSuggestions(results);
             setShowSuggestions(true);
         }
-        // , 300)
     ).current;
 
     useEffect(() => {
@@ -52,7 +54,10 @@ export default function PathBreadcrumb({
         setTimeout(() => {
             setEditMode(false);
             setShowSuggestions(false);
-            handleSetCurrentDir(tempPath);
+            // Only navigate if the path actually changed
+            if (tempPath !== currentPath) {
+                handleSetCurrentDir(tempPath);
+            }
         }, 100); // delay to allow click on suggestion
     };
 
