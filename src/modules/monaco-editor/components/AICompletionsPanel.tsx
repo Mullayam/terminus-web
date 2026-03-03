@@ -255,7 +255,7 @@ data: [DONE]`}
             )}
             <p className="text-[9px] text-gray-600 px-2">
               Completions are fetched once when a file opens (if cache is empty).
-              Use <kbd className="text-[8px] bg-[#3c3c3c] px-1 py-px rounded border border-[#555]">Ctrl+Alt+A</kbd> or right-click → ✨ AI Suggest to refresh.
+              Use <kbd className="text-[8px] bg-[#3c3c3c] px-1 py-px rounded border border-[#555]">Ctrl+Alt+A</kbd> or right-click → Fetch Snippets to refresh.
             </p>
           </div>
         </div>

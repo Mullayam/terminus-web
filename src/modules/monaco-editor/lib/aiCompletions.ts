@@ -9,7 +9,7 @@
  *  - Debounce-fetches in background as the user types (2 s default)
  *  - Caches results in IndexedDB (Dexie `assets` store)
  *  - Serves cached completions instantly while a fresh fetch is pending
- *  - **CodeLens** — shows ✨ AI Suggest buttons on function / class declarations
+ *  - **CodeLens** — shows ✨ Fetch Snippets buttons on function / class declarations
  *  - **Ctrl+Alt+A** keybinding + right-click context menu — manually triggers AI completions
  *  - Returns a deregister/dispose handle
  */
@@ -276,7 +276,7 @@ function findSymbolLines(content: string, languageId: string): SymbolLine[] {
  *   Ctrl+Space / trigger chars. Returns cached items immediately as a baseline,
  *   then the next invocation will have the fresh data.
  * - Background debounce-fetch keeps the cache warm as the user types.
- * - CodeLens "✨ AI Suggest" buttons on functions/classes/interfaces.
+ * - CodeLens "Fetch Snippets" buttons on functions/classes/interfaces.
  * - Ctrl+Shift+A keybinding to trigger suggestions manually.
  */
 export function registerAICompletions(
@@ -470,12 +470,12 @@ export function registerAICompletions(
 
   /* ── Context menu + keybinding ─────────────────────────── */
 
-  // "✨ AI Suggest" — always visible in right-click context menu + Ctrl+Alt+A
+  // "Fetch Snippets" — always visible in right-click context menu + Ctrl+Alt+A
   // Works for ALL file types regardless of language
   disposables.push(
     editor.addAction({
       id: "ai-completions.suggest",
-      label: "✨ AI Suggest",
+      label: "Fetch Snippets",
       keybindings: [
         monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KeyA,
       ],
@@ -579,7 +579,7 @@ export function registerAICompletions(
     );
   }
 
-  /* ── CodeLens: "✨ AI Suggest" on functions/classes ────── */
+  /* ── CodeLens: "Fetch Snippets" on functions/classes ────── */
   let codeLensDisposable: monacoNs.IDisposable | null = null;
 
   if (enableCodeLens) {
@@ -622,7 +622,7 @@ export function registerAICompletions(
           },
           command: {
             id: CODELENS_COMMAND_ID,
-            title: `✨ AI Suggest`,
+            title: `Fetch Snippets`,
             tooltip: `Get AI completions for "${sym.name}"`,
             arguments: [sym.line],
           },

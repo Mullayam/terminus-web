@@ -33,8 +33,9 @@
  */
 
 import React, { useCallback, useRef, useEffect, useState, useMemo } from "react";
-import Editor, { type OnMount, type BeforeMount } from "@monaco-editor/react";
-import type * as monacoNs from "monaco-editor";
+import Editor, { type OnMount, type BeforeMount} from "@monaco-editor/react";
+
+import * as monacoNs from "monaco-editor";
 import type {
   Monaco,
   MonacoEditorInstance,
@@ -116,7 +117,6 @@ interface PluginState {
   plugin: MonacoPlugin;
   context: DisposableContext | null;
 }
-
 /* ── Symbol extraction (fallback when LSP is unavailable) ──── */
 
 function extractSymbolsFromContent(
