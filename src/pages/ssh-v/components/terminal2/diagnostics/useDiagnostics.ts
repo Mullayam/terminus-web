@@ -7,8 +7,10 @@ import { useCallback, useRef, useState } from 'react';
 export interface DiagnosticEntry {
   id: number;
   type: 'error' | 'warning';
-  /** The full line that matched */
+  /** The first line that matched the pattern */
   line: string;
+  /** Additional context lines captured after the match (until next prompt) */
+  context: string[];
   /** Timestamp when captured */
   timestamp: number;
 }
@@ -71,11 +73,29 @@ function classify(line: string): 'error' | 'warning' | null {
   return null;
 }
 
+// ─── Prompt detection ────────────────────────────────────────
+// Matches common shell prompts: user@host:~$, root#, bash-5.1$, PS C:\>, etc.
+const PROMPT_PATTERNS = [
+  /^.*?[$#>]\s*$/,             // ends with $, #, or >
+  /^.*@.*[:~].*[$#]\s*$/,     // user@host:~$
+  /^\w+@\w+.*\$\s*$/,         // user@hostname ...$
+  /^(bash|sh|zsh|fish)-?\d*.*[#$>]\s*$/i,
+  /^PS\s+[A-Z]:\\/i,          // PowerShell prompt
+];
+
+function isPromptLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+  return PROMPT_PATTERNS.some((p) => p.test(trimmed));
+}
+
 /** Max entries to keep in memory */
 const MAX_ENTRIES = 200;
 
 /**
  * Hook that scans raw terminal output for errors and warnings.
+ * When an error/warning is detected, it captures all subsequent lines
+ * until a shell prompt line appears — giving full stack trace context.
  *
  * Open/Closed Principle: add new patterns to the arrays above
  * without changing the hook logic.
@@ -85,6 +105,12 @@ const MAX_ENTRIES = 200;
 export function useDiagnostics() {
   const [entries, setEntries] = useState<DiagnosticEntry[]>([]);
   const nextId = useRef(1);
+
+  // Track in-progress context capture across feed() calls
+  const pendingRef = useRef<{
+    entry: DiagnosticEntry;
+    contextLines: string[];
+  } | null>(null);
 
   /**
    * Feed a chunk of terminal output (may contain \\n-separated lines).
@@ -105,10 +131,52 @@ export function useDiagnostics() {
     for (const raw of lines) {
       const line = raw.trim();
       if (!line) continue;
+
+      // If we're capturing context for a previous error...
+      if (pendingRef.current) {
+        if (isPromptLine(line)) {
+          // Prompt detected → finalize the pending entry with captured context
+          pendingRef.current.entry.context = [...pendingRef.current.contextLines];
+          newEntries.push(pendingRef.current.entry);
+          pendingRef.current = null;
+        } else {
+          // Still in error output → accumulate context (max 150 lines)
+          if (pendingRef.current.contextLines.length < 150) {
+            pendingRef.current.contextLines.push(line);
+          }
+
+          // Also check if this line is a NEW error/warning
+          const type = classify(line);
+          if (type) {
+            // Finalize previous pending with what we have so far
+            pendingRef.current.entry.context = [...pendingRef.current.contextLines];
+            newEntries.push(pendingRef.current.entry);
+            // Start new pending
+            pendingRef.current = {
+              entry: { id: nextId.current++, type, line, context: [], timestamp: now },
+              contextLines: [],
+            };
+          }
+          continue;
+        }
+      }
+
+      // Check if this line starts a new error/warning
       const type = classify(line);
       if (type) {
-        newEntries.push({ id: nextId.current++, type, line, timestamp: now });
+        // Start capturing context for this error
+        pendingRef.current = {
+          entry: { id: nextId.current++, type, line, context: [], timestamp: now },
+          contextLines: [],
+        };
       }
+    }
+
+    // If pending has been accumulating for a while (>150 lines), flush it
+    if (pendingRef.current && pendingRef.current.contextLines.length >= 150) {
+      pendingRef.current.entry.context = [...pendingRef.current.contextLines];
+      newEntries.push(pendingRef.current.entry);
+      pendingRef.current = null;
     }
 
     if (newEntries.length > 0) {
@@ -121,6 +189,27 @@ export function useDiagnostics() {
     }
   }, []);
 
+  // Flush any pending entry after 3s of no new data
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const feedWithFlush = useCallback((chunk: string) => {
+    feed(chunk);
+
+    // Reset flush timer
+    if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+    flushTimerRef.current = setTimeout(() => {
+      if (pendingRef.current) {
+        pendingRef.current.entry.context = [...pendingRef.current.contextLines];
+        setEntries((prev) => {
+          const combined = [...prev, pendingRef.current!.entry];
+          pendingRef.current = null;
+          return combined.length > MAX_ENTRIES
+            ? combined.slice(combined.length - MAX_ENTRIES)
+            : combined;
+        });
+      }
+    }, 3000);
+  }, [feed]);
+
   /** Clear all diagnostics */
   const clear = useCallback(() => {
     setEntries([]);
@@ -132,5 +221,5 @@ export function useDiagnostics() {
     warnings: entries.filter((e) => e.type === 'warning').length,
   };
 
-  return { entries, counts, feed, clear } as const;
+  return { entries, counts, feed: feedWithFlush, clear } as const;
 }

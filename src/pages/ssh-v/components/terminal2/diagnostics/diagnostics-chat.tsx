@@ -93,19 +93,28 @@ function extractTerminalContext(logChunks: string[], entries: DiagnosticEntry[],
 
 /** Build the prompt sent to the AI for diagnosis */
 function buildPrompt(selectedEntries: DiagnosticEntry[], terminalContext: string): string {
-  const lines = selectedEntries.map((e) => `[${e.type.toUpperCase()}] ${e.line}`).join('\n');
+  // Build entries with their captured context
+  const entryBlocks = selectedEntries.map((e) => {
+    const header = `[${e.type.toUpperCase()}] ${e.line}`;
+    if (e.context && e.context.length > 0) {
+      return `${header}\n  Context:\n${e.context.map((l) => `    ${l}`).join('\n')}`;
+    }
+    return header;
+  }).join('\n\n');
+
   const parts = [
     'The following errors/warnings appeared in a Linux terminal session.',
+    'Each error includes the captured context lines (stack traces, follow-up output) until the next shell prompt.',
     'Explain what each one means, why it likely happened, and suggest concise fixes.',
     'Be brief and practical.\n',
-    '--- Errors/Warnings ---',
+    '--- Errors/Warnings with Context ---',
     '```',
-    lines,
+    entryBlocks,
     '```',
   ];
   if (terminalContext) {
     parts.push(
-      '\n--- Terminal Output Context (around the errors) ---',
+      '\n--- Additional Terminal Output (around the errors) ---',
       '```',
       terminalContext,
       '```',
@@ -357,7 +366,7 @@ export default function DiagnosticsChat({
 
         {/* Diagnostic entries list */}
         <div
-          className="max-h-36 overflow-y-auto border-b px-3 py-2 space-y-1 shrink-0"
+          className="max-h-44 overflow-y-auto border-b px-3 py-2 space-y-1 shrink-0"
           style={{ borderColor: `${colors.foreground}10` }}
         >
           {filtered.length === 0 ? (
@@ -368,17 +377,29 @@ export default function DiagnosticsChat({
             filtered.map((e) => (
               <div
                 key={e.id}
-                className="flex items-start gap-2 px-2 py-1 rounded text-xs font-mono"
+                className="px-2 py-1 rounded text-xs font-mono"
                 style={{ backgroundColor: `${colors.foreground}08` }}
               >
-                {e.type === 'error' ? (
-                  <AlertCircle size={12} className="mt-0.5 shrink-0" style={{ color: errorColor }} />
-                ) : (
-                  <AlertTriangle size={12} className="mt-0.5 shrink-0" style={{ color: warnColor }} />
+                <div className="flex items-start gap-2">
+                  {e.type === 'error' ? (
+                    <AlertCircle size={12} className="mt-0.5 shrink-0" style={{ color: errorColor }} />
+                  ) : (
+                    <AlertTriangle size={12} className="mt-0.5 shrink-0" style={{ color: warnColor }} />
+                  )}
+                  <span className="break-all leading-relaxed" style={{ color: `${colors.foreground}cc` }}>
+                    {e.line}
+                  </span>
+                </div>
+                {e.context && e.context.length > 0 && (
+                  <div
+                    className="ml-5 mt-1 pl-2 border-l-2 text-[10px] leading-relaxed max-h-20 overflow-y-auto"
+                    style={{ borderColor: `${colors.foreground}15`, color: `${colors.foreground}70` }}
+                  >
+                    {e.context.map((ctxLine, ci) => (
+                      <div key={ci} className="break-all">{ctxLine}</div>
+                    ))}
+                  </div>
                 )}
-                <span className="break-all leading-relaxed" style={{ color: `${colors.foreground}cc` }}>
-                  {e.line}
-                </span>
               </div>
             ))
           )}
