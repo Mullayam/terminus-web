@@ -482,7 +482,7 @@ const XTerminal = ({
 
       {/* Ghost text inline autocomplete (grey overlay at cursor) */}
       <GhostText
-        term={termRef.current}
+        termRef={termRef}
         commandBuffer={commandBuffer}
         suggestions={filteredSuggestions}
         onAccept={handleGhostAccept}
