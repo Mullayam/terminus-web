@@ -29,7 +29,8 @@ import {
 } from "./monacoRegistrar";
 import { registerTheme } from "../core/theme-registry";
 import { injectExtensionCss } from "./cssInjector";
-import { loadAllContributions, resetLoaders } from "./loaders/index";
+import { loadAllContributions, isFolderLoaded, resetLoaders } from "./loaders/index";
+import { setGlobalFetchHeaders } from "./cache";
 
 type Monaco = typeof monacoNs;
 
@@ -61,6 +62,7 @@ const INDEX_TTL_MS = 7 * 24 * 60 * 60 * 1000;
  */
 export function setGitHubToken(token: string): void {
   _githubToken = token;
+  setGlobalFetchHeaders(token);
 }
 
 /* ── Init: Extension index ─────────────────────────────────── */
@@ -188,7 +190,13 @@ export async function onFileOpened(
     // Run all loaders — they read paths from package.json contributes
     // (languages[].configuration, grammars[].path, snippets[].path)
     // and fetch those files dynamically — nothing hardcoded.
-    const contributions = await loadAllContributions(folder);
+    //
+    // Multiple languages can share one folder (e.g. javascript + javascriptreact
+    // both map to folder "javascript"). If the folder was already loaded for a
+    // different language, force a re-load so the second language still gets
+    // its contributions registered.
+    const alreadyLoaded = isFolderLoaded(folder);
+    const contributions = await loadAllContributions(folder, { force: alreadyLoaded });
     if (contributions) {
       // ── Register language configurations ──
       for (const lc of contributions.languages) {

@@ -66,10 +66,18 @@ const loadedFolders = new Set<string>();
  *  3. Return structured data (no Monaco calls)
  *
  * Returns `null` if the folder has no package.json or was already loaded.
+ *
+ * When `opts.force` is `true`, reloads even if the folder is in the
+ * `loadedFolders` set. This is needed when multiple languages share
+ * the same folder (e.g. `javascript` and `javascriptreact` both map
+ * to folder `"javascript"`).
+ *
+ * When `opts.skipDedup` is `true`, the folder is NOT added to the
+ * `loadedFolders` set. Use this for prefetch-only loads.
  */
 export async function loadAllContributions(
   folder: string,
-  opts?: { force?: boolean },
+  opts?: { force?: boolean; skipDedup?: boolean },
 ): Promise<ExtensionContributions | null> {
   if (!opts?.force && loadedFolders.has(folder)) {
     console.log(`[monaco-ext] Contributions already loaded for: ${folder}`);
@@ -100,7 +108,9 @@ export async function loadAllContributions(
     css: cssResult.status === "fulfilled" ? cssResult.value : [],
   };
 
-  loadedFolders.add(folder);
+  if (!opts?.skipDedup) {
+    loadedFolders.add(folder);
+  }
 
   console.log(
     `[monaco-ext] Contributions loaded for "${folder}":`,

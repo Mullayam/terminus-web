@@ -116,18 +116,21 @@ export function registerSnippets(
               : snippet.body;
 
             return {
-              label: prefixes[0],
+              label: {
+                label: prefixes[0],
+                description: `Snippet`,
+              },
               kind: monaco.languages.CompletionItemKind.Snippet,
-              documentation: snippet.description
-                ? { value: `**${name}**\n\n${snippet.description}` }
-                : undefined,
+              documentation: {
+                value: `**${name}**${snippet.description ? `\n\n${snippet.description}` : ""}\n\n\`\`\`\n${body}\n\`\`\``,
+              },
               insertText: body,
               insertTextRules:
                 monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-              detail: `${name} (vscode)`,
+              detail: name,
               range,
-              filterText: prefixes.join(" "),
-              sortText: `zzz_vsc_${prefixes[0]}`,
+              filterText: prefixes[0],
+              sortText: `b_snippet_${prefixes[0]}`,
             };
           },
         );
@@ -278,19 +281,32 @@ export function applyLanguageConfiguration(
 
 /* ── Public: Grammars ────────────────────────────────────── */
 
+/* ── Languages that Monaco already tokenizes well ────────── */
+
+const MONACO_BUILTIN_LANGUAGES = new Set([
+  "javascript", "typescript", "css", "html", "json", "xml",
+  "markdown", "yaml", "sql", "python", "java", "cpp", "c",
+  "csharp", "go", "rust", "ruby", "php", "swift", "kotlin",
+  "lua", "perl", "r", "shell", "powershell", "bat", "coffeescript",
+  "fsharp", "handlebars", "ini", "less", "scss", "dockerfile",
+  "graphql", "objective-c", "razor", "redis", "scheme",
+  "vb", "clojure", "elixir", "dart",
+  "javascriptreact", "typescriptreact", "jsx-tags",
+]);
+
 /**
  * Register TextMate grammar data.
  *
- * **Note:** Full TM grammar tokenization requires `vscode-textmate` +
- * `vscode-oniguruma` which are NOT included here. Instead we store
- * grammars in IDB for potential future use and register the language ID
- * with Monaco so its built-in tokenizer can pick it up.
+ * For languages with a built-in Monaco tokenizer, we only ensure the
+ * language ID is registered. For other languages, we attempt to derive
+ * a basic Monarch tokenizer from the TM grammar's `repository` patterns
+ * so the editor at least highlights keywords, strings, and comments.
  */
 export function registerGrammar(
   monaco: Monaco,
   languageId: string,
   scopeName: string,
-  _grammarJson: unknown,
+  grammarJson: unknown,
 ): boolean {
   if (registeredGrammars.has(scopeName)) return true;
 
@@ -300,11 +316,170 @@ export function registerGrammar(
     if (!existing) {
       monaco.languages.register({ id: languageId });
     }
+
+    // If Monaco already has a good tokenizer, skip Monarch generation
+    if (!MONACO_BUILTIN_LANGUAGES.has(languageId) && grammarJson && typeof grammarJson === "object") {
+      const monarch = tmGrammarToMonarch(grammarJson as Record<string, unknown>);
+      if (monarch) {
+        try {
+          monaco.languages.setMonarchTokensProvider(languageId, monarch);
+          console.log(`[ext-registrar] Monarch tokenizer set for "${languageId}" from TM grammar`);
+        } catch (e) {
+          console.warn(`[ext-registrar] Monarch set failed for "${languageId}":`, e);
+        }
+      }
+    }
+
     registeredGrammars.add(scopeName);
     return true;
   } catch (err) {
     console.warn(`[ext-registrar] Grammar registration failed for "${scopeName}":`, err);
     return false;
+  }
+}
+
+/* ── TM → Monarch conversion (best-effort) ──────────────── */
+
+/**
+ * Extract basic token patterns from a TextMate grammar JSON and produce
+ * a simplified Monarch tokenizer. This is NOT a full TM engine — it
+ * covers keywords, strings, numbers, and comments which is enough for
+ * basic syntax highlighting.
+ */
+function tmGrammarToMonarch(
+  grammar: Record<string, unknown>,
+): monacoNs.languages.IMonarchLanguage | null {
+  try {
+    const keywords: string[] = [];
+    const operators: string[] = [];
+    let lineComment: string | undefined;
+    let blockCommentStart: string | undefined;
+    let blockCommentEnd: string | undefined;
+
+    // Walk the repository looking for keyword/comment patterns
+    const repo = grammar.repository as Record<string, unknown> | undefined;
+    const patterns = grammar.patterns as Array<Record<string, unknown>> | undefined;
+
+    const allPatterns = [...(patterns ?? [])];
+    if (repo) {
+      for (const val of Object.values(repo)) {
+        if (val && typeof val === "object") {
+          const r = val as Record<string, unknown>;
+          if (Array.isArray(r.patterns)) allPatterns.push(...r.patterns);
+          if (r.match || r.begin) allPatterns.push(r);
+        }
+      }
+    }
+
+    for (const pat of allPatterns) {
+      const name = String(pat.name ?? pat.contentName ?? "");
+      const match = String(pat.match ?? "");
+
+      // Extract keywords from patterns like \b(if|else|for|while)\b
+      if (name.includes("keyword") || name.includes("storage")) {
+        const kwMatch = match.match(/\\b\(([^)]+)\)\\b/);
+        if (kwMatch) {
+          keywords.push(...kwMatch[1].split("|").map((k) => k.trim()).filter(Boolean));
+        }
+      }
+
+      // Extract comment delimiters
+      if (name.includes("comment.line")) {
+        const cm = match.match(/^\(?\\?(.{1,3})/);
+        if (cm) {
+          const c = cm[1].replace(/\\/g, "");
+          if (c === "//" || c === "#" || c === "--" || c === ";") lineComment = c;
+        }
+      }
+      if (name.includes("comment.block") && pat.begin && pat.end) {
+        blockCommentStart = String(pat.begin).replace(/\\/g, "");
+        blockCommentEnd = String(pat.end).replace(/\\/g, "");
+      }
+
+      // Extract operators from patterns
+      if (name.includes("operator")) {
+        const opMatch = match.match(/\[([^\]]+)\]/);
+        if (opMatch) operators.push(...opMatch[1].split("").filter((c) => !"\\^$".includes(c)));
+      }
+    }
+
+    // If we couldn't extract anything useful, bail
+    if (keywords.length === 0 && !lineComment && !blockCommentStart) return null;
+
+    const rootRules: monacoNs.languages.IMonarchLanguageRule[] = [];
+
+    // Comments
+    if (lineComment) {
+      rootRules.push([lineComment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ".*$", "comment"]);
+    }
+    if (blockCommentStart && blockCommentEnd) {
+      rootRules.push([
+        blockCommentStart.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        "comment",
+        "@comment",
+      ]);
+    }
+
+    // Strings
+    rootRules.push(['"', "string", "@string_double"]);
+    rootRules.push(["'", "string", "@string_single"]);
+    rootRules.push(["`", "string", "@string_backtick"]);
+
+    // Numbers
+    rootRules.push(["\\d+\\.?\\d*([eE][+-]?\\d+)?", "number"]);
+    rootRules.push(["0[xX][0-9a-fA-F]+", "number.hex"]);
+
+    // Keywords / Identifiers
+    if (keywords.length > 0) {
+      rootRules.push(["[a-zA-Z_$][\\w$]*", { cases: { "@keywords": "keyword", "@default": "identifier" } }]);
+    } else {
+      rootRules.push(["[a-zA-Z_$][\\w$]*", "identifier"]);
+    }
+
+    // Delimiters
+    rootRules.push(["[{}()\\[\\]]", "delimiter.bracket"]);
+    rootRules.push(["[;,.]", "delimiter"]);
+
+    const monarch: monacoNs.languages.IMonarchLanguage = {
+      keywords: keywords.length > 0 ? keywords : undefined,
+      operators: operators.length > 0 ? operators : ["+", "-", "*", "/", "=", "<", ">"],
+      tokenizer: {
+        root: rootRules,
+        ...(blockCommentStart && blockCommentEnd
+          ? {
+              comment: [
+                ["[^*/]+", "comment"],
+                [
+                  blockCommentEnd.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+                  "comment",
+                  "@pop",
+                ],
+                [".", "comment"],
+              ],
+            }
+          : {}),
+        string_double: [
+          ["[^\\\\\"]+", "string"],
+          ["\\\\.", "string.escape"],
+          ['"', "string", "@pop"],
+        ],
+        string_single: [
+          ["[^\\\\']+", "string"],
+          ["\\\\.", "string.escape"],
+          ["'", "string", "@pop"],
+        ],
+        string_backtick: [
+          ["[^\\\\`]+", "string"],
+          ["\\\\.", "string.escape"],
+          ["`", "string", "@pop"],
+        ],
+      },
+    };
+
+    return monarch;
+  } catch (e) {
+    console.warn("[ext-registrar] TM→Monarch conversion failed:", e);
+    return null;
   }
 }
 

@@ -17,6 +17,7 @@ import {
   loadAllContributions,
   type ExtensionContributions,
 } from "./loaders/index";
+import { setGlobalFetchHeaders } from "./cache";
 
 /* ── Message types ────────────────────────────────────────── */
 
@@ -70,7 +71,7 @@ function indexKey(folder: string): string {
  */
 async function loadFolder(
   folder: string,
-  opts?: { baseUrl?: string; token?: string },
+  opts?: { baseUrl?: string; token?: string; prefetchOnly?: boolean },
 ): Promise<ExtensionContributions | null> {
   // 1. Check if package.json already in IDB
   const hasPackageJson = await idbGet(STORE_ASSETS, `ext:${folder}:package.json`);
@@ -99,8 +100,12 @@ async function loadFolder(
   }
 
   // 3. Run all loaders — they read package.json from IDB,
-  //    parse contributes, and fetch files by their declared paths
-  const contributions = await loadAllContributions(folder);
+  //    parse contributes, and fetch files by their declared paths.
+  //    When prefetching, use `skipDedup` so the folder is NOT marked
+  //    as loaded — the real load happens when a file is opened.
+  const contributions = await loadAllContributions(folder, {
+    skipDedup: opts?.prefetchOnly,
+  });
   return contributions;
 }
 
@@ -179,6 +184,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   try {
     switch (msg.type) {
       case "load-folder": {
+        if (msg.token) setGlobalFetchHeaders(msg.token);
         const data = await loadFolder(msg.folder, {
           token: msg.token,
           baseUrl: msg.baseUrl,
@@ -193,6 +199,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
       }
 
       case "init-index": {
+        if (msg.token) setGlobalFetchHeaders(msg.token);
         const folders = await initIndex({
           token: msg.token,
           baseUrl: msg.baseUrl,
@@ -206,9 +213,10 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
       }
 
       case "prefetch-popular": {
+        if (msg.token) setGlobalFetchHeaders(msg.token);
         for (const folder of msg.folders) {
           try {
-            await loadFolder(folder, { token: msg.token });
+            await loadFolder(folder, { token: msg.token, prefetchOnly: true });
           } catch {
             // skip individual failures
           }

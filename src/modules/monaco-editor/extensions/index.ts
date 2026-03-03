@@ -76,7 +76,7 @@ export {
 export type { GitHubEntry, GitHubFileContent } from "./githubApi";
 
 // Cache
-export { cachedFetch, invalidateCache, clearExtensionCache } from "./cache";
+export { cachedFetch, invalidateCache, clearExtensionCache, setGlobalFetchHeaders } from "./cache";
 
 // IDB (Dexie-based storage)
 export { idbGet, idbSet, idbDelete, idbGetAllByPrefix, idbBulkPut, idbClearStore, getExtDb } from "./idb";
