@@ -25,13 +25,13 @@ import { Socket } from "socket.io-client";
 import { useTerminalStore } from "@/store/terminalStore";
 import { useSSHStore } from "@/store/sshStore";
 import { useTabStore } from '@/store/rightSidebarTabStore';
+import { useDiagnosticsStore } from '@/store/diagnosticsStore';
 import AISuggestionBox from "./terminal2/suggestion-box";
 import GhostText from "./terminal2/ghost-text";
 import TerminalPlaceholder from "./terminal2/terminal-placeholder";
 import {
   useDiagnostics,
   TerminalInfoOverlay,
-  DiagnosticsStatus,
   DiagnosticsChat,
 } from "./terminal2/diagnostics";
 import useAudio from "@/hooks/useAudio";
@@ -58,8 +58,10 @@ const XTerminal = memo(function XTerminal({
 
   // ── Diagnostics (error/warning detection) ──
   const { entries: diagEntries, counts: diagCounts, feed: diagFeed, clear: diagClear } = useDiagnostics();
-  const [showDiagChat, setShowDiagChat] = useState(false);
-  const [diagFilter, setDiagFilter] = useState<'error' | 'warning' | 'all'>('all');
+  const setSessionDiagnostics = useDiagnosticsStore((s) => s.setSessionDiagnostics);
+  const showDiagChat = useDiagnosticsStore((s) => s.showDiagChat);
+  const diagFilter = useDiagnosticsStore((s) => s.diagFilter);
+  const closeDiagChat = useDiagnosticsStore((s) => s.closeDiagChat);
   const [showInfoOverlay, setShowInfoOverlay] = useState(true);
 
   // Derive localStorage key from the session host/IP
@@ -361,6 +363,13 @@ const XTerminal = memo(function XTerminal({
     } catch { /* quota exceeded — silently ignore */ }
   }, [suggestions, hostKey]);
 
+  // Sync diagnostics to the shared store so the status bar can read them
+  useEffect(() => {
+    if (diagnosticsEnabled) {
+      setSessionDiagnostics(sessionId, diagEntries, diagCounts);
+    }
+  }, [diagEntries, diagCounts, diagnosticsEnabled, sessionId, setSessionDiagnostics]);
+
   useEffect(() => {
     const handleKey = ({
       key,
@@ -394,6 +403,14 @@ const XTerminal = memo(function XTerminal({
         domEvent.preventDefault();
         setIsVisible(true)
       }
+
+      // Ctrl+C / Ctrl+D / Ctrl+Z → interrupt / EOF / suspend → clear buffer
+      if (domEvent.ctrlKey && (domEvent.key === 'c' || domEvent.key === 'd' || domEvent.key === 'z')) {
+        setCommandBuffer("");
+        setIsVisible(false);
+        return;
+      }
+
       if (isEnter) {
         const trimmed = commandBuffer.trim();
         if (trimmed.length > 0) {
@@ -533,25 +550,14 @@ const XTerminal = memo(function XTerminal({
         <TerminalInfoOverlay onDismiss={() => setShowInfoOverlay(false)} />
       )}
 
-      {/* Diagnostics status bar (inside terminal, bottom-left) */}
-      {diagnosticsEnabled && (diagCounts.errors > 0 || diagCounts.warnings > 0) && (
-        <div className="absolute bottom-1 left-2 z-10">
-          <DiagnosticsStatus
-            counts={diagCounts}
-            onClickErrors={() => { setDiagFilter('error'); setShowDiagChat(true); }}
-            onClickWarnings={() => { setDiagFilter('warning'); setShowDiagChat(true); }}
-            onClear={diagClear}
-          />
-        </div>
-      )}
-
       {/* Diagnostics AI chat modal */}
       {diagnosticsEnabled && showDiagChat && (
         <DiagnosticsChat
           entries={diagEntries}
           initialFilter={diagFilter}
-          onClose={() => setShowDiagChat(false)}
+          onClose={closeDiagChat}
           onClear={diagClear}
+          sessionId={sessionId}
         />
       )}
     </div>

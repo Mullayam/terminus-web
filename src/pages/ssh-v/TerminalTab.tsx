@@ -16,6 +16,9 @@ import { FullScreenLoader } from '@/components/loader';
 import InfoBadge from './components/InfoBadge';
 import TerminalLayout from './components/terminal2';
 import { RefreshCcw } from 'lucide-react';
+import { useDiagnosticsStore } from '@/store/diagnosticsStore';
+import { DiagnosticsStatus } from './components/terminal2/diagnostics';
+import { useTabStore } from '@/store/rightSidebarTabStore';
 import { useIdleReconnect } from '@/hooks/useIdleReconnect';
 import { useSessionDisconnect } from '@/hooks/useSessionDisconnect';
 import { useSessionTheme } from '@/hooks/useSessionTheme';
@@ -66,6 +69,27 @@ export const DEFAULT_FORM_VALUES: FormValues = {
     saveCredentials: false,
     localName: '',
 }
+
+/** Inline diagnostics counts for the status bar */
+function StatusBarDiagnostics({ sessionId }: { sessionId: string }) {
+    const diagnosticsEnabled = useTabStore((s) => s.settings.diagnostics);
+    const diag = useDiagnosticsStore((s) => s.sessions[sessionId]);
+    const clearSession = useDiagnosticsStore((s) => s.clearSession);
+    const openDiagChat = useDiagnosticsStore((s) => s.openDiagChat);
+
+    if (!diagnosticsEnabled || !diag) return null;
+    if (diag.counts.errors === 0 && diag.counts.warnings === 0) return null;
+
+    return (
+        <DiagnosticsStatus
+            counts={diag.counts}
+            onClickErrors={() => openDiagChat('error')}
+            onClickWarnings={() => openDiagChat('warning')}
+            onClear={() => clearSession(sessionId)}
+        />
+    );
+}
+
 export default function TerminalTab({ sessionId }: Props) {
     const [isLoading, setIsLoading] = useState(false)
     const [hostId, setHostId] = useState<string | null>(null)
@@ -271,6 +295,7 @@ export default function TerminalTab({ sessionId }: Props) {
                                         {sessions[sessionId].host} </a></span>
                                     <span>Username: {sessions[sessionId].username}</span>
                                     <span>SFTP:  {sftpAvailableForHost ? 'Enabled' : 'Disabled'} </span>
+                                    <StatusBarDiagnostics sessionId={sessionId} />
                                 </div>
                                 <div className="flex flex-row gap-4">
                                     <div>

@@ -1,4 +1,4 @@
-import { Check, Pencil, Plus, Terminal, Trash } from 'lucide-react';
+import { Check, Pencil, Play, Plus, Terminal, Trash } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -13,7 +13,7 @@ import { useSessionTheme } from '@/hooks/useSessionTheme';
 
 
 export function CommandList() {
-  const { setCommand, allCommands, addToAllCommands } = useCommandStore()
+  const { setCommand, allCommands, addToAllCommands, removeFromAllCommands } = useCommandStore()
   const { colors } = useSessionTheme();
   const [loadingState, setLoadingState] = useState(true);
   let clickTimer: NodeJS.Timeout | null = null;
@@ -148,17 +148,38 @@ export function CommandList() {
                   {cmd.name}
                 </Button>
 
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setIsEditing(true);
-                    setSniphet(cmd);
-                  }}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setCommand(cmd.command, 'double')}
+                    className="text-gray-400 hover:text-green-400 h-7 w-7"
+                    title="Run command"
+                  >
+                    <Play className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setIsEditing(true);
+                      setSniphet(cmd);
+                    }}
+                    className="text-gray-400 hover:text-white h-7 w-7"
+                    title="Edit command"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeFromAllCommands(cmd.command)}
+                    className="text-gray-400 hover:text-red-400 h-7 w-7"
+                    title="Delete command"
+                  >
+                    <Trash className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </div>
 
               {cmd.command && (

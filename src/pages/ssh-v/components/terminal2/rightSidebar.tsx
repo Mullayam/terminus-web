@@ -40,7 +40,7 @@ export function RightSidebar({
             className={`
 fixed right-0 top-14 bottom-12 z-20
 transition-all duration-300 ease-in-out
-${isRightSidebarOpen ? "w-80 translate-x-0" : "w-80 translate-x-full"}
+${isRightSidebarOpen ? "w-96 translate-x-0" : "w-96 translate-x-full"}
 flex flex-col shadow-lg themed-scrollbar
 `}
             style={{

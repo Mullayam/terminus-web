@@ -27,6 +27,7 @@ type CommandStore = {
     addRecentCommand: (command: string) => void
     addToAllCommands: (command: { name: string, command: string }) => void
     setAllCommands: (commands: { name: string, command: string }[]) => void
+    removeFromAllCommands: (command: string) => void
 
 }
 
@@ -55,7 +56,8 @@ export const useCommandStore = create<CommandStore>()((set) => ({
     setCommand: (command: string, clickType: "single" | "double") => set(() => ({ command: command, clickType: clickType })),
     addRecentCommand: (command) => set((state) => ({ recentCommands: [command, ...state.recentCommands] })),
     addToAllCommands: (command) => set((state) => ({ allCommands: [command, ...state.allCommands] })),
-    setAllCommands: (commands) => set(({ allCommands: commands }))
+    setAllCommands: (commands) => set(({ allCommands: commands })),
+    removeFromAllCommands: (command) => set((state) => ({ allCommands: state.allCommands.filter((c) => c.command !== command) }))
 
 }))
 export const useStore = create<Store>()((set) => ({

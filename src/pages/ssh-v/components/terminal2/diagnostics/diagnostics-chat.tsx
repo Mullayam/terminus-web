@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useSessionTheme } from '@/hooks/useSessionTheme';
 import { __config } from '@/lib/config';
+import { useTerminalStore } from '@/store/terminalStore';
 import type { DiagnosticEntry } from './useDiagnostics';
 
 // ─── Types ───────────────────────────────────────────────────
@@ -20,6 +21,8 @@ interface Props {
   initialFilter?: 'error' | 'warning' | 'all';
   onClose: () => void;
   onClear: () => void;
+  /** Session ID — used to pull terminal output context */
+  sessionId?: string;
 }
 
 interface ChatMessage {
@@ -29,17 +32,86 @@ interface ChatMessage {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
+/** Strip ANSI escape sequences so the AI sees plain text */
+function stripAnsi(str: string): string {
+  // eslint-disable-next-line no-control-regex
+  return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '');
+}
+
+/**
+ * Extract ~150 lines of terminal output context around the errors.
+ * Splits the raw log chunks into lines, finds lines matching any error,
+ * then grabs a window of ±75 lines around each match.
+ */
+function extractTerminalContext(logChunks: string[], entries: DiagnosticEntry[], windowSize = 150): string {
+  if (!logChunks.length) return '';
+  const allText = stripAnsi(logChunks.join(''));
+  const lines = allText.split('\n');
+  if (lines.length === 0) return '';
+
+  // If total output is ≤ windowSize, just return all of it
+  if (lines.length <= windowSize) {
+    return lines.join('\n');
+  }
+
+  // Find line indices that match any diagnostic entry text
+  const matchedIndices = new Set<number>();
+  for (const entry of entries) {
+    const needle = stripAnsi(entry.line).trim().toLowerCase();
+    if (!needle) continue;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].toLowerCase().includes(needle)) {
+        matchedIndices.add(i);
+      }
+    }
+  }
+
+  // If no matches found, return the last `windowSize` lines
+  if (matchedIndices.size === 0) {
+    return lines.slice(-windowSize).join('\n');
+  }
+
+  // Build a union of windows around each matched line
+  const includedLines = new Set<number>();
+  const half = Math.floor(windowSize / 2);
+  for (const idx of matchedIndices) {
+    const start = Math.max(0, idx - half);
+    const end = Math.min(lines.length - 1, idx + half);
+    for (let i = start; i <= end; i++) includedLines.add(i);
+  }
+
+  const sorted = Array.from(includedLines).sort((a, b) => a - b);
+  const contextLines: string[] = [];
+  let prevIdx = -2;
+  for (const idx of sorted) {
+    if (idx > prevIdx + 1) contextLines.push('--- ... ---');
+    contextLines.push(lines[idx]);
+    prevIdx = idx;
+  }
+  return contextLines.join('\n');
+}
+
 /** Build the prompt sent to the AI for diagnosis */
-function buildPrompt(selectedEntries: DiagnosticEntry[]): string {
+function buildPrompt(selectedEntries: DiagnosticEntry[], terminalContext: string): string {
   const lines = selectedEntries.map((e) => `[${e.type.toUpperCase()}] ${e.line}`).join('\n');
-  return [
+  const parts = [
     'The following errors/warnings appeared in a Linux terminal session.',
     'Explain what each one means, why it likely happened, and suggest concise fixes.',
     'Be brief and practical.\n',
+    '--- Errors/Warnings ---',
     '```',
     lines,
     '```',
-  ].join('\n');
+  ];
+  if (terminalContext) {
+    parts.push(
+      '\n--- Terminal Output Context (around the errors) ---',
+      '```',
+      terminalContext,
+      '```',
+    );
+  }
+  return parts.join('\n');
 }
 
 /**
@@ -54,8 +126,10 @@ export default function DiagnosticsChat({
   initialFilter = 'all',
   onClose,
   onClear,
+  sessionId,
 }: Props) {
   const { colors } = useSessionTheme();
+  const logs = useTerminalStore((s) => sessionId ? (s.logs[sessionId] ?? []) : []);
   const [filter, setFilter] = useState<'all' | 'error' | 'warning'>(initialFilter);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
@@ -179,10 +253,11 @@ export default function DiagnosticsChat({
     [],
   );
 
-  /** Auto-diagnose button: builds prompt from current filtered entries */
+  /** Auto-diagnose button: builds prompt from current filtered entries + terminal context */
   const handleAutoDiagnose = () => {
     if (filtered.length === 0) return;
-    diagnose(buildPrompt(filtered));
+    const context = extractTerminalContext(logs, filtered);
+    diagnose(buildPrompt(filtered, context));
   };
 
   /** Manual user message */
@@ -190,12 +265,17 @@ export default function DiagnosticsChat({
     const trimmed = userInput.trim();
     if (!trimmed) return;
     setUserInput('');
+    const terminalContext = extractTerminalContext(logs, filtered);
     // If there are entries, prepend context
-    const context =
-      filtered.length > 0
-        ? `Given these terminal diagnostics:\n${filtered.map((e) => `[${e.type.toUpperCase()}] ${e.line}`).join('\n')}\n\nUser question: ${trimmed}`
-        : trimmed;
-    diagnose(context);
+    const contextParts: string[] = [];
+    if (filtered.length > 0) {
+      contextParts.push(`Given these terminal diagnostics:\n${filtered.map((e) => `[${e.type.toUpperCase()}] ${e.line}`).join('\n')}`);
+    }
+    if (terminalContext) {
+      contextParts.push(`Terminal output context:\n\`\`\`\n${terminalContext}\n\`\`\``);
+    }
+    contextParts.push(`User question: ${trimmed}`);
+    diagnose(contextParts.join('\n\n'));
   };
 
   return (
