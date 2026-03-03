@@ -567,6 +567,28 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
         }
       }
 
+      // ── Link opener: open external URLs in a new tab ──
+      {
+        const linkOpenerDisposable = monaco.editor.registerLinkOpener({
+          open(resource: monacoNs.Uri) {
+            const scheme = resource.scheme;
+            // HTTP(S) links → open in new tab
+            if (scheme === "http" || scheme === "https") {
+              window.open(resource.toString(), "_blank", "noopener,noreferrer");
+              return true;
+            }
+            // mailto links → open mail client
+            if (scheme === "mailto") {
+              window.open(resource.toString(), "_self");
+              return true;
+            }
+            // Fallback: not handled, let Monaco's default behaviour kick in
+            return false;
+          },
+        });
+        disposables.push(linkOpenerDisposable);
+      }
+
       // ── Cursor position tracking ──
       {
         const cursorDisposable = editor.onDidChangeCursorPosition((e) => {
