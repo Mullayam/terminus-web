@@ -27,6 +27,7 @@ import { useSSHStore } from "@/store/sshStore";
 import { useTabStore } from '@/store/rightSidebarTabStore';
 import AISuggestionBox from "./terminal2/suggestion-box";
 import GhostText from "./terminal2/ghost-text";
+import TerminalPlaceholder from "./terminal2/terminal-placeholder";
 import {
   useDiagnostics,
   TerminalInfoOverlay,
@@ -520,6 +521,14 @@ const XTerminal = ({
           commandBuffer={commandBuffer}
         />
       )}
+
+      {/* Placeholder hint when shell is empty */}
+      <TerminalPlaceholder
+        termRef={termRef}
+        commandBuffer={commandBuffer}
+        containerRef={terminalRef}
+        hint="Press Ctrl+I to use AI"
+      />
 
       {/* Info overlay — shown once on connect */}
       {showInfoOverlay && (
