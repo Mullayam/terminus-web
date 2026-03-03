@@ -20,7 +20,7 @@ const TerminalPlaceholder = memo(function TerminalPlaceholder({
   termRef,
   commandBuffer,
   containerRef,
-  hint = "Press Ctrl+I to use AI",
+  hint = "💡 Like this project? Press ⭐ on GitHub to support it.",
 }: TerminalPlaceholderProps) {
   const overlayRef = useRef<HTMLSpanElement>(null);
   const rafId = useRef(0);

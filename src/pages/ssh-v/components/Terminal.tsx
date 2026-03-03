@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
 import "@xterm/xterm/css/xterm.css";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import { Terminal } from "@xterm/xterm";
 
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -39,7 +39,7 @@ import { XtermTheme, ThemeName } from "./themes";
 
 
 // https://github.com/xtermjs/xterm.js/blob/master/demo/client.ts
-const XTerminal = ({
+const XTerminal = memo(function XTerminal({
   socket,
   sessionId,
   backgroundColor = "#181818",
@@ -47,10 +47,10 @@ const XTerminal = ({
   socket: Socket;
   sessionId: string;
   backgroundColor?: string;
-}) => {
+}) {
   const { play } = useAudio(sound)
   const isRendered = useRef(false);
-  const { sessions } = useSSHStore();
+  const sessionHost = useSSHStore((s) => s.sessions[sessionId]?.host);
   const autocomplete = useTabStore((s) => s.settings.autocomplete);
   const diagnosticsEnabled = useTabStore((s) => s.settings.diagnostics);
   const sessionTheme = useSSHStore((s) => s.sessionThemes[sessionId]) || 'custom';
@@ -64,9 +64,8 @@ const XTerminal = ({
 
   // Derive localStorage key from the session host/IP
   const hostKey = useMemo(() => {
-    const host = sessions[sessionId]?.host ?? sessionId;
-    return `terminus-suggestions:${host}`;
-  }, [sessionId, sessions]);
+    return `terminus-suggestions:${sessionHost ?? sessionId}`;
+  }, [sessionId, sessionHost]);
 
   const termRef = useRef<Terminal | null>(null);
   const { logs, addLogLine } = useTerminalStore();
@@ -80,7 +79,7 @@ const XTerminal = ({
   const [suggestionPos, setSuggestionPos] = useState({ top: 0, left: 0 });
   const [suggestions, setSuggestions] = useState<string[]>(() => {
     try {
-      const raw = localStorage.getItem(`terminus-suggestions:${sessions[sessionId]?.host ?? sessionId}`);
+      const raw = localStorage.getItem(`terminus-suggestions:${sessionHost ?? sessionId}`);
       return raw ? Array.from(JSON.parse(raw)) : [];
     } catch { return []; }
   });
@@ -268,8 +267,7 @@ const XTerminal = ({
 
     new LigaturesAddon().activate(term);
 
-    const session = sessions[sessionId];
-    if (!session?.socket) {
+    if (!sessionHost) {
       term.write("\x1b[32mConnecting...\r\n\x1b[0m");
     }
 
@@ -527,7 +525,7 @@ const XTerminal = ({
         termRef={termRef}
         commandBuffer={commandBuffer}
         containerRef={terminalRef}
-        hint="Press Ctrl+I to use AI"
+        hint="💡 Like this project? Press ⭐ on GitHub to support it github.com/Mullayam"
       />
 
       {/* Info overlay — shown once on connect */}
@@ -558,6 +556,6 @@ const XTerminal = ({
       )}
     </div>
   );
-};
+});
 
 export default XTerminal;
