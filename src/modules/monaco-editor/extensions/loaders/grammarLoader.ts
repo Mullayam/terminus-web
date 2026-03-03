@@ -21,7 +21,12 @@ function resolveGithubUrl(folder: string, relativePath: string): string {
 async function fetchAndDecode(url: string): Promise<string | null> {
   try {
     const res = await cachedFetch(url);
-    if (!res.ok) return null;
+    if (!res.ok) {
+      if (res.status === 403) {
+        console.warn(`[monaco-ext] GitHub rate limit hit while fetching grammar: ${url}`);
+      }
+      return null;
+    }
     const data = await res.json();
     if (data.encoding !== "base64" || !data.content) return null;
     const cleaned = (data.content as string).replace(/\n/g, "");

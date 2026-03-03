@@ -21,6 +21,8 @@ import {
   storeSemanticTokenScopes,
   type SemanticScopeData,
 } from "./semanticLoader";
+import { fetchThemes, type ThemeData } from "./themeLoader";
+import { fetchCssFiles, type CssData } from "./cssLoader";
 
 /* ── Re-exports ───────────────────────────────────────────── */
 
@@ -28,11 +30,15 @@ export type { LanguageConfigData } from "./languageLoader";
 export type { GrammarData } from "./grammarLoader";
 export type { SnippetData, SnippetEntry } from "./snippetLoader";
 export type { SemanticScopeData } from "./semanticLoader";
+export type { ThemeData } from "./themeLoader";
+export type { CssData } from "./cssLoader";
 
 export { fetchLanguageConfigurations } from "./languageLoader";
 export { fetchGrammars } from "./grammarLoader";
 export { fetchSnippets } from "./snippetLoader";
 export { storeSemanticTokenScopes } from "./semanticLoader";
+export { fetchThemes } from "./themeLoader";
+export { fetchCssFiles } from "./cssLoader";
 
 /* ── Aggregate result ─────────────────────────────────────── */
 
@@ -42,6 +48,8 @@ export interface ExtensionContributions {
   grammars: GrammarData[];
   snippets: SnippetData[];
   semanticScopes: SemanticScopeData[];
+  themes: ThemeData[];
+  css: CssData[];
 }
 
 /* ── State ────────────────────────────────────────────────── */
@@ -71,12 +79,14 @@ export async function loadAllContributions(
   const manifest = await readPackageJson(folder);
   if (!manifest) return null;
 
-  const [languageResult, grammarResult, snippetResult, semanticResult] =
+  const [languageResult, grammarResult, snippetResult, semanticResult, themeResult, cssResult] =
     await Promise.allSettled([
       fetchLanguageConfigurations(folder, manifest.languages),
       fetchGrammars(folder, manifest.grammars),
       fetchSnippets(folder, manifest.snippets),
       storeSemanticTokenScopes(folder, manifest.semanticTokenScopes),
+      fetchThemes(folder, manifest.themes),
+      fetchCssFiles(folder, manifest.css),
     ]);
 
   const contributions: ExtensionContributions = {
@@ -86,6 +96,8 @@ export async function loadAllContributions(
     snippets: snippetResult.status === "fulfilled" ? snippetResult.value : [],
     semanticScopes:
       semanticResult.status === "fulfilled" ? semanticResult.value : [],
+    themes: themeResult.status === "fulfilled" ? themeResult.value : [],
+    css: cssResult.status === "fulfilled" ? cssResult.value : [],
   };
 
   loadedFolders.add(folder);
@@ -95,7 +107,9 @@ export async function loadAllContributions(
     `${contributions.languages.length} lang-configs,`,
     `${contributions.grammars.length} grammars,`,
     `${contributions.snippets.length} snippet sets,`,
-    `${contributions.semanticScopes.length} semantic scopes`,
+    `${contributions.semanticScopes.length} semantic scopes,`,
+    `${contributions.themes.length} themes,`,
+    `${contributions.css.length} css files`,
   );
 
   return contributions;

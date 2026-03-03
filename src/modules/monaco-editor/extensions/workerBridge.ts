@@ -19,6 +19,8 @@ import {
   applyLanguageConfiguration,
   registerGrammar,
 } from "./monacoRegistrar";
+import { registerTheme } from "../core/theme-registry";
+import { injectExtensionCss } from "./cssInjector";
 import type { ExtensionContributions } from "./loaders/index";
 
 // Vite ?worker import — resolved at build time
@@ -248,10 +250,29 @@ function registerContributions(monaco: Monaco, data: ExtensionContributions): vo
   // Semantic scopes are already persisted in IDB by the worker.
   // Future: wire into a semantic token provider here if needed.
 
+  // ── Themes ──
+  for (const t of data.themes) {
+    registerTheme(monaco, {
+      id: t.id,
+      name: t.name,
+      base: t.base,
+      inherit: t.inherit,
+      rules: t.rules,
+      colors: t.colors,
+    });
+  }
+
+  // ── CSS injection ──
+  for (const c of data.css) {
+    injectExtensionCss(data.folder, c.path, c.content);
+  }
+
   console.log(
     `[ext-bridge] Registered contributions for "${data.folder}":`,
     `${data.languages.length} lang-configs,`,
     `${data.grammars.length} grammars,`,
-    `${data.snippets.length} snippet sets`,
+    `${data.snippets.length} snippet sets,`,
+    `${data.themes.length} themes,`,
+    `${data.css.length} css files`,
   );
 }

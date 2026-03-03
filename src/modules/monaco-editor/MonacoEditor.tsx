@@ -77,6 +77,7 @@ import {
   workerLoadFolder,
 } from "./extensions";
 import { resolveFileLanguage, getExtensionFolder } from "./extensions/languageMap";
+import { getExtensionStatus } from "./extensions/extensionStatusStore";
 
 // Sidebar component
 import {
@@ -587,11 +588,51 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
           setGitHubToken(editorSettings.githubToken);
         }
 
+        // ── onDidChangeModel: trigger extension loading on model switch ──
+        const modelChangeDisposable = editor.onDidChangeModel((e) => {
+          if (!e.newModelUrl) return;
+          const newPath = e.newModelUrl.path || e.newModelUrl.toString();
+          const { extensionFolder } = resolveFileLanguage(newPath);
+          if (!extensionFolder) return;
+
+          const token = editorSettings.githubToken || undefined;
+          getExtensionStatus().setActivating(extensionFolder);
+          workerLoadFolder(extensionFolder, token)
+            .then((data) => {
+              if (data) {
+                getExtensionStatus().setDone(extensionFolder);
+                showEditorNotification(
+                  `Extension "${extensionFolder}" activated`,
+                  "info",
+                  { source: "Extensions", timeout: 3000 },
+                );
+              } else {
+                getExtensionStatus().reset();
+              }
+            })
+            .catch(() => {
+              ghExtOnFileOpened(newPath, monaco, editor)
+                .then(() => {
+                  getExtensionStatus().setDone(extensionFolder);
+                })
+                .catch((err) => {
+                  getExtensionStatus().setError(extensionFolder, err?.message ?? String(err));
+                  showEditorNotification(
+                    `Failed to activate "${extensionFolder}"`,
+                    "warning",
+                    { source: "Extensions", detail: err?.message, timeout: 5000 },
+                  );
+                });
+            });
+        });
+        disposables.push(modelChangeDisposable);
+
         // Spawn the extension-loader Web Worker
         spawnExtensionWorker(monaco);
 
         // Init index + auto-load for current file via worker
         const token = editorSettings.githubToken || undefined;
+        getExtensionStatus().setIndexing();
         workerInitIndex(token)
           .then((folders) => {
             console.log(`[MonacoEditor] GitHub ext worker index: ${folders.length} folders`);
@@ -599,27 +640,75 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
             if (filePath) {
               const { extensionFolder } = resolveFileLanguage(filePath);
               if (extensionFolder) {
+                getExtensionStatus().setActivating(extensionFolder);
                 workerLoadFolder(extensionFolder, token)
                   .then((data) => {
                     if (data) {
+                      getExtensionStatus().setDone(extensionFolder);
+                      showEditorNotification(
+                        `Extension "${extensionFolder}" activated`,
+                        "info",
+                        { source: "Extensions", timeout: 3000 },
+                      );
                       console.log(`[MonacoEditor] Worker loaded contributions for "${extensionFolder}"`);
+                    } else {
+                      getExtensionStatus().reset();
                     }
                   })
-                  .catch(() => {});
+                  .catch((err) => {
+                    getExtensionStatus().setError(extensionFolder, err?.message ?? String(err));
+                    showEditorNotification(
+                      `Failed to activate "${extensionFolder}"`,
+                      "warning",
+                      { source: "Extensions", detail: err?.message, timeout: 5000 },
+                    );
+                  });
+              } else {
+                getExtensionStatus().reset();
               }
+            } else {
+              getExtensionStatus().reset();
             }
           })
           .catch((err) => {
             console.warn("[MonacoEditor] Worker ext index failed:", err);
+            getExtensionStatus().setError("index", err?.message ?? String(err));
             // Fallback: use direct (main-thread) loader
             initExtensionIndex()
               .then((folders) => {
                 console.log(`[MonacoEditor] Fallback index: ${folders.length} folders`);
                 if (filePath) {
-                  ghExtOnFileOpened(filePath, monaco, editor).catch(() => {});
+                  const { extensionFolder } = resolveFileLanguage(filePath);
+                  if (extensionFolder) {
+                    getExtensionStatus().setActivating(extensionFolder);
+                  }
+                  ghExtOnFileOpened(filePath, monaco, editor)
+                    .then(() => {
+                      if (extensionFolder) {
+                        getExtensionStatus().setDone(extensionFolder);
+                        showEditorNotification(
+                          `Extension "${extensionFolder}" activated (fallback)`,
+                          "info",
+                          { source: "Extensions", timeout: 3000 },
+                        );
+                      }
+                    })
+                    .catch((fbErr) => {
+                      getExtensionStatus().setError(
+                        extensionFolder ?? "unknown",
+                        fbErr?.message ?? String(fbErr),
+                      );
+                    });
                 }
               })
-              .catch(() => {});
+              .catch(() => {
+                getExtensionStatus().setError("index", "Failed to fetch extension index");
+                showEditorNotification(
+                  "Failed to fetch extension index",
+                  "error",
+                  { source: "Extensions", timeout: 5000 },
+                );
+              });
           });
       }
 
@@ -728,10 +817,41 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
       const { extensionFolder } = resolveFileLanguage(filePath);
       if (extensionFolder) {
         const token = editorSettings.githubToken || undefined;
-        workerLoadFolder(extensionFolder, token).catch(() => {
-          // Fallback to main-thread if worker fails
-          ghExtOnFileOpened(filePath, monacoRef.current!, editorRef.current ?? undefined).catch(() => {});
-        });
+        getExtensionStatus().setActivating(extensionFolder);
+        workerLoadFolder(extensionFolder, token)
+          .then((data) => {
+            if (data) {
+              getExtensionStatus().setDone(extensionFolder);
+              showEditorNotification(
+                `Extension "${extensionFolder}" activated`,
+                "info",
+                { source: "Extensions", timeout: 3000 },
+              );
+            } else {
+              // Already loaded or no contributions — reset quietly
+              getExtensionStatus().reset();
+            }
+          })
+          .catch(() => {
+            // Fallback to main-thread if worker fails
+            ghExtOnFileOpened(filePath, monacoRef.current!, editorRef.current ?? undefined)
+              .then(() => {
+                getExtensionStatus().setDone(extensionFolder);
+                showEditorNotification(
+                  `Extension "${extensionFolder}" activated (fallback)`,
+                  "info",
+                  { source: "Extensions", timeout: 3000 },
+                );
+              })
+              .catch((err) => {
+                getExtensionStatus().setError(extensionFolder, err?.message ?? String(err));
+                showEditorNotification(
+                  `Failed to activate "${extensionFolder}"`,
+                  "warning",
+                  { source: "Extensions", detail: err?.message, timeout: 5000 },
+                );
+              });
+          });
       }
     }
   }, [resolvedLanguage, filePath, editorSettings.enableGitHubExtensions]);

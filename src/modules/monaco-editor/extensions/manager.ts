@@ -27,6 +27,8 @@ import {
   registerGrammar,
   resetRegistrarState,
 } from "./monacoRegistrar";
+import { registerTheme } from "../core/theme-registry";
+import { injectExtensionCss } from "./cssInjector";
 import { loadAllContributions, resetLoaders } from "./loaders/index";
 
 type Monaco = typeof monacoNs;
@@ -48,6 +50,9 @@ let _githubToken: string | undefined;
 /* ── Index Key ─────────────────────────────────────────────── */
 
 const INDEX_LIST_KEY = "ext-index::folder-list";
+
+/** 7 days in milliseconds */
+const INDEX_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /* ── Configuration ─────────────────────────────────────────── */
 
@@ -72,14 +77,33 @@ export async function initExtensionIndex(
 ): Promise<string[]> {
   const token = opts?.token ?? _githubToken;
 
-  // Return cached index if available
+  // Return cached index if available and not expired
   if (!opts?.force) {
     const cached = await idbGet(STORE_INDEX, INDEX_LIST_KEY);
     if (cached) {
       try {
-        const folders = JSON.parse(cached) as string[];
-        indexInitialized = true;
-        return folders;
+        const parsed = JSON.parse(cached) as
+          | string[]
+          | { folders: string[]; fetchedAt: number };
+
+        // Support both legacy (plain array) and new format ({ folders, fetchedAt })
+        if (Array.isArray(parsed)) {
+          // Legacy format — no TTL info, treat as valid
+          indexInitialized = true;
+          return parsed;
+        }
+
+        // Check 7-day TTL
+        if (
+          parsed.folders &&
+          parsed.fetchedAt &&
+          Date.now() - parsed.fetchedAt < INDEX_TTL_MS
+        ) {
+          indexInitialized = true;
+          return parsed.folders;
+        }
+
+        console.log("[ext-manager] Index cache expired (>7 days), re-fetching");
       } catch {
         // Corrupted cache, re-fetch
       }
@@ -93,7 +117,11 @@ export async function initExtensionIndex(
     });
 
     const folderNames = entries.map((e) => e.name);
-    await idbSet(STORE_INDEX, INDEX_LIST_KEY, JSON.stringify(folderNames));
+    await idbSet(
+      STORE_INDEX,
+      INDEX_LIST_KEY,
+      JSON.stringify({ folders: folderNames, fetchedAt: Date.now() }),
+    );
     indexInitialized = true;
     console.log(`[ext-manager] Indexed ${folderNames.length} extension folders`);
     return folderNames;
@@ -124,6 +152,8 @@ export async function onFileOpened(
   snippetsRegistered: boolean;
   langConfigApplied: boolean;
   grammarsRegistered: number;
+  themesRegistered: number;
+  cssInjected: number;
 }> {
   const { languageId, extensionFolder } = resolveFileLanguage(filePath);
 
@@ -132,6 +162,8 @@ export async function onFileOpened(
     snippetsRegistered: false,
     langConfigApplied: false,
     grammarsRegistered: 0,
+    themesRegistered: 0,
+    cssInjected: 0,
   };
 
   if (!languageId) return result;
@@ -186,6 +218,25 @@ export async function onFileOpened(
         snippetMap.set(`ext-${folder}`, fileContent);
         registerSnippets(monaco, s.language, snippetMap);
         result.snippetsRegistered = true;
+      }
+
+      // ── Register themes ──
+      for (const t of contributions.themes) {
+        registerTheme(monaco, {
+          id: t.id,
+          name: t.name,
+          base: t.base,
+          inherit: t.inherit,
+          rules: t.rules,
+          colors: t.colors,
+        });
+        result.themesRegistered++;
+      }
+
+      // ── Inject CSS ──
+      for (const c of contributions.css) {
+        injectExtensionCss(folder, c.path, c.content);
+        result.cssInjected++;
       }
     }
 
@@ -290,6 +341,19 @@ export async function loadExtensionByFolder(
         }
         snippetMap.set(`ext-${folder}`, fileContent);
         registerSnippets(monaco, languageId, snippetMap);
+      }
+      for (const t of contributions.themes) {
+        registerTheme(monaco, {
+          id: t.id,
+          name: t.name,
+          base: t.base,
+          inherit: t.inherit,
+          rules: t.rules,
+          colors: t.colors,
+        });
+      }
+      for (const c of contributions.css) {
+        injectExtensionCss(folder, c.path, c.content);
       }
     }
 

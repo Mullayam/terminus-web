@@ -39,7 +39,7 @@ export interface GitHubFileContent {
  * Points to the main branch of the vscode repository.
  */
 const DEFAULT_BASE_URL =
-  "https://api.github.com/repos/AkmalIT/vscode/contents/extensions";
+  "https://api.github.com/repos/microsoft/vscode/contents/extensions";
 
 /**
  * Recommended headers — GitHub rate-limits anonymous requests to 60/h.

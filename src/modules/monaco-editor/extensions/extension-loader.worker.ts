@@ -115,8 +115,8 @@ async function loadJsonAndStore(
     const text = await fetchRawFile(entry, opts);
     const parsed = JSON.parse(text);
     await idbSet(STORE_ASSETS, idbKey, JSON.stringify(parsed));
-  } catch {
-    // skip
+  } catch (e) {
+    console.warn(`[ext-worker] Failed to load/store ${idbKey}:`, e);
   }
 }
 
@@ -126,12 +126,29 @@ async function initIndex(
   opts?: { baseUrl?: string; token?: string },
 ): Promise<string[]> {
   const INDEX_LIST_KEY = "ext-index::folder-list";
+  const INDEX_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-  // Return cached
+  // Return cached if valid and not expired
   const cached = await idbGet(STORE_INDEX, INDEX_LIST_KEY);
   if (cached) {
     try {
-      return JSON.parse(cached) as string[];
+      const parsed = JSON.parse(cached) as
+        | string[]
+        | { folders: string[]; fetchedAt: number };
+
+      // Legacy plain array — treat as valid
+      if (Array.isArray(parsed)) return parsed;
+
+      // Check 7-day TTL
+      if (
+        parsed.folders &&
+        parsed.fetchedAt &&
+        Date.now() - parsed.fetchedAt < INDEX_TTL_MS
+      ) {
+        return parsed.folders;
+      }
+
+      console.log("[ext-worker] Index cache expired (>7 days), re-fetching");
     } catch {
       // corrupted, re-fetch
     }
@@ -142,7 +159,11 @@ async function initIndex(
     const { listExtensionFolders } = await import("./githubApi");
     const entries = await listExtensionFolders(opts);
     const folders = entries.map((e) => e.name);
-    await idbSet(STORE_INDEX, INDEX_LIST_KEY, JSON.stringify(folders));
+    await idbSet(
+      STORE_INDEX,
+      INDEX_LIST_KEY,
+      JSON.stringify({ folders, fetchedAt: Date.now() }),
+    );
     return folders;
   } catch (err) {
     console.warn("[ext-worker] Failed to init index:", err);

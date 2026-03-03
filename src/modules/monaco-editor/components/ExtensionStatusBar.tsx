@@ -9,9 +9,10 @@
  */
 import React, { useState, useEffect } from "react";
 import type * as monacoNs from "monaco-editor";
-import { Terminal, Bell } from "lucide-react";
+import { Terminal, Bell, Loader2, Check, AlertCircle } from "lucide-react";
 import { getEnabledExtensions } from "../lib/extensionStorage";
 import type { ExtStatusBarItem } from "../lib/extensionStorage";
+import { useExtensionStatusStore } from "../extensions/extensionStatusStore";
 
 type Monaco = typeof monacoNs;
 
@@ -169,6 +170,10 @@ export const ExtensionStatusBar: React.FC<ExtensionStatusBarProps> = ({
   const indentLabel = insertSpaces ? `Spaces: ${tabSize}` : `Tab Size: ${tabSize}`;
   const wrapLabel = wordWrap === "off" ? null : "Wrap";
 
+  // Extension activation status
+  const extPhase = useExtensionStatusStore((s) => s.phase);
+  const extFolder = useExtensionStatusStore((s) => s.activeFolder);
+
   return (
     <div
       className={`flex items-center justify-between h-[22px] text-white text-[11px] px-2 select-none shrink-0 ${className}`}
@@ -181,6 +186,31 @@ export const ExtensionStatusBar: React.FC<ExtensionStatusBarProps> = ({
         </span>
         <span className="shrink-0 opacity-80">{indentLabel}</span>
         {wrapLabel && <span className="shrink-0 opacity-80">{wrapLabel}</span>}
+        {/* Extension activation status */}
+        {extPhase === "indexing" && (
+          <span className="flex items-center gap-1 shrink-0 opacity-90" title="Fetching extension index from GitHub...">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            <span className="text-[11px]">Indexing Extensions…</span>
+          </span>
+        )}
+        {extPhase === "activating" && (
+          <span className="flex items-center gap-1 shrink-0 opacity-90" title={`Activating extension: ${extFolder}`}>
+            <Loader2 className="w-3 h-3 animate-spin" />
+            <span className="text-[11px]">Activating Extensions…</span>
+          </span>
+        )}
+        {extPhase === "done" && (
+          <span className="flex items-center gap-1 shrink-0 opacity-90 text-green-300" title={`Extension activated: ${extFolder}`}>
+            <Check className="w-3 h-3" />
+            <span className="text-[11px]">{extFolder}</span>
+          </span>
+        )}
+        {extPhase === "error" && (
+          <span className="flex items-center gap-1 shrink-0 text-red-300" title="Extension activation failed">
+            <AlertCircle className="w-3 h-3" />
+            <span className="text-[11px]">Extension Error</span>
+          </span>
+        )}
         {customLeft.map((item) => (
           <StatusBarButton key={item.id} item={item} onClick={() => handleClick(item)} />
         ))}

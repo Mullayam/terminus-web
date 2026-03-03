@@ -48,12 +48,30 @@ export interface SnippetContribution {
   path: string;
 }
 
+export interface ThemeContribution {
+  /** Unique theme ID (e.g. "one-dark-pro") */
+  id: string;
+  /** Display name shown in theme picker */
+  label: string;
+  /** Base UI theme: maps to Monaco base ("vs", "vs-dark", "hc-black", "hc-light") */
+  uiTheme: string;
+  /** Relative path to the theme JSON file (e.g. "./themes/one-dark-pro.json") */
+  path: string;
+}
+
+export interface CssContribution {
+  /** Relative path to a CSS file to inject (e.g. "./css/icons.css") */
+  path: string;
+}
+
 export interface ContributesResult {
   folder: string;
   languages: LanguageContribution[];
   grammars: GrammarContribution[];
   semanticTokenScopes: SemanticTokenScopeContribution[];
   snippets: SnippetContribution[];
+  themes: ThemeContribution[];
+  css: CssContribution[];
 }
 
 /* ── Reader ───────────────────────────────────────────────── */
@@ -92,5 +110,7 @@ export async function readPackageJson(folder: string): Promise<ContributesResult
       ? contributes.semanticTokenScopes
       : [],
     snippets: Array.isArray(contributes.snippets) ? contributes.snippets : [],
+    themes: Array.isArray(contributes.themes) ? contributes.themes : [],
+    css: Array.isArray(contributes.css) ? contributes.css : [],
   };
 }

@@ -27,7 +27,11 @@ async function fetchAndDecode(url: string): Promise<string | null> {
   try {
     const res = await cachedFetch(url);
     if (!res.ok) {
-      console.warn(`[monaco-ext] Fetch failed: ${url} (${res.status})`);
+      if (res.status === 403) {
+        console.warn(`[monaco-ext] GitHub rate limit hit while fetching lang-config: ${url}`);
+      } else {
+        console.warn(`[monaco-ext] Fetch failed: ${url} (${res.status})`);
+      }
       return null;
     }
     const data = await res.json();

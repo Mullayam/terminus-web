@@ -89,6 +89,8 @@ export type {
   GrammarContribution,
   SemanticTokenScopeContribution,
   SnippetContribution,
+  ThemeContribution,
+  CssContribution,
   ContributesResult,
 } from "./packageReader";
 
@@ -101,6 +103,8 @@ export {
   fetchGrammars,
   fetchSnippets,
   storeSemanticTokenScopes,
+  fetchThemes,
+  fetchCssFiles,
 } from "./loaders/index";
 export type {
   ExtensionContributions,
@@ -109,6 +113,8 @@ export type {
   SnippetData,
   SnippetEntry,
   SemanticScopeData,
+  ThemeData,
+  CssData,
 } from "./loaders/index";
 
 // Worker bridge (main-thread ↔ Web Worker)
@@ -120,3 +126,10 @@ export {
   workerLoadFolder,
   workerPrefetchPopular,
 } from "./workerBridge";
+
+// CSS injector (shared between worker bridge and manager)
+export { injectExtensionCss, removeAllExtensionCss, isCssInjected } from "./cssInjector";
+
+// Extension activation status store
+export { useExtensionStatusStore, getExtensionStatus } from "./extensionStatusStore";
+export type { ExtActivationPhase, ExtensionStatusState } from "./extensionStatusStore";
