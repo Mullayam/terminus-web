@@ -99,3 +99,25 @@ html {
   background-color: #2a2b36;
 }
 
+/* ── Themed scrollbar for the right sidebar ── */
+.themed-scrollbar ::-webkit-scrollbar {
+  width: 6px;
+}
+.themed-scrollbar ::-webkit-scrollbar-thumb {
+  background-color: var(--sb-thumb, rgba(255,255,255,0.18));
+  border-radius: 999px;
+}
+.themed-scrollbar ::-webkit-scrollbar-thumb:hover {
+  background-color: var(--sb-thumb-hover, rgba(255,255,255,0.32));
+}
+.themed-scrollbar ::-webkit-scrollbar-track {
+  background-color: var(--sb-track, transparent);
+}
+/* Radix ScrollArea thumb override */
+.themed-scrollbar [data-radix-scroll-area-thumb] {
+  background-color: var(--sb-thumb, rgba(255,255,255,0.18)) !important;
+}
+.themed-scrollbar [data-radix-scroll-area-thumb]:hover {
+  background-color: var(--sb-thumb-hover, rgba(255,255,255,0.32)) !important;
+}
+

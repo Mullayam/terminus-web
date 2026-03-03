@@ -1,6 +1,7 @@
 import { useTabStore } from "@/store/rightSidebarTabStore";
 
 import { CommandList } from "./commandList";
+import CommandHistory from "./commandHistory";
 
 import TerminalShare from "./share";
 import TabContainer from "./tabContainer";
@@ -23,6 +24,8 @@ export function RightSidebar({
         switch (activeTab) {
             case 'commands':
                 return <CommandList />;
+            case 'history':
+                return <CommandHistory />;
             case 'sharing':
                 return <TerminalShare />;
             case 'settings':
@@ -37,15 +40,16 @@ export function RightSidebar({
             className={`
 fixed right-0 top-14 bottom-12 z-20
 transition-all duration-300 ease-in-out
-${isRightSidebarOpen ? "w-96 translate-x-0" : "w-96 translate-x-full"}
-flex flex-col shadow-lg
+${isRightSidebarOpen ? "w-80 translate-x-0" : "w-80 translate-x-full"}
+flex flex-col shadow-lg themed-scrollbar
 `}
-            style={{ backgroundColor: colors.background }}
+            style={{
+                backgroundColor: colors.background,
+                "--sb-thumb": `${colors.foreground}30`,
+                "--sb-thumb-hover": `${colors.foreground}50`,
+                "--sb-track": `${colors.foreground}08`,
+            } as React.CSSProperties}
         >
-            <div className="flex items-center justify-between p-2.5 border-b" style={{ borderColor: `${colors.foreground}20` }}>
-                <h2 className="text-lg font-semibold" style={{ color: colors?.yellow }}>{activeTab}</h2>
-            </div>
-
             {/* Tab Container */}
             <div className="h-full overflow-hidden">
                 <TabContainer>

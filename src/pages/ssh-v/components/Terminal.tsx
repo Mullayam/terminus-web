@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
 import "@xterm/xterm/css/xterm.css";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -25,6 +25,7 @@ import { Socket } from "socket.io-client";
 import { useTerminalStore } from "@/store/terminalStore";
 import { useSSHStore } from "@/store/sshStore";
 import AISuggestionBox from "./terminal2/suggestion-box";
+import GhostText from "./terminal2/ghost-text";
 import useAudio from "@/hooks/useAudio";
 import { XtermTheme, ThemeName } from "./themes";
 
@@ -69,6 +70,17 @@ const XTerminal = ({
   });
   const [commandBuffer, setCommandBuffer] = useState<string>("");
   const { command, clickType, setCommand, addRecentCommand } = useCommandStore();
+
+  /* ── Ghost text: accept the inline autocomplete suggestion ── */
+  const handleGhostAccept = useCallback((fullCommand: string) => {
+    // Type the remaining characters into the terminal
+    const remaining = fullCommand.slice(commandBuffer.length);
+    if (remaining && termRef.current) {
+      socket.emit(SocketEventConstants.SSH_EMIT_INPUT, remaining);
+      setCommandBuffer(fullCommand);
+      setIsVisible(false);
+    }
+  }, [commandBuffer, socket]);
 
   let lastPromptPrefix = '';
 
@@ -450,6 +462,15 @@ const XTerminal = ({
 
       {/* Suggestion box positioned relative to .xterm-helper-textarea */}
 
+      {/* Ghost text inline autocomplete (grey overlay at cursor) */}
+      <GhostText
+        term={termRef.current}
+        commandBuffer={commandBuffer}
+        suggestions={filteredSuggestions}
+        onAccept={handleGhostAccept}
+        containerRef={terminalRef}
+      />
+
       <AISuggestionBox
         suggestionPos={suggestionPos}
         isVisible={isVisible}
@@ -458,6 +479,7 @@ const XTerminal = ({
         terminalWidth={terminalRef.current?.offsetWidth || 800}
         setSuggestions={setSuggestions}
         hostKey={hostKey}
+        commandBuffer={commandBuffer}
       />
     </div>
   );
