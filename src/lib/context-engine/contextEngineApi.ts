@@ -75,7 +75,7 @@ export async function fetchLanguageManifest(): Promise<LanguageManifest> {
  */
 export async function fetchTerminalCommandsManifest(): Promise<TerminalCommandsManifest> {
     if (cmdManifestCache) return cmdManifestCache;
-    const res = await fetch(`${CDN_BASE}/data/terminal/manifest.json`);
+    const res = await fetch(`${CDN_BASE}/data/commands/manifest.json`);
     if (!res.ok) throw new Error(`Failed to fetch terminal commands manifest: ${res.status}`);
     const data = await res.json();
     cmdManifestCache = data;
@@ -95,7 +95,7 @@ export function buildLangFileUrl(relativePath: string): string {
  * e.g. buildCmdFileUrl("aws.json") → full URL
  */
 export function buildCmdFileUrl(fileName: string): string {
-    return `${CDN_BASE}/data/terminal/${fileName}`;
+    return `${CDN_BASE}/data/commands/${fileName}`;
 }
 
 /**

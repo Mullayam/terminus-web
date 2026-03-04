@@ -140,16 +140,39 @@ export const EditorTerminalWithGhost = memo(function EditorTerminalWithGhost(pro
             try {
                 const cmdData = await getAllCommandData();
                 for (const item of cmdData) {
-                    const data = item.data as any[];
+                    const data = item.data as any;
+                    if (!data) continue;
+
+                    // Top-level command name (e.g. "git", "docker")
+                    if (data.name) allSugs.push(data.name);
+
+                    // Subcommands: "git init", "git clone", etc.
+                    if (Array.isArray(data.subcommands)) {
+                        for (const sub of data.subcommands) {
+                            if (sub?.name && data.name) {
+                                allSugs.push(`${data.name} ${sub.name}`);
+                            }
+                            // Options: "git clone --depth"
+                            if (Array.isArray(sub?.options) && data.name && sub?.name) {
+                                for (const opt of sub.options) {
+                                    if (opt?.name) allSugs.push(`${data.name} ${sub.name} ${opt.name}`);
+                                }
+                            }
+                            // Examples as full commands
+                            if (Array.isArray(sub?.examples)) {
+                                for (const ex of sub.examples) {
+                                    if (typeof ex === "string") allSugs.push(ex);
+                                }
+                            }
+                        }
+                    }
+
+                    // Fallback: flat array of commands
                     if (Array.isArray(data)) {
                         for (const entry of data) {
-                            if (typeof entry === "string") {
-                                allSugs.push(entry);
-                            } else if (entry?.command) {
-                                allSugs.push(entry.command);
-                            } else if (entry?.name) {
-                                allSugs.push(entry.name);
-                            }
+                            if (typeof entry === "string") allSugs.push(entry);
+                            else if (entry?.command) allSugs.push(entry.command);
+                            else if (entry?.name) allSugs.push(entry.name);
                         }
                     }
                 }

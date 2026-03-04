@@ -94,3 +94,10 @@ export {
   getGoHoverDemoJson,
   type CustomHoverEntry,
 } from "./hoverProvider";
+
+// Context Engine Providers (completions, hover, definitions from IndexedDB)
+export {
+  registerContextEngineProviders,
+  registerContextEngineForLanguage,
+  disposeContextEngineProviders,
+} from "./contextEngineProviders";

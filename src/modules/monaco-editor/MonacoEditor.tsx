@@ -68,6 +68,7 @@ import type { LSPConnection } from "./lib/connectLanguageServer";
 import type { CompletionRegistration } from "monacopilot";
 import type { AICompletionRegistration } from "./lib/aiCompletions";
 import { registerCustomHoverProviders } from "./lib/hoverProvider";
+import { registerContextEngineProviders } from "./lib/contextEngineProviders";
 
 // GitHub-based VSCode extension loader
 import {
@@ -776,6 +777,9 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
         hoverProviderRef.current = registerCustomHoverProviders(monaco, editorSettings.customHoverProviders);
         console.log(`[MonacoEditor] Registered ${editorSettings.customHoverProviders.length} custom hover provider(s)`);
       }
+
+      // ── Register context-engine language providers (completions, hover, definitions) ──
+      registerContextEngineProviders(monaco).catch(() => {});
 
       disposablesRef.current = disposables;
 

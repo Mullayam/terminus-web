@@ -36,6 +36,7 @@ import {
 } from "./terminal2/diagnostics";
 import useAudio from "@/hooks/useAudio";
 import { XtermTheme, ThemeName } from "./themes";
+import { getAllCommandData } from "@/lib/context-engine/contextEngineStorage";
 
 
 // https://github.com/xtermjs/xterm.js/blob/master/demo/client.ts
@@ -329,6 +330,39 @@ const XTerminal = memo(function XTerminal({
       ]));
       return merged;
     });
+
+    // Load installed context-engine command data for ghost-text suggestions
+    getAllCommandData().then((cmdRecords) => {
+      const cmds: string[] = [];
+      for (const item of cmdRecords) {
+        const data = item.data as any;
+        // Top-level command name
+        if (data?.name) cmds.push(data.name);
+        // Subcommands: "git init", "git clone", etc.
+        if (Array.isArray(data?.subcommands)) {
+          for (const sub of data.subcommands) {
+            if (sub?.name && data?.name) {
+              cmds.push(`${data.name} ${sub.name}`);
+            }
+            // Options as suggestions: "git clone --depth"
+            if (Array.isArray(sub?.options) && data?.name && sub?.name) {
+              for (const opt of sub.options) {
+                if (opt?.name) cmds.push(`${data.name} ${sub.name} ${opt.name}`);
+              }
+            }
+            // Examples
+            if (Array.isArray(sub?.examples)) {
+              for (const ex of sub.examples) {
+                if (typeof ex === "string") cmds.push(ex);
+              }
+            }
+          }
+        }
+      }
+      if (cmds.length > 0) {
+        setSuggestions((prev) => Array.from(new Set([...prev, ...cmds])));
+      }
+    }).catch(() => {});
     return () => {
       window.removeEventListener("resize", handleResize);
       socket.off(SocketEventConstants.SSH_EMIT_DATA);

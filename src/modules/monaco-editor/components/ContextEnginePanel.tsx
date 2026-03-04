@@ -47,6 +47,12 @@ import {
     type ContextLanguagePack,
     type ContextCommandCategory,
 } from "@/lib/context-engine/contextEngineStorage";
+import {
+    registerContextEngineForLanguage,
+    disposeContextEngineProviders,
+    registerContextEngineProviders,
+} from "../lib/contextEngineProviders";
+import * as monaco from "monaco-editor";
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -182,6 +188,8 @@ function LanguagePacksTab({ search }: { search: string }) {
             await saveLanguagePack(lang.id, lang.name, data.completion, data.defination, data.hover);
             setInstalled((s) => new Set(s).add(lang.id));
             setInstallState((s) => ({ ...s, [lang.id]: "installed" }));
+            // Register Monaco providers immediately for the new language
+            registerContextEngineForLanguage(monaco, lang.id).catch(() => {});
         } catch {
             setInstallState((s) => ({ ...s, [lang.id]: "error" }));
         }
@@ -191,6 +199,9 @@ function LanguagePacksTab({ search }: { search: string }) {
         await removeLanguagePack(id);
         setInstalled((s) => { const n = new Set(s); n.delete(id); return n; });
         setInstallState((s) => { const n = { ...s }; delete n[id]; return n; });
+        // Re-register all remaining providers (dispose old ones first)
+        disposeContextEngineProviders();
+        registerContextEngineProviders(monaco).catch(() => {});
     }, []);
 
     const filtered = search

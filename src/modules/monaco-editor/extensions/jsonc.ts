@@ -80,5 +80,6 @@ export function stripJsoncComments(text: string): string {
     i++;
   }
 
-  return result.join('');
+  // Strip trailing commas before ] or } (invalid in JSON, common in JSONC)
+  return result.join('').replace(/,\s*([\]}])/g, '$1');
 }
