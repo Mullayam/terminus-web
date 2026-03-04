@@ -28,6 +28,7 @@ import { useSidebarState } from '@/store/sidebarStore';
 import SSHSftpViewer from './components/SSHSftpViewer';
 import ServerStatus from '@/components/layout/ServerStatus';
 import { useNavigate } from 'react-router-dom';
+import { useSFTPStore } from '@/store/sftpStore';
 
 
 
@@ -106,11 +107,16 @@ export default function TerminalTab({ sessionId }: Props) {
     const socketRef = useRef<Socket | null>(null);
 
     // Check if SFTP is available on any session connected to the same host
+    // Also cross-check the independent SFTP store for same-host connections
+    const sftpSessions = useSFTPStore((s) => s.sessions);
     const sftpAvailableForHost = useMemo(() => {
         const host = sessions[sessionId]?.host;
         if (!host) return false;
-        return Object.values(sessions).some(s => s.host === host && s.sftp_enabled);
-    }, [sessions, sessionId]);
+        // Check SSH store sessions
+        if (Object.values(sessions).some(s => s.host === host && s.sftp_enabled)) return true;
+        // Check SFTP store sessions (independent SFTP connections)
+        return Object.values(sftpSessions).some(s => s.host === host && s.isSftpConnected);
+    }, [sessions, sftpSessions, sessionId]);
 
     // Get the socket that has SFTP enabled (prefer current session, fall back to same-host session)
     const sftpSocket = useMemo(() => {
@@ -340,8 +346,22 @@ export default function TerminalTab({ sessionId }: Props) {
                     }
                 </>
                 : (
-                    <div className='flex items-center justify-center'>
+                    <div className='flex items-center justify-center relative h-full '>
                         <SSHConnectionForm<typeof form> form={form} handleSubmit={handleSubmit} isLoading={false} />
+                        {/* SSH / SFTP toggle — bottom bar */}
+                        <div className="absolute bottom-0 inset-x-0 flex justify-end items-center flex-wrap  px-4 py-1 border-t text-xs shrink-0 border-gray-800 bg-[#0A0A0A]/90 text-gray-300 z-10">
+                            <div className="flex items-center gap-1">
+                                <button className="px-2 py-0.5 rounded text-[11px] font-medium transition-colors text-gray-200 bg-gray-700/50">
+                                    SSH
+                                </button>
+                                <button
+                                    onClick={() => navigate('/ssh/sftp')}
+                                    className="px-2 py-0.5 rounded text-[11px] font-medium transition-colors text-gray-400 hover:text-gray-100"
+                                >
+                                    SFTP
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
         </div>

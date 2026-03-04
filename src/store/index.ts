@@ -22,13 +22,16 @@ type Store = {
 type CommandItem = { name: string; command: string }
 
 type CommandStore = {
-    recentCommands: string[]
+    /** Per-host shell history (zustand-only, resets on page reload) */
+    shellHistory: Record<string, string[]>
     allCommands: CommandItem[]
     command: string
     clickType: "single" | "double"
     _hydrated: boolean
     setCommand: (command: string, clickType: "single" | "double") => void
-    addRecentCommand: (command: string) => void
+    addShellHistoryCommand: (host: string, command: string) => void
+    addShellHistoryBatch: (host: string, commands: string[]) => void
+    removeShellHistoryCommand: (host: string, command: string) => void
     addToAllCommands: (command: CommandItem) => void
     setAllCommands: (commands: CommandItem[]) => void
     removeFromAllCommands: (command: string) => void
@@ -53,13 +56,34 @@ export const useDialogState = create<{
 
 
 export const useCommandStore = create<CommandStore>()((set, get) => ({
-    recentCommands: [],
+    shellHistory: {},
     allCommands: DEFAULT_COMMANDS,
     command: "",
     clickType: "single",
     _hydrated: false,
     setCommand: (command: string, clickType: "single" | "double") => set(() => ({ command, clickType })),
-    addRecentCommand: (command) => set((state) => ({ recentCommands: [command, ...state.recentCommands] })),
+
+    /** Add a single command to a host's shell history (no duplicates) */
+    addShellHistoryCommand: (host, command) => set((state) => {
+        const prev = state.shellHistory[host] ?? [];
+        if (prev.includes(command)) return state;
+        return { shellHistory: { ...state.shellHistory, [host]: [...prev, command] } };
+    }),
+
+    /** Merge a batch of commands (e.g. from SSH_EXEC_SILENT_RESULT) */
+    addShellHistoryBatch: (host, commands) => set((state) => {
+        const prev = state.shellHistory[host] ?? [];
+        const set2 = new Set(prev);
+        const newCmds = commands.filter(c => c && !set2.has(c));
+        if (newCmds.length === 0) return state;
+        return { shellHistory: { ...state.shellHistory, [host]: [...prev, ...newCmds] } };
+    }),
+
+    /** Remove a single command from a host's history */
+    removeShellHistoryCommand: (host, command) => set((state) => {
+        const prev = state.shellHistory[host] ?? [];
+        return { shellHistory: { ...state.shellHistory, [host]: prev.filter(c => c !== command) } };
+    }),
 
     addToAllCommands: (command) => {
         set((state) => ({ allCommands: [command, ...state.allCommands] }))

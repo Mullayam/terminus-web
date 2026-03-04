@@ -58,7 +58,7 @@ export function CommandList() {
     }
   }, [])
   return (
-    <div className="border-l flex flex-col h-full mr-2" style={{ borderColor: `${colors.foreground}15`, backgroundColor: colors.background }}>
+    <div className="border-l flex flex-col h-full overflow-hidden" style={{ borderColor: `${colors.foreground}15`, backgroundColor: colors.background }}>
       {/* Fixed Search & Input Section */}
       <div className="p-4 border-b relative" style={{ borderColor: `${colors.foreground}15` }}>
         <Input
@@ -137,18 +137,18 @@ export function CommandList() {
         <div className="p-4 pt-0">
           {filteredCommands.map((cmd, index) => (
             <div key={index} className="group">
-              <div className="flex justify-between items-center w-full mb-1">
+              <div className="flex items-center w-80 mb-1 min-w-0">
                 <Button
                   variant="ghost"
                   onClick={(e) => handleMouseClick(e, cmd.command)}
-                  className="flex-1 justify-start text-left hover:text-white"
+                  className="flex-1 min-w-0 justify-start text-left hover:text-white overflow-hidden"
                   style={{ color: `${colors.foreground}cc` }}
                 >
-                  <Terminal className="h-4 w-4 mr-2" />
-                  {cmd.name}
+                  <Terminal className="h-4 w-4 mr-2 shrink-0" />
+                  <span className="truncate">{cmd.name}</span>
                 </Button>
 
-                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button
                     variant="ghost"
                     size="icon"
@@ -183,7 +183,7 @@ export function CommandList() {
               </div>
 
               {cmd.command && (
-                <div className="text-sm text-gray-500 ml-6 mb-2 font-mono">
+                <div className="text-sm text-gray-500 ml-6 mb-2 font-mono truncate" title={cmd.command}>
                   {cmd.command}
                 </div>
               )}

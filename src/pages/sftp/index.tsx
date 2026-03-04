@@ -50,6 +50,24 @@ const SFTP = () => {
           <Plus className="h-4 w-4" />
           New SFTP Connection
         </Button>
+        <p className="text-gray-700 text-[11px] italic mt-2">Switch to SSH via the bottom bar</p>
+
+        {/* SSH / SFTP toggle — bottom bar */}
+        <div className="absolute bottom-0 inset-x-0 flex justify-end items-center flex-wrap px-4 py-1 border-t text-xs shrink-0 border-gray-800 bg-[#0A0A0A]/90 text-gray-300">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => navigate('/ssh/connect')}
+              className="px-2 py-0.5 rounded text-[11px] font-medium transition-colors text-gray-400 hover:text-gray-100"
+            >
+              SSH
+            </button>
+            <button
+              className="px-2 py-0.5 rounded text-[11px] font-medium transition-colors text-gray-200 bg-gray-700/50"
+            >
+              SFTP
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -85,7 +103,7 @@ const SFTP = () => {
         </div>
         <div className="flex flex-row gap-4">
           {activeSession && (
-            <span>Status: <span className={activeSession.isConnected ? 'text-green-400' : 'text-gray-500'}>
+            <span>Socket: <span className={activeSession.isConnected ? 'text-green-400' : 'text-gray-500'}>
               {activeSession.isConnected ? 'Connected' : activeSession.status}
             </span></span>
           )}
@@ -97,6 +115,8 @@ const SFTP = () => {
         </div>
         {/* Right: server status */}
         <div className="flex items-center gap-3">
+        Session:
+
           <ServerStatus isConnected={activeSession?.status === 'connected'} />
         </div>
         <div className="flex items-center gap-1 mr-3">

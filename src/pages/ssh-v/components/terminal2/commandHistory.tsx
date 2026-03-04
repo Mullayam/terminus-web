@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { History, Play, Search, Trash2, Terminal } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
@@ -6,10 +6,11 @@ import { Separator } from "@/components/ui/separator";
 import { useSSHStore } from "@/store/sshStore";
 import { useSessionTheme } from "@/hooks/useSessionTheme";
 import { SocketEventConstants } from "@/lib/sockets/event-constants";
+import { useCommandStore } from "@/store";
 
 /**
- * Right-sidebar panel that lists every command the user has run on the
- * current host (persisted in localStorage under `terminus-suggestions:{host}`).
+ * Right-sidebar panel that lists shell-history commands for the active host.
+ * Data lives in zustand only (resets on page reload / new session).
  *
  * • Double-click a row → paste the command into the terminal (without executing)
  * • Click the small "Run" button → paste AND execute (sends command + Enter)
@@ -17,43 +18,23 @@ import { SocketEventConstants } from "@/lib/sockets/event-constants";
 export default function CommandHistory() {
     const { sessions, activeTabId } = useSSHStore();
     const { colors } = useSessionTheme();
+    const { shellHistory, removeShellHistoryCommand } = useCommandStore();
 
-    /* ── Derive the host-key exactly like Terminal.tsx does ── */
-    const hostKey = useMemo(() => {
+    /* ── Derive host key ── */
+    const host = useMemo(() => {
         if (!activeTabId) return null;
         const session = sessions[activeTabId];
-        const host = session?.host ?? activeTabId;
-        return `terminus-suggestions:${host}`;
+        return session?.host ?? activeTabId;
     }, [activeTabId, sessions]);
 
-    /* ── Load commands from localStorage ── */
-    const [commands, setCommands] = useState<string[]>([]);
+    /* ── Commands from zustand (in-memory, per-host) ── */
+    const commands = useMemo(() => {
+        if (!host) return [];
+        // Reverse so most-recent appears first
+        return [...(shellHistory[host] ?? [])].reverse();
+    }, [host, shellHistory]);
+
     const [query, setQuery] = useState("");
-
-    // Re-read whenever the active session changes or on focus
-    const loadCommands = useCallback(() => {
-        if (!hostKey) {
-            setCommands([]);
-            return;
-        }
-        try {
-            const raw = localStorage.getItem(hostKey);
-            const parsed: string[] = raw ? JSON.parse(raw) : [];
-            // Deduplicate & keep order (most recent last → reverse to show most recent first)
-            const unique = [...new Set(parsed)].reverse();
-            setCommands(unique);
-        } catch {
-            setCommands([]);
-        }
-    }, [hostKey]);
-
-    useEffect(() => {
-        loadCommands();
-
-        // Poll every 2s so changes from Terminal.tsx are reflected without a global event bus
-        const id = setInterval(loadCommands, 2000);
-        return () => clearInterval(id);
-    }, [loadCommands]);
 
     /* ── Filtered list ── */
     const filtered = useMemo(() => {
@@ -86,33 +67,23 @@ export default function CommandHistory() {
         [socket],
     );
 
-    /* ── Remove a single command from the persisted list ── */
+    /* ── Remove a single command from the history ── */
     const removeCommand = useCallback(
         (cmd: string) => {
-            if (!hostKey) return;
-            setCommands((prev) => {
-                const next = prev.filter((c) => c !== cmd);
-                // Persist back (reverse to restore original order)
-                try {
-                    const stored = [...next].reverse();
-                    localStorage.setItem(hostKey, JSON.stringify(stored));
-                } catch { /* quota */ }
-                return next;
-            });
+            if (!host) return;
+            removeShellHistoryCommand(host, cmd);
         },
-        [hostKey],
+        [host, removeShellHistoryCommand],
     );
 
     /* ── No session ── */
-    if (!activeTabId) {
+    if (!activeTabId || !host) {
         return (
             <div className="flex items-center justify-center h-full p-6" style={{ color: `${colors.foreground}60` }}>
                 <p className="text-sm text-center">No active session</p>
             </div>
         );
     }
-
-    const host = sessions[activeTabId]?.host ?? activeTabId;
 
     return (
         <div

@@ -43,10 +43,13 @@ export default function TerminalInfoOverlay({ onDismiss }: Props) {
 
   const tips = [
     { key: 'autocomplete', text: 'Ghost text autocomplete — toggle from Settings panel' },
+    { key: 'commands', text: 'Install command packs from the Extensions tab in the sidebar' },
+    { key: 'download', text: 'Download commands to your quick-access list from any command pack' },
     { key: 'search', text: 'Press Ctrl+F to search in terminal output' },
     { key: 'history', text: 'View command history from the sidebar' },
     { key: 'diagnostics', text: 'Error & warning detection — enable in Settings' },
     { key: 'split', text: 'Right-click a tab to split terminals side-by-side' },
+    { key: 'switch', text: 'Switch between SSH and SFTP from the bottom status bar' },
   ];
 
   return (

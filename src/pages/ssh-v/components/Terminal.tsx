@@ -78,7 +78,7 @@ const XTerminal = memo(function XTerminal({
   const terminalRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchAddonRef = useRef<SearchAddon | null>(null);
-  const { allCommands, recentCommands } = useCommandStore();
+  const { allCommands } = useCommandStore();
   const [suggestionPos, setSuggestionPos] = useState({ top: 0, left: 0 });
   const [suggestions, setSuggestions] = useState<string[]>(() => {
     try {
@@ -86,8 +86,11 @@ const XTerminal = memo(function XTerminal({
       return raw ? Array.from(JSON.parse(raw)) : [];
     } catch { return []; }
   });
+  /** Extra ghost-text sources (store commands + context-engine packs). Not persisted to history. */
+  const ghostSourcesRef = useRef<string[]>([]);
   const [commandBuffer, setCommandBuffer] = useState<string>("");
-  const { command, clickType, setCommand, addRecentCommand } = useCommandStore();
+  const { command, clickType, setCommand, addShellHistoryCommand, addShellHistoryBatch } = useCommandStore();
+  const shellHistoryHost = sessionHost ?? sessionId;
 
   /* ── Ghost text: accept the inline autocomplete suggestion ── */
   const handleGhostAccept = useCallback((fullCommand: string) => {
@@ -103,10 +106,9 @@ const XTerminal = memo(function XTerminal({
   let lastPromptPrefix = '';
 
   const filteredSuggestions = useMemo(() => {
-    if (commandBuffer == "") {
-      return suggestions
-    }
-    return suggestions.filter((command) => command.includes(commandBuffer));
+    const all = [...suggestions, ...ghostSourcesRef.current];
+    if (commandBuffer === "") return all;
+    return all.filter((command) => command.includes(commandBuffer));
   }, [commandBuffer, suggestions])
 
 
@@ -302,18 +304,20 @@ const XTerminal = memo(function XTerminal({
       diagFeed(input);
     });
 
-    // Server sends shell history after ready — merge into suggestions
+    // Server sends shell history after ready
     socket.on(SocketEventConstants.SSH_EXEC_SILENT_RESULT, (history: string[]) => {
       if (!Array.isArray(history)) return;
+      const cleaned = history.map(c => (typeof c === "string" ? c.trim() : "")).filter(Boolean);
+
+      // 1. Add to zustand shell history (sidebar reads this — in-memory only)
+      addShellHistoryBatch(sessionHost ?? sessionId, cleaned);
+
+      // 2. Also merge into suggestions so ghost-text can autocomplete from shell history
       setSuggestions((prev) => {
         const set = new Set(prev);
         let added = false;
-        for (const cmd of history) {
-          const trimmed = typeof cmd === "string" ? cmd.trim() : "";
-          if (trimmed && !set.has(trimmed)) {
-            set.add(trimmed);
-            added = true;
-          }
+        for (const cmd of cleaned) {
+          if (!set.has(cmd)) { set.add(cmd); added = true; }
         }
         return added ? Array.from(set) : prev;
       });
@@ -322,35 +326,25 @@ const XTerminal = memo(function XTerminal({
     window.addEventListener("resize", handleResize);
 
 
-    setSuggestions((prev) => {
-      const merged = Array.from(new Set([
-        ...prev,
-        ...allCommands.map((c) => c.command.toLocaleLowerCase()),
-        ...recentCommands,
-      ]));
-      return merged;
-    });
+    // Load store commands + context-engine data into ghost-text sources (NOT history)
+    const storeCmds = allCommands.map((c) => c.command.toLocaleLowerCase());
+    ghostSourcesRef.current = Array.from(new Set(storeCmds));
 
-    // Load installed context-engine command data for ghost-text suggestions
     getAllCommandData().then((cmdRecords) => {
       const cmds: string[] = [];
       for (const item of cmdRecords) {
         const data = item.data as any;
-        // Top-level command name
         if (data?.name) cmds.push(data.name);
-        // Subcommands: "git init", "git clone", etc.
         if (Array.isArray(data?.subcommands)) {
           for (const sub of data.subcommands) {
             if (sub?.name && data?.name) {
               cmds.push(`${data.name} ${sub.name}`);
             }
-            // Options as suggestions: "git clone --depth"
             if (Array.isArray(sub?.options) && data?.name && sub?.name) {
               for (const opt of sub.options) {
                 if (opt?.name) cmds.push(`${data.name} ${sub.name} ${opt.name}`);
               }
             }
-            // Examples
             if (Array.isArray(sub?.examples)) {
               for (const ex of sub.examples) {
                 if (typeof ex === "string") cmds.push(ex);
@@ -360,7 +354,7 @@ const XTerminal = memo(function XTerminal({
         }
       }
       if (cmds.length > 0) {
-        setSuggestions((prev) => Array.from(new Set([...prev, ...cmds])));
+        ghostSourcesRef.current = Array.from(new Set([...ghostSourcesRef.current, ...cmds]));
       }
     }).catch(() => {});
     return () => {
@@ -448,9 +442,8 @@ const XTerminal = memo(function XTerminal({
       if (isEnter) {
         const trimmed = commandBuffer.trim();
         if (trimmed.length > 0) {
-
-          setSuggestions(prev => [...prev, trimmed])
-          addRecentCommand(trimmed);
+          setSuggestions(prev => prev.includes(trimmed) ? prev : [...prev, trimmed]);
+          addShellHistoryCommand(shellHistoryHost, trimmed);
         }
         setCommandBuffer("");
         setIsVisible(false);
