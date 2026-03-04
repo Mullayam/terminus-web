@@ -60,9 +60,16 @@ type Tab = "languages" | "commands";
 type LangInstallState = Record<string, "installing" | "installed" | "error">;
 type CmdInstallState = Record<string, "installing" | "installed" | "error">;
 
+/* ── Props ─────────────────────────────────────────────────── */
+
+export interface ContextEnginePanelProps {
+    /** Called after a language pack or command category is installed/uninstalled so the editor can refresh */
+    onExtensionChange?: () => void;
+}
+
 /* ── Component ─────────────────────────────────────────────── */
 
-export function ContextEnginePanel() {
+export function ContextEnginePanel({ onExtensionChange }: ContextEnginePanelProps = {}) {
     const [tab, setTab] = useState<Tab>("languages");
     const [search, setSearch] = useState("");
 
@@ -112,9 +119,9 @@ export function ContextEnginePanel() {
             {/* ── Content ── */}
             <div className="flex-1 overflow-y-auto min-h-0">
                 {tab === "languages" ? (
-                    <LanguagePacksTab search={search} />
+                    <LanguagePacksTab search={search} onExtensionChange={onExtensionChange} />
                 ) : (
-                    <TerminalCommandsTab search={search} />
+                    <TerminalCommandsTab search={search} onExtensionChange={onExtensionChange} />
                 )}
             </div>
         </div>
@@ -150,7 +157,7 @@ function TabButton({
    Language Packs Tab
    ══════════════════════════════════════════════════════════════ */
 
-function LanguagePacksTab({ search }: { search: string }) {
+function LanguagePacksTab({ search, onExtensionChange }: { search: string; onExtensionChange?: () => void }) {
     const [manifest, setManifest] = useState<ManifestLanguage[]>([]);
     const [installed, setInstalled] = useState<Set<string>>(new Set());
     const [loading, setLoading] = useState(true);
@@ -190,10 +197,12 @@ function LanguagePacksTab({ search }: { search: string }) {
             setInstallState((s) => ({ ...s, [lang.id]: "installed" }));
             // Register Monaco providers immediately for the new language
             registerContextEngineForLanguage(monaco, lang.id).catch(() => {});
+            // Notify parent editor to refresh model
+            onExtensionChange?.();
         } catch {
             setInstallState((s) => ({ ...s, [lang.id]: "error" }));
         }
-    }, []);
+    }, [onExtensionChange]);
 
     const handleUninstall = useCallback(async (id: string) => {
         await removeLanguagePack(id);
@@ -202,7 +211,9 @@ function LanguagePacksTab({ search }: { search: string }) {
         // Re-register all remaining providers (dispose old ones first)
         disposeContextEngineProviders();
         registerContextEngineProviders(monaco).catch(() => {});
-    }, []);
+        // Notify parent editor to refresh model
+        onExtensionChange?.();
+    }, [onExtensionChange]);
 
     const filtered = search
         ? manifest.filter(
@@ -345,7 +356,7 @@ function LangRow({
    Terminal Commands Tab
    ══════════════════════════════════════════════════════════════ */
 
-function TerminalCommandsTab({ search }: { search: string }) {
+function TerminalCommandsTab({ search, onExtensionChange: _onExtensionChange }: { search: string; onExtensionChange?: () => void }) {
     const [categories, setCategories] = useState<TerminalCommandContext[]>([]);
     const [installedCats, setInstalledCats] = useState<Set<string>>(new Set());
     const [loading, setLoading] = useState(true);

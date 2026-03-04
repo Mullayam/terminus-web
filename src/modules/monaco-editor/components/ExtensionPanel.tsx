@@ -51,6 +51,8 @@ export interface ExtensionPanelProps {
   editor: monacoNs.editor.IStandaloneCodeEditor | null;
   /** Callback when user applies a theme */
   onThemeApply?: (themeId: string) => void;
+  /** Called after an extension is installed, uninstalled, or toggled so the editor can refresh */
+  onExtensionChange?: () => void;
 }
 
 type View = "list" | "detail" | "search-results";
@@ -67,6 +69,7 @@ export const ExtensionPanel: React.FC<ExtensionPanelProps> = ({
   monaco,
   editor,
   onThemeApply,
+  onExtensionChange,
 }) => {
   const [view, setView] = useState<View>("list");
   const [query, setQuery] = useState("");
@@ -193,6 +196,8 @@ export const ExtensionPanel: React.FC<ExtensionPanelProps> = ({
           onProgress,
         );
         await refreshInstalled();
+        // Notify parent to refresh editor model (language, tokenization, etc.)
+        onExtensionChange?.();
 
         // Clear install state after 3s
         setTimeout(() => {
@@ -214,8 +219,9 @@ export const ExtensionPanel: React.FC<ExtensionPanelProps> = ({
     async (extensionId: string) => {
       await uninstallExtensionFull(extensionId);
       await refreshInstalled();
+      onExtensionChange?.();
     },
-    [refreshInstalled],
+    [refreshInstalled, onExtensionChange],
   );
 
   // Toggle enable/disable
@@ -223,8 +229,9 @@ export const ExtensionPanel: React.FC<ExtensionPanelProps> = ({
     async (extensionId: string, enabled: boolean) => {
       await toggleExtension(extensionId, enabled);
       await refreshInstalled();
+      onExtensionChange?.();
     },
-    [refreshInstalled],
+    [refreshInstalled, onExtensionChange],
   );
 
   // Apply theme

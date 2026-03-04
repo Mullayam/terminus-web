@@ -111,6 +111,8 @@ export interface EditorRightSidebarProps {
   chatFileContent?: string;  /** Currently selected text (for AI chat context) */
   chatSelectedText?: string;  /** Called when AI chat applies code */
   onChatApplyCode?: (code: string, language: string) => void;
+  /** Called after an extension/context-engine pack is installed/uninstalled so the editor can refresh */
+  onExtensionChange?: () => void;
 }
 
 /* ── Activity Bar Tab ──────────────────────────────────────── */
@@ -235,6 +237,7 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
   chatFileContent,
   chatSelectedText,
   onChatApplyCode,
+  onExtensionChange,
 }) => {
   const errorCount = useMemo(
     () => problems.filter((p) => p.severity === 8).length,
@@ -426,10 +429,11 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
                 monaco={monacoProp ?? null}
                 editor={editorProp ?? null}
                 onThemeApply={onThemeApply}
+                onExtensionChange={onExtensionChange}
               />
             )}
             {activeTab === "context-engine" && (
-              <ContextEnginePanel />
+              <ContextEnginePanel onExtensionChange={onExtensionChange} />
             )}
             {activeTab === "themes" && (
               <ThemeSidebar
@@ -604,6 +608,8 @@ export interface EditorSidebarContentProps {
   chatFileContent?: string;
   chatSelectedText?: string;
   onChatApplyCode?: (code: string, language: string) => void;
+  /** Called after an extension/context-engine pack is installed/uninstalled so the editor can refresh */
+  onExtensionChange?: () => void;
 }
 
 /** Sidebar panel content (no width management – parent handles sizing via ResizablePanel). */
@@ -630,6 +636,7 @@ export const EditorSidebarContent: React.FC<EditorSidebarContentProps> = ({
   chatFileContent,
   chatSelectedText,
   onChatApplyCode,
+  onExtensionChange,
 }) => {
   const errorCount = useMemo(() => problems.filter((p) => p.severity === 8).length, [problems]);
   const warningCount = useMemo(() => problems.filter((p) => p.severity === 4).length, [problems]);
@@ -668,10 +675,11 @@ export const EditorSidebarContent: React.FC<EditorSidebarContentProps> = ({
             monaco={monacoProp ?? null}
             editor={editorProp ?? null}
             onThemeApply={onThemeApply}
+            onExtensionChange={onExtensionChange}
           />
         )}
         {activeTab === "context-engine" && (
-          <ContextEnginePanel />
+          <ContextEnginePanel onExtensionChange={onExtensionChange} />
         )}
         {activeTab === "themes" && (
           <ThemeSidebar

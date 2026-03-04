@@ -49,7 +49,7 @@ import { pluginRegistry } from "./core/plugin-registry";
 import { registerTheme, registerThemes } from "./core/theme-registry";
 import { BUILT_IN_THEMES } from "./themes";
 import { loadMonacoTheme } from "./themes/monaco-themes-catalog";
-import { detectLanguage, initMonacoLanguages } from "./utils/language-detect";
+import { detectLanguage, initMonacoLanguages, refreshLanguageCache } from "./utils/language-detect";
 
 // Lib utilities (advanced features)
 import {
@@ -1304,8 +1304,58 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
         .then(({ extensions }) => setExtensionCount(extensions.length))
         .catch(() => { });
     }
+    // Refresh language detection and re-apply model language
+    refreshModelLanguage();
     onExtensionInstalled?.();
   }, [shouldLoadExtensions, onExtensionInstalled]);
+
+  /**
+   * Re-detect the current file's language from the (now updated) Monaco
+   * language registry and update the model language if it changed.
+   *
+   * Called after any extension install/uninstall/toggle or context-engine
+   * pack change so the editor picks up new language support, tokenization,
+   * grammars, completions, etc. without a full page reload.
+   */
+  const refreshModelLanguage = useCallback(() => {
+    const monaco = monacoRef.current;
+    const editor = editorRef.current;
+    if (!monaco || !editor) return;
+
+    // 1. Refresh the language detection cache from the updated Monaco registry
+    refreshLanguageCache(monaco);
+
+    // 2. Re-detect the language for the currently open file
+    const currentFilePath = filePath ?? editor.getModel()?.uri.path ?? "";
+    if (!currentFilePath) return;
+
+    const newLang = detectLanguage(currentFilePath);
+    const model = editor.getModel();
+    if (!model) return;
+
+    const currentLang = model.getLanguageId();
+    if (newLang && newLang !== "plaintext" && newLang !== currentLang) {
+      // Update the model's language — triggers re-tokenization, snippets, completions, etc.
+      monaco.editor.setModelLanguage(model, newLang);
+      console.log(`[MonacoEditor] Model language refreshed: ${currentLang} → ${newLang}`);
+      showEditorNotification(
+        `Language switched to ${newLang}`,
+        "info",
+        { source: "Extensions", timeout: 3000 },
+      );
+    } else {
+      // Same language — still force a re-tokenization by toggling the language
+      // This ensures new grammars/tokens from the extension are applied.
+      monaco.editor.setModelLanguage(model, "plaintext");
+      monaco.editor.setModelLanguage(model, currentLang);
+      console.log(`[MonacoEditor] Model re-tokenized for language: ${currentLang}`);
+    }
+
+    // 3. Re-register context-engine providers for any newly installed packs
+    import("./lib/contextEngineProviders").then(({ registerContextEngineProviders }) => {
+      registerContextEngineProviders(monaco).catch(() => {});
+    });
+  }, [filePath]);
 
   const handleTerminalToggle = useCallback(() => {
     setTerminalOpen((o) => !o);
@@ -1447,6 +1497,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
                   chatFileContent={value ?? internalContentRef.current ?? editorRef.current?.getValue() ?? ""}
                   chatSelectedText={selectedText}
                   onChatApplyCode={onChatApplyCode}
+                  onExtensionChange={refreshModelLanguage}
                 />
               </ResizablePanel>
             </>
