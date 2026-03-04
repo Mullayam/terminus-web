@@ -645,6 +645,17 @@ export default function FileEditorMonacoPage() {
             root.style.setProperty("--editor-hover-bg", hoverBg);
             root.style.setProperty("--editor-statusbar-bg", statusBarBg);
             root.style.setProperty("--editor-is-dark", isDark ? "1" : "0");
+
+            // Scrollbar colours from theme (fall back to derived values)
+            const themeDef2 = themeDef ?? getLoadedMonacoTheme(id);
+            const scrollThumb = themeDef2?.colors?.["scrollbarSlider.background"]
+              ?? (isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.2)");
+            const scrollThumbHover = themeDef2?.colors?.["scrollbarSlider.hoverBackground"]
+              ?? (isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)");
+            const scrollTrack = isDark ? "rgba(0,0,0,0.1)" : "rgba(0,0,0,0.05)";
+            root.style.setProperty("--editor-scrollbar-thumb", scrollThumb);
+            root.style.setProperty("--editor-scrollbar-thumb-hover", scrollThumbHover);
+            root.style.setProperty("--editor-scrollbar-track", scrollTrack);
         }
     }, []);
 
@@ -744,7 +755,7 @@ export default function FileEditorMonacoPage() {
 
     /* ── Main render ────────────────────────────────────────── */
     return (
-        <div className="h-screen w-full overflow-hidden flex flex-col" style={{ background: "var(--editor-bg, #1e1e1e)", color: "var(--editor-fg, #d4d4d4)" }}>
+        <div className="h-screen w-full overflow-hidden flex flex-col editor-themed-scroll" style={{ background: "var(--editor-bg, #1e1e1e)", color: "var(--editor-fg, #d4d4d4)" }}>
 
             {/* Toolbar (memoized) */}
             <EditorToolbar
@@ -931,8 +942,8 @@ export default function FileEditorMonacoPage() {
             <style>{`
                 .tab-bar-scroll::-webkit-scrollbar { height: 3px; }
                 .tab-bar-scroll::-webkit-scrollbar-track { background: transparent; }
-                .tab-bar-scroll::-webkit-scrollbar-thumb { background: #5a5a5a; border-radius: 2px; }
-                .tab-bar-scroll::-webkit-scrollbar-thumb:hover { background: #7a7a7a; }
+                .tab-bar-scroll::-webkit-scrollbar-thumb { background: var(--editor-scrollbar-thumb, #5a5a5a); border-radius: 2px; }
+                .tab-bar-scroll::-webkit-scrollbar-thumb:hover { background: var(--editor-scrollbar-thumb-hover, #7a7a7a); }
             `}</style>
         </div>
     );

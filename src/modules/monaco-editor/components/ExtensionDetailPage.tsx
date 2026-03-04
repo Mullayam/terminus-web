@@ -190,7 +190,7 @@ export const ExtensionDetailPage: React.FC<ExtensionDetailPageProps> = ({
                 </h2>
                 <div className="flex items-center gap-2 mt-0.5 text-[12px] text-gray-400">
                   <span>{ext.namespace}</span>
-                  <span className="text-gray-600">|</span>
+                  <span className="text-gray-400">|</span>
                   <span>v{ext.version}</span>
                 </div>
               </div>
@@ -365,7 +365,7 @@ export const ExtensionDetailPage: React.FC<ExtensionDetailPageProps> = ({
                           >
                             <Palette className="w-3 h-3 text-purple-400" />
                             {t.label}
-                            <span className="text-[9px] text-gray-600 ml-auto">{t.uiTheme}</span>
+                            <span className="text-[9px] text-gray-400 ml-auto">{t.uiTheme}</span>
                           </button>
                         ))}
                       </ContributionSection>
@@ -446,7 +446,7 @@ export const ExtensionDetailPage: React.FC<ExtensionDetailPageProps> = ({
                         {Object.entries(installed.contributes.views).map(([containerId, views]) =>
                           views.map((v) => (
                             <div key={v.id} className="text-[11px] text-gray-500 px-2 py-0.5">
-                              {v.name} <span className="text-gray-600">({containerId})</span>
+                              {v.name} <span className="text-gray-400">({containerId})</span>
                             </div>
                           )),
                         )}

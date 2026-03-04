@@ -53,10 +53,10 @@ function EditorToolbarInner({
                 color: "var(--editor-fg, #d4d4d4)",
             }}
         >            {/* Left: file info */}
-            <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+            <div className="flex items-center gap-2 min-w-0 overflow-hidden ">
                 <span className="flex items-center space-x-1">
                     <FileIcon name={currentFileName} isDirectory={false} className="w-4 h-4" />
-                    <span className="text-[13px] font-medium truncate text-gray-200">
+                    <span className="text-[13px] font-medium truncate text-gray-200 select-text">
                         {currentFileName}
                     </span>
                 </span>
@@ -66,7 +66,7 @@ function EditorToolbarInner({
                         title="Unsaved changes"
                     />
                 )}
-                <span className="text-[11px] font-mono truncate hidden sm:inline text-gray-500">
+                <span className="text-[11px] font-mono truncate hidden sm:inline text-gray-500 select-text">
                     {currentFilePath}
                 </span>
             </div>

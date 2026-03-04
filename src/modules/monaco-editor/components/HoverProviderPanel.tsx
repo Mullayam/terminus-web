@@ -180,7 +180,7 @@ export const HoverProviderPanel: React.FC<HoverProviderPanelProps> = ({
                   </div>
                   <button
                     onClick={() => copyJson(i)}
-                    className="text-gray-600 hover:text-gray-300 transition-colors shrink-0"
+                    className="text-gray-400 hover:text-gray-300 transition-colors shrink-0"
                     title="Copy JSON"
                   >
                     {copiedIndex === i
@@ -190,7 +190,7 @@ export const HoverProviderPanel: React.FC<HoverProviderPanelProps> = ({
                   </button>
                   <button
                     onClick={() => removeEntry(i)}
-                    className="text-gray-600 hover:text-red-400 transition-colors shrink-0"
+                    className="text-gray-400 hover:text-red-400 transition-colors shrink-0"
                     title="Remove"
                   >
                     <Trash2 className="w-3 h-3" />
@@ -312,7 +312,7 @@ export const HoverProviderPanel: React.FC<HoverProviderPanelProps> = ({
         <div className="px-2 py-3 text-center">
           <FileText className="w-8 h-8 text-gray-700 mx-auto mb-2" />
           <p className="text-[11px] text-gray-500 mb-2">No custom hover providers</p>
-          <div className="text-[10px] text-gray-600 text-left space-y-1">
+          <div className="text-[10px] text-gray-400 text-left space-y-1">
             <p>Add hover documentation for any language.</p>
             <p className="text-gray-700">
               Provide a JSON object mapping <strong>words</strong> to <strong>Markdown</strong> content:

@@ -113,7 +113,7 @@ export const CustomContextMenuPanel: React.FC<CustomContextMenuPanelProps> = ({
                 </div>
                 <button
                   onClick={() => removeEntry(i)}
-                  className="text-gray-600 hover:text-red-400 transition-colors shrink-0"
+                  className="text-gray-400 hover:text-red-400 transition-colors shrink-0"
                   title="Remove"
                 >
                   <Trash2 className="w-3 h-3" />
@@ -179,7 +179,7 @@ export const CustomContextMenuPanel: React.FC<CustomContextMenuPanelProps> = ({
           <p className="text-[11px] text-gray-500 mb-2 text-center">
             No custom context menu items
           </p>
-          <div className="text-[10px] text-gray-600 space-y-1">
+          <div className="text-[10px] text-gray-400 space-y-1">
             <p>Add custom items to the editor right-click menu:</p>
             <p className="text-gray-700">
               <strong>Command</strong> — run a Monaco command<br />

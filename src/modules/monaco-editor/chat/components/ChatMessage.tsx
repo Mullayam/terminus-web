@@ -285,7 +285,7 @@ export const ChatMessageView: React.FC<ChatMessageProps> = ({
             {isUser ? "You" : "Assistant"}
           </span>
           {message.model && (
-            <span className="text-[10px] text-gray-600">{message.model}</span>
+            <span className="text-[10px] text-gray-400">{message.model}</span>
           )}
           {isStreaming && (
             <Loader2 className="w-3 h-3 text-[#007acc] animate-spin" />
@@ -324,7 +324,7 @@ export const ChatMessageView: React.FC<ChatMessageProps> = ({
         )}
 
         {/* Timestamp */}
-        <div className="mt-1 text-[10px] text-gray-600">
+        <div className="mt-1 text-[10px] text-gray-400">
           {new Date(message.timestamp).toLocaleTimeString()}
         </div>
       </div>

@@ -99,12 +99,21 @@ export const EditorTerminalPanel = memo(function EditorTerminalPanel({
     e.currentTarget.releasePointerCapture(e.pointerId);
   }, []);
 
-  if (!open) return null;
-
+  // Keep the terminal mounted (hidden) when not open, so the socket stays alive.
+  // Only the outer wrapper is hidden — the xterm instance persists in the DOM.
   return (
     <div
       className="flex flex-col shrink-0"
-      style={{ height, minHeight: 100, contain: "layout paint style", borderTop: "1px solid var(--editor-border, #3c3c3c)" }}
+      style={{
+        height: open ? height : 0,
+        minHeight: open ? 100 : 0,
+        contain: "layout paint style",
+        borderTop: open ? "1px solid var(--editor-border, #3c3c3c)" : "none",
+        overflow: open ? undefined : "hidden",
+        visibility: open ? "visible" : "hidden",
+        position: open ? undefined : "absolute",
+        pointerEvents: open ? undefined : "none",
+      }}
     >
       {/* ── Resize handle ────────────────────────────────── */}
       <div

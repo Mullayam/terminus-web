@@ -537,7 +537,7 @@ function CustomSnippetUrlList({
               </div>
               <button
                 onClick={() => removeEntry(i)}
-                className="text-gray-600 hover:text-red-400 transition-colors shrink-0"
+                className="text-gray-400 hover:text-red-400 transition-colors shrink-0"
                 title="Remove"
               >
                 <Trash2 className="w-3 h-3" />
@@ -586,7 +586,7 @@ function CustomSnippetUrlList({
       </div>
 
       {urls.length === 0 && (
-        <p className="text-[10px] text-gray-600 px-1">
+        <p className="text-[10px] text-gray-400 px-1">
           Add raw URLs to VS Code-compatible snippet JSON files.
           They will be loaded into Monaco as completion providers.
         </p>

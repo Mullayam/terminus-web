@@ -272,7 +272,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 </button>
                 <button
                   onClick={() => deleteConversation(conv.id)}
-                  className="p-0.5 rounded hover:bg-[#404040] text-gray-600 hover:text-red-400 transition-colors shrink-0"
+                  className="p-0.5 rounded hover:bg-[#404040] text-gray-400 hover:text-red-400 transition-colors shrink-0"
                   title="Delete"
                 >
                   <Trash2 className="w-3 h-3" />
@@ -322,7 +322,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             <span className="text-[13px] text-gray-400 font-medium mb-1">
               AI Chat
             </span>
-            <span className="text-[11px] text-gray-600 max-w-[200px]">
+            <span className="text-[11px] text-gray-400 max-w-[200px]">
               Ask questions about your code, get explanations, or request changes.
             </span>
           </div>
@@ -406,11 +406,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
 
         <div className="flex items-center justify-between mt-1">
-          <span className="text-[10px] text-gray-600">
+          <span className="text-[10px] text-gray-400">
             Shift+Enter for newline
           </span>
           {filename && (
-            <span className="text-[10px] text-gray-600 truncate max-w-[120px]">
+            <span className="text-[10px] text-gray-400 truncate max-w-[120px]">
               Context: {filename}
             </span>
           )}

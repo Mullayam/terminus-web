@@ -455,7 +455,7 @@ export function FileEditor({ filePath, fileName, socket, fullScreen = false, onC
                     {modified && (
                         <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" title="Unsaved changes" />
                     )}
-                    <span className="text-[11px] text-gray-600 font-mono truncate hidden sm:inline">
+                    <span className="text-[11px] text-gray-400 font-mono truncate hidden sm:inline">
                         {filePath}
                     </span>
                 </div>
@@ -463,7 +463,7 @@ export function FileEditor({ filePath, fileName, socket, fullScreen = false, onC
                     <button
                         onClick={() => setWordWrap((w) => !w)}
                         title={wordWrap ? "Disable word wrap" : "Enable word wrap"}
-                        className={`p-1.5 rounded-md transition-colors ${wordWrap ? "bg-white/[0.08] text-gray-300" : "text-gray-600 hover:text-gray-400"}`}
+                        className={`p-1.5 rounded-md transition-colors ${wordWrap ? "bg-white/[0.08] text-gray-300" : "text-gray-400 hover:text-gray-400"}`}
                     >
                         <WrapText className="w-3.5 h-3.5" />
                     </button>
@@ -502,14 +502,14 @@ export function FileEditor({ filePath, fileName, socket, fullScreen = false, onC
                                 <button
                                     disabled={item.disabled}
                                     onClick={() => ctxAction(item.action)}
-                                    className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] text-gray-300 transition-colors hover:bg-white/[0.08] hover:text-white disabled:text-gray-600 disabled:pointer-events-none"
+                                    className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] text-gray-300 transition-colors hover:bg-white/[0.08] hover:text-white disabled:text-gray-500 disabled:pointer-events-none"
                                 >
                                     <span className="w-4 h-4 flex items-center justify-center text-gray-500">
                                         {item.icon}
                                     </span>
                                     <span className="flex-1 text-left">{item.label}</span>
                                     {item.shortcut && (
-                                        <span className="text-[11px] text-gray-600 ml-auto pl-3 tracking-wide">
+                                        <span className="text-[11px] text-gray-400 ml-auto pl-3 tracking-wide">
                                             {item.shortcut}
                                         </span>
                                     )}
@@ -564,7 +564,7 @@ export function FileEditor({ filePath, fileName, socket, fullScreen = false, onC
             </div>
 
             {/* Status bar */}
-            <div className="flex items-center justify-between px-3 py-1 bg-[#13141b] border-t border-white/[0.06] text-[11px] text-gray-600 select-none">
+            <div className="flex items-center justify-between px-3 py-1 bg-[#13141b] border-t border-white/[0.06] text-[11px] text-gray-400 select-none">
                 <div className="flex items-center gap-3">
                     <span>{lang}</span>
                     <span>UTF-8</span>

@@ -78,7 +78,7 @@ export const AICompletionsPanel: React.FC<AICompletionsPanelProps> = ({
               onChange={(e) => update("ghostTextEndpoint", e.target.value)}
               className="bg-[#3c3c3c] text-[11px] text-gray-300 px-2 py-1.5 rounded border border-[#555] hover:border-[#007acc] focus:border-[#007acc] focus:outline-none transition-colors w-full"
             />
-            <p className="text-[9px] text-gray-600 mt-0.5">
+            <p className="text-[9px] text-gray-400 mt-0.5">
               Base URL — SSE stream at <code className="text-[9px] bg-[#3c3c3c] px-0.5 rounded">{"{url}/api/stream"}</code>
             </p>
           </div>
@@ -116,7 +116,7 @@ data: {"choices":[{"delta":{"content":"World"}}]}
 
 data: [DONE]`}
             </pre>
-            <div className="text-[9px] text-gray-600 px-2 mt-2 space-y-0.5">
+            <div className="text-[9px] text-gray-400 px-2 mt-2 space-y-0.5">
               <p>Supports OpenAI-style SSE (<code className="text-[8px] bg-[#3c3c3c] px-0.5 rounded">choices[0].delta.content</code>), or plain <code className="text-[8px] bg-[#3c3c3c] px-0.5 rounded">data: token</code> lines.</p>
               <p>Also accepts <code className="text-[8px] bg-[#3c3c3c] px-0.5 rounded">{`{ content }` }</code>, <code className="text-[8px] bg-[#3c3c3c] px-0.5 rounded">{`{ text }`}</code>, or <code className="text-[8px] bg-[#3c3c3c] px-0.5 rounded">{`{ token }`}</code> JSON shapes.</p>
             </div>
@@ -138,7 +138,7 @@ data: [DONE]`}
               onChange={(e) => update("copilotEndpoint", e.target.value)}
               className="bg-[#3c3c3c] text-[11px] text-gray-300 px-2 py-1.5 rounded border border-[#555] hover:border-[#007acc] focus:border-[#007acc] focus:outline-none transition-colors w-full"
             />
-            <p className="text-[9px] text-gray-600 mt-0.5">
+            <p className="text-[9px] text-gray-400 mt-0.5">
               POST endpoint for monacopilot completions (default: <code className="text-[9px] bg-[#3c3c3c] px-0.5 rounded">/api/complete</code>)
             </p>
           </div>
@@ -161,11 +161,11 @@ data: [DONE]`}
   "error": null
 }`}
             </pre>
-            <div className="text-[9px] text-gray-600 px-2 mt-2 space-y-0.5">
+            <div className="text-[9px] text-gray-400 px-2 mt-2 space-y-0.5">
               <p><strong className="text-gray-500">completion</strong> <span className="text-gray-700">(required)</span> — the inline code to suggest, or <code className="text-[8px] bg-[#3c3c3c] px-0.5 rounded">null</code> for no suggestion</p>
               <p><strong className="text-gray-500">error</strong> <span className="text-gray-700">(optional)</span> — error message string if the request failed</p>
             </div>
-            <p className="text-[9px] text-gray-600 px-2 mt-2">
+            <p className="text-[9px] text-gray-400 px-2 mt-2">
               The request body contains <code className="text-[8px] bg-[#3c3c3c] px-0.5 rounded">completionMetadata</code> with <code className="text-[8px] bg-[#3c3c3c] px-0.5 rounded">language</code>, <code className="text-[8px] bg-[#3c3c3c] px-0.5 rounded">filename</code>, <code className="text-[8px] bg-[#3c3c3c] px-0.5 rounded">technologies</code>, cursor context, and surrounding code. See the <strong>monacopilot</strong> docs for full schema.
             </p>
           </div>
@@ -186,7 +186,7 @@ data: [DONE]`}
               onChange={(e) => update("aiCompletionsEndpoint", e.target.value)}
               className="bg-[#3c3c3c] text-[11px] text-gray-300 px-2 py-1.5 rounded border border-[#555] hover:border-[#007acc] focus:border-[#007acc] focus:outline-none transition-colors w-full"
             />
-            <p className="text-[9px] text-gray-600 mt-0.5">
+            <p className="text-[9px] text-gray-400 mt-0.5">
               POST endpoint returning <code className="text-[9px] bg-[#3c3c3c] px-0.5 rounded">{"{ items: [...] }"}</code>
             </p>
           </div>
@@ -217,7 +217,7 @@ data: [DONE]`}
   ]
 }`}
             </pre>
-            <div className="text-[9px] text-gray-600 px-2 mt-2 space-y-0.5">
+            <div className="text-[9px] text-gray-400 px-2 mt-2 space-y-0.5">
               <p><strong className="text-gray-500">label</strong> <span className="text-gray-700">(required)</span> — completion display text</p>
               <p><strong className="text-gray-500">kind</strong> <span className="text-gray-700">(optional)</span> — Monaco CompletionItemKind number (1=Method, 3=Function, 5=Field, 6=Variable, 9=Module, 14=Keyword, 15=Snippet)</p>
               <p><strong className="text-gray-500">detail</strong> <span className="text-gray-700">(optional)</span> — short description</p>
@@ -253,7 +253,7 @@ data: [DONE]`}
                 Fetch from Server
               </button>
             )}
-            <p className="text-[9px] text-gray-600 px-2">
+            <p className="text-[9px] text-gray-400 px-2">
               Completions are fetched once when a file opens (if cache is empty).
               Use <kbd className="text-[8px] bg-[#3c3c3c] px-1 py-px rounded border border-[#555]">Ctrl+Alt+A</kbd> or right-click → Fetch Snippets to refresh.
             </p>
@@ -266,7 +266,7 @@ data: [DONE]`}
         <div className="px-2 py-3 text-center">
           <Sparkles className="w-8 h-8 text-gray-700 mx-auto mb-2" />
           <p className="text-[11px] text-gray-500 mb-1">AI completions are disabled</p>
-          <p className="text-[10px] text-gray-600">
+          <p className="text-[10px] text-gray-400">
             Select a provider above to enable AI-powered code suggestions.
           </p>
         </div>
@@ -354,7 +354,7 @@ function AIProviderSelector({
               <span className={`text-[12px] font-medium ${isActive ? "text-gray-200" : "text-gray-400"}`}>
                 {p.label}
               </span>
-              <span className="text-[10px] text-gray-600 truncate">{p.desc}</span>
+              <span className="text-[10px] text-gray-400 truncate">{p.desc}</span>
             </div>
           </button>
         );

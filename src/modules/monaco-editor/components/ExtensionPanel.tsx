@@ -383,7 +383,7 @@ export const ExtensionPanel: React.FC<ExtensionPanelProps> = ({
                         <div className="text-gray-300 truncate group-hover:text-white">
                           {theme.label}
                         </div>
-                        <div className="text-[10px] text-gray-600">
+                        <div className="text-[10px] text-gray-400">
                           {theme.extensionId} · {theme.uiTheme}
                         </div>
                       </div>
@@ -446,10 +446,10 @@ const ExtensionSearchItem: React.FC<{
         <div className="text-[10px] text-gray-500 truncate">
           {ext.namespace}
         </div>
-        <div className="text-[10px] text-gray-600 truncate mt-0.5">
+        <div className="text-[10px] text-gray-400 truncate mt-0.5">
           {ext.description}
         </div>
-        <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-600">
+        <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-400">
           {ext.averageRating != null && (
             <span className="flex items-center gap-0.5">
               <Star className="w-2.5 h-2.5 text-yellow-500" />
@@ -537,14 +537,14 @@ const InstalledExtensionItem: React.FC<{
             {ext.displayName}
           </div>
           <div className="text-[10px] text-gray-500">{ext.publisher}</div>
-          <div className="text-[10px] text-gray-600 mt-0.5">v{ext.version}</div>
+          <div className="text-[10px] text-gray-400 mt-0.5">v{ext.version}</div>
         </div>
 
         {/* Controls */}
         <div className="flex items-center gap-1 shrink-0 pt-1">
           <button
             onClick={() => onToggle(!ext.enabled)}
-            className={`p-0.5 rounded transition-colors ${ext.enabled ? "text-green-400 hover:text-green-300" : "text-gray-600 hover:text-gray-400"}`}
+            className={`p-0.5 rounded transition-colors ${ext.enabled ? "text-green-400 hover:text-green-300" : "text-gray-400 hover:text-gray-400"}`}
             title={ext.enabled ? "Disable" : "Enable"}
           >
             {ext.enabled ? (
@@ -555,7 +555,7 @@ const InstalledExtensionItem: React.FC<{
           </button>
           <button
             onClick={() => onUninstall()}
-            className="p-0.5 rounded text-gray-600 hover:text-red-400 transition-colors"
+            className="p-0.5 rounded text-gray-400 hover:text-red-400 transition-colors"
             title="Uninstall"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -675,7 +675,7 @@ const ExtensionDetail: React.FC<{
             {ext.displayName || ext.name}
           </h3>
           <div className="text-[10px] text-gray-500">{ext.namespace}</div>
-          <div className="text-[10px] text-gray-600 mt-0.5">v{ext.version}</div>
+          <div className="text-[10px] text-gray-400 mt-0.5">v{ext.version}</div>
         </div>
       </div>
 
@@ -755,7 +755,7 @@ const ExtensionDetail: React.FC<{
                     <Star className="w-2.5 h-2.5 text-yellow-500" />
                     {ext.averageRating.toFixed(1)}
                     {ext.reviewCount != null && (
-                      <span className="text-gray-600 ml-1">({ext.reviewCount})</span>
+                      <span className="text-gray-400 ml-1">({ext.reviewCount})</span>
                     )}
                   </span>
                 }
@@ -830,7 +830,7 @@ const ExtensionDetail: React.FC<{
                     >
                       <Palette className="w-3 h-3 text-purple-400" />
                       {t.label}
-                      <span className="text-[9px] text-gray-600 ml-auto">{t.uiTheme}</span>
+                      <span className="text-[9px] text-gray-400 ml-auto">{t.uiTheme}</span>
                     </button>
                   ))}
                 </>

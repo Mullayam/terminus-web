@@ -108,7 +108,7 @@ function PathPicker({
               <Folder className="w-3 h-3" />
               {seg.name}
               {idx < currentSegments.length - 1 && (
-                <ChevronRight className="w-3 h-3 text-gray-600 ml-0.5" />
+                <ChevronRight className="w-3 h-3 text-gray-400 ml-0.5" />
               )}
             </button>
           ))}
@@ -149,7 +149,7 @@ function PathPicker({
                 <Folder className="w-3 h-3" />
                 {seg.name}
                 {idx < homeSegments.length - 1 && (
-                  <ChevronRight className="w-3 h-3 text-gray-600 ml-0.5" />
+                  <ChevronRight className="w-3 h-3 text-gray-400 ml-0.5" />
                 )}
               </button>
             ))}

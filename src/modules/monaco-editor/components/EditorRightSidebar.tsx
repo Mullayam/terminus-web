@@ -95,6 +95,8 @@ export interface EditorRightSidebarProps {
   onThemeApply?: (themeId: string) => void;
   /** Number of installed extensions (for badge) */
   extensionCount?: number;
+  /** Number of installed context-engine language packs (for badge) */
+  contextEngineCount?: number;
   /** Current active theme ID (for theme sidebar) */
   activeTheme?: string;
   /** Current editor settings */
@@ -228,6 +230,7 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
   editor: editorProp,
   onThemeApply,
   extensionCount = 0,
+  contextEngineCount = 0,
   activeTheme,
   editorSettings,
   onSettingsChange,
@@ -323,7 +326,9 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
                 ? symbols.length
                 : tab.id === "extensions" && extensionCount > 0
                   ? extensionCount
-                  : null;
+                  : tab.id === "context-engine" && contextEngineCount > 0
+                    ? contextEngineCount
+                    : null;
 
           return (
             <button
@@ -486,11 +491,12 @@ export interface EditorSidebarActivityBarProps {
   symbols: DocumentSymbolItem[];
   problems: monacoNs.editor.IMarkerData[];
   extensionCount?: number;
+  contextEngineCount?: number;
 }
 
 /** Activity bar icon strip (40 px, always visible, placed outside the resizable area). */
 export const EditorSidebarActivityBar: React.FC<EditorSidebarActivityBarProps> = ({
-  open, onToggle, activeTab, onTabChange, symbols, problems, extensionCount = 0,
+  open, onToggle, activeTab, onTabChange, symbols, problems, extensionCount = 0, contextEngineCount = 0,
 }) => {
   const errorCount = useMemo(() => problems.filter((p) => p.severity === 8).length, [problems]);
   const warningCount = useMemo(() => problems.filter((p) => p.severity === 4).length, [problems]);
@@ -520,7 +526,9 @@ export const EditorSidebarActivityBar: React.FC<EditorSidebarActivityBarProps> =
               ? symbols.length
               : tab.id === "extensions" && extensionCount > 0
                 ? extensionCount
-                : null;
+                : tab.id === "context-engine" && contextEngineCount > 0
+                  ? contextEngineCount
+                  : null;
 
         return (
           <button
@@ -795,7 +803,7 @@ const OutlinePanel: React.FC<{
               <span className="text-[12px] text-gray-300 truncate flex-1 group-hover:text-white">
                 {symbol.name}
               </span>
-              <span className="text-[10px] text-gray-600 shrink-0 group-hover:text-gray-400">
+              <span className="text-[10px] text-gray-400 shrink-0 group-hover:text-gray-400">
                 :{symbol.line}
               </span>
             </button>
@@ -814,7 +822,7 @@ const OutlinePanel: React.FC<{
                     <span className="text-[12px] text-gray-400 truncate flex-1 group-hover:text-white">
                       {child.name}
                     </span>
-                    <span className="text-[10px] text-gray-600 shrink-0 group-hover:text-gray-400">
+                    <span className="text-[10px] text-gray-400 shrink-0 group-hover:text-gray-400">
                       :{child.line}
                     </span>
                   </button>
@@ -866,14 +874,14 @@ const ProblemsPanel: React.FC<{
             <p className="text-[12px] text-gray-300 truncate group-hover:text-white">
               {marker.message}
             </p>
-            <p className="text-[10px] text-gray-600">
+            <p className="text-[10px] text-gray-400">
               <span className={getSeverityColor(marker.severity)}>
                 {getSeverityLabel(marker.severity)}
               </span>
               {" "}
               Ln {marker.startLineNumber}, Col {marker.startColumn}
               {marker.source && (
-                <span className="text-gray-600"> ({marker.source})</span>
+                <span className="text-gray-400"> ({marker.source})</span>
               )}
             </p>
           </div>

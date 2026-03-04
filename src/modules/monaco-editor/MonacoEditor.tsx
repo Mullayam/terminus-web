@@ -315,10 +315,11 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
 
   // Sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarTab, setSidebarTab] = useState<"outline" | "problems" | "info" | "extensions" | "themes" | "settings" | "chat" | "ai" | "context-menu" | "hover">("outline");
+  const [sidebarTab, setSidebarTab] = useState<"outline" | "problems" | "info" | "extensions" | "themes" | "settings" | "chat" | "ai" | "context-menu" | "hover" | "context-engine">("outline");
   const [symbols, setSymbols] = useState<DocumentSymbolItem[]>([]);
   const [problems, setProblems] = useState<monacoNs.editor.IMarkerData[]>([]);
   const [extensionCount, setExtensionCount] = useState(0);
+  const [contextEngineCount, setContextEngineCount] = useState(0);
   const [notificationCount, setNotificationCount] = useState(0);
 
   // Internal cursor tracking (for status bar)
@@ -330,6 +331,16 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
 
   // Editor settings (persisted to localStorage)
   const [editorSettings, setEditorSettings] = useState<EditorSettings>(() => loadEditorSettings());
+
+  // Sync wordWrap prop into editorSettings + editor when parent toggles it
+  useEffect(() => {
+    if (wordWrap && wordWrap !== editorSettings.wordWrap) {
+      const updated = { ...editorSettings, wordWrap: wordWrap as EditorSettings["wordWrap"] };
+      setEditorSettings(updated);
+      saveEditorSettings(updated);
+      editorRef.current?.updateOptions({ wordWrap: updated.wordWrap });
+    }
+  }, [wordWrap]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Detect language from file path if not explicitly set
   const resolvedLanguage = language ?? (filePath ? detectLanguage(filePath) : "plaintext");
@@ -633,6 +644,11 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
             console.warn("[MonacoEditor] Failed to load extensions:", err);
           });
       }
+
+      // ── Load installed context-engine packs count ──
+      import("@/lib/context-engine/contextEngineStorage").then(({ getInstalledLanguages }) => {
+        getInstalledLanguages().then((langs) => setContextEngineCount(langs.length)).catch(() => {});
+      });
 
       // ── GitHub-based VSCode extension loader (Web Worker) ──
       if (editorSettings.enableGitHubExtensions) {
@@ -1355,7 +1371,19 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
     import("./lib/contextEngineProviders").then(({ registerContextEngineProviders }) => {
       registerContextEngineProviders(monaco).catch(() => {});
     });
-  }, [filePath]);
+
+    // 4. Refresh extension count badge immediately
+    if (shouldLoadExtensions) {
+      loadAllExtensions(monaco, editor)
+        .then(({ extensions }) => setExtensionCount(extensions.length))
+        .catch(() => {});
+    }
+
+    // 5. Refresh context-engine installed count
+    import("@/lib/context-engine/contextEngineStorage").then(({ getInstalledLanguages }) => {
+      getInstalledLanguages().then((langs) => setContextEngineCount(langs.length)).catch(() => {});
+    });
+  }, [filePath, shouldLoadExtensions]);
 
   const handleTerminalToggle = useCallback(() => {
     setTerminalOpen((o) => !o);
@@ -1514,6 +1542,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
             symbols={symbols}
             problems={problems}
             extensionCount={extensionCount}
+            contextEngineCount={contextEngineCount}
           />
         )}
       </div>
