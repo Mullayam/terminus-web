@@ -15,6 +15,7 @@ import React, { useState, useCallback, useRef, memo } from "react";
 import { X, Minus, Maximize2, Terminal, AlertTriangle } from "lucide-react";
 import { XtermTerminal, type TerminalEvents } from "../../editor/terminal/XtermTerminal";
 import { EditorTerminalWithGhost } from "../../editor/terminal/EditorTerminalWithGhost";
+import type { ITheme } from "@xterm/xterm";
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -35,6 +36,8 @@ export interface EditorTerminalPanelProps {
   fontSize?: number;
   /** Font family */
   fontFamily?: string;
+  /** Xterm theme derived from the active Monaco editor theme */
+  terminalTheme?: ITheme;
 }
 
 /* ── Component ─────────────────────────────────────────────── */
@@ -48,6 +51,7 @@ export const EditorTerminalPanel = memo(function EditorTerminalPanel({
   events,
   fontSize = 14,
   fontFamily,
+  terminalTheme,
 }: EditorTerminalPanelProps) {
   const [height, setHeight] = useState(220);
   const prevHeightRef = useRef(220);
@@ -142,7 +146,7 @@ export const EditorTerminalPanel = memo(function EditorTerminalPanel({
       </div>
 
       {/* ── Body ─────────────────────────────────────────── */}
-      <div className="flex-1 min-h-0 overflow-hidden" style={{ background: "var(--editor-bg, #1e1e2e)" }}>
+      <div className="flex-1 min-h-0 overflow-hidden" style={{ background: terminalTheme?.background ?? "var(--editor-bg, #1e1e2e)" }}>
         {terminalUrl ? (
           <EditorTerminalWithGhost
             socketUrl={terminalUrl}
@@ -152,6 +156,7 @@ export const EditorTerminalPanel = memo(function EditorTerminalPanel({
             visible={open}
             fontSize={fontSize}
             fontFamily={fontFamily}
+            theme={terminalTheme}
           />
         ) : (
           /* ── No URL error state ───────────────────────── */

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { ThemeName } from '@/pages/ssh-v/components/themes';
 
-export type TabType = 'commands' | 'history' | 'sharing' | 'settings';
+export type TabType = 'commands' | 'history' | 'sharing' | 'settings' | 'extensions';
 
 interface Command {
   id: string;

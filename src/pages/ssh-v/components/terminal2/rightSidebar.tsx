@@ -2,6 +2,7 @@ import { useTabStore } from "@/store/rightSidebarTabStore";
 
 import { CommandList } from "./commandList";
 import CommandHistory from "./commandHistory";
+import CommandPacks from "./commandPacks";
 
 import TerminalShare from "./share";
 import TabContainer from "./tabContainer";
@@ -26,6 +27,8 @@ export function RightSidebar({
                 return <CommandList />;
             case 'history':
                 return <CommandHistory />;
+            case 'extensions':
+                return <CommandPacks />;
             case 'sharing':
                 return <TerminalShare />;
             case 'settings':

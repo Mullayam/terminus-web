@@ -69,6 +69,7 @@ import type { CompletionRegistration } from "monacopilot";
 import type { AICompletionRegistration } from "./lib/aiCompletions";
 import { registerCustomHoverProviders } from "./lib/hoverProvider";
 import { registerContextEngineProviders } from "./lib/contextEngineProviders";
+import { monacoThemeIdToXterm } from "./lib/monacoThemeToXterm";
 
 // GitHub-based VSCode extension loader
 import {
@@ -1474,6 +1475,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
           terminalUrl={terminalUrl}
           sessionId={terminalSessionId}
           cwd={terminalCwd}
+          terminalTheme={monacoThemeIdToXterm(customTheme ?? theme)}
         />
       )}
 
