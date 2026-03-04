@@ -45,7 +45,7 @@ const StoredHosts = ({ hosts, handleClickOnHostCard }: { hosts: any[], handleCli
                             />
                         ))}
                     </div>
-                    <p className="text-center text-gray-700 text-[11px] italic mt-6">Switch to SFTP via the bottom bar</p>
+                    <p className="text-center text-gray-500 text-[20px] italic mt-6">Switch to SFTP via the bottom bar</p>
                 </>
             ) : (
                 <div className="flex flex-col items-center justify-center h-[70vh] gap-4">
@@ -58,7 +58,7 @@ const StoredHosts = ({ hosts, handleClickOnHostCard }: { hosts: any[], handleCli
                     >
                         New Connection
                     </Button>
-                    <p className="text-gray-700 text-[11px] italic mt-2">Switch to SFTP via the bottom bar</p>
+                    <p className="text-gray-500 text-[20px] italic mt-2">Switch to SFTP via the bottom bar</p>
                 </div>
             )}
 

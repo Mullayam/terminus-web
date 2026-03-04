@@ -137,7 +137,7 @@ export function CommandList() {
         <div className="p-4 pt-0">
           {filteredCommands.map((cmd, index) => (
             <div key={index} className="group">
-              <div className="flex items-center w-80 mb-1 min-w-0">
+              <div className="flex items-center w-full mb-1 min-w-0">
                 <Button
                   variant="ghost"
                   onClick={(e) => handleMouseClick(e, cmd.command)}
