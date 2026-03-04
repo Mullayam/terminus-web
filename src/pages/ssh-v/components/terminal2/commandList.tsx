@@ -60,7 +60,7 @@ export function CommandList() {
   return (
     <div className="border-l flex flex-col h-full overflow-hidden" style={{ borderColor: `${colors.foreground}15`, backgroundColor: colors.background }}>
       {/* Fixed Search & Input Section */}
-      <div className="p-4 border-b relative" style={{ borderColor: `${colors.foreground}15` }}>
+      <div className="px-4 py-3 border-b relative" style={{ borderColor: `${colors.foreground}15` }}>
         <Input
           placeholder="Search commands..."
           value={query}
@@ -72,7 +72,7 @@ export function CommandList() {
         {/* Toggle Button Inside Input */}
         <button
           onClick={() => setIsEditing(!isEditing)}
-          className="absolute right-6 top-6 hover:text-white"
+          className="absolute right-6 top-5 hover:text-white"
           style={{ color: `${colors.foreground}80` }}
           type="button"
         >

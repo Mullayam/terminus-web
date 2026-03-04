@@ -6,6 +6,48 @@
  */
 
 const CDN_BASE = "https://cdn.jsdelivr.net/npm/@enjoys/context-engine";
+const VERSION_STORAGE_KEY = "terminus-context-engine-version";
+
+/* ── Version helpers ───────────────────────────────────────── */
+
+/**
+ * Fetch the latest published version of @enjoys/context-engine from CDN.
+ */
+export async function fetchContextEngineVersion(): Promise<string> {
+    const res = await fetch(`${CDN_BASE}/package.json`);
+    if (!res.ok) throw new Error(`Failed to fetch context-engine version: ${res.status}`);
+    const pkg = await res.json();
+    return pkg.version as string;
+}
+
+/**
+ * Get the locally stored context-engine version (from last install).
+ */
+export function getStoredContextEngineVersion(): string | null {
+    return localStorage.getItem(VERSION_STORAGE_KEY);
+}
+
+/**
+ * Persist the context-engine version to localStorage.
+ */
+export function setStoredContextEngineVersion(version: string): void {
+    localStorage.setItem(VERSION_STORAGE_KEY, version);
+}
+
+/**
+ * Compare two semver strings.  Returns true if `remote` is greater than `local`.
+ */
+export function isNewerVersion(remote: string, local: string): boolean {
+    const r = remote.split(".").map(Number);
+    const l = local.split(".").map(Number);
+    for (let i = 0; i < Math.max(r.length, l.length); i++) {
+        const rv = r[i] ?? 0;
+        const lv = l[i] ?? 0;
+        if (rv > lv) return true;
+        if (rv < lv) return false;
+    }
+    return false;
+}
 
 /* ── Manifest Types ────────────────────────────────────────── */
 

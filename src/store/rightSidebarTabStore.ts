@@ -1,5 +1,11 @@
 import { create } from 'zustand';
 import { ThemeName } from '@/pages/ssh-v/components/themes';
+import {
+  fetchContextEngineVersion,
+  getStoredContextEngineVersion,
+  setStoredContextEngineVersion,
+  isNewerVersion,
+} from '@/lib/context-engine';
 
 export type TabType = 'commands' | 'history' | 'sharing' | 'settings' | 'extensions';
 
@@ -36,6 +42,11 @@ interface TabState {
   settings: Settings;
   leftSidebarOpen: boolean;
   rightSidebarOpen: boolean;
+  /* context-engine version tracking */
+  installedPacksCount: number;
+  contextEngineVersion: string | null;   // locally stored version
+  latestContextEngineVersion: string | null; // from CDN
+  updateAvailable: boolean;
   setActiveTab: (tab: TabType) => void;
   executeCommand: (commandId: string) => void;
   createSharingSession: (name: string) => void;
@@ -43,12 +54,22 @@ interface TabState {
   toggleLeftSidebar: () => void;
   toggleRightSidebar: () => void;
   setRightSidebarOpen: (open: boolean) => void;
+  setInstalledPacksCount: (count: number) => void;
+  /** Check CDN for newer version; call once on mount. */
+  checkForUpdate: () => Promise<void>;
+  /** Mark current latest as stored (after user acknowledges). */
+  dismissUpdate: () => void;
 }
 
 export const useTabStore = create<TabState>((set, get) => ({
   activeTab: 'commands',
   leftSidebarOpen: true,
   rightSidebarOpen: false,
+  /* context-engine version tracking */
+  installedPacksCount: 0,
+  contextEngineVersion: getStoredContextEngineVersion(),
+  latestContextEngineVersion: null,
+  updateAvailable: false,
   commands: [
     {
       id: '1',
@@ -147,5 +168,25 @@ export const useTabStore = create<TabState>((set, get) => ({
   },
   toggleLeftSidebar: () => set(state => ({ leftSidebarOpen: !state.leftSidebarOpen })),
   toggleRightSidebar: () => set(state => ({ rightSidebarOpen: !state.rightSidebarOpen })),
-  setRightSidebarOpen: (open) => set({ rightSidebarOpen: open })
+  setRightSidebarOpen: (open) => set({ rightSidebarOpen: open }),
+  setInstalledPacksCount: (count) => set({ installedPacksCount: count }),
+  checkForUpdate: async () => {
+    try {
+      const latest = await fetchContextEngineVersion();
+      const stored = get().contextEngineVersion;
+      set({
+        latestContextEngineVersion: latest,
+        updateAvailable: stored ? isNewerVersion(latest, stored) : false,
+      });
+    } catch {
+      // silently ignore fetch failures
+    }
+  },
+  dismissUpdate: () => {
+    const latest = get().latestContextEngineVersion;
+    if (latest) {
+      setStoredContextEngineVersion(latest);
+      set({ contextEngineVersion: latest, updateAvailable: false });
+    }
+  },
 }));

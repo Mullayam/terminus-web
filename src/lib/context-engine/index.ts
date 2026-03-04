@@ -5,6 +5,10 @@ export {
     fetchCommandFiles,
     buildLangFileUrl,
     buildCmdFileUrl,
+    fetchContextEngineVersion,
+    getStoredContextEngineVersion,
+    setStoredContextEngineVersion,
+    isNewerVersion,
 } from "./contextEngineApi";
 export type {
     ManifestLanguage,

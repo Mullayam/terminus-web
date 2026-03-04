@@ -1,4 +1,5 @@
 import { useTabStore } from "@/store/rightSidebarTabStore";
+import { useEffect } from "react";
 
 import { CommandList } from "./commandList";
 import CommandHistory from "./commandHistory";
@@ -8,6 +9,7 @@ import TerminalShare from "./share";
 import TabContainer from "./tabContainer";
 import SettingsTab from "./settingsTab";
 import { useSessionTheme } from "@/hooks/useSessionTheme";
+import { getInstalledCategories } from "@/lib/context-engine/contextEngineStorage";
 
 interface RightSidebarProps {
     onClose: () => void;
@@ -18,8 +20,14 @@ export function RightSidebar({
     onClose,
     isRightSidebarOpen,
 }: RightSidebarProps) {
-    const { activeTab } = useTabStore();
+    const { activeTab, checkForUpdate, setInstalledPacksCount } = useTabStore();
     const { colors } = useSessionTheme();
+
+    // On first mount: fetch version info + installed packs count
+    useEffect(() => {
+        checkForUpdate();
+        getInstalledCategories().then((cats) => setInstalledPacksCount(cats.length)).catch(() => {});
+    }, []);
 
     const renderActiveTab = () => {
         switch (activeTab) {

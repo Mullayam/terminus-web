@@ -34,6 +34,7 @@ import {
     fetchCommandFiles,
     fetchJsonFile,
     buildCmdFileUrl,
+    setStoredContextEngineVersion,
     type TerminalCommandContext,
 } from "@/lib/context-engine/contextEngineApi";
 import {
@@ -43,6 +44,7 @@ import {
 } from "@/lib/context-engine/contextEngineStorage";
 import { useSessionTheme } from "@/hooks/useSessionTheme";
 import { useCommandStore } from "@/store";
+import { useTabStore } from "@/store/rightSidebarTabStore";
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -71,6 +73,14 @@ interface FilePreview {
 export default function CommandPacks() {
     const { colors } = useSessionTheme();
     const { addToAllCommands } = useCommandStore();
+    const {
+        setInstalledPacksCount,
+        checkForUpdate,
+        contextEngineVersion,
+        latestContextEngineVersion,
+        updateAvailable,
+        dismissUpdate,
+    } = useTabStore();
     const [categories, setCategories] = useState<TerminalCommandContext[]>([]);
     const [installedCats, setInstalledCats] = useState<Set<string>>(new Set());
     const [installState, setInstallState] = useState<InstallState>({});
@@ -93,6 +103,7 @@ export default function CommandPacks() {
             const state: InstallState = {};
             installedList.forEach((c) => { state[c.id] = "installed"; });
             setInstallState(state);
+            setInstalledPacksCount(installedList.length);
         } catch (e: any) {
             setError(e?.message ?? "Failed to load command packs");
         } finally {
@@ -100,7 +111,17 @@ export default function CommandPacks() {
         }
     }, []);
 
-    useEffect(() => { loadData(); }, [loadData]);
+    useEffect(() => {
+        loadData();
+        checkForUpdate().then(() => {
+            // If user already has installed packs but no stored version (pre-existing install),
+            // auto-store the latest version so future updates can be detected.
+            const { contextEngineVersion: stored, latestContextEngineVersion: latest, installedPacksCount } = useTabStore.getState();
+            if (!stored && latest && installedPacksCount > 0) {
+                setStoredContextEngineVersion(latest);
+            }
+        });
+    }, [loadData]);
 
     const handleInstall = useCallback(async (cat: TerminalCommandContext) => {
         setInstallState((s) => ({ ...s, [cat.category]: "installing" }));
@@ -115,8 +136,16 @@ export default function CommandPacks() {
                 },
                 files,
             );
-            setInstalledCats((s) => new Set(s).add(cat.category));
+            setInstalledCats((s) => {
+                const n = new Set(s).add(cat.category);
+                setInstalledPacksCount(n.size);
+                return n;
+            });
             setInstallState((s) => ({ ...s, [cat.category]: "installed" }));
+            // Persist the CDN version on first install
+            if (latestContextEngineVersion && !contextEngineVersion) {
+                setStoredContextEngineVersion(latestContextEngineVersion);
+            }
         } catch {
             setInstallState((s) => ({ ...s, [cat.category]: "error" }));
         }
@@ -124,7 +153,12 @@ export default function CommandPacks() {
 
     const handleUninstall = useCallback(async (id: string) => {
         await removeCommandCategory(id);
-        setInstalledCats((s) => { const n = new Set(s); n.delete(id); return n; });
+        setInstalledCats((s) => {
+            const n = new Set(s);
+            n.delete(id);
+            setInstalledPacksCount(n.size);
+            return n;
+        });
         setInstallState((s) => { const n = { ...s }; delete n[id]; return n; });
     }, []);
 
@@ -234,6 +268,14 @@ export default function CommandPacks() {
                     <span className="text-sm font-semibold" style={{ color: colors.foreground }}>
                         Command Packs
                     </span>
+                    {contextEngineVersion && (
+                        <span
+                            className="text-[9px] px-1.5 py-0.5 rounded font-mono"
+                            style={{ background: colors.foreground + "12", color: colors.foreground + "60" }}
+                        >
+                            v{contextEngineVersion}
+                        </span>
+                    )}
                     <button
                         onClick={loadData}
                         className="ml-auto p-1 rounded hover:opacity-80 transition-opacity"
@@ -245,6 +287,27 @@ export default function CommandPacks() {
                 <p className="text-[10px]" style={{ color: colors.foreground + "70" }}>
                     Install CLI command packs for ghost-text suggestions
                 </p>
+
+                {/* Update available banner */}
+                {updateAvailable && latestContextEngineVersion && (
+                    <div
+                        className="flex items-center gap-2 px-2 py-1.5 rounded text-[11px]"
+                        style={{ background: colors.yellow + "15", border: `1px solid ${colors.yellow}30` }}
+                    >
+                        <Package className="w-3.5 h-3.5 shrink-0" style={{ color: colors.yellow }} />
+                        <span style={{ color: colors.foreground }}>
+                            Update available:{" "}
+                            <strong style={{ color: colors.yellow }}>v{latestContextEngineVersion}</strong>
+                        </span>
+                        <button
+                            onClick={dismissUpdate}
+                            className="ml-auto text-[10px] px-1.5 py-0.5 rounded hover:opacity-80 transition-opacity"
+                            style={{ background: colors.yellow + "20", color: colors.yellow }}
+                        >
+                            Dismiss
+                        </button>
+                    </div>
+                )}
 
                 {/* Search */}
                 <div

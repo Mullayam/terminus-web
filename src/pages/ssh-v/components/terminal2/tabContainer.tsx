@@ -18,7 +18,7 @@ interface TabContainerProps {
 }
 
 export default function TabContainer({ children }: TabContainerProps) {
-  const { activeTab, setActiveTab } = useTabStore();
+  const { activeTab, setActiveTab, installedPacksCount, updateAvailable } = useTabStore();
   const { colors } = useSessionTheme();
 
   return (
@@ -29,6 +29,8 @@ export default function TabContainer({ children }: TabContainerProps) {
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
+            const showBadge = tab.id === 'extensions' && installedPacksCount > 0;
+            const showUpdateDot = tab.id === 'extensions' && updateAvailable;
             return (
               <Tooltip key={tab.id}>
                 <TooltipTrigger asChild>
@@ -42,6 +44,27 @@ export default function TabContainer({ children }: TabContainerProps) {
                   >
                     <Icon size={16} />
 
+                    {/* Installed packs badge */}
+                    {showBadge && (
+                      <span
+                        className="absolute top-1.5 right-1.5 min-w-[14px] h-[14px] flex items-center justify-center rounded-full text-[8px] font-bold leading-none px-0.5"
+                        style={{
+                          backgroundColor: colors.blue,
+                          color: colors.background,
+                        }}
+                      >
+                        {installedPacksCount}
+                      </span>
+                    )}
+
+                    {/* Update-available dot */}
+                    {showUpdateDot && (
+                      <span
+                        className="absolute top-1 left-1 w-2 h-2 rounded-full"
+                        style={{ backgroundColor: colors.yellow }}
+                      />
+                    )}
+
                     {/* Active tab indicator */}
                     {isActive && (
                       <div className="absolute bottom-0 left-0 right-0 h-0.5" style={{ background: `linear-gradient(to right, ${colors.blue}, ${colors.cyan})` }} />
@@ -50,6 +73,8 @@ export default function TabContainer({ children }: TabContainerProps) {
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="text-xs">
                   {tab.name}
+                  {showBadge && ` (${installedPacksCount})`}
+                  {showUpdateDot && ' — Update available'}
                 </TooltipContent>
               </Tooltip>
             );
