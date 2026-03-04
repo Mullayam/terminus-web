@@ -1,8 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { openDB, IDBPDatabase } from 'idb';
-
 const IDB_NAME = 'terminus-web-idb';
-const STORE_NAME = 'myStore';
 import { HostsObject } from '@/pages';
 import { IDB } from './db-ops'
 import { CreatePKTableSchema } from '@enjoys/react-api/idb'
@@ -24,7 +20,7 @@ type Tables = {
 const tables: CreatePKTableSchema<Tables> = {
     all_commands: "++command",
     hosts: "++id,host",
-    session_themes: "sessionId"
+    session_themes: "++sessionId"
 }
 export const idb = new IDB<Tables>(tables, IDB_NAME, 3)
 

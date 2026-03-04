@@ -13,7 +13,7 @@ import { useSessionTheme } from '@/hooks/useSessionTheme';
 
 
 export function CommandList() {
-  const { setCommand, allCommands, addToAllCommands, removeFromAllCommands } = useCommandStore()
+  const { setCommand, allCommands, addToAllCommands, removeFromAllCommands, hydrate } = useCommandStore()
   const { colors } = useSessionTheme();
   const [loadingState, setLoadingState] = useState(true);
   let clickTimer: NodeJS.Timeout | null = null;
@@ -52,7 +52,7 @@ export function CommandList() {
     })
   }
   React.useEffect(() => {
-    setLoadingState(false);
+    hydrate().finally(() => setLoadingState(false));
     return () => {
       clickTimer && clearTimeout(clickTimer);
     }

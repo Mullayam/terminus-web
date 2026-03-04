@@ -26,7 +26,8 @@ import { __config } from '@/lib/config';
 import { useTerminalStore } from '@/store/terminalStore';
 import { useSidebarState } from '@/store/sidebarStore';
 import SSHSftpViewer from './components/SSHSftpViewer';
-
+import ServerStatus from '@/components/layout/ServerStatus';
+import { useNavigate } from 'react-router-dom';
 
 
 
@@ -96,6 +97,7 @@ export default function TerminalTab({ sessionId }: Props) {
     const startTracking = useIdleReconnect()
     const { disconnect } = useSessionDisconnect()
     const { colors } = useSessionTheme();
+    const navigate = useNavigate();
     const { setActiveTabData, activeTabData } = useStore()
     const { addSharedSession, addPermissions, deletePermission, deleteSharedSession } = useTerminalStore()
     const { activeItem } = useSidebarState();
@@ -105,18 +107,18 @@ export default function TerminalTab({ sessionId }: Props) {
 
     // Check if SFTP is available on any session connected to the same host
     const sftpAvailableForHost = useMemo(() => {
-      const host = sessions[sessionId]?.host;
-      if (!host) return false;
-      return Object.values(sessions).some(s => s.host === host && s.sftp_enabled);
+        const host = sessions[sessionId]?.host;
+        if (!host) return false;
+        return Object.values(sessions).some(s => s.host === host && s.sftp_enabled);
     }, [sessions, sessionId]);
 
     // Get the socket that has SFTP enabled (prefer current session, fall back to same-host session)
     const sftpSocket = useMemo(() => {
-      if (sessions[sessionId]?.sftp_enabled) return null; // will use socketRef.current
-      const host = sessions[sessionId]?.host;
-      if (!host) return null;
-      const sftpSession = Object.values(sessions).find(s => s.host === host && s.sftp_enabled);
-      return sftpSession?.socket ?? null;
+        if (sessions[sessionId]?.sftp_enabled) return null; // will use socketRef.current
+        const host = sessions[sessionId]?.host;
+        if (!host) return null;
+        const sftpSession = Object.values(sessions).find(s => s.host === host && s.sftp_enabled);
+        return sftpSession?.socket ?? null;
     }, [sessions, sessionId]);
 
     // Split view: get the split session's socket
@@ -288,8 +290,9 @@ export default function TerminalTab({ sessionId }: Props) {
                     </div>
                     {tabs.length !== 0 && sessions[sessionId] && (
                         <>
-                            <div className="flex justify-between items-start flex-wrap px-4 py-1 border-t text-xs shrink-0" style={{ backgroundColor: `${colors.background}dd`, color: colors.foreground, borderColor: `${colors.foreground}20` }}>
-                                <div className="flex flex-row  gap-4">
+                            <div className="flex justify-between items-center flex-wrap px-4 py-1 border-t text-xs shrink-0" style={{ backgroundColor: `${colors.background}dd`, color: colors.foreground, borderColor: `${colors.foreground}20` }}>
+
+                                <div className="flex flex-row gap-4">
                                     <span>Public IPs: <a href={`http://${sessions[sessionId].host}`}
                                         target="_blank" rel="noopener noreferrer" className="inline-block text-gray-200 dark:text-neutral-200 hover:underline" >
                                         {sessions[sessionId].host} </a></span>
@@ -310,9 +313,27 @@ export default function TerminalTab({ sessionId }: Props) {
 
                                 </div>
                                 <div className=" text-gray-200 text-xs text-right flex flex-row gap-4">
+
                                     {!socketRef.current?.connected && <RefreshCcw className='w-4 h-4 animate-spin' />}
-                                    <InfoBadge status={socketRef.current?.connected ? sessions[sessionId].status : 'disconnected'} />
+                                    <ServerStatus isConnected={socketRef.current?.connected} />
                                 </div>
+                                {/* Left: SSH/SFTP toggle */}
+                                <div className="flex items-center gap-1 mr-3">
+                                    <button
+                                        className="px-2 py-0.5 rounded text-[11px] font-medium transition-colors"
+                                        style={{ background: colors.foreground + '20', color: colors.foreground }}
+                                    >
+                                        SSH
+                                    </button>
+                                    <button
+                                        onClick={() => navigate('/ssh/sftp')}
+                                        className="px-2 py-0.5 rounded text-[11px] font-medium transition-colors opacity-60 hover:opacity-100"
+                                        style={{ color: colors.foreground }}
+                                    >
+                                        SFTP
+                                    </button>
+                                </div>
+
                             </div>
                         </>
                     )
