@@ -53,6 +53,7 @@ import {
     type ThemeId,
     type EditorTab,
 } from "./monaco-editor-parts";
+import { EditorWelcomeDialog } from "@/components/EditorWelcomeDialog";
 import { MONACO_THEMES } from "./monaco-editor-parts/ThemePicker";
 import { useFileOperations } from "@/modules/monaco-editor/components/file-tree/useFileOperations";
 import { getLoadedMonacoTheme } from "@/modules/monaco-editor/themes/monaco-themes-catalog";
@@ -897,6 +898,9 @@ export default function FileEditorMonacoPage() {
                     </ResizablePanel>
                 </ResizablePanelGroup>
             </div>
+
+            {/* First-time welcome dialog */}
+            <EditorWelcomeDialog />
 
             {/* Shortcuts modal (memoized, conditionally rendered) */}
             {showShortcuts && <ShortcutsModal onClose={closeShortcuts} />}
