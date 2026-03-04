@@ -219,6 +219,7 @@ export { EditorRightSidebar, EditorSidebarActivityBar, EditorSidebarContent } fr
 export type { DocumentSymbolItem, SidebarTab, EditorRightSidebarProps, EditorSidebarActivityBarProps, EditorSidebarContentProps } from "./components/EditorRightSidebar";
 export { ExtensionPanel } from "./components/ExtensionPanel";
 export type { ExtensionPanelProps } from "./components/ExtensionPanel";
+export { ContextEnginePanel } from "./components/ContextEnginePanel";
 export { EditorFileTree } from "./components/EditorFileTree";
 export type { FileTreeNode, EditorFileTreeProps } from "./components/EditorFileTree";
 

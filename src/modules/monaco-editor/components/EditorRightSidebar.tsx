@@ -36,6 +36,7 @@ import {
   Sparkles,
   Menu,
   FileText,
+  DatabaseZap,
 } from "lucide-react";
 import { ExtensionPanel } from "./ExtensionPanel";
 import { ThemeSidebar } from "./ThemeSidebar";
@@ -43,6 +44,7 @@ import { EditorSettingsPanel, type EditorSettings } from "./EditorSettingsPanel"
 import { AICompletionsPanel } from "./AICompletionsPanel";
 import { CustomContextMenuPanel } from "./CustomContextMenuPanel";
 import { HoverProviderPanel } from "./HoverProviderPanel";
+import { ContextEnginePanel } from "./ContextEnginePanel";
 import { ChatPanel } from "../chat";
 
 /* ── Types ─────────────────────────────────────────────────── */
@@ -68,7 +70,7 @@ export interface DocumentSymbolItem {
   children?: DocumentSymbolItem[];
 }
 
-export type SidebarTab = "outline" | "problems" | "info" | "extensions" | "themes" | "settings" | "chat" | "ai" | "context-menu" | "hover";
+export type SidebarTab = "outline" | "problems" | "info" | "extensions" | "themes" | "settings" | "chat" | "ai" | "context-menu" | "hover" | "context-engine";
 
 export interface EditorRightSidebarProps {
   open: boolean;
@@ -123,6 +125,7 @@ const TABS: { id: SidebarTab; icon: React.FC<{ className?: string }>; label: str
   { id: "info", icon: Info, label: "File Info" },
   { id: "themes", icon: Palette, label: "Themes" },
   { id: "extensions", icon: Blocks, label: "Extensions" },
+  { id: "context-engine", icon: DatabaseZap, label: "Context Engine" },
 ];
 
 /** Settings tab is rendered separately at the bottom of the activity bar */
@@ -425,6 +428,9 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
                 onThemeApply={onThemeApply}
               />
             )}
+            {activeTab === "context-engine" && (
+              <ContextEnginePanel />
+            )}
             {activeTab === "themes" && (
               <ThemeSidebar
                 monaco={monacoProp ?? null}
@@ -663,6 +669,9 @@ export const EditorSidebarContent: React.FC<EditorSidebarContentProps> = ({
             editor={editorProp ?? null}
             onThemeApply={onThemeApply}
           />
+        )}
+        {activeTab === "context-engine" && (
+          <ContextEnginePanel />
         )}
         {activeTab === "themes" && (
           <ThemeSidebar

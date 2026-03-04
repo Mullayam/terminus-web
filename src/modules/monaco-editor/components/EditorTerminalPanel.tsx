@@ -14,6 +14,7 @@
 import React, { useState, useCallback, useRef, memo } from "react";
 import { X, Minus, Maximize2, Terminal, AlertTriangle } from "lucide-react";
 import { XtermTerminal, type TerminalEvents } from "../../editor/terminal/XtermTerminal";
+import { EditorTerminalWithGhost } from "../../editor/terminal/EditorTerminalWithGhost";
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -143,7 +144,7 @@ export const EditorTerminalPanel = memo(function EditorTerminalPanel({
       {/* ── Body ─────────────────────────────────────────── */}
       <div className="flex-1 min-h-0 overflow-hidden" style={{ background: "var(--editor-bg, #1e1e2e)" }}>
         {terminalUrl ? (
-          <XtermTerminal
+          <EditorTerminalWithGhost
             socketUrl={terminalUrl}
             sessionId={sessionId}
             cwd={cwd}

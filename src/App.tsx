@@ -3,7 +3,6 @@ import { About } from "./components/About";
 import { DemoGallery } from "./components/DemoGallery";
 import { FAQ } from "./components/FAQ";
 import { Features } from "./components/Features";
-import { AllFeatures } from "./components/AllFeatures";
 import { Footer } from "./components/Footer";
 import { Hero } from "./components/Hero";
 import { HowItWorks } from "./components/HowItWorks";
@@ -23,7 +22,6 @@ function App() {
       <Navbar />
       <Hero />
       <Features />
-      <AllFeatures />
       <DemoGallery />
       <HowItWorks />
       {/* <Sponsors /> */}
