@@ -14,7 +14,7 @@ const VERSION_STORAGE_KEY = "terminus-context-engine-version";
  * Fetch the latest published version of @enjoys/context-engine from CDN.
  */
 export async function fetchContextEngineVersion(): Promise<string> {
-    const res = await fetch(`${CDN_BASE}/package.json`);
+    const res = await fetch(`${CDN_BASE}/package.json`,{cache: "no-cache"});
     if (!res.ok) throw new Error(`Failed to fetch context-engine version: ${res.status}`);
     const pkg = await res.json();
     return pkg.version as string;
