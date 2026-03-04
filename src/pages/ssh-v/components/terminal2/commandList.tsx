@@ -134,21 +134,22 @@ export function CommandList() {
 
       {/* Scrollable Command List */}
       <ScrollArea className="flex-1">
-        <div className="p-4 pt-0">
+        <div className="px-4 py-3 pt-0">
           {filteredCommands.map((cmd, index) => (
-            <div key={index} className="group">
-              <div className="flex items-center w-full mb-1 min-w-0">
+            <div key={index} className="group min-w-0">
+              <div className="flex items-center mb-1 min-w-0">
                 <Button
                   variant="ghost"
                   onClick={(e) => handleMouseClick(e, cmd.command)}
-                  className="flex-1 min-w-0 justify-start text-left hover:text-white overflow-hidden"
+                  className="min-w-0 flex-1 justify-start text-left hover:text-white"
                   style={{ color: `${colors.foreground}cc` }}
+                  title={cmd.name}
                 >
                   <Terminal className="h-4 w-4 mr-2 shrink-0" />
-                  <span className="truncate">{cmd.name}</span>
+                  <span className="w-0 flex-grow truncate text-sm">{cmd.name}</span>
                 </Button>
 
-                <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button
                     variant="ghost"
                     size="icon"
@@ -183,9 +184,9 @@ export function CommandList() {
               </div>
 
               {cmd.command && (
-                <div className="text-sm text-gray-500 ml-6 mb-2 font-mono truncate" title={cmd.command}>
+                <p className="text-sm text-gray-500 ml-6 mb-2 font-mono truncate" title={cmd.command}>
                   {cmd.command}
-                </div>
+                </p>
               )}
 
               {index < filteredCommands.length - 1 && (
