@@ -1,4 +1,4 @@
-import { Columns2, Copy, Menu, Plus, PlusCircle, Power, Rows2, Square, X } from 'lucide-react';
+import { Columns2, Copy, Menu, Plus, PlusCircle, Power, Rows2, Square, X, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
@@ -18,6 +18,7 @@ import { useSSHStore } from '@/store/sshStore';
 import { useTerminalStore } from '@/store/terminalStore';
 import { useSidebarState } from '@/store/sidebarStore';
 import { useSessionTheme } from '@/hooks/useSessionTheme';
+import { useAIChatStore } from '@/store/aiChatStore';
 import {
   Popover,
   PopoverContent,
@@ -38,6 +39,8 @@ interface TopBarProps {
 export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOpen }: TopBarProps) {
   const [open, setOpen] = useState(false)
   const { colors } = useSessionTheme();
+  const toggleAIChat = useAIChatStore((s) => s.toggle);
+  const isAIChatOpen = useAIChatStore((s) => s.isOpen);
   const {
     sessions,
     tabs,
@@ -283,14 +286,30 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
 
           </PopoverContent>
         </Popover>
-        {activeItem === "Terminal" && <div
+        {activeItem === "Terminal" && <>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggleAIChat}
+            className={cn(
+              "h-8 px-2.5 gap-1.5 transition-colors",
+              isAIChatOpen
+                ? "text-cyan-400 bg-cyan-500/10"
+                : "text-gray-400 hover:text-gray-300"
+            )}
+            title="AI Chat (Ctrl+I)"
+          >
+            <Bot className="h-4 w-4" />
+            <span className="text-xs hidden xl:inline">AI</span>
+          </Button>
+          <div
           className={`flex items-center space-x-4 cursor-pointer text-gray-400 hover:text-gray-300 transition-all duration-300 ease-in-out`}
           style={{ marginRight: isRightSidebarOpen ? '24rem' : '1rem' }}
           onClick={onToggleRightSidebar}
         >
           <Menu className="h-4 w-4 text-gray-400" />
         </div>
-        }
+        </>}
 
         <HostDialog open={open} setOpen={setOpen} />
       </div>

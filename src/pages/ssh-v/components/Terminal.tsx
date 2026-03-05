@@ -37,6 +37,7 @@ import {
 import useAudio from "@/hooks/useAudio";
 import { XtermTheme, ThemeName } from "./themes";
 import { getAllCommandData } from "@/lib/context-engine/contextEngineStorage";
+import { useAIChatStore } from "@/store/aiChatStore";
 
 
 // https://github.com/xtermjs/xterm.js/blob/master/demo/client.ts
@@ -64,6 +65,10 @@ const XTerminal = memo(function XTerminal({
   const diagFilter = useDiagnosticsStore((s) => s.diagFilter);
   const closeDiagChat = useDiagnosticsStore((s) => s.closeDiagChat);
   const [showInfoOverlay, setShowInfoOverlay] = useState(true);
+
+  // ── AI Chat: capture terminal selection ──
+  const setTerminalSelection = useAIChatStore((s) => s.setTerminalSelection);
+  const toggleAIChat = useAIChatStore((s) => s.toggle);
 
   // Derive localStorage key from the session host/IP
   const hostKey = useMemo(() => {
@@ -155,6 +160,9 @@ const XTerminal = memo(function XTerminal({
       e.preventDefault();
       setShowSearch(true);
       setTimeout(() => searchInputRef.current?.focus(), 50);
+    } else if (e.ctrlKey && e.key === 'i') {
+      e.preventDefault();
+      toggleAIChat();
     } else if (e.key === 'Escape') {
       searchAddonRef.current?.clearDecorations();
       searchAddonRef.current?.clearActiveDecoration();
@@ -373,6 +381,19 @@ const XTerminal = memo(function XTerminal({
       termRef.current.options.theme = newTheme;
     }
   }, [sessionTheme]);
+
+  // Track terminal text selection for AI chat context
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term) return;
+    const disposeSelection = term.onSelectionChange(() => {
+      const selection = term.getSelection()?.trim();
+      if (selection) {
+        setTerminalSelection(sessionId, selection);
+      }
+    });
+    return () => disposeSelection.dispose();
+  }, [sessionId, setTerminalSelection]);
 
   // Reactively apply font settings changes
   useEffect(() => {

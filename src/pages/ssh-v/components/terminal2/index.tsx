@@ -2,12 +2,17 @@ import { Sidebar } from "./sidebar";
 import React from "react";
 import { TopBar } from "./topbar";
 import { RightSidebar } from "./rightSidebar";
+import { AIChatPanel } from "./ai-chat";
 import { useSessionTheme } from "@/hooks/useSessionTheme";
+import { useSSHStore } from "@/store/sshStore";
 
 export default function TerminalLayout({ children }: { children: React.ReactNode }) {
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
     const [isRightSidebarOpen, setIsRightSidebarOpen] = React.useState(false);
     const { colors } = useSessionTheme();
+    const activeTabId = useSSHStore((s) => s.activeTabId);
+    const activeTab = useSSHStore((s) => s.tabs.find((t) => t.id === s.activeTabId));
+    const sessionId = activeTab?.sessionId;
 
     return (
         <>
@@ -27,6 +32,8 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
                         </div>
                     </div>
                     <RightSidebar isRightSidebarOpen={isRightSidebarOpen} onClose={() => setIsRightSidebarOpen(false)} />
+                    {/* AI Chat Panel — overlays the terminal without shrinking it */}
+                    {sessionId && <AIChatPanel sessionId={sessionId} />}
                 </div>
             </div>
             <div className="flex lg:hidden items-center justify-center w-full h-full text-center p-4" style={{ backgroundColor: colors.background }}>
