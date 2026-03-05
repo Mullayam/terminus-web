@@ -9,10 +9,11 @@ import { HowItWorks } from "./components/HowItWorks";
 import { Navbar } from "./components/Navbar";
 import { Newsletter } from "./components/Newsletter";
 // import { Pricing } from "./components/Pricing";
+import { ProductShowcase } from "./components/ProductShowcase";
 import { ScrollToTop } from "./components/ScrollToTop";
 // import { Services } from "./components/Services";
 // import { Sponsors } from "./components/Sponsors";
-import { Team } from "./components/Team";
+// import { Team } from "./components/Team";
 // import { Testimonials } from "./components/Testimonials";
 import "./App.css";
 
@@ -22,6 +23,7 @@ function App() {
       <Navbar />
       <Hero />
       <Features />
+      <ProductShowcase />
       <DemoGallery />
       <HowItWorks />
       {/* <Sponsors /> */}

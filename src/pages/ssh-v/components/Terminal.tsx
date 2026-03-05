@@ -28,6 +28,8 @@ import { useTabStore } from '@/store/rightSidebarTabStore';
 import { useDiagnosticsStore } from '@/store/diagnosticsStore';
 import AISuggestionBox from "./terminal2/suggestion-box";
 import GhostText from "./terminal2/ghost-text";
+import AIGhostText from "./terminal2/ai-ghost-text";
+import { CollabServerEvent } from "@/modules/collab-terminal/types/events";
 import TerminalPlaceholder from "./terminal2/terminal-placeholder";
 import {
   useDiagnostics,
@@ -37,6 +39,7 @@ import {
 import useAudio from "@/hooks/useAudio";
 import { XtermTheme, ThemeName } from "./themes";
 import { getAllCommandData } from "@/lib/context-engine/contextEngineStorage";
+import { useAIChatStore } from "@/store/aiChatStore";
 
 
 // https://github.com/xtermjs/xterm.js/blob/master/demo/client.ts
@@ -65,6 +68,10 @@ const XTerminal = memo(function XTerminal({
   const closeDiagChat = useDiagnosticsStore((s) => s.closeDiagChat);
   const [showInfoOverlay, setShowInfoOverlay] = useState(true);
 
+  // ── AI Chat: capture terminal selection ──
+  const setTerminalSelection = useAIChatStore((s) => s.setTerminalSelection);
+  const toggleAIChat = useAIChatStore((s) => s.toggle);
+
   // Derive localStorage key from the session host/IP
   const hostKey = useMemo(() => {
     return `terminus-suggestions:${sessionHost ?? sessionId}`;
@@ -89,6 +96,8 @@ const XTerminal = memo(function XTerminal({
   /** Extra ghost-text sources (store commands + context-engine packs). Not persisted to history. */
   const ghostSourcesRef = useRef<string[]>([]);
   const [commandBuffer, setCommandBuffer] = useState<string>("");
+  const [collabTyping, setCollabTyping] = useState<string | null>(null);
+  const collabTypingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { command, clickType, setCommand, addShellHistoryCommand, addShellHistoryBatch } = useCommandStore();
   const shellHistoryHost = sessionHost ?? sessionId;
 
@@ -102,6 +111,13 @@ const XTerminal = memo(function XTerminal({
       setIsVisible(false);
     }
   }, [commandBuffer, socket]);
+
+  /* ── AI Ghost text: accept the AI-suggested command ── */
+  const handleAIGhostAccept = useCallback((cmd: string) => {
+    if (cmd) {
+      socket.emit(SocketEventConstants.SSH_EMIT_INPUT, cmd);
+    }
+  }, [socket]);
 
   let lastPromptPrefix = '';
 
@@ -155,6 +171,9 @@ const XTerminal = memo(function XTerminal({
       e.preventDefault();
       setShowSearch(true);
       setTimeout(() => searchInputRef.current?.focus(), 50);
+    } else if (e.ctrlKey && e.key === 'i') {
+      e.preventDefault();
+      toggleAIChat();
     } else if (e.key === 'Escape') {
       searchAddonRef.current?.clearDecorations();
       searchAddonRef.current?.clearActiveDecoration();
@@ -310,7 +329,9 @@ const XTerminal = memo(function XTerminal({
       const cleaned = history.map(c => (typeof c === "string" ? c.trim() : "")).filter(Boolean);
 
       // 1. Add to zustand shell history (sidebar reads this — in-memory only)
-      addShellHistoryBatch(sessionHost ?? sessionId, cleaned);
+      // Read host fresh from store to avoid stale closure (session may not be connected at mount time)
+      const currentHost = useSSHStore.getState().sessions[sessionId]?.host ?? sessionId;
+      addShellHistoryBatch(currentHost, cleaned);
 
       // 2. Also merge into suggestions so ghost-text can autocomplete from shell history
       setSuggestions((prev) => {
@@ -357,10 +378,27 @@ const XTerminal = memo(function XTerminal({
         ghostSourcesRef.current = Array.from(new Set([...ghostSourcesRef.current, ...cmds]));
       }
     }).catch(() => {});
+    // Listen for collab typing indicators (joiner typing → admin sees indicator)
+    socket.on(CollabServerEvent.PTY_LOCKED, (data: { lockedBy: string; type: string; expiresIn?: number }) => {
+      if (data.type === 'auto' && data.lockedBy) {
+        setCollabTyping(data.lockedBy);
+        // Auto-clear after expiry (fallback 5s)
+        if (collabTypingTimer.current) clearTimeout(collabTypingTimer.current);
+        collabTypingTimer.current = setTimeout(() => setCollabTyping(null), data.expiresIn || 5000);
+      }
+    });
+    socket.on(CollabServerEvent.PTY_UNLOCKED, () => {
+      setCollabTyping(null);
+      if (collabTypingTimer.current) clearTimeout(collabTypingTimer.current);
+    });
+
     return () => {
       window.removeEventListener("resize", handleResize);
       socket.off(SocketEventConstants.SSH_EMIT_DATA);
       socket.off(SocketEventConstants.SSH_EXEC_SILENT_RESULT);
+      socket.off(CollabServerEvent.PTY_LOCKED);
+      socket.off(CollabServerEvent.PTY_UNLOCKED);
+      if (collabTypingTimer.current) clearTimeout(collabTypingTimer.current);
       term.dispose();
       termRef.current = null;
     };
@@ -373,6 +411,19 @@ const XTerminal = memo(function XTerminal({
       termRef.current.options.theme = newTheme;
     }
   }, [sessionTheme]);
+
+  // Track terminal text selection for AI chat context
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term) return;
+    const disposeSelection = term.onSelectionChange(() => {
+      const selection = term.getSelection()?.trim();
+      if (selection) {
+        setTerminalSelection(sessionId, selection);
+      }
+    });
+    return () => disposeSelection.dispose();
+  }, [sessionId, setTerminalSelection]);
 
   // Reactively apply font settings changes
   useEffect(() => {
@@ -561,8 +612,17 @@ const XTerminal = memo(function XTerminal({
           setSuggestions={setSuggestions}
           hostKey={hostKey}
           commandBuffer={commandBuffer}
+          sessionId={sessionId}
         />
       )}
+
+      {/* AI Ghost text (from Ask AI sidebar input) */}
+      <AIGhostText
+        termRef={termRef}
+        containerRef={terminalRef}
+        sessionId={sessionId}
+        onAccept={handleAIGhostAccept}
+      />
 
       {/* Placeholder hint when shell is empty */}
       <TerminalPlaceholder
@@ -575,6 +635,18 @@ const XTerminal = memo(function XTerminal({
       {/* Info overlay — shown once on connect */}
       {showInfoOverlay && (
         <TerminalInfoOverlay onDismiss={() => setShowInfoOverlay(false)} />
+      )}
+
+      {/* Collab typing indicator — shown when a joiner is typing */}
+      {collabTyping && (
+        <div className="absolute bottom-1 left-3 z-10 flex items-center gap-2 px-3 py-1 rounded bg-[#1a1b26]/90 border border-gray-700/50 pointer-events-none">
+          <span className="flex gap-0.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce [animation-delay:0ms]" />
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce [animation-delay:150ms]" />
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce [animation-delay:300ms]" />
+          </span>
+          <span className="text-xs text-gray-400">Someone is typing…</span>
+        </div>
       )}
 
       {/* Diagnostics AI chat modal */}

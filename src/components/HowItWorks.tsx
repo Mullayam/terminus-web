@@ -1,63 +1,80 @@
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { MedalIcon, MapIcon, PlaneIcon, GiftIcon } from "../components/Icons";
+import { Terminal, Users, Shield, Sparkles } from "lucide-react";
 
 interface FeatureProps {
   icon: JSX.Element;
   title: string;
   description: string;
+  step: number;
 }
 
 const features: FeatureProps[] = [
   {
-    icon: <MedalIcon />,
-    title: "Simple Setup",
+    step: 1,
+    icon: <Terminal className="w-8 h-8 text-green-400" />,
+    title: "Connect in Seconds",
     description:
-      "Getting started is fast and easy. Set up your environment in just a few minutes using our intuitive configuration tools. Once you’ve cloned the repository and configured your settings, you’re ready to invite collaborators and start working together in real time.",
+      "Enter your host, username, and credentials — you're connected instantly. Save hosts for one-click access next time. No client installs, everything runs in your browser.",
   },
   {
-    icon: <MapIcon />,
-    title: "Real-Time Collaboration",
+    step: 2,
+    icon: <Users className="w-8 h-8 text-pink-400" />,
+    title: "Invite Your Team",
     description:
-      "Once a session is initiated, invite team members to join you in the terminal. Assign them read or write permissions to control their level of interaction. As everyone works together, each command and change is reflected instantly across all users, creating a smooth and synchronous experience.",
+      "Share a session link and your teammates join in real time. Assign permissions — read-only viewers, write-access collaborators, or full admin control. All input syncs instantly.",
   },
   {
-    icon: <PlaneIcon />,
-    title: "Secure by Design",
+    step: 3,
+    icon: <Shield className="w-8 h-8 text-blue-400" />,
+    title: "Work Securely",
     description:
-      "Security is at the core of our platform. Every terminal session and SFTP operation is encrypted end-to-end, and sensitive data like SSH keys and access tokens are stored securely in our key vault. We also enforce rate limiting, session timeouts, and log all access activities for full transparency",
+      "Every session is encrypted end-to-end. SSH keys and credentials are stored in the browser's encrypted vault. Rate limiting, session timeouts, and access logs keep your environment safe.",
   },
   {
-    icon: <GiftIcon />,
-    title: "Built with Security in Mind",
+    step: 4,
+    icon: <Sparkles className="w-8 h-8 text-amber-400" />,
+    title: "Let AI Assist You",
     description:
-      "With encryption, rate limiting, and secure key management, your sessions are protected at every step. We enforce session timeouts and maintain access logs for transparency.",
+      "Ghost-text autocomplete predicts your next command. The diagnostics AI detects errors in real time and suggests fixes. Context-aware code generation helps you move faster.",
   },
 ];
 
 export const HowItWorks = () => {
   return (
-    <section id="howItWorks" className="container text-center py-24 sm:py-32">
-      <h2 className="text-3xl md:text-4xl font-bold ">
-        How It{" "}
-        <span className="bg-gradient-to-b from-primary/60 to-primary text-transparent bg-clip-text">
-          Works{" "}
-        </span>
-        Step-by-Step Guide
-      </h2>
-      <p className="md:w-3/4 mx-auto mt-4 mb-8 text-xl text-muted-foreground">
-        {/* add some text here */}
-      </p>
+    <section id="howItWorks" className="container py-24 sm:py-32">
+      <div className="text-center space-y-4 mb-14">
+        <h2 className="text-3xl md:text-4xl font-bold">
+          How It{" "}
+          <span className="bg-gradient-to-b from-primary/60 to-primary text-transparent bg-clip-text">
+            Works
+          </span>
+        </h2>
+        <p className="md:w-3/4 mx-auto text-lg text-muted-foreground">
+          From zero to collaborative DevOps in four simple steps.
+        </p>
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-        {features.map(({ icon, title, description }: FeatureProps) => (
-          <Card key={title} className="bg-muted/50">
-            <CardHeader>
-              <CardTitle className="grid gap-4 place-items-center">
-                {icon}
-                {title}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {features.map(({ icon, title, description, step }) => (
+          <Card
+            key={title}
+            className="relative bg-card/50 border-border/60 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 group overflow-visible"
+          >
+            {/* Step number */}
+            <div className="absolute -top-4 left-6 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold shadow-lg">
+              {step}
+            </div>
+            <CardHeader className="pt-8">
+              <CardTitle className="flex flex-col gap-4 items-start">
+                <div className="p-2.5 rounded-lg bg-muted/50 border border-border/40 group-hover:bg-muted transition-colors">
+                  {icon}
+                </div>
+                <span className="text-lg">{title}</span>
               </CardTitle>
             </CardHeader>
-            <CardContent>{description}</CardContent>
+            <CardContent className="text-sm text-muted-foreground leading-relaxed">
+              {description}
+            </CardContent>
           </Card>
         ))}
       </div>

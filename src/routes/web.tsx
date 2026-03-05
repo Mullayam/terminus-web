@@ -16,6 +16,7 @@ const FileEditorMonacoPage = lazy(() => import("@/pages/sftp/components/FileEdit
 const MediaPreviewPage = lazy(() => import("@/pages/sftp/components/MediaPreviewPage"));
 
 const TerminalComponent = lazy(() => import("@/pages/shared-terminal"));
+const CollabTerminalPage = lazy(() => import("@/modules/collab-terminal/page/CollabTerminalPage"));
  
 /** Inline loading spinner shown while a lazy route chunk is being fetched */
 function RouteLoader() {
@@ -91,6 +92,11 @@ export const router = createBrowserRouter([
 
 
         ]
+    },
+    {
+        path: "/collab/terminal/:sessionId",
+        errorElement: <RouteErrorBoundary />,
+        element: withSuspense(<CollabTerminalPage />),
     },
     {
         path: "*",

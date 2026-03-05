@@ -171,6 +171,206 @@ export function createPluginContext(
       }
     },
 
+    registerDefinitionProvider: (languageSelector, provider) => {
+      const langs = Array.isArray(languageSelector)
+        ? languageSelector
+        : [languageSelector];
+      for (const lang of langs) {
+        const d = monaco.languages.registerDefinitionProvider(lang, provider);
+        disposables.push(d);
+      }
+    },
+
+    registerDeclarationProvider: (languageSelector, provider) => {
+      const langs = Array.isArray(languageSelector)
+        ? languageSelector
+        : [languageSelector];
+      for (const lang of langs) {
+        const d = monaco.languages.registerDeclarationProvider(lang, provider);
+        disposables.push(d);
+      }
+    },
+
+    registerTypeDefinitionProvider: (languageSelector, provider) => {
+      const langs = Array.isArray(languageSelector)
+        ? languageSelector
+        : [languageSelector];
+      for (const lang of langs) {
+        const d = monaco.languages.registerTypeDefinitionProvider(lang, provider);
+        disposables.push(d);
+      }
+    },
+
+    registerImplementationProvider: (languageSelector, provider) => {
+      const langs = Array.isArray(languageSelector)
+        ? languageSelector
+        : [languageSelector];
+      for (const lang of langs) {
+        const d = monaco.languages.registerImplementationProvider(lang, provider);
+        disposables.push(d);
+      }
+    },
+
+    registerReferenceProvider: (languageSelector, provider) => {
+      const langs = Array.isArray(languageSelector)
+        ? languageSelector
+        : [languageSelector];
+      for (const lang of langs) {
+        const d = monaco.languages.registerReferenceProvider(lang, provider);
+        disposables.push(d);
+      }
+    },
+
+    registerDocumentHighlightProvider: (languageSelector, provider) => {
+      const langs = Array.isArray(languageSelector)
+        ? languageSelector
+        : [languageSelector];
+      for (const lang of langs) {
+        const d = monaco.languages.registerDocumentHighlightProvider(lang, provider);
+        disposables.push(d);
+      }
+    },
+
+    registerDocumentSymbolProvider: (languageSelector, provider) => {
+      const langs = Array.isArray(languageSelector)
+        ? languageSelector
+        : [languageSelector];
+      for (const lang of langs) {
+        const d = monaco.languages.registerDocumentSymbolProvider(lang, provider);
+        disposables.push(d);
+      }
+    },
+
+    registerLinkProvider: (languageSelector, provider) => {
+      const langs = Array.isArray(languageSelector)
+        ? languageSelector
+        : [languageSelector];
+      for (const lang of langs) {
+        const d = monaco.languages.registerLinkProvider(lang, provider);
+        disposables.push(d);
+      }
+    },
+
+    registerColorProvider: (languageSelector, provider) => {
+      const langs = Array.isArray(languageSelector)
+        ? languageSelector
+        : [languageSelector];
+      for (const lang of langs) {
+        const d = monaco.languages.registerColorProvider(lang, provider);
+        disposables.push(d);
+      }
+    },
+
+    registerInlayHintsProvider: (languageSelector, provider) => {
+      const langs = Array.isArray(languageSelector)
+        ? languageSelector
+        : [languageSelector];
+      for (const lang of langs) {
+        const d = monaco.languages.registerInlayHintsProvider(lang, provider);
+        disposables.push(d);
+      }
+    },
+
+    registerSignatureHelpProvider: (languageSelector, provider) => {
+      const langs = Array.isArray(languageSelector)
+        ? languageSelector
+        : [languageSelector];
+      for (const lang of langs) {
+        const d = monaco.languages.registerSignatureHelpProvider(lang, provider);
+        disposables.push(d);
+      }
+    },
+
+    registerLinkedEditingRangeProvider: (languageSelector, provider) => {
+      const langs = Array.isArray(languageSelector)
+        ? languageSelector
+        : [languageSelector];
+      for (const lang of langs) {
+        const d = monaco.languages.registerLinkedEditingRangeProvider(lang, provider);
+        disposables.push(d);
+      }
+    },
+
+    registerDocumentRangeFormattingProvider: (languageSelector, provider) => {
+      const langs = Array.isArray(languageSelector)
+        ? languageSelector
+        : [languageSelector];
+      for (const lang of langs) {
+        const d = monaco.languages.registerDocumentRangeFormattingEditProvider(lang, provider);
+        disposables.push(d);
+      }
+    },
+
+    registerOnTypeFormattingProvider: (languageSelector, provider) => {
+      const langs = Array.isArray(languageSelector)
+        ? languageSelector
+        : [languageSelector];
+      for (const lang of langs) {
+        const d = monaco.languages.registerOnTypeFormattingEditProvider(lang, provider);
+        disposables.push(d);
+      }
+    },
+
+    registerFoldingRangeProvider: (languageSelector, provider) => {
+      const langs = Array.isArray(languageSelector)
+        ? languageSelector
+        : [languageSelector];
+      for (const lang of langs) {
+        const d = monaco.languages.registerFoldingRangeProvider(lang, provider);
+        disposables.push(d);
+      }
+    },
+
+    registerRenameProvider: (languageSelector, provider) => {
+      const langs = Array.isArray(languageSelector)
+        ? languageSelector
+        : [languageSelector];
+      for (const lang of langs) {
+        const d = monaco.languages.registerRenameProvider(lang, provider);
+        disposables.push(d);
+      }
+    },
+
+    registerNewSymbolNameProvider: (languageSelector, provider) => {
+      const langs = Array.isArray(languageSelector)
+        ? languageSelector
+        : [languageSelector];
+      for (const lang of langs) {
+        const d = monaco.languages.registerNewSymbolNameProvider(lang, provider);
+        disposables.push(d);
+      }
+    },
+
+    registerSelectionRangeProvider: (languageSelector, provider) => {
+      const langs = Array.isArray(languageSelector)
+        ? languageSelector
+        : [languageSelector];
+      for (const lang of langs) {
+        const d = monaco.languages.registerSelectionRangeProvider(lang, provider);
+        disposables.push(d);
+      }
+    },
+
+    registerDocumentSemanticTokensProvider: (languageSelector, provider) => {
+      const langs = Array.isArray(languageSelector)
+        ? languageSelector
+        : [languageSelector];
+      for (const lang of langs) {
+        const d = monaco.languages.registerDocumentSemanticTokensProvider(lang, provider);
+        disposables.push(d);
+      }
+    },
+
+    registerDocumentRangeSemanticTokensProvider: (languageSelector, provider) => {
+      const langs = Array.isArray(languageSelector)
+        ? languageSelector
+        : [languageSelector];
+      for (const lang of langs) {
+        const d = monaco.languages.registerDocumentRangeSemanticTokensProvider(lang, provider);
+        disposables.push(d);
+      }
+    },
+
     setModelMarkers: (owner, markers) => {
       const model = editor.getModel();
       if (model) {

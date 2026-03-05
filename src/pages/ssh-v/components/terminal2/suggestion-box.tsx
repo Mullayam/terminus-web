@@ -3,6 +3,8 @@ import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useCommandStore } from "@/store";
 import { useSessionTheme } from "@/hooks/useSessionTheme";
+import { useAIChatStore, getDefaultModel } from "@/store/aiChatStore";
+import { useTerminalStore } from "@/store/terminalStore";
 import { __config } from "@/lib/config";
 
 interface SuggestionBoxProps {
@@ -16,6 +18,8 @@ interface SuggestionBoxProps {
   hostKey?: string
   /** Current partial command the user is typing */
   commandBuffer?: string
+  /** Session ID for AI ghost command */
+  sessionId: string
 }
 
 /**
@@ -63,19 +67,18 @@ function useBoxColors() {
   }, [colors]);
 }
 
-/* ── AI command suggestion via /api/chat SSE ─────────────── */
+/* ── AI command suggestion via /api/chat/ai SSE → ghost text ── */
 
-interface AISuggestion {
-  command: string;
-  description: string;
+function stripAnsi(str: string): string {
+  // eslint-disable-next-line no-control-regex
+  return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '');
 }
 
 /**
- * Fetch AI-suggested commands for the current partial input.
- * Streams the response and parses the accumulated text as JSON.
+ * Fetch AI-suggested command for the current partial input via /api/chat/ai SSE.
+ * Streams the response and sets it as ghost text in the terminal.
  */
-function useAICommandSuggestion(commandBuffer: string, isVisible: boolean) {
-  const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[]>([]);
+function useAICommandSuggestion(commandBuffer: string, isVisible: boolean, sessionId: string) {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -89,73 +92,83 @@ function useAICommandSuggestion(commandBuffer: string, isVisible: boolean) {
 
     setAiLoading(true);
     setAiError(null);
-    setAiSuggestions([]);
     lastQueryRef.current = query;
 
     try {
-      const response = await fetch(`${__config.API_URL}/api/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: `Suggest up to 5 Linux/Unix shell commands related to: "${query}". Reply ONLY with a JSON array of objects, each with "command" and "description" keys. No markdown, no extra text.`,
-          context: `The user is typing in a terminal and has entered: "${query}". Suggest relevant shell commands they might want to run.`,
-          provider: "auto",
-        }),
+      const state = useAIChatStore.getState();
+      const model = state.selectedModel[sessionId] ?? getDefaultModel(state.providers);
+      const logs = useTerminalStore.getState().logs[sessionId] ?? [];
+      const last50 = logs.slice(-50);
+      const termContext = stripAnsi(last50.join('')).trim();
+
+      const payload = {
+        modelId: model?.modelId ?? '',
+        providerId: model?.providerId ?? '',
+        question: `Given this terminal context, suggest a single shell command for: "${query}". Reply ONLY with the raw command, no explanation, no markdown, no code fences.`,
+        selection: '',
+        context: termContext ? `Recent terminal output:\n${termContext}` : '',
+        history: [],
+      };
+
+      const res = await fetch(`${__config.API_URL}/api/chat/ai`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
         signal: controller.signal,
       });
 
-      if (!response.ok) throw new Error(`${response.status}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response body");
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error('No response body');
 
       const decoder = new TextDecoder();
-      let accumulated = "";
+      let buffer = '';
+      let fullText = '';
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
+        buffer += decoder.decode(value, { stream: true });
 
-        const chunk = decoder.decode(value, { stream: true });
-        for (const line of chunk.split("\n")) {
-          if (!line.startsWith("data: ")) continue;
-          const data = line.slice(6).trim();
-          if (data === "[DONE]") continue;
+        const events = buffer.split('\n\n');
+        buffer = events.pop() ?? '';
+
+        for (const event of events) {
+          const lines = event.split('\n');
+          let eventType = '';
+          let eventData = '';
+          for (const line of lines) {
+            if (line.startsWith('event:')) eventType = line.slice(6).trim();
+            else if (line.startsWith('data:')) eventData = line.slice(5).trim();
+          }
+          if (!eventData) continue;
           try {
-            const parsed = JSON.parse(data);
-            const token = parsed.choices?.[0]?.delta?.content ?? parsed.content ?? parsed.text ?? "";
-            accumulated += token;
+            const json = JSON.parse(eventData);
+            if (eventType === 'chunk') fullText += json.text ?? '';
+            else if (eventType === 'done') fullText = json.text ?? fullText;
           } catch {
-            // Treat raw data lines as plain text tokens
-            if (data && data !== "[DONE]") accumulated += data;
+            fullText += eventData;
           }
         }
       }
 
-      // Parse accumulated text — strip markdown code fences if present
-      let cleaned = accumulated.trim();
-      cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+      // Clean up — strip code fences, backticks, leading $
+      let cmd = fullText.trim();
+      cmd = cmd.replace(/^```(?:\w*)\n?/i, '').replace(/\n?```$/, '').trim();
+      cmd = cmd.replace(/^`|`$/g, '').trim();
+      cmd = cmd.replace(/^\$\s*/, '').trim();
 
-      // Extract JSON array from the text
-      const arrMatch = cleaned.match(/\[[\s\S]*\]/);
-      if (arrMatch) {
-        const items: AISuggestion[] = JSON.parse(arrMatch[0]);
-        if (Array.isArray(items) && items.length > 0) {
-          setAiSuggestions(items.slice(0, 5).map((it) => ({
-            command: String(it.command ?? ""),
-            description: String(it.description ?? ""),
-          })).filter((it) => it.command.length > 0));
-          return;
-        }
+      if (cmd) {
+        useAIChatStore.getState().setGhostCommand(sessionId, cmd);
       }
-      setAiSuggestions([]);
     } catch (err: any) {
-      if (err?.name === "AbortError") return;
-      setAiError("AI unavailable");
+      if (err?.name === 'AbortError') return;
+      setAiError('AI unavailable');
     } finally {
       if (lastQueryRef.current === query) setAiLoading(false);
     }
-  }, []);
+  }, [sessionId]);
 
   // Cleanup on unmount
   useEffect(() => () => { abortRef.current?.abort(); }, []);
@@ -163,22 +176,21 @@ function useAICommandSuggestion(commandBuffer: string, isVisible: boolean) {
   // Auto-clear when hidden or buffer is empty
   useEffect(() => {
     if (!isVisible || !commandBuffer) {
-      setAiSuggestions([]);
       setAiError(null);
       setAiLoading(false);
       abortRef.current?.abort();
     }
   }, [isVisible, commandBuffer]);
 
-  return { aiSuggestions, aiLoading, aiError, fetchAISuggestions };
+  return { aiLoading, aiError, fetchAISuggestions };
 }
 
-const AISuggestionBox: React.FC<SuggestionBoxProps> = ({ terminalHeight, setSuggestions, terminalWidth, suggestionPos, suggestions, isVisible = true, hostKey, commandBuffer = "" }) => {
+const AISuggestionBox: React.FC<SuggestionBoxProps> = ({ terminalHeight, setSuggestions, terminalWidth, suggestionPos, suggestions, isVisible = true, hostKey, commandBuffer = "", sessionId }) => {
   const { setCommand } = useCommandStore();
   const c = useBoxColors();
-  const { aiSuggestions, aiLoading, aiError, fetchAISuggestions } = useAICommandSuggestion(commandBuffer, isVisible);
+  const { aiLoading, aiError, fetchAISuggestions } = useAICommandSuggestion(commandBuffer, isVisible, sessionId);
   const BOX_HEIGHT = 160;
-  const AI_SECTION_HEIGHT = aiSuggestions.length > 0 ? Math.min(aiSuggestions.length * 28 + 32, 100) : 32;
+  const AI_SECTION_HEIGHT = 32;
   const BOX_WIDTH = 280;
   const OUTER_PADDING = 16; // p-2 = 0.5rem = 8px per side, total 16px
   const GAP = 30
@@ -269,39 +281,6 @@ const AISuggestionBox: React.FC<SuggestionBoxProps> = ({ terminalHeight, setSugg
         {aiError && (
           <div className="px-2 py-0.5 text-[10px]" style={{ color: c.errorFg }}>
             {aiError}
-          </div>
-        )}
-
-        {/* AI suggestion results */}
-        {aiSuggestions.length > 0 && (
-          <div className="mt-1 overflow-y-auto" style={{ maxHeight: 80 }}>
-            {aiSuggestions.map((item, i) => (
-              <div
-                key={i}
-                className="group flex items-center gap-2 px-2 py-1 rounded text-xs cursor-pointer transition-colors duration-150"
-                style={{ color: c.accentBright, background: "transparent" }}
-                onMouseEnter={(e) => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.style.background = c.hoverBg;
-                  el.style.outline = `1px solid ${c.hoverBorder}`;
-                }}
-                onMouseLeave={(e) => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.style.background = "transparent";
-                  el.style.outline = "none";
-                }}
-                onClick={() => handleCommandClick(item.command)}
-                title={item.description}
-              >
-                <span style={{ color: c.accent, flexShrink: 0 }}>✦</span>
-                <span className="font-mono truncate">{item.command}</span>
-                {item.description && (
-                  <span className="ml-auto truncate text-[10px]" style={{ color: c.dimFg, maxWidth: 100 }}>
-                    {item.description}
-                  </span>
-                )}
-              </div>
-            ))}
           </div>
         )}
       </div>

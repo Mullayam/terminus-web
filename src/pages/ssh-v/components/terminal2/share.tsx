@@ -7,24 +7,34 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { } from "lucide-react";
-import { Users, Play, Pause, Square, Globe, Copy, Check } from 'lucide-react';
+import { Globe, Copy, Check, ShieldBan, UserX, Eye, Pencil, Shield } from 'lucide-react';
 
-
-import { SocketEventConstants } from "@/lib/sockets/event-constants";
-import { useEffect, useState } from "react";
+import { CollabClientEvent } from "@/modules/collab-terminal/types/events";
+import { useState } from "react";
 import { useSSHStore } from "@/store/sshStore";
 import { useTerminalStore } from '@/store/terminalStore';
 import { toast } from "@/hooks/use-toast";
+
 type SocketPermission = '400' | '700' | '777';
+
+const PERMISSION_LABELS: Record<string, { label: string; description: string; color: string }> = {
+    '400': { label: 'Read-only', description: 'Can see output, cannot type', color: 'text-yellow-400' },
+    '700': { label: 'Write', description: 'Can type, subject to auto-lock', color: 'text-green-400' },
+    '777': { label: 'Admin', description: 'Full access, immune to all locks', color: 'text-blue-400' },
+};
 
 const TerminalShare = () => {
     const { sessions, activeTabId } = useSSHStore()
-    const { sessionInfo, addPermissions } = useTerminalStore()
+    const { sessionInfo, addPermissions, deleteSharedSession, deletePermission } = useTerminalStore()
     const [isCopied, setIsCopied] = useState(false)
     const [selectedSocketId, setSelectedSocketId] = useState<string | null>(null)
     const info = sessionInfo?.shared_sessions[activeTabId!]
     const socket = sessions[activeTabId!].socket
+    const mySocketId = socket?.id
+
+    // Filter out admin's own socket — only show other users
+    const otherUsers = info?.socketIds.filter((id) => id !== mySocketId) ?? []
+
     const handleCreateShareTerminalClick = () => {
         handleCopySessionLink();
         toast({
@@ -32,155 +42,218 @@ const TerminalShare = () => {
             description: "Paste URL in browser tab",
         })
     }
-    const updateSessionSettings = (socketId: string, type: "pause" | "kick") => {
-        const data = {
-            socketId,
+
+    /** Set collaborator to read-only "400" */
+    const handleSetReadOnly = (socketId: string) => {
+        socket?.emit(CollabClientEvent.CHANGE_PERMISSION, {
             sessionId: activeTabId!,
-            type
-        }
-        socket?.emit(SocketEventConstants.SSH_SESSION, JSON.stringify(data))
+            targetSocketId: socketId,
+            permission: '400',
+        });
+        addPermissions(activeTabId!, socketId, '400');
+        toast({ title: "User set to read-only (400)" });
     }
+
+    /** Kick user — they CAN rejoin */
+    const handleKick = (socketId: string) => {
+        socket?.emit(CollabClientEvent.KICK_USER, {
+            sessionId: activeTabId!,
+            targetSocketId: socketId,
+            message: 'Removed by admin.',
+        });
+        deleteSharedSession(activeTabId!, socketId);
+        deletePermission(activeTabId!, socketId);
+        if (selectedSocketId === socketId) setSelectedSocketId(null);
+        toast({ title: "User kicked (can rejoin)" });
+    }
+
+    /** Block user — IP banned, CANNOT rejoin this session */
+    const handleBlock = (socketId: string) => {
+        socket?.emit(CollabClientEvent.BLOCK_USER, {
+            sessionId: activeTabId!,
+            targetSocketId: socketId,
+            message: 'Blocked by admin.',
+        });
+        deleteSharedSession(activeTabId!, socketId);
+        deletePermission(activeTabId!, socketId);
+        if (selectedSocketId === socketId) setSelectedSocketId(null);
+        toast({ title: "User blocked (cannot rejoin)", variant: "destructive" });
+    }
+
     const handleCopySessionLink = () => {
-        const link = `${window.location.origin}/ssh/terminal/${activeTabId}`;
+        const link = `${window.location.origin}/collab/terminal/${activeTabId}`;
         navigator.clipboard.writeText(link);
         setIsCopied(true);
         const timer = setTimeout(() => {
             setIsCopied(false);
         }, 2000);
         return () => clearTimeout(timer);
-
     };
-    const updateSessionPermission = (socketId: string, permissions: SocketPermission) => {
 
-        const data = {
-            socketId,
-            permissions,
-            sessionId: activeTabId!
-        };
-        socket?.emit(SocketEventConstants.SSH_PERMISSIONS, JSON.stringify(data))
+    const getUserPermission = (socketId: string): string => {
+        return info?.permissions?.[socketId] || '400';
+    };
+
+    const updateSessionPermission = (socketId: string, permissions: SocketPermission) => {
+        socket?.emit(CollabClientEvent.CHANGE_PERMISSION, {
+            sessionId: activeTabId!,
+            targetSocketId: socketId,
+            permission: permissions,
+        });
+        addPermissions(activeTabId!, socketId, permissions);
+        const label = PERMISSION_LABELS[permissions]?.label || permissions;
+        toast({ title: `Permission updated to ${permissions} — ${label}` });
     }
 
-
-    useEffect(() => {
-        socket?.on(SocketEventConstants.SSH_PERMISSIONS, (input: string) => {
-            const data = JSON.parse(input) as {
-                socketId: string,
-                permissions: SocketPermission,
-                sessionId: string
-            };
-            addPermissions(activeTabId!, data.socketId, data.permissions)
-            toast({ title: "Permissions updated successfully" })
-        })
-
-
-
-        return () => {
-
-            socket?.off(SocketEventConstants.SSH_PERMISSIONS);
-        }
-    }, [socket, activeTabId])
     return (
         <div className="p-4">
-            <div className="flex flex-col w-full">
-                {info?.socketIds.length > 0 ? (
-                    <div className="flex flex-col">
-                        <h3 className="text-lg font-semibold text-gray-300">Terminal Sharing sessions
-                            {info?.socketIds.length > 0 ? info?.socketIds.length : 0}
+            <div className="flex flex-col w-full gap-3">
+                {otherUsers.length > 0 ? (
+                    <div className="flex flex-col gap-3">
+                        <h3 className="text-lg font-semibold text-gray-300">
+                            Terminal Sharing
+                            <span className="ml-2 text-sm font-normal text-gray-500">
+                                {otherUsers.length} {otherUsers.length === 1 ? 'user' : 'users'}
+                            </span>
                         </h3>
 
-                        {info?.socketIds.map((session) => {
+                        {otherUsers.map((session) => {
+                            const perm = getUserPermission(session);
+                            const permInfo = PERMISSION_LABELS[perm] || PERMISSION_LABELS['400'];
+                            const isSelected = selectedSocketId === session;
+
                             return (
                                 <div
-                                    onClick={() => setSelectedSocketId(session)}
+                                    onClick={() => setSelectedSocketId(isSelected ? null : session)}
                                     key={session}
-                                    className="bg-transparent rounded-lg p-4 border border-gray-200 hover:border-blue-300 transition-colors"
+                                    className={`rounded-lg p-3 border transition-colors cursor-pointer ${
+                                        isSelected
+                                            ? 'border-blue-500 bg-slate-800/50'
+                                            : 'border-gray-700 hover:border-gray-500 bg-transparent'
+                                    }`}
                                 >
+                                    <div className="flex items-center justify-between mb-2">
+                                        <code className="text-xs text-gray-400 font-mono truncate flex-1 mr-2">
+                                            {session}
+                                        </code>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setSelectedSocketId(isSelected ? null : session);
+                                            }}
+                                            title="Change permissions"
+                                            className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                                                isSelected
+                                                    ? 'bg-blue-600 text-white'
+                                                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                                            }`}
+                                        >
+                                            Permissions
+                                        </button>
+                                    </div>
 
-                                    <div className="bg-transparent rounded p-2">
-                                        <div className="flex items-center justify-between">
-                                            <code className="text-xs text-gray-600 font-mono truncate flex-1 mr-2">
-                                                {session}
-                                            </code>
-                                            <button
-                                                onClick={handleCopySessionLink}
-                                                className={`p-1 rounded transition-colors ${isCopied
-                                                    ? 'bg-green-100 text-green-600'
-                                                    : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
-                                                    }`}
-                                            >
-                                                {isCopied ? <Check size={12} /> : <Copy size={12} />}
-                                            </button>
-                                        </div>
+                                    {/* Permission badge */}
+                                    <div className="flex items-center gap-1.5 mb-2">
+                                        {perm === '400' ? <Eye size={10} className="text-yellow-400" /> : perm === '777' ? <Shield size={10} className="text-blue-400" /> : <Pencil size={10} className="text-green-400" />}
+                                        <span className={`text-[11px] font-medium ${permInfo.color}`}>
+                                            {permInfo.label}
+                                        </span>
+                                        <span className="text-[10px] text-gray-500">
+                                            {permInfo.description}
+                                        </span>
+                                    </div>
 
-                                        <div className="flex space-x-2 pt-1">
-
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    updateSessionSettings(session, "pause")
-                                                }}
-                                                className="flex-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 py-1 px-2 rounded text-xs font-medium transition-colors">
-                                                Pause
-                                            </button>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    updateSessionSettings(session, "kick")
-                                                }}
-                                                className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 py-1 px-2 rounded text-xs font-medium transition-colors">
-                                                End
-                                            </button>
-                                        </div>
+                                    {/* Action buttons */}
+                                    <div className="flex space-x-2">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleSetReadOnly(session);
+                                            }}
+                                            title="Set to read-only (400)"
+                                            className="flex-1 bg-yellow-900/30 hover:bg-yellow-900/50 text-yellow-400 py-1 px-2 rounded text-xs font-medium transition-colors"
+                                        >
+                                            Read-only
+                                        </button>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleKick(session);
+                                            }}
+                                            title="Kick user — they can rejoin"
+                                            className="flex-1 bg-orange-900/30 hover:bg-orange-900/50 text-orange-400 py-1 px-2 rounded text-xs font-medium transition-colors flex items-center justify-center gap-1"
+                                        >
+                                            <UserX size={11} />
+                                            Kick
+                                        </button>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleBlock(session);
+                                            }}
+                                            title="Block user — IP banned, cannot rejoin"
+                                            className="flex-1 bg-red-900/30 hover:bg-red-900/50 text-red-400 py-1 px-2 rounded text-xs font-medium transition-colors flex items-center justify-center gap-1"
+                                        >
+                                            <ShieldBan size={11} />
+                                            Block
+                                        </button>
                                     </div>
                                 </div>
-                            )
-                        }
-                        )}
+                            );
+                        })}
                     </div>
-
                 ) : (
-                    <>
-                        <div className="text-center py-8   w-full rounded-lg border border-gray-700">
-                            <Globe size={32} className="mx-auto text-gray-300 mb-2" />
-                            <h4 className="text-sm font-medium text-gray-300 mb-1">No sessions</h4>
-                            <p className="text-xs text-gray-500 mb-3">Create your first session</p>
-                            <Button
-                                variant={"outline"}
-                                onClick={handleCreateShareTerminalClick}
-
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
-                            >
-                                Create Session
-                            </Button>
-                        </div>
-
-                    </>
-
+                    <div className="text-center py-8 w-full rounded-lg border border-gray-700">
+                        <Globe size={32} className="mx-auto text-gray-300 mb-2" />
+                        <h4 className="text-sm font-medium text-gray-300 mb-1">No sessions</h4>
+                        <p className="text-xs text-gray-500 mb-3">Create your first session</p>
+                        <Button
+                            variant={"outline"}
+                            onClick={handleCreateShareTerminalClick}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                        >
+                            Create Session
+                        </Button>
+                    </div>
                 )}
             </div>
-            {selectedSocketId && (
-                <div className="space-y-4">
-                    <div className="space-y-2">
-                        <label className="text-sm text-slate-400">
-                            Viewers permissions:
+
+            {/* Permission control for selected user */}
+            {selectedSocketId && otherUsers.includes(selectedSocketId) && (
+                <div className="mt-4 p-3 rounded-lg border border-gray-700 bg-slate-800/30 space-y-3">
+                    <div className="space-y-1">
+                        <label className="text-xs font-medium text-slate-400">
+                            Change permission
                         </label>
                         <Select
-                            defaultValue="view"
-                            onValueChange={(value) => updateSessionPermission(selectedSocketId, value as any)}
+                            value={getUserPermission(selectedSocketId)}
+                            onValueChange={(value) => updateSessionPermission(selectedSocketId, value as SocketPermission)}
                         >
-                            <SelectTrigger
-                                className="w-full bg-slate-800 text-gray-200 border-slate-700"
-                                defaultValue={"400"}
-                            >
+                            <SelectTrigger className="w-full h-8 bg-slate-800 text-xs text-gray-200 border-slate-700">
                                 <SelectValue placeholder="Select permission" />
                             </SelectTrigger>
-                            <SelectContent defaultValue={"400"}>
-                                <SelectItem value="400">can view</SelectItem>
-                                <SelectItem value="777">can edit</SelectItem>
+                            <SelectContent>
+                                <SelectItem value="400" className="text-xs">
+                                    <span className="flex items-center gap-1.5">
+                                        <Eye size={10} className="text-yellow-400" />
+                                        Read-only
+                                    </span>
+                                </SelectItem>
+                                <SelectItem value="700" className="text-xs">
+                                    <span className="flex items-center gap-1.5">
+                                        <Pencil size={10} className="text-green-400" />
+                                        Write
+                                    </span>
+                                </SelectItem>
+                                <SelectItem value="777" className="text-xs">
+                                    <span className="flex items-center gap-1.5">
+                                        <Shield size={10} className="text-blue-400" />
+                                        Admin
+                                    </span>
+                                </SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
-
                 </div>
             )}
         </div>

@@ -1,0 +1,593 @@
+COLLABORATIVE TERMINAL SHARING — FRONTEND INSTRUCTIONS
+=======================================================
+
+We've added multi-user terminal sharing to the backend. Here's how it works
+and what you need to build on your side.
+
+
+THE BIG PICTURE
+---------------
+Admin creates an SSH session as usual. Nothing changes there.
+When admin shares the terminal, other users can join using a session ID.
+Everyone connects to the same "/" namespace — same socket connection.
+All new events are prefixed with @@COLLAB_ so they don't clash with existing ones.
+
+
+HOW USERS JOIN
+--------------
+After connecting with the sessionId in the query string, the user must emit
+a join event with the sessionId. The server will either accept or reject.
+
+If accepted: you get back the current room state — your permission level,
+whether the terminal is locked, who locked it, how many users are connected,
+and whether you're the admin.
+
+If rejected: you get back a reason ("session-not-found" or "blocked") with
+a human-readable message. Show that message directly to the user.
+
+
+PERMISSIONS
+-----------
+Every user has one of three levels:
+
+  Read-only  — Can watch the terminal output. Cannot type anything.
+  Write      — Can watch and type. But gets locked out temporarily when
+               someone else is typing.
+  Admin      — Full control. Can always type. Immune to all locks. Can
+               manage other users.
+
+New users join as read-only by default. Admin upgrades them if they want.
+When admin changes your permission, you get an event instantly. Update
+your UI immediately — enable or disable the input accordingly.
+
+
+HOW LOCKING WORKS
+-----------------
+There are two kinds of locks:
+
+1. Auto-lock: When a write-permission user starts typing, the terminal
+   locks for 4 seconds for all OTHER write users. The person typing and
+   the admin are not affected. Each keystroke resets the 4-second timer.
+   When they stop typing for 4 seconds, it unlocks automatically.
+
+2. Admin lock: The admin can manually lock the terminal for everyone.
+   No timeout — stays locked until admin explicitly unlocks. Only admin
+   can type while this is active.
+
+You receive one event when a lock is acquired and one when it's released.
+NOT on every keystroke. So just toggle your UI state on those two events.
+
+
+WHAT TO DO WHEN INPUT IS REJECTED
+----------------------------------
+If the user tries to type and the server rejects it, you get back a reason
+and a friendly message. Three possible reasons:
+
+  - "read-only": User doesn't have write permission.
+  - "locked-auto": Someone else is currently typing.
+  - "locked-admin": Admin locked the terminal manually.
+
+Each comes with a message string you can show directly in a toast.
+IMPORTANT: Debounce the toast. Don't show it on every rejected keystroke — 
+show it once, then suppress for 2-3 seconds.
+
+
+CLIENT-SIDE BUFFERING (RECOMMENDED)
+------------------------------------
+When a write user types while locked out by auto-lock:
+  - Buffer their keystrokes locally on the client.
+  - Show what they're typing in a preview bar below the terminal.
+  - When the lock releases, DON'T auto-send the buffer.
+  - Instead show: "You have a pending command. Send it?" with Send/Discard buttons.
+  - Let the user decide. The command might be stale by the time the lock releases.
+
+
+TERMINAL OUTPUT
+---------------
+Admin still receives output through the existing @@SSH_EMIT_DATA event.
+Collaborators receive output through @@COLLAB_TERMINAL_OUTPUT.
+Both carry the same raw text. Write it to xterm as-is.
+
+
+KICK vs BLOCK
+-------------
+Admin can kick or block users.
+
+Kicked: User gets a message and is removed from the room. They CAN rejoin.
+Show a modal with the message and a "Rejoin" button.
+
+Blocked: User gets a message and is removed. They CANNOT rejoin — their IP
+is banned for this session only. Show a modal with the message and an "OK"
+button that navigates them away. Hide or disable any rejoin option.
+
+
+PRESENCE
+--------
+You get an event when someone joins and when someone leaves, both with
+the updated user count. Use this to show a "3 users connected" badge
+or a user list panel. Admin also gets the joiner's IP address.
+
+
+ADMIN PANEL
+-----------
+Only show admin controls when the room state says isAdmin is true.
+Admin needs these controls:
+
+  - User list: Show all connected users with their socket ID and permission.
+  - Per-user actions: Kick, Block, Change Permission (toggle read-only / write).
+  - Terminal lock toggle: A button to manually lock/unlock the terminal.
+  - Unblock list: Show blocked IPs with an unblock button for each.
+
+
+UI COMPONENTS YOU NEED
+----------------------
+  - User count badge in the top bar (always visible)
+  - Permission badge: "Read-only" / "Write" / "Admin" (always visible)
+  - Lock indicator above or overlaying the terminal (visible when locked)
+  - "X is typing..." subtle bar below the terminal (during auto-lock)
+  - Input buffer preview bar (when user types while locked)
+  - Send / Discard buttons next to the buffer preview (when lock releases)
+  - Toast notifications in the corner (for rejections, permission changes)
+  - Admin panel — sidebar or drawer with user list and controls
+  - Kicked modal — center overlay with message + Rejoin button
+  - Blocked modal — center overlay with message + OK button (no rejoin)
+
+
+FLOW SUMMARY
+------------
+1. Connect socket with sessionId in query string (same as before).
+2. Emit join event with sessionId.
+3. Receive room state → set up your UI (permission, lock, user count).
+4. Listen for terminal output → write to xterm.
+5. On xterm keystrokes → emit input event (collab, not the old SSH one).
+6. Listen for input rejected → show debounced toast, optionally buffer.
+7. Listen for lock/unlock → toggle lock indicator, enable/disable input.
+8. Listen for permission changed → update UI immediately.
+9. Listen for kicked/blocked → show appropriate modal.
+10. Listen for user joined/left → update presence count.
+11. If admin: render admin panel, wire kick/block/permission/lock controls.
+
+
+IMPORTANT NOTES
+---------------
+- Admin's existing SSH events (@@SSH_*) are completely untouched. Don't change anything there.
+- Collaborators use @@COLLAB_INPUT for typing. Admin uses @@SSH_EMIT_INPUT as before.
+- Collaborators use @@COLLAB_TERMINAL_OUTPUT for output. Admin uses @@SSH_EMIT_DATA as before.
+- All collab events are prefixed @@COLLAB_ — check the events enum for exact names.
+- The backend handles all lock validation. The frontend just needs to react to events.
+- Don't try to enforce permissions client-side. The server rejects unauthorized input. 
+  Client-side toggling is just for UX — disable the input so users don't waste keystrokes.
+
+================================================================================
+PERMISSION LEVELS
+================================================================================
+
+  "400"  →  Read-only. Can see output, cannot type. Never subject to lock.
+  "700"  →  Write. Can see output and type. Subject to auto-lock by others.
+  "777"  →  Admin / Owner. Full access. Immune to all locks.
+
+
+================================================================================
+LOCK TYPES
+================================================================================
+
+  "auto"   →  Set automatically when a "700" user types. 4s TTL (resets on
+              each keystroke). Blocks other "700" users. Does NOT block "777".
+  "admin"  →  Set manually by admin. No TTL. Blocks everyone except "777".
+              Overrides any active auto-lock.
+
+
+================================================================================
+CLIENT → SERVER EVENTS (what the frontend sends)
+================================================================================
+
+
+EVENT: @@COLLAB_JOIN_TERMINAL
+  When:     User wants to join a shared terminal session
+  Who:      Everyone (admin + collaborators)
+  Payload:  JoinTerminalPayload
+            {
+              sessionId: string
+            }
+
+
+EVENT: @@COLLAB_INPUT
+  When:     User presses a key (xterm onData)
+  Who:      "700" and "777" users
+  Payload:  string (raw input, same as xterm onData gives you)
+
+
+EVENT: @@COLLAB_ADMIN_LOCK
+  When:     Admin toggles manual lock on/off
+  Who:      Admin ("777") only
+  Payload:  AdminLockPayload
+            {
+              sessionId: string,
+              lock: boolean          // true = lock, false = unlock
+            }
+
+
+EVENT: @@COLLAB_CHANGE_PERMISSION
+  When:     Admin changes a user's access level
+  Who:      Admin ("777") only
+  Payload:  ChangePermissionPayload
+            {
+              sessionId: string,
+              targetSocketId: string,
+              permission: "400" | "700"    // cannot set "777"
+            }
+
+
+EVENT: @@COLLAB_KICK_USER
+  When:     Admin removes a user (they can rejoin)
+  Who:      Admin ("777") only
+  Payload:  KickUserPayload
+            {
+              sessionId: string,
+              targetSocketId: string,
+              message?: string       // optional custom message
+            }
+
+
+EVENT: @@COLLAB_BLOCK_USER
+  When:     Admin bans a user by IP for this session (cannot rejoin)
+  Who:      Admin ("777") only
+  Payload:  BlockUserPayload
+            {
+              sessionId: string,
+              targetSocketId: string,
+              message?: string       // optional custom message
+            }
+
+
+EVENT: @@COLLAB_UNBLOCK_IP
+  When:     Admin removes an IP from the block list
+  Who:      Admin ("777") only
+  Payload:  UnblockIPPayload
+            {
+              sessionId: string,
+              ip: string
+            }
+
+
+================================================================================
+SERVER → CLIENT EVENTS (what the frontend receives)
+================================================================================
+
+
+EVENT: @@COLLAB_ROOM_STATE
+  When:     Immediately after successful join
+  Who:      Only the socket that just joined
+  Payload:  RoomStatePayload
+            {
+              lockedBy: string | null,         // socket.id of lock holder, null = free
+              lockType: "auto" | "admin" | null,
+              isLocked: boolean,
+              permission: "400" | "700" | "777",  // YOUR permission
+              userCount: number,
+              isAdmin: boolean                 // are you the owner?
+            }
+
+
+EVENT: @@COLLAB_JOIN_REJECTED
+  When:     Join failed (session not found or IP blocked)
+  Who:      Only the socket that tried to join
+  Payload:  JoinRejectedPayload
+            {
+              reason: "session-not-found" | "blocked",
+              message: string
+              // "This terminal session doesn't exist or has already ended."
+              // "You've been blocked from this session by the admin. Contact them if you think this is a mistake."
+            }
+
+
+EVENT: @@COLLAB_USER_JOINED
+  When:     A new user joins the room
+  Who:      Everyone in the room (except the joiner)
+            Admin also gets `ip` field
+  Payload:  UserJoinedPayload
+            {
+              socketId: string,
+              userCount: number,
+              ip?: string             // only sent to admin
+            }
+
+
+EVENT: @@COLLAB_USER_LEFT
+  When:     A user disconnects or is kicked/blocked
+  Who:      Everyone in the room
+  Payload:  UserLeftPayload
+            {
+              socketId: string,
+              userCount: number
+            }
+
+
+EVENT: @@COLLAB_TERMINAL_OUTPUT
+  When:     PTY produces output (stdout)
+  Who:      Everyone in the collab room
+  Payload:  string (raw terminal text, write to xterm)
+
+
+EVENT: @@COLLAB_PTY_LOCKED
+  When:     Lock acquired (first keystroke by "700" user, or admin manual lock)
+  Who:      Everyone in the room
+  Payload:  PTYLockedPayload
+            {
+              lockedBy: string,            // socket.id of lock holder
+              type: "auto" | "admin",
+              expiresIn?: number           // ms remaining (auto-lock only, ~4000)
+            }
+
+
+EVENT: @@COLLAB_PTY_UNLOCKED
+  When:     Lock released (auto-lock expired, admin unlocked, or holder disconnected)
+  Who:      Everyone in the room
+  Payload:  PTYUnlockedPayload
+            {}                             // empty object
+
+
+EVENT: @@COLLAB_PERMISSION_CHANGED
+  When:     Admin changed your permission
+  Who:      Only the affected socket
+  Payload:  PermissionChangedPayload
+            {
+              permission: "400" | "700"
+            }
+
+
+EVENT: @@COLLAB_INPUT_REJECTED
+  When:     You tried to type but were denied
+  Who:      Only the socket that sent the input
+  Payload:  InputRejectedPayload
+            {
+              reason: "read-only" | "locked-auto" | "locked-admin",
+              message: string
+              // "You're in read-only mode. Ask the admin to grant you write access."
+              // "Someone else is typing. You'll be able to type once they're done."
+              // "The admin has locked the terminal. Only the admin can type right now."
+            }
+
+
+EVENT: @@COLLAB_USER_KICKED
+  When:     Admin kicked you from the session
+  Who:      Only the kicked socket
+  Payload:  UserKickedPayload
+            {
+              message: string
+              // "The admin removed you from this session. You can rejoin if you'd like."
+            }
+
+
+EVENT: @@COLLAB_USER_BLOCKED
+  When:     Admin blocked you (IP-banned for this session)
+  Who:      Only the blocked socket
+  Payload:  UserBlockedPayload
+            {
+              message: string
+              // "The admin has blocked you from this session. You won't be able to rejoin."
+            }
+
+
+================================================================================
+EOF
+================================================================================
+================================================================================
+COLLABORATIVE TERMINAL SHARING — FRONTEND CONTRACT
+================================================================================
+
+
+================================================================================
+PERMISSION LEVELS
+================================================================================
+
+  "400"  →  Read-only. Can see output, cannot type. Never subject to lock.
+  "700"  →  Write. Can see output and type. Subject to auto-lock by others.
+  "777"  →  Admin / Owner. Full access. Immune to all locks.
+
+
+================================================================================
+LOCK TYPES
+================================================================================
+
+  "auto"   →  Set automatically when a "700" user types. 4s TTL (resets on
+              each keystroke). Blocks other "700" users. Does NOT block "777".
+  "admin"  →  Set manually by admin. No TTL. Blocks everyone except "777".
+              Overrides any active auto-lock.
+
+
+================================================================================
+CLIENT → SERVER EVENTS (what the frontend sends)
+================================================================================
+
+
+EVENT: @@COLLAB_JOIN_TERMINAL
+  When:     User wants to join a shared terminal session
+  Who:      Everyone (admin + collaborators)
+  Payload:  JoinTerminalPayload
+            {
+              sessionId: string
+            }
+
+
+EVENT: @@COLLAB_INPUT
+  When:     User presses a key (xterm onData)
+  Who:      "700" and "777" users
+  Payload:  string (raw input, same as xterm onData gives you)
+
+
+EVENT: @@COLLAB_ADMIN_LOCK
+  When:     Admin toggles manual lock on/off
+  Who:      Admin ("777") only
+  Payload:  AdminLockPayload
+            {
+              sessionId: string,
+              lock: boolean          // true = lock, false = unlock
+            }
+
+
+EVENT: @@COLLAB_CHANGE_PERMISSION
+  When:     Admin changes a user's access level
+  Who:      Admin ("777") only
+  Payload:  ChangePermissionPayload
+            {
+              sessionId: string,
+              targetSocketId: string,
+              permission: "400" | "700"    // cannot set "777"
+            }
+
+
+EVENT: @@COLLAB_KICK_USER
+  When:     Admin removes a user (they can rejoin)
+  Who:      Admin ("777") only
+  Payload:  KickUserPayload
+            {
+              sessionId: string,
+              targetSocketId: string,
+              message?: string       // optional custom message
+            }
+
+
+EVENT: @@COLLAB_BLOCK_USER
+  When:     Admin bans a user by IP for this session (cannot rejoin)
+  Who:      Admin ("777") only
+  Payload:  BlockUserPayload
+            {
+              sessionId: string,
+              targetSocketId: string,
+              message?: string       // optional custom message
+            }
+
+
+EVENT: @@COLLAB_UNBLOCK_IP
+  When:     Admin removes an IP from the block list
+  Who:      Admin ("777") only
+  Payload:  UnblockIPPayload
+            {
+              sessionId: string,
+              ip: string
+            }
+
+
+================================================================================
+SERVER → CLIENT EVENTS (what the frontend receives)
+================================================================================
+
+
+EVENT: @@COLLAB_ROOM_STATE
+  When:     Immediately after successful join
+  Who:      Only the socket that just joined
+  Payload:  RoomStatePayload
+            {
+              lockedBy: string | null,         // socket.id of lock holder, null = free
+              lockType: "auto" | "admin" | null,
+              isLocked: boolean,
+              permission: "400" | "700" | "777",  // YOUR permission
+              userCount: number,
+              isAdmin: boolean                 // are you the owner?
+            }
+
+
+EVENT: @@COLLAB_JOIN_REJECTED
+  When:     Join failed (session not found or IP blocked)
+  Who:      Only the socket that tried to join
+  Payload:  JoinRejectedPayload
+            {
+              reason: "session-not-found" | "blocked",
+              message: string
+              // "This terminal session doesn't exist or has already ended."
+              // "You've been blocked from this session by the admin. Contact them if you think this is a mistake."
+            }
+
+
+EVENT: @@COLLAB_USER_JOINED
+  When:     A new user joins the room
+  Who:      Everyone in the room (except the joiner)
+            Admin also gets `ip` field
+  Payload:  UserJoinedPayload
+            {
+              socketId: string,
+              userCount: number,
+              ip?: string             // only sent to admin
+            }
+
+
+EVENT: @@COLLAB_USER_LEFT
+  When:     A user disconnects or is kicked/blocked
+  Who:      Everyone in the room
+  Payload:  UserLeftPayload
+            {
+              socketId: string,
+              userCount: number
+            }
+
+
+EVENT: @@COLLAB_TERMINAL_OUTPUT
+  When:     PTY produces output (stdout)
+  Who:      Everyone in the collab room
+  Payload:  string (raw terminal text, write to xterm)
+
+
+EVENT: @@COLLAB_PTY_LOCKED
+  When:     Lock acquired (first keystroke by "700" user, or admin manual lock)
+  Who:      Everyone in the room
+  Payload:  PTYLockedPayload
+            {
+              lockedBy: string,            // socket.id of lock holder
+              type: "auto" | "admin",
+              expiresIn?: number           // ms remaining (auto-lock only, ~4000)
+            }
+
+
+EVENT: @@COLLAB_PTY_UNLOCKED
+  When:     Lock released (auto-lock expired, admin unlocked, or holder disconnected)
+  Who:      Everyone in the room
+  Payload:  PTYUnlockedPayload
+            {}                             // empty object
+
+
+EVENT: @@COLLAB_PERMISSION_CHANGED
+  When:     Admin changed your permission
+  Who:      Only the affected socket
+  Payload:  PermissionChangedPayload
+            {
+              permission: "400" | "700"
+            }
+
+
+EVENT: @@COLLAB_INPUT_REJECTED
+  When:     You tried to type but were denied
+  Who:      Only the socket that sent the input
+  Payload:  InputRejectedPayload
+            {
+              reason: "read-only" | "locked-auto" | "locked-admin",
+              message: string
+              // "You're in read-only mode. Ask the admin to grant you write access."
+              // "Someone else is typing. You'll be able to type once they're done."
+              // "The admin has locked the terminal. Only the admin can type right now."
+            }
+
+
+EVENT: @@COLLAB_USER_KICKED
+  When:     Admin kicked you from the session
+  Who:      Only the kicked socket
+  Payload:  UserKickedPayload
+            {
+              message: string
+              // "The admin removed you from this session. You can rejoin if you'd like."
+            }
+
+
+EVENT: @@COLLAB_USER_BLOCKED
+  When:     Admin blocked you (IP-banned for this session)
+  Who:      Only the blocked socket
+  Payload:  UserBlockedPayload
+            {
+              message: string
+              // "The admin has blocked you from this session. You won't be able to rejoin."
+            }
+
+
+================================================================================
+EOF
+================================================================================

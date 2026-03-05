@@ -90,6 +90,106 @@ export interface PluginContext {
     languageSelector: string | string[],
     provider: monacoNs.languages.InlineCompletionsProvider,
   ): void;
+  /** Register a definition provider (Go to Definition) */
+  registerDefinitionProvider(
+    languageSelector: string | string[],
+    provider: monacoNs.languages.DefinitionProvider,
+  ): void;
+  /** Register a declaration provider (Go to Declaration) */
+  registerDeclarationProvider(
+    languageSelector: string | string[],
+    provider: monacoNs.languages.DeclarationProvider,
+  ): void;
+  /** Register a type definition provider (Go to Type Definition) */
+  registerTypeDefinitionProvider(
+    languageSelector: string | string[],
+    provider: monacoNs.languages.TypeDefinitionProvider,
+  ): void;
+  /** Register an implementation provider (Go to Implementation) */
+  registerImplementationProvider(
+    languageSelector: string | string[],
+    provider: monacoNs.languages.ImplementationProvider,
+  ): void;
+  /** Register a reference provider (Find All References) */
+  registerReferenceProvider(
+    languageSelector: string | string[],
+    provider: monacoNs.languages.ReferenceProvider,
+  ): void;
+  /** Register a document highlight provider (highlight occurrences) */
+  registerDocumentHighlightProvider(
+    languageSelector: string | string[],
+    provider: monacoNs.languages.DocumentHighlightProvider,
+  ): void;
+  /** Register a document symbol provider (Outline / Breadcrumbs) */
+  registerDocumentSymbolProvider(
+    languageSelector: string | string[],
+    provider: monacoNs.languages.DocumentSymbolProvider,
+  ): void;
+  /** Register a link provider (clickable links in editor) */
+  registerLinkProvider(
+    languageSelector: string | string[],
+    provider: monacoNs.languages.LinkProvider,
+  ): void;
+  /** Register a color provider (Color Picker, Color Decorator) */
+  registerColorProvider(
+    languageSelector: string | string[],
+    provider: monacoNs.languages.DocumentColorProvider,
+  ): void;
+  /** Register an inlay hints provider (inline type/parameter hints) */
+  registerInlayHintsProvider(
+    languageSelector: string | string[],
+    provider: monacoNs.languages.InlayHintsProvider,
+  ): void;
+  /** Register a signature help provider (parameter hints) */
+  registerSignatureHelpProvider(
+    languageSelector: string | string[],
+    provider: monacoNs.languages.SignatureHelpProvider,
+  ): void;
+  /** Register a linked editing range provider (rename linked tags) */
+  registerLinkedEditingRangeProvider(
+    languageSelector: string | string[],
+    provider: monacoNs.languages.LinkedEditingRangeProvider,
+  ): void;
+  /** Register a document range formatting provider */
+  registerDocumentRangeFormattingProvider(
+    languageSelector: string | string[],
+    provider: monacoNs.languages.DocumentRangeFormattingEditProvider,
+  ): void;
+  /** Register an on-type formatting provider */
+  registerOnTypeFormattingProvider(
+    languageSelector: string | string[],
+    provider: monacoNs.languages.OnTypeFormattingEditProvider,
+  ): void;
+  /** Register a folding range provider */
+  registerFoldingRangeProvider(
+    languageSelector: string | string[],
+    provider: monacoNs.languages.FoldingRangeProvider,
+  ): void;
+  /** Register a rename provider (F2 rename symbol) */
+  registerRenameProvider(
+    languageSelector: string | string[],
+    provider: monacoNs.languages.RenameProvider,
+  ): void;
+  /** Register a new symbol names provider (AI rename suggestions) */
+  registerNewSymbolNameProvider(
+    languageSelector: string | string[],
+    provider: monacoNs.languages.NewSymbolNamesProvider,
+  ): void;
+  /** Register a selection range provider (smart Select) */
+  registerSelectionRangeProvider(
+    languageSelector: string | string[],
+    provider: monacoNs.languages.SelectionRangeProvider,
+  ): void;
+  /** Register a document semantic tokens provider */
+  registerDocumentSemanticTokensProvider(
+    languageSelector: string | string[],
+    provider: monacoNs.languages.DocumentSemanticTokensProvider,
+  ): void;
+  /** Register a document range semantic tokens provider */
+  registerDocumentRangeSemanticTokensProvider(
+    languageSelector: string | string[],
+    provider: monacoNs.languages.DocumentRangeSemanticTokensProvider,
+  ): void;
   /** Set model markers (diagnostics / squiggles) */
   setModelMarkers(
     owner: string,

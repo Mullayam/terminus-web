@@ -1,102 +1,182 @@
-# Web-Based Terminal with SFTP Integration
+<p align="center">
+  <img src="./public/favicon.svg" width="80" alt="Terminus Web Logo" />
+</p>
 
-This project is a **web-based terminal** developed using modern web technologies, providing a seamless SSH connection interface with SFTP file management capabilities. Below are the details of the features, technologies used, and how to use the platform effectively.
+<h1 align="center">Terminus Web</h1>
 
-## **Technologies Used**
+<p align="center">
+  <strong>The complete browser-based DevOps workspace — SSH terminal, SFTP, code editor, collaborative terminal sharing, and AI assistance.</strong>
+</p>
 
--   **Frontend**: ReactJS + Vite
--   **State Management**: Zustand
--   **Backend**: Express.js
--   **Communication**: Socket.IO
--   **Database**: Redis
--   **Programming Language**: TypeScript
+<p align="center">
+  <a href="#features">Features</a> •
+  <a href="#screenshots">Screenshots</a> •
+  <a href="#getting-started">Getting Started</a> •
+  <a href="#architecture">Architecture</a> •
+  <a href="#contributing">Contributing</a> •
+  <a href="#license">License</a>
+</p>
 
-----------
+---
 
-## **Getting Started**
-- Command Activity Pallet
-![screenshot-1](./public/1.png)
-- Custom Themes and Font Size, Weight
-![screenshot-2](./public/2.png)
-- Terminal Sharing (Read Only)
-![screenshot-3](./public/3.png)
-- SFTP Panel With Icons and Custom Context Menu with Preview for Media Files and Edit Files
-![screenshot-4](./public/4.png)
-- Editor 1 - Edit in New Tab (Ctrl-K for Shortcuts)
-![screenshot-5](./public/5.png)
-- Editor 2.0 - Edit With Editor (Advanced ) (Ctrl-K for Shortcuts)
-![screenshot-6](./public/6.png)
-- Editor 2.0 themes and Suggestion Box of recent
-![screenshot-7](./public/7.png)
-- InLine Terminal for use Case if only sftp is connected
-![screenshot-8](./public/8.png)
-### **Landing Page**
+## Features
 
-1.  Open the application.
-2.  Switch to **dark mode** for a better viewing experience.
-3.  Click on the **Get Started** button to begin.
+### 🖥️ SSH Terminal
+- **Web-based xterm.js** with WebGL / Canvas rendering, ligatures, image protocol, clipboard, search, and Unicode 11 support
+- **Multi-tab sessions** — open multiple SSH connections side by side
+- **Password & private-key authentication** — credentials stored securely in the browser's IndexedDB
+- **Per-session themes** — 17+ built-in color themes (Dracula, Nord, Catppuccin, Tokyo Night, …) switchable at runtime
+- **Per-session font settings** — size, weight, and bold weight per tab
+- **Split terminal** — horizontal and vertical splits
+- **Idle auto-reconnect** — reconnects transparently on network interruptions
+- **Command palette** — quick-access packs for PM2, Nginx, Docker, Git, and more
+- **Diagnostics overlay** — real-time error/warning detection with AI chat for troubleshooting
+- **Ghost-text autocomplete** — inline command suggestions from shell history, command packs, and context engine
+- **Terminal placeholder hints** — shows tips or random jokes (icanhazdadjoke API) when the prompt is idle
 
-### **SSH Web Terminal**
+### 🤝 Collaborative Terminal Sharing (NEW)
+- **Real-time multi-user terminal** — share a live terminal session with teammates via link
+- **Role-based permissions** — `400` (read-only), `700` (write), `777` (admin) per user
+- **Automatic PTY locking** — prevents input conflicts; buffers input client-side while locked
+- **Admin panel** — lock/unlock terminal, change permissions, kick or block users, unblock IPs
+- **Ghost lock overlay** — semi-transparent overlay on the terminal when PTY is locked
+- **Kick protection** — ANSI art displayed in terminal, kick sound plays, 10-second countdown, then redirects to a jokes website
+- **Block protection** — ANSI art displayed directly in the terminal
+- **Independent theme system** — collab terminal has its own theme picker via a right sidebar
+- **Plugin architecture** — fully self-contained module under `src/modules/collab-terminal/`, can be dropped into any project
 
-1.  Choose the **SSH Web Terminal** option from the menu.
-2.  Fill in the following details:
-    -   **Host Server**: Enter the server's IP address.
-    -   **Username**: Enter your username.
-    -   **Authentication Method**: Select your preferred method (password or private key).
-    -   **Password**: Enter your password (if applicable).
-3.  Check the **Server Connection** box to confirm.
-4.  Click the **Connect** button to establish the connection.
+### 📁 SFTP File Manager
+- **Multi-tab SFTP** — open multiple remote directories simultaneously
+- **Breadcrumb navigation** — click any segment to jump back
+- **Upload & download** — drag-and-drop, multi-file, with progress indicators
+- **Context menu** — 13 operations: rename, move, copy, delete, chmod, new file/folder, download, refresh, etc.
+- **File permission editing** — visual chmod editor
+- **Media file preview** — images, video, and audio preview inline
+- **Persistent sessions** — remembers last directory per connection
 
-You can optionally save your connection details by providing a local name.
+### ✏️ Code Editor
+- **Monaco Editor** — full VS Code editing experience with IntelliSense
+- **Multi-tab & split editing** — edit multiple files side by side
+- **25+ themes** with live preview
+- **Find & Replace, Go-to-line, Command Palette** (Ctrl+Shift+P)
+- **Minimap, bracket colorization, code folding, sticky scroll**
+- **Auto-save with debounce** — save changes automatically
+- **Language snippets** — Go, JavaScript, Python, TypeScript
+- **Diff viewer** and **embedded terminal panel**
 
-----------
+### 🤖 AI Assistance
+- **Ghost-text AI completions** — inline predictions powered by context engine
+- **AI Chat** — ask questions, get code suggestions, apply directly to the editor
+- **Context-aware generation** — understands your command history and file context
 
-## **Using the Terminal**
+### 🧩 Extensions & Plugins
+- **Open VSX marketplace** integration
+- **Install from GitHub** — drag & drop `.vsix` files
+- **Theme, grammar & snippet packs** with full lifecycle management
 
--   Once connected, you can start typing your favorite commands in the terminal. The interface mirrors a standard terminal like Windows Command Prompt or Linux shell.
--   **Command Search**: Use the dropdown menu on the right to browse and search for existing commands.
--   **Audio Feedback**: When you type a command, you will hear sound effects for an engaging experience.
--   The command output is displayed in real time below the input.
+### 🔐 Security & Management
+- **Encrypted key vault** — credentials in IndexedDB, never plaintext
+- **Session resilience** — survives disconnects and reconnects
+- **Role-based shared permissions** — per-user control in collaborative sessions
+- **Server status indicator** — real-time connection health
+- **Diagnostics & error reporting** — session-level error tracking
 
-----------
+---
 
-## **SFTP File Management**
+## Screenshots
 
-### **Accessing the SFTP Interface**
+| Feature | Preview |
+|---|---|
+| Command Activity Palette | ![](./public/1.png) |
+| Custom Themes & Font Settings | ![](./public/2.png) |
+| Terminal Sharing | ![](./public/3.png) |
+| SFTP Panel with Context Menu | ![](./public/4.png) |
+| Editor — Edit in New Tab | ![](./public/5.png) |
+| Editor 2.0 — Advanced Mode | ![](./public/6.png) |
+| Editor Themes & Suggestions | ![](./public/7.png) |
+| Inline Terminal for SFTP-only | ![](./public/8.png) |
 
-1.  Navigate to the left menu and click on the **SFTP** option.
-2.  This opens a new page displaying the file directory of your VPS server.
+---
 
-### **File and Folder Operations**
+## Tech Stack
 
--   **Filter Hidden Files**: Use the dropdown menu to toggle hidden files.
--   **Right-Click Menu**:
-    -   **Refresh**: Refresh the current directory.
-    -   **Rename**: Rename files or folders.
-    -   **Move**: Move files to a different location.
-    -   **New File**: Create a new file.
-    -   **New Folder**: Create a new folder.
--   **Download**: Download a specific file or folder (folders are downloaded as a ZIP).
--   **Upload**:
-    -   Click the three dots to access the upload option.
-    -   Drag and drop single or multiple files/folders directly into the working directory.
+| Layer | Technology |
+|---|---|
+| Frontend | React 18 + TypeScript + Vite |
+| State Management | Zustand |
+| Terminal | xterm.js (WebGL, Canvas, Image, Clipboard, Ligatures, Search, Serialize, Unicode11) |
+| Editor | Monaco Editor |
+| Real-time | Socket.IO |
+| Backend | Express.js + TypeScript |
+| Database | Redis |
+| Styling | Tailwind CSS + shadcn/ui |
 
-----------
+---
 
-## **Data Storage**
+## Architecture
 
--   User credentials (password and private key) are securely stored in the browser's **IndexedDB**.
--   File upload and download support includes drag-and-drop functionality and multi-file operations.
+```
+src/
+├── components/          # Landing page & shared UI (shadcn/ui)
+├── context/             # React contexts (socket)
+├── hooks/               # Global hooks (audio, theme, SFTP, reconnect)
+├── lib/                 # Config, API client, utilities, context engine, IDB, sockets
+├── modules/
+│   ├── collab-terminal/ # 🤝 Self-contained collaborative terminal module
+│   │   ├── types/       #    Event enums + payload interfaces
+│   │   ├── store/       #    Zustand store
+│   │   ├── hooks/       #    useCollabSocket, useCollabTheme, useCollabTerminalEffects
+│   │   ├── components/  #    UI components (badges, overlays, sidebar, admin panel)
+│   │   └── page/        #    CollabTerminalPage (assembled page)
+│   ├── editor/          # Code editor module
+│   └── monaco-editor/   # Monaco integration
+├── pages/               # Route pages (SSH, SFTP, shared terminal)
+├── routes/              # Route definitions
+└── store/               # Global Zustand stores
+```
 
-----------
+---
 
-## **Key Features**
+## Getting Started
 
--   Web-based SSH terminal interface with real-time command execution.
--   SFTP integration for file management with advanced filtering and drag-and-drop support.
--   Audio feedback for command input.
--   User-friendly file operations (create, rename, move, upload, download).
--   Secure storage of sensitive credentials in the browser.
+### Prerequisites
+- Node.js 18+
+- Backend API running ([terminus-web-api](https://github.com/Mullayam/terminus-web-api))
+
+### Installation
+
+```bash
+git clone https://github.com/enjoys-dev/terminus-web.git
+cd terminus-web
+npm install
+npm run dev
+```
+
+### Usage
+
+1. Open the app and switch to **dark mode** for the best experience
+2. Click **Get Started** and connect via SSH (host, username, password or key)
+3. Use the **terminal**, **SFTP panel**, or **code editor** as needed
+4. **Share a terminal** — click the share icon to generate a collab link
+5. Collaborators join via the link with role-based permissions
+
+---
+
+## Contributing
+
+Contributions are welcome! Please open an issue or submit a pull request.
+
+---
+
+## License
+
+[MIT](./LICENSE)
+
+---
+
+<p align="center">
+  Crafted & Powered by <a href="https://github.com/Mullayam"><strong>Enjoys - Mullayam</strong></a>
+</p>
 
 ----------
 

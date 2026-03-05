@@ -81,7 +81,7 @@ const featureGroups: FeatureGroup[] = [
         items: [
             { label: "Monaco Editor with IntelliSense" },
             { label: "Multi-tab & split-group editing" },
-            { label: "200+ themes (One Dark, Dracula, …)" },
+            { label: "25+ themes (One Dark, Dracula, …)" },
             { label: "Find & Replace, Go-to-line" },
             { label: "Command Palette (Ctrl+Shift+P)" },
             { label: "Minimap & bracket colorization" },
@@ -114,7 +114,6 @@ const featureGroups: FeatureGroup[] = [
             { label: "Drag & drop .vsix install" },
             { label: "Extension themes, grammars & snippets" },
             { label: "Full plugin lifecycle system" },
-            { label: "LSP over WebSocket" },
         ],
     },
     {
