@@ -19,6 +19,7 @@ import type { ThemeName } from '@/pages/ssh-v/components/themes';
 
 interface CollabStore {
   // ── Connection ──────────────────────────────────────────────────────────
+  mySocketId: string | null;
   sessionId: string | null;
   joined: boolean;
   joinError: { reason: string; message: string } | null;  /** Pre-join room check result */
@@ -52,6 +53,7 @@ interface CollabStore {
   // ── Session ended ────────────────────────────────────────────────────────────
   sessionEnded: { reason: string; message: string } | null;
   // ── Actions ─────────────────────────────────────────────────────────────
+  setMySocketId: (id: string) => void;
   setSessionId: (id: string) => void;
 
   // Room
@@ -103,6 +105,7 @@ interface CollabStore {
 }
 
 const INITIAL_STATE = {
+  mySocketId: null as string | null,
   sessionId: null,
   joined: false,
   joinError: null,
@@ -127,6 +130,7 @@ const INITIAL_STATE = {
 export const useCollabStore = create<CollabStore>((set) => ({
   ...INITIAL_STATE,
 
+  setMySocketId: (id) => set({ mySocketId: id }),
   setSessionId: (id) => set({ sessionId: id }),
 
   setRoomState: (state) =>

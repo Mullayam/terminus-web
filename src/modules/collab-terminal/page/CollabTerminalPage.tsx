@@ -82,7 +82,17 @@ export default function CollabTerminalPage() {
     socketRef.current = socket;
 
     socket.on('connect', () => setSocketReady(true));
-    socket.on('disconnect', () => setSocketReady(false));
+    socket.on('disconnect', () => {
+      setSocketReady(false);
+      // Show disconnect message in xterm
+      const term = termRef.current;
+      if (term) {
+        term.writeln('');
+        term.writeln('\x1b[1;31m  Socket disconnected.\x1b[0m');
+        term.writeln('\x1b[33m  Please refresh the page to reconnect to the session.\x1b[0m');
+        term.writeln('');
+      }
+    });
 
     return () => {
       socket.removeAllListeners();
@@ -190,8 +200,7 @@ export default function CollabTerminalPage() {
     if (!term) return;
 
     const disposable = term.onData((data: string) => {
-      const currentPermission = useCollabStore.getState().permission;
-      const currentIsLocked = useCollabStore.getState().isLocked;
+      const { permission: currentPermission, isLocked: currentIsLocked, lockedBy: currentLockedBy, mySocketId } = useCollabStore.getState();
 
       // Read-only: don't even try
       if (currentPermission === '400') return;
@@ -202,8 +211,8 @@ export default function CollabTerminalPage() {
         return;
       }
 
-      // Write user: buffer if locked
-      if (currentIsLocked) {
+      // Write user: buffer if locked by someone else
+      if (currentIsLocked && currentLockedBy !== mySocketId) {
         appendToBuffer(data);
         return;
       }

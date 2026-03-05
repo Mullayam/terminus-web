@@ -245,7 +245,10 @@ export default function TerminalTab({ sessionId }: Props) {
         socket.on(SocketEventConstants.SFTP_READY, handleSFTPStatus);
         socket.on(SocketEventConstants.SSH_EMIT_ERROR, handleSSHError);
         socket.on('connect', () => console.log('Connected', socket.id));
-        socket.on('disconnect', () => console.log('Disconnected'));
+        socket.on('disconnect', () => {
+            console.log('Disconnected');
+            navigate('/ssh/connect');
+        });
         socket.on('connect_error', (error) => console.error('Error:', error));
 
 

@@ -39,6 +39,7 @@ export function useCollabSocket(socket: Socket | null, sessionId: string) {
     if (!socket || !sessionId) return;
 
     store.setSessionId(sessionId);
+    if (socket.id) store.setMySocketId(socket.id);
 
     // NOTE: We no longer auto-join here. The page should call
     // emitCheckRoom() first, then joinRoom() after ROOM_STATUS confirms
@@ -79,6 +80,8 @@ export function useCollabSocket(socket: Socket | null, sessionId: string) {
     };
 
     const onPtyLocked = (data: PTYLockedPayload) => {
+      // Skip auto-lock if this user caused it (they should keep typing)
+      if (data.type === 'auto' && data.lockedBy === socket.id) return;
       store.setLock(data.lockedBy, data.type);
     };
 
