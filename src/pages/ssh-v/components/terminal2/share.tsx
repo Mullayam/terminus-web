@@ -139,25 +139,27 @@ const TerminalShare = () => {
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                handleCopySessionLink();
+                                                setSelectedSocketId(isSelected ? null : session);
                                             }}
-                                            className={`p-1 rounded transition-colors ${isCopied
-                                                ? 'bg-green-900/40 text-green-400'
-                                                : 'bg-gray-700 hover:bg-gray-600 text-gray-400'
+                                            title="Change permissions"
+                                            className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                                                isSelected
+                                                    ? 'bg-blue-600 text-white'
+                                                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
                                             }`}
                                         >
-                                            {isCopied ? <Check size={12} /> : <Copy size={12} />}
+                                            Permissions
                                         </button>
                                     </div>
 
                                     {/* Permission badge */}
                                     <div className="flex items-center gap-1.5 mb-2">
-                                        {perm === '400' ? <Eye size={12} className="text-yellow-400" /> : <Pencil size={12} className="text-green-400" />}
-                                        <span className={`text-xs font-medium ${permInfo.color}`}>
-                                            {perm} — {permInfo.label}
+                                        {perm === '400' ? <Eye size={10} className="text-yellow-400" /> : perm === '777' ? <Shield size={10} className="text-blue-400" /> : <Pencil size={10} className="text-green-400" />}
+                                        <span className={`text-[11px] font-medium ${permInfo.color}`}>
+                                            {permInfo.label}
                                         </span>
                                         <span className="text-[10px] text-gray-500">
-                                            ({permInfo.description})
+                                            {permInfo.description}
                                         </span>
                                     </div>
 
@@ -219,34 +221,34 @@ const TerminalShare = () => {
             {/* Permission control for selected user */}
             {selectedSocketId && otherUsers.includes(selectedSocketId) && (
                 <div className="mt-4 p-3 rounded-lg border border-gray-700 bg-slate-800/30 space-y-3">
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-slate-300">
-                            Change permission:
+                    <div className="space-y-1">
+                        <label className="text-xs font-medium text-slate-400">
+                            Change permission
                         </label>
                         <Select
                             value={getUserPermission(selectedSocketId)}
                             onValueChange={(value) => updateSessionPermission(selectedSocketId, value as SocketPermission)}
                         >
-                            <SelectTrigger className="w-full bg-slate-800 text-gray-200 border-slate-700">
+                            <SelectTrigger className="w-full h-8 bg-slate-800 text-xs text-gray-200 border-slate-700">
                                 <SelectValue placeholder="Select permission" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="400">
-                                    <span className="flex items-center gap-2">
-                                        <Eye size={12} className="text-yellow-400" />
-                                        400 — Read-only
+                                <SelectItem value="400" className="text-xs">
+                                    <span className="flex items-center gap-1.5">
+                                        <Eye size={10} className="text-yellow-400" />
+                                        Read-only
                                     </span>
                                 </SelectItem>
-                                <SelectItem value="700">
-                                    <span className="flex items-center gap-2">
-                                        <Pencil size={12} className="text-green-400" />
-                                        700 — Write
+                                <SelectItem value="700" className="text-xs">
+                                    <span className="flex items-center gap-1.5">
+                                        <Pencil size={10} className="text-green-400" />
+                                        Write
                                     </span>
                                 </SelectItem>
-                                <SelectItem value="777">
-                                    <span className="flex items-center gap-2">
-                                        <Shield size={12} className="text-blue-400" />
-                                        777 — Admin
+                                <SelectItem value="777" className="text-xs">
+                                    <span className="flex items-center gap-1.5">
+                                        <Shield size={10} className="text-blue-400" />
+                                        Admin
                                     </span>
                                 </SelectItem>
                             </SelectContent>
