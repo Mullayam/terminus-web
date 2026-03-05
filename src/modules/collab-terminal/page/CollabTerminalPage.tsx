@@ -71,7 +71,7 @@ export default function CollabTerminalPage() {
     if (!sessionId) return;
 
     const socket = io(__config.API_URL, {
-      query: { sessionId },
+      query: { sessionId, role: 'collab' },
       autoConnect: true,
       forceNew: true,
       multiplex: false,

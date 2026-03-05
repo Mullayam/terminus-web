@@ -41,8 +41,30 @@ export function LockGhostOverlay() {
       </div>
     );
   }
-  // Read-only users don't need a lock overlay (they can never type)
-  if (!isLocked || permission === '400') return null;
+  // Read-only users see a subtle "someone is typing" ghost for auto-locks
+  if (permission === '400') {
+    if (!isLocked || lockType !== 'auto' || !lockedBy) return null;
+    return (
+      <div className="absolute inset-0 z-10 flex items-start justify-center pt-4 pointer-events-none">
+        <div
+          className="flex items-center gap-2 px-4 py-2 rounded-lg"
+          style={{
+            backgroundColor: `${colors.background}80`,
+            backdropFilter: 'blur(1px)',
+          }}
+        >
+          <Lock size={14} style={{ color: `${colors.foreground}60` }} />
+          <span
+            className="text-xs font-medium"
+            style={{ color: `${colors.foreground}80`, fontFamily: 'monospace' }}
+          >
+            Someone is typing…
+          </span>
+        </div>
+      </div>
+    );
+  }
+  if (!isLocked) return null;
   // Don't show overlay to the user who holds the lock
   if (lockedBy && lockedBy === mySocketId) return null;
 

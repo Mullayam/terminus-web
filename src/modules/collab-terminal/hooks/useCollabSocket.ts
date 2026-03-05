@@ -41,6 +41,12 @@ export function useCollabSocket(socket: Socket | null, sessionId: string) {
     store.setSessionId(sessionId);
     if (socket.id) store.setMySocketId(socket.id);
 
+    // Also capture socket.id after (re)connect, since it may not be available yet
+    const onConnect = () => {
+      if (socket.id) store.setMySocketId(socket.id);
+    };
+    socket.on('connect', onConnect);
+
     // NOTE: We no longer auto-join here. The page should call
     // emitCheckRoom() first, then joinRoom() after ROOM_STATUS confirms
     // the session is joinable.
@@ -135,6 +141,7 @@ export function useCollabSocket(socket: Socket | null, sessionId: string) {
     socket.on(CollabServerEvent.SESSION_ENDED, onSessionEnded);
 
     return () => {
+      socket.off('connect', onConnect);
       socket.off(CollabServerEvent.ROOM_STATUS, onRoomStatus);
       socket.off(CollabServerEvent.ROOM_STATE, onRoomState);
       socket.off(CollabServerEvent.JOIN_REJECTED, onJoinRejected);

@@ -50,11 +50,8 @@ function writeBlockedArt(term: Terminal, message: string) {
   term.writeln(`  ${DIM}This session is no longer available.${RESET}`);
 }
 
-// ── Kick sound — replace empty string with base64 audio data ──────────
-const KICK_SOUND_BASE64 = '';
-
+// ── Kick sound ────────────────────────────────────────────────────────
 function playKickSound() {
-  if (!KICK_SOUND_BASE64) return;
   try {
     const audio = new Audio(`/FAHHHH.mp3`);
     audio.volume = 0.5;
