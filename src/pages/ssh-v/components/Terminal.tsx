@@ -318,7 +318,9 @@ const XTerminal = memo(function XTerminal({
       const cleaned = history.map(c => (typeof c === "string" ? c.trim() : "")).filter(Boolean);
 
       // 1. Add to zustand shell history (sidebar reads this — in-memory only)
-      addShellHistoryBatch(sessionHost ?? sessionId, cleaned);
+      // Read host fresh from store to avoid stale closure (session may not be connected at mount time)
+      const currentHost = useSSHStore.getState().sessions[sessionId]?.host ?? sessionId;
+      addShellHistoryBatch(currentHost, cleaned);
 
       // 2. Also merge into suggestions so ghost-text can autocomplete from shell history
       setSuggestions((prev) => {
