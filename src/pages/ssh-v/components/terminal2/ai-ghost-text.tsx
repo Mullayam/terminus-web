@@ -99,7 +99,7 @@ const AIGhostText = memo(function AIGhostText({
         fontFamily: term?.options.fontFamily ?? "monospace",
         fontSize: term?.options.fontSize ?? 15,
         lineHeight: "normal",
-        color: "rgba(255,255,255,0.30)",
+        color: "#9ca3af",
         zIndex: 10,
         userSelect: "none",
         WebkitUserSelect: "none",

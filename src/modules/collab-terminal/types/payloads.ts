@@ -92,6 +92,11 @@ export interface UserBlockedPayload {
   message: string;
 }
 
+export interface SessionEndedPayload {
+  reason: string;
+  message: string;
+}
+
 // ─── Derived types for admin user list ───────────────────────────────────────
 export interface CollabUser {
   socketId: string;

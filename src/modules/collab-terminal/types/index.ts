@@ -20,5 +20,6 @@ export type {
   InputRejectedPayload,
   UserKickedPayload,
   UserBlockedPayload,
+  SessionEndedPayload,
   CollabUser,
 } from './payloads';

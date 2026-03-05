@@ -41,7 +41,7 @@ import {
   CollabRightSidebar,
 } from '../components';
 
-import { Loader2, RefreshCcw, Settings } from 'lucide-react';
+import { Loader2, RefreshCcw, Settings, AlertTriangle } from 'lucide-react';
 
 export default function CollabTerminalPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -58,6 +58,7 @@ export default function CollabTerminalPage() {
   const isAdmin = useCollabStore((s) => s.isAdmin);
   const isLocked = useCollabStore((s) => s.isLocked);
   const appendToBuffer = useCollabStore((s) => s.appendToBuffer);
+  const sessionEnded = useCollabStore((s) => s.sessionEnded);
   const [showAdmin, setShowAdmin] = React.useState(false);
   const [showSettings, setShowSettings] = React.useState(false);
 
@@ -202,6 +203,19 @@ export default function CollabTerminalPage() {
 
   // ── Render ───────────────────────────────────────────────────────────
   if (joinError) return <JoinError />;
+
+  if (sessionEnded) {
+    return (
+      <div className="flex items-center justify-center h-screen w-full bg-[#0a0a0a]">
+        <div className="flex flex-col items-center gap-4 max-w-md text-center px-6">
+          <AlertTriangle className="w-12 h-12 text-red-400" />
+          <h2 className="text-lg font-semibold text-gray-200">Session Ended</h2>
+          <p className="text-sm text-gray-400">{sessionEnded.message}</p>
+          <span className="text-xs text-gray-600">Reason: {sessionEnded.reason}</span>
+        </div>
+      </div>
+    );
+  }
 
   if (!joined) {
     return (

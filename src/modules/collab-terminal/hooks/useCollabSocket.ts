@@ -23,6 +23,7 @@ import type {
   InputRejectedPayload,
   UserKickedPayload,
   UserBlockedPayload,
+  SessionEndedPayload,
   CollabPermission,
 } from '../types';
 import { useCollabStore } from '../store';
@@ -106,6 +107,10 @@ export function useCollabSocket(socket: Socket | null, sessionId: string) {
       store.setBlockedMessage(data.message);
     };
 
+    const onSessionEnded = (data: SessionEndedPayload) => {
+      store.setSessionEnded({ reason: data.reason, message: data.message });
+    };
+
     // ── Bind ─────────────────────────────────────────────────────────
     socket.on(CollabServerEvent.ROOM_STATE, onRoomState);
     socket.on(CollabServerEvent.JOIN_REJECTED, onJoinRejected);
@@ -117,6 +122,7 @@ export function useCollabSocket(socket: Socket | null, sessionId: string) {
     socket.on(CollabServerEvent.INPUT_REJECTED, onInputRejected);
     socket.on(CollabServerEvent.USER_KICKED, onKicked);
     socket.on(CollabServerEvent.USER_BLOCKED, onBlocked);
+    socket.on(CollabServerEvent.SESSION_ENDED, onSessionEnded);
 
     return () => {
       socket.off(CollabServerEvent.ROOM_STATE, onRoomState);
@@ -129,6 +135,7 @@ export function useCollabSocket(socket: Socket | null, sessionId: string) {
       socket.off(CollabServerEvent.INPUT_REJECTED, onInputRejected);
       socket.off(CollabServerEvent.USER_KICKED, onKicked);
       socket.off(CollabServerEvent.USER_BLOCKED, onBlocked);
+      socket.off(CollabServerEvent.SESSION_ENDED, onSessionEnded);
       store.reset();
     };
   }, [socket, sessionId]);

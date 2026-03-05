@@ -27,4 +27,5 @@ export enum CollabServerEvent {
   INPUT_REJECTED      = '@@COLLAB_INPUT_REJECTED',
   USER_KICKED         = '@@COLLAB_USER_KICKED',
   USER_BLOCKED        = '@@COLLAB_USER_BLOCKED',
+  SESSION_ENDED       = '@@COLLAB_SESSION_ENDED',
 }

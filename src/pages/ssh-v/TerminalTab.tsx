@@ -221,11 +221,24 @@ export default function TerminalTab({ sessionId }: Props) {
             addSharedSession(activeTabId!, socketIds)
             addPermissions(activeTabId!, socketId, '400')
         }
+        const handleCollabUserJoined = (data: { socketId: string; userCount: number; ip?: string }) => {
+            const current = useTerminalStore.getState().sessionInfo.shared_sessions[activeTabId!];
+            const existing = current?.socketIds ?? [];
+            if (!existing.includes(data.socketId)) {
+                addSharedSession(activeTabId!, [...existing, data.socketId])
+            }
+            addPermissions(activeTabId!, data.socketId, '400')
+        }
+        const handleCollabUserLeft = (data: { socketId: string; userCount: number }) => {
+            deleteSharedSession(activeTabId!, data.socketId)
+        }
         const onResume = () => {
             socket?.emit(SocketEventConstants.SSH_RESUME, sessionId)
 
         }
         socket.on(SocketEventConstants.session_info, handleAddSession)
+        socket.on('@@COLLAB_USER_JOINED', handleCollabUserJoined)
+        socket.on('@@COLLAB_USER_LEFT', handleCollabUserLeft)
         socket.on(SocketEventConstants.SSH_DISCONNECTED, handleDeleteSession);
         socket.on(SocketEventConstants.SSH_EMIT_LOGS, storeHandshakeLogs);
         socket.on(SocketEventConstants.SSH_READY, handleSSHReady);
@@ -244,6 +257,8 @@ export default function TerminalTab({ sessionId }: Props) {
             socket.off(SocketEventConstants.SFTP_READY, handleSFTPStatus);
             socket.off(SocketEventConstants.SSH_EMIT_ERROR, handleSSHError);
             socket.off(SocketEventConstants.session_info, handleAddSession);
+            socket.off('@@COLLAB_USER_JOINED', handleCollabUserJoined);
+            socket.off('@@COLLAB_USER_LEFT', handleCollabUserLeft);
             socket.off("connect");
             socket.off("connect_error");
             socket.off("disconnect");

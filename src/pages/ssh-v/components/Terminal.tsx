@@ -592,6 +592,7 @@ const XTerminal = memo(function XTerminal({
           setSuggestions={setSuggestions}
           hostKey={hostKey}
           commandBuffer={commandBuffer}
+          sessionId={sessionId}
         />
       )}
 

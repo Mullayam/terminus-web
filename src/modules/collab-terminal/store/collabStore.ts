@@ -47,7 +47,8 @@ interface CollabStore {
   // ── Modals ──────────────────────────────────────────────────────────────
   kickedMessage: string | null;
   blockedMessage: string | null;
-
+  // ── Session ended ────────────────────────────────────────────────────────────
+  sessionEnded: { reason: string; message: string } | null;
   // ── Actions ─────────────────────────────────────────────────────────────
   setSessionId: (id: string) => void;
 
@@ -91,6 +92,7 @@ interface CollabStore {
   // Modals
   setKickedMessage: (message: string | null) => void;
   setBlockedMessage: (message: string | null) => void;
+  setSessionEnded: (info: { reason: string; message: string } | null) => void;
 
   // Reset
   reset: () => void;
@@ -113,6 +115,7 @@ const INITIAL_STATE = {
   themeName: 'custom' as ThemeName,
   kickedMessage: null as string | null,
   blockedMessage: null as string | null,
+  sessionEnded: null as { reason: string; message: string } | null,
 };
 
 export const useCollabStore = create<CollabStore>((set) => ({
@@ -192,6 +195,7 @@ export const useCollabStore = create<CollabStore>((set) => ({
 
   setKickedMessage: (message) => set({ kickedMessage: message }),
   setBlockedMessage: (message) => set({ blockedMessage: message }),
+  setSessionEnded: (info) => set({ sessionEnded: info }),
 
   reset: () => set(INITIAL_STATE),
 }));

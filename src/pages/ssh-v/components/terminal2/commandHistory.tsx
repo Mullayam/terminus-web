@@ -1,13 +1,10 @@
-import { useCallback, useMemo, useRef, useState } from "react";
-import { History, Play, Search, Trash2, Terminal, Sparkles, Send, Loader2 } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { History, Play, Search, Trash2, Terminal } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useSSHStore } from "@/store/sshStore";
 import { useSessionTheme } from "@/hooks/useSessionTheme";
 import { SocketEventConstants } from "@/lib/sockets/event-constants";
 import { useCommandStore } from "@/store";
-import { useAIChatStore, getDefaultModel } from "@/store/aiChatStore";
-import { useTerminalStore } from "@/store/terminalStore";
-import { __config } from "@/lib/config";
 import { List, type RowComponentProps } from "react-window";
 import AutoSizer from "./AutoSizer";
 
@@ -194,135 +191,8 @@ export default function CommandHistory() {
                 )}
             </div>
 
-            {/* Ask AI */}
-            <AskAIInput sessionId={activeTabId} colors={colors} />
         </div>
     );
 }
 
-/* ── Ask AI inline input ──────────────────────────────────── */
 
-function stripAnsi(str: string): string {
-  // eslint-disable-next-line no-control-regex
-  return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '');
-}
-
-function AskAIInput({ sessionId, colors }: { sessionId: string; colors: Record<string, string> }) {
-    const [prompt, setPrompt] = useState("");
-    const [loading, setLoading] = useState(false);
-    const abortRef = useRef<AbortController | null>(null);
-    const logs = useTerminalStore((s) => s.logs[sessionId] ?? []);
-
-    const handleSend = useCallback(async () => {
-        const trimmed = prompt.trim();
-        if (!trimmed || loading) return;
-
-        setLoading(true);
-        abortRef.current?.abort();
-        const controller = new AbortController();
-        abortRef.current = controller;
-
-        try {
-            const state = useAIChatStore.getState();
-            const model = state.selectedModel[sessionId] ?? getDefaultModel(state.providers);
-            const last50 = logs.slice(-50);
-            const termContext = stripAnsi(last50.join('')).trim();
-
-            const payload = {
-                modelId: model?.modelId ?? '',
-                providerId: model?.providerId ?? '',
-                question: `Given this terminal context, suggest a single shell command for: "${trimmed}". Reply ONLY with the raw command, no explanation, no markdown, no code fences.`,
-                selection: '',
-                context: termContext ? `Recent terminal output:\n${termContext}` : '',
-                history: [],
-            };
-
-            const res = await fetch(`${__config.API_URL}/api/chat/ai`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-                signal: controller.signal,
-            });
-
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-            const reader = res.body?.getReader();
-            if (!reader) throw new Error('No response body');
-
-            const decoder = new TextDecoder();
-            let buffer = '';
-            let fullText = '';
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                buffer += decoder.decode(value, { stream: true });
-
-                const events = buffer.split('\n\n');
-                buffer = events.pop() ?? '';
-
-                for (const event of events) {
-                    const lines = event.split('\n');
-                    let eventType = '';
-                    let eventData = '';
-                    for (const line of lines) {
-                        if (line.startsWith('event:')) eventType = line.slice(6).trim();
-                        else if (line.startsWith('data:')) eventData = line.slice(5).trim();
-                    }
-                    if (!eventData) continue;
-                    try {
-                        const json = JSON.parse(eventData);
-                        if (eventType === 'chunk') fullText += json.text ?? '';
-                        else if (eventType === 'done') fullText = json.text ?? fullText;
-                    } catch {
-                        fullText += eventData;
-                    }
-                }
-            }
-
-            // Clean up — strip code fences, backticks, leading $
-            let cmd = fullText.trim();
-            cmd = cmd.replace(/^```(?:\w*)\n?/i, '').replace(/\n?```$/, '').trim();
-            cmd = cmd.replace(/^`|`$/g, '').trim();
-            cmd = cmd.replace(/^\$\s*/, '').trim();
-
-            if (cmd) {
-                useAIChatStore.getState().setGhostCommand(sessionId, cmd);
-            }
-            setPrompt("");
-        } catch (err: any) {
-            if (err?.name !== 'AbortError') {
-                console.error('Ask AI error:', err);
-            }
-        } finally {
-            setLoading(false);
-            abortRef.current = null;
-        }
-    }, [prompt, loading, sessionId, logs]);
-
-    return (
-        <div className="px-3 py-2 border-t shrink-0" style={{ borderColor: `${colors.foreground}15` }}>
-            <div className="relative flex items-center gap-1.5">
-                <Sparkles size={14} className="shrink-0" style={{ color: colors.cyan }} />
-                <input
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                    placeholder="Ask AI a command…"
-                    className="flex-1 bg-transparent text-xs outline-none placeholder:opacity-40"
-                    style={{ color: `${colors.foreground}cc` }}
-                    disabled={loading}
-                />
-                <button
-                    onClick={handleSend}
-                    disabled={loading || !prompt.trim()}
-                    className="p-1 rounded transition-colors shrink-0"
-                    style={{ color: loading ? `${colors.foreground}40` : colors.cyan }}
-                    title="Send"
-                >
-                    {loading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                </button>
-            </div>
-        </div>
-    );
-}
