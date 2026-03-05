@@ -7,7 +7,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Globe, Copy, Check, ShieldBan, UserX, Eye, Pencil } from 'lucide-react';
+import { Globe, Copy, Check, ShieldBan, UserX, Eye, Pencil, Shield } from 'lucide-react';
 
 import { CollabClientEvent } from "@/modules/collab-terminal/types/events";
 import { useState } from "react";
@@ -15,7 +15,7 @@ import { useSSHStore } from "@/store/sshStore";
 import { useTerminalStore } from '@/store/terminalStore';
 import { toast } from "@/hooks/use-toast";
 
-type SocketPermission = '400' | '700';
+type SocketPermission = '400' | '700' | '777';
 
 const PERMISSION_LABELS: Record<string, { label: string; description: string; color: string }> = {
     '400': { label: 'Read-only', description: 'Can see output, cannot type', color: 'text-yellow-400' },
@@ -30,6 +30,10 @@ const TerminalShare = () => {
     const [selectedSocketId, setSelectedSocketId] = useState<string | null>(null)
     const info = sessionInfo?.shared_sessions[activeTabId!]
     const socket = sessions[activeTabId!].socket
+    const mySocketId = socket?.id
+
+    // Filter out admin's own socket — only show other users
+    const otherUsers = info?.socketIds.filter((id) => id !== mySocketId) ?? []
 
     const handleCreateShareTerminalClick = () => {
         handleCopySessionLink();
@@ -104,16 +108,16 @@ const TerminalShare = () => {
     return (
         <div className="p-4">
             <div className="flex flex-col w-full gap-3">
-                {info?.socketIds.length > 0 ? (
+                {otherUsers.length > 0 ? (
                     <div className="flex flex-col gap-3">
                         <h3 className="text-lg font-semibold text-gray-300">
                             Terminal Sharing
                             <span className="ml-2 text-sm font-normal text-gray-500">
-                                {info.socketIds.length} {info.socketIds.length === 1 ? 'user' : 'users'}
+                                {otherUsers.length} {otherUsers.length === 1 ? 'user' : 'users'}
                             </span>
                         </h3>
 
-                        {info.socketIds.map((session) => {
+                        {otherUsers.map((session) => {
                             const perm = getUserPermission(session);
                             const permInfo = PERMISSION_LABELS[perm] || PERMISSION_LABELS['400'];
                             const isSelected = selectedSocketId === session;
@@ -213,15 +217,12 @@ const TerminalShare = () => {
             </div>
 
             {/* Permission control for selected user */}
-            {selectedSocketId && info?.socketIds.includes(selectedSocketId) && (
+            {selectedSocketId && otherUsers.includes(selectedSocketId) && (
                 <div className="mt-4 p-3 rounded-lg border border-gray-700 bg-slate-800/30 space-y-3">
                     <div className="space-y-1.5">
                         <label className="text-sm font-medium text-slate-300">
                             Change permission:
                         </label>
-                        <p className="text-[10px] text-gray-500">
-                            Cannot promote to 777 (Admin). Cannot change own permission.
-                        </p>
                         <Select
                             value={getUserPermission(selectedSocketId)}
                             onValueChange={(value) => updateSessionPermission(selectedSocketId, value as SocketPermission)}
@@ -240,6 +241,12 @@ const TerminalShare = () => {
                                     <span className="flex items-center gap-2">
                                         <Pencil size={12} className="text-green-400" />
                                         700 — Write
+                                    </span>
+                                </SelectItem>
+                                <SelectItem value="777">
+                                    <span className="flex items-center gap-2">
+                                        <Shield size={12} className="text-blue-400" />
+                                        777 — Admin
                                     </span>
                                 </SelectItem>
                             </SelectContent>
