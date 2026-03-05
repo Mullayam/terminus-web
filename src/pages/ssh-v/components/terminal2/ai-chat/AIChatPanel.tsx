@@ -264,14 +264,17 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
 
   return (
     <div
-      className="fixed right-0 top-14 bottom-12 z-30 flex flex-col transition-all duration-300 ease-out animate-in slide-in-from-right"
+      className="fixed right-0 top-14 bottom-12 z-30 flex flex-col transition-all duration-300 ease-out animate-in slide-in-from-right themed-scrollbar"
       style={{
         width: '400px',
         backgroundColor: colors.background,
         borderLeftWidth: 1,
         borderLeftColor: `${colors.foreground}15`,
         boxShadow: `-4px 0 24px ${colors.background}80`,
-      }}
+        '--sb-thumb': `${colors.foreground}30`,
+        '--sb-thumb-hover': `${colors.foreground}50`,
+        '--sb-track': `${colors.foreground}08`,
+      } as React.CSSProperties}
     >
       {/* ── Header ── */}
       <div
@@ -318,12 +321,7 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
       {/* ── Messages ── */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto px-4 py-3 space-y-3 themed-scrollbar"
-        style={{
-          '--sb-thumb': `${colors.foreground}30`,
-          '--sb-thumb-hover': `${colors.foreground}50`,
-          '--sb-track': `${colors.foreground}08`,
-        } as React.CSSProperties}
+        className="flex-1 overflow-y-auto px-4 py-3 space-y-3"
       >
         {messages.length === 0 && (
           <div
@@ -434,8 +432,13 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
             onKeyDown={handleKeyDown}
             placeholder="Ask about your terminal..."
             rows={1}
-            className="flex-1 bg-transparent text-xs resize-none outline-none max-h-28 min-h-[20px]"
-            style={{ color: colors.foreground }}
+            className="flex-1 bg-transparent text-xs resize-none outline-none max-h-28 min-h-[20px] themed-scrollbar"
+            style={{
+              color: colors.foreground,
+              '--sb-thumb': `${colors.foreground}30`,
+              '--sb-thumb-hover': `${colors.foreground}50`,
+              '--sb-track': `${colors.foreground}08`,
+            } as React.CSSProperties}
             onInput={(e) => {
               const t = e.currentTarget;
               t.style.height = 'auto';
