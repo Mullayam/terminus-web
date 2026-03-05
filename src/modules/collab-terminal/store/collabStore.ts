@@ -15,6 +15,7 @@ import type {
   LockType,
   CollabUser,
 } from '../types';
+import type { ThemeName } from '@/pages/ssh-v/components/themes';
 
 interface CollabStore {
   // ── Connection ──────────────────────────────────────────────────────────
@@ -39,6 +40,9 @@ interface CollabStore {
   // ── Users (admin) ───────────────────────────────────────────────────────
   users: CollabUser[];
   blockedIPs: string[];
+
+  // ── Theme ───────────────────────────────────────────────────────────────
+  themeName: ThemeName;
 
   // ── Modals ──────────────────────────────────────────────────────────────
   kickedMessage: string | null;
@@ -81,6 +85,9 @@ interface CollabStore {
   addBlockedIP: (ip: string) => void;
   removeBlockedIP: (ip: string) => void;
 
+  // Theme
+  setThemeName: (theme: ThemeName) => void;
+
   // Modals
   setKickedMessage: (message: string | null) => void;
   setBlockedMessage: (message: string | null) => void;
@@ -103,6 +110,7 @@ const INITIAL_STATE = {
   showBufferPrompt: false,
   users: [] as CollabUser[],
   blockedIPs: [] as string[],
+  themeName: 'custom' as ThemeName,
   kickedMessage: null as string | null,
   blockedMessage: null as string | null,
 };
@@ -179,6 +187,8 @@ export const useCollabStore = create<CollabStore>((set) => ({
     set((state) => ({
       blockedIPs: state.blockedIPs.filter((i) => i !== ip),
     })),
+
+  setThemeName: (theme) => set({ themeName: theme }),
 
   setKickedMessage: (message) => set({ kickedMessage: message }),
   setBlockedMessage: (message) => set({ blockedMessage: message }),

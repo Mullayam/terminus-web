@@ -14,29 +14,34 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
 import { Terminal } from '@xterm/xterm';
+import { WebglAddon } from '@xterm/addon-webgl';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { WebglAddon } from '@xterm/addon-webgl';
+import { ImageAddon } from '@xterm/addon-image';
 import { CanvasAddon } from '@xterm/addon-canvas';
+import { ClipboardAddon } from '@xterm/addon-clipboard';
+import { LigaturesAddon } from '@xterm/addon-ligatures';
+import { SearchAddon } from '@xterm/addon-search';
+import { SerializeAddon } from '@xterm/addon-serialize';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 
 import { __config } from '@/lib/config';
-import { CollabClientEvent, CollabServerEvent } from '../types/events';
-import { useCollabSocket } from '../hooks';
+import { XtermTheme } from '@/pages/ssh-v/components/themes';
+import { CollabServerEvent } from '../types/events';
+import { useCollabSocket, useCollabTheme, useCollabTerminalEffects } from '../hooks';
 import { useCollabStore } from '../store';
 import {
   PermissionBadge,
   UserCountBadge,
-  LockIndicator,
+  LockGhostOverlay,
   TypingIndicator,
   InputBufferBar,
-  KickedModal,
-  BlockedModal,
   AdminPanel,
   JoinError,
+  CollabRightSidebar,
 } from '../components';
 
-import { Loader2, RefreshCcw } from 'lucide-react';
+import { Loader2, RefreshCcw, Settings } from 'lucide-react';
 
 export default function CollabTerminalPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -54,6 +59,13 @@ export default function CollabTerminalPage() {
   const isLocked = useCollabStore((s) => s.isLocked);
   const appendToBuffer = useCollabStore((s) => s.appendToBuffer);
   const [showAdmin, setShowAdmin] = React.useState(false);
+  const [showSettings, setShowSettings] = React.useState(false);
+
+  // ── Theme ────────────────────────────────────────────────────────────
+  const { colors } = useCollabTheme();
+
+  // ── Terminal effects (theme apply, kick/block xterm-inline) ──────────
+  useCollabTerminalEffects(termRef);
 
   // ── Create socket once ───────────────────────────────────────────────
   useEffect(() => {
@@ -109,12 +121,14 @@ export default function CollabTerminalPage() {
   useEffect(() => {
     if (!terminalRef.current || !joined) return;
 
+    const currentTheme = XtermTheme[useCollabStore.getState().themeName] || XtermTheme.custom;
+
     const term = new Terminal({
       cursorBlink: true,
       cursorStyle: 'block',
       allowProposedApi: true,
       fontFamily: 'monospace',
-      theme: { background: '#181818', cursor: '#f1fa8c' },
+      theme: currentTheme,
     });
 
     termRef.current = term;
@@ -122,17 +136,18 @@ export default function CollabTerminalPage() {
     fitAddonRef.current = fitAddon;
 
     term.loadAddon(fitAddon);
-    term.loadAddon(new WebLinksAddon());
+    term.loadAddon(new WebglAddon());
+    term.loadAddon(new ImageAddon());
+    term.loadAddon(new SerializeAddon());
     term.loadAddon(new Unicode11Addon());
-
-    // Try WebGL first, fall back to Canvas
-    try {
-      term.loadAddon(new WebglAddon());
-    } catch {
-      term.loadAddon(new CanvasAddon());
-    }
+    term.loadAddon(new CanvasAddon());
+    term.loadAddon(new ClipboardAddon());
+    term.loadAddon(new WebLinksAddon());
+    term.loadAddon(new SearchAddon());
 
     term.open(terminalRef.current);
+
+    new LigaturesAddon().activate(term);
 
     requestAnimationFrame(() => fitAddon.fit());
 
@@ -185,13 +200,6 @@ export default function CollabTerminalPage() {
     [emitInput]
   );
 
-  // ── Rejoin after kick ────────────────────────────────────────────────
-  const handleRejoin = useCallback(() => {
-    if (socketRef.current && sessionId) {
-      socketRef.current.emit(CollabClientEvent.JOIN_TERMINAL, { sessionId });
-    }
-  }, [sessionId]);
-
   // ── Render ───────────────────────────────────────────────────────────
   if (joinError) return <JoinError />;
 
@@ -207,12 +215,12 @@ export default function CollabTerminalPage() {
   }
 
   return (
-    <div className="flex h-screen w-full bg-[#0a0a0a] overflow-hidden">
+    <div className="flex h-screen w-full overflow-hidden" style={{ backgroundColor: colors.background }}>
       {/* Main terminal area */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-        {/* Terminal container (relative for lock overlay) */}
+        {/* Terminal container (relative for ghost lock overlay) */}
         <div className="relative flex-1 min-h-0 overflow-hidden">
-          <LockIndicator />
+          <LockGhostOverlay />
           <div
             ref={terminalRef}
             className="w-full h-full"
@@ -226,7 +234,14 @@ export default function CollabTerminalPage() {
         <InputBufferBar onSend={handleBufferSend} />
 
         {/* Status bar */}
-        <div className="flex items-center justify-between px-4 py-1 border-t border-gray-800 text-xs bg-[#1a1b26] text-gray-400 shrink-0">
+        <div
+          className="flex items-center justify-between px-4 py-1 border-t text-xs shrink-0"
+          style={{
+            backgroundColor: colors.background,
+            borderColor: `${colors.foreground}20`,
+            color: `${colors.foreground}99`,
+          }}
+        >
           <div className="flex items-center gap-3">
             <PermissionBadge />
             <UserCountBadge />
@@ -238,14 +253,23 @@ export default function CollabTerminalPage() {
             {!socketReady && <RefreshCcw className="w-3 h-3 animate-spin" />}
             <span className={`w-2 h-2 rounded-full ${socketReady ? 'bg-green-500' : 'bg-red-500'}`} />
           </div>
-          {isAdmin && (
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowAdmin(!showAdmin)}
-              className="px-2 py-0.5 rounded text-[11px] font-medium bg-purple-700/60 text-purple-200 hover:bg-purple-600/70 transition-colors"
+              onClick={() => setShowSettings(!showSettings)}
+              className="p-1 rounded hover:bg-white/10 transition-colors"
+              title="Settings"
             >
-              {showAdmin ? 'Hide Admin' : 'Admin Panel'}
+              <Settings size={14} style={{ color: `${colors.foreground}99` }} />
             </button>
-          )}
+            {isAdmin && (
+              <button
+                onClick={() => setShowAdmin(!showAdmin)}
+                className="px-2 py-0.5 rounded text-[11px] font-medium bg-purple-700/60 text-purple-200 hover:bg-purple-600/70 transition-colors"
+              >
+                {showAdmin ? 'Hide Admin' : 'Admin Panel'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -262,9 +286,8 @@ export default function CollabTerminalPage() {
         </div>
       )}
 
-      {/* Modals */}
-      <KickedModal onRejoin={handleRejoin} />
-      <BlockedModal />
+      {/* Settings right sidebar */}
+      <CollabRightSidebar isOpen={showSettings} onClose={() => setShowSettings(false)} />
     </div>
   );
 }
