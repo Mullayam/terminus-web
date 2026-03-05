@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react';
-import { useAIChatStore } from '@/store/aiChatStore';
+import { useAIChatStore, getDefaultModel } from '@/store/aiChatStore';
 import { useTerminalStore } from '@/store/terminalStore';
 import { __config } from '@/lib/config';
 
@@ -16,7 +16,6 @@ export function extractCommands(text: string): string[] {
   let match;
   while ((match = regex.exec(text)) !== null) {
     const block = match[1].trim();
-    // split multi-line blocks into individual commands
     for (const line of block.split('\n')) {
       const trimmed = line.trim();
       if (trimmed && !trimmed.startsWith('#')) {
@@ -34,50 +33,45 @@ export function useAIChat(sessionId: string) {
   const abortRef = useRef<AbortController | null>(null);
 
   const getTerminalContext = useCallback(() => {
-    // Last 50 log entries, stripped of ANSI
     const last50 = logs.slice(-50);
     return stripAnsi(last50.join('')).trim();
   }, [logs]);
 
-  const buildMessages = useCallback(
+  const buildPayload = useCallback(
     (userPrompt: string, selection?: string) => {
-      const session = useAIChatStore.getState().sessions[sessionId];
+      const state = useAIChatStore.getState();
+      const session = state.sessions[sessionId];
       const history = session?.messages ?? [];
+      const model = state.selectedModel[sessionId] ?? getDefaultModel(state.providers);
 
-      const systemPrompt = [
-        'You are an expert Linux terminal assistant embedded in a web SSH client.',
-        'Help the user with commands, debugging, scripting, and system administration.',
-        'When suggesting commands, wrap them in ```bash code blocks so the user can execute them directly.',
-        'Be concise and practical.',
-      ].join(' ');
-
-      // Build conversation history for context accumulation
-      const msgs: { role: string; content: string }[] = [
-        { role: 'system', content: systemPrompt },
-      ];
-
-      // Add terminal context
       const termContext = getTerminalContext();
+
+      // Build context string from terminal output
+      let context = '';
       if (termContext) {
-        msgs.push({
-          role: 'system',
-          content: `Recent terminal output (last 50 entries):\n\`\`\`\n${termContext}\n\`\`\``,
-        });
+        context = `Recent terminal output (last 50 entries):\n\`\`\`\n${termContext}\n\`\`\``;
       }
 
-      // Add prior conversation messages
-      for (const msg of history) {
-        msgs.push({ role: msg.role, content: msg.content });
-      }
-
-      // Build the current user message with selection context
-      let prompt = userPrompt;
+      // Build question with selection context
+      let question = userPrompt;
       if (selection) {
-        prompt = `Selected terminal text:\n\`\`\`\n${selection}\n\`\`\`\n\n${userPrompt}`;
+        question = `Selected terminal text:\n\`\`\`\n${selection}\n\`\`\`\n\n${userPrompt}`;
       }
-      msgs.push({ role: 'user', content: prompt });
 
-      return msgs;
+      // Build history array for the API
+      const chatHistory = history.map((msg) => ({
+        role: msg.role,
+        content: msg.content,
+      }));
+
+      return {
+        modelId: model?.modelId ?? '',
+        providerId: model?.providerId ?? '',
+        question,
+        selection: selection ?? '',
+        context,
+        history: chatHistory,
+      };
     },
     [sessionId, getTerminalContext],
   );
@@ -87,12 +81,13 @@ export function useAIChat(sessionId: string) {
       const trimmed = userPrompt.trim();
       if (!trimmed) return;
 
-      const { addUserMessage, setLoading, addAssistantMessage, updateAssistantMessage, setMessageCommands } = useAIChatStore.getState();
+      const { addUserMessage, setLoading, addAssistantMessage, appendAssistantContent, updateAssistantMessage, setMessageCommands } =
+        useAIChatStore.getState();
 
-      // Add user message
-      addUserMessage(sessionId, selection
-        ? `Selected:\n\`\`\`\n${selection}\n\`\`\`\n${trimmed}`
-        : trimmed);
+      addUserMessage(
+        sessionId,
+        selection ? `Selected:\n\`\`\`\n${selection}\n\`\`\`\n${trimmed}` : trimmed,
+      );
 
       setLoading(sessionId, true);
       const assistantId = addAssistantMessage(sessionId);
@@ -101,65 +96,70 @@ export function useAIChat(sessionId: string) {
       abortRef.current = controller;
 
       try {
-        const messages = buildMessages(trimmed, selection);
-        const res = await fetch(`${__config.API_URL}/api/completions`, {
+        const payload = buildPayload(trimmed, selection);
+        const res = await fetch(`${__config.API_URL}/api/chat/ai`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages }),
+          body: JSON.stringify(payload),
           signal: controller.signal,
         });
 
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-        const contentType = res.headers.get('content-type') ?? '';
+        // Parse SSE stream
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error('No response body');
+
+        const decoder = new TextDecoder();
+        let buffer = '';
         let fullText = '';
 
-        if (contentType.includes('text/event-stream') || contentType.includes('stream')) {
-          const reader = res.body?.getReader();
-          const decoder = new TextDecoder();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
 
-          if (reader) {
-            let buffer = '';
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              buffer += decoder.decode(value, { stream: true });
-              const parts = buffer.split('\n');
-              buffer = parts.pop() ?? '';
-              for (const part of parts) {
-                const line = part.trim();
-                if (!line.startsWith('data:')) continue;
-                const data = line.slice(5).trim();
-                if (data === '[DONE]') continue;
-                try {
-                  const json = JSON.parse(data);
-                  const delta =
-                    json.choices?.[0]?.delta?.content ??
-                    json.choices?.[0]?.text ??
-                    json.content ??
-                    json.text ??
-                    '';
-                  fullText += delta;
-                  updateAssistantMessage(sessionId, assistantId, fullText);
-                } catch {
-                  fullText += data;
-                  updateAssistantMessage(sessionId, assistantId, fullText);
-                }
+          // SSE events are separated by double newlines
+          const events = buffer.split('\n\n');
+          buffer = events.pop() ?? '';
+
+          for (const event of events) {
+            const lines = event.split('\n');
+            let eventType = '';
+            let eventData = '';
+
+            for (const line of lines) {
+              if (line.startsWith('event:')) {
+                eventType = line.slice(6).trim();
+              } else if (line.startsWith('data:')) {
+                eventData = line.slice(5).trim();
               }
             }
+
+            if (!eventData) continue;
+
+            try {
+              const json = JSON.parse(eventData);
+
+              if (eventType === 'chunk') {
+                const delta = json.text ?? '';
+                fullText += delta;
+                appendAssistantContent(sessionId, assistantId, delta);
+              } else if (eventType === 'done') {
+                // Final complete text – overwrite to ensure consistency
+                fullText = json.text ?? fullText;
+                updateAssistantMessage(sessionId, assistantId, fullText);
+              }
+              // 'provider' event is informational, no action needed
+            } catch {
+              // Non-JSON data, append as text
+              fullText += eventData;
+              appendAssistantContent(sessionId, assistantId, eventData);
+            }
           }
-        } else {
-          const json = await res.json();
-          fullText =
-            json.choices?.[0]?.message?.content ??
-            json.choices?.[0]?.text ??
-            json.content ??
-            json.text ??
-            JSON.stringify(json);
-          updateAssistantMessage(sessionId, assistantId, fullText);
         }
 
-        // Extract commands from the response
+        // Extract commands from the full response
         const cmds = extractCommands(fullText);
         if (cmds.length > 0) {
           setMessageCommands(sessionId, assistantId, cmds);
@@ -177,7 +177,7 @@ export function useAIChat(sessionId: string) {
         abortRef.current = null;
       }
     },
-    [sessionId, buildMessages],
+    [sessionId, buildPayload],
   );
 
   const abort = useCallback(() => {

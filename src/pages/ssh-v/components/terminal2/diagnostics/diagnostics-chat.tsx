@@ -12,6 +12,7 @@ import {
 import { useSessionTheme } from '@/hooks/useSessionTheme';
 import { __config } from '@/lib/config';
 import { useTerminalStore } from '@/store/terminalStore';
+import { useAIChatStore, getDefaultModel } from '@/store/aiChatStore';
 import type { DiagnosticEntry } from './useDiagnostics';
 
 // ─── Types ───────────────────────────────────────────────────
@@ -173,78 +174,85 @@ export default function DiagnosticsChat({
       setLoading(true);
 
       try {
-        const res = await fetch(`${__config.API_URL}/api/completions`, {
+        const state = useAIChatStore.getState();
+        const model = sessionId
+          ? (state.selectedModel[sessionId] ?? getDefaultModel(state.providers))
+          : getDefaultModel(state.providers);
+
+        // Build history from prior chat messages
+        const history = messages.map((m) => ({ role: m.role, content: m.content }));
+
+        const res = await fetch(`${__config.API_URL}/api/chat/ai`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            messages: [
-              { role: 'system', content: 'You are a concise Linux terminal diagnostics assistant.' },
-              { role: 'user', content: prompt },
-            ],
+            modelId: model?.modelId ?? '',
+            providerId: model?.providerId ?? '',
+            question: prompt,
+            selection: '',
+            context: '',
+            history,
           }),
         });
 
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-        // Handle streaming (SSE) or plain JSON
-        const contentType = res.headers.get('content-type') ?? '';
+        // Parse SSE stream
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error('No response body');
+
+        const decoder = new TextDecoder();
+        const assistantId = nextMsgId.current++;
+        setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: '' }]);
+
+        let buffer = '';
         let assistantText = '';
 
-        if (contentType.includes('text/event-stream') || contentType.includes('stream')) {
-          const reader = res.body?.getReader();
-          const decoder = new TextDecoder();
-          const assistantId = nextMsgId.current++;
-          setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: '' }]);
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
 
-          if (reader) {
-            let buffer = '';
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              buffer += decoder.decode(value, { stream: true });
-              // Parse SSE lines
-              const parts = buffer.split('\n');
-              buffer = parts.pop() ?? '';
-              for (const part of parts) {
-                const line = part.trim();
-                if (!line.startsWith('data:')) continue;
-                const data = line.slice(5).trim();
-                if (data === '[DONE]') continue;
-                try {
-                  const json = JSON.parse(data);
-                  const delta =
-                    json.choices?.[0]?.delta?.content ??
-                    json.choices?.[0]?.text ??
-                    json.content ??
-                    json.text ??
-                    '';
-                  assistantText += delta;
-                  setMessages((prev) =>
-                    prev.map((m) => (m.id === assistantId ? { ...m, content: assistantText } : m)),
-                  );
-                } catch {
-                  // plain text chunk
-                  assistantText += data;
-                  setMessages((prev) =>
-                    prev.map((m) => (m.id === assistantId ? { ...m, content: assistantText } : m)),
-                  );
-                }
+          const events = buffer.split('\n\n');
+          buffer = events.pop() ?? '';
+
+          for (const event of events) {
+            const lines = event.split('\n');
+            let eventType = '';
+            let eventData = '';
+
+            for (const line of lines) {
+              if (line.startsWith('event:')) {
+                eventType = line.slice(6).trim();
+              } else if (line.startsWith('data:')) {
+                eventData = line.slice(5).trim();
               }
             }
+
+            if (!eventData) continue;
+
+            try {
+              const json = JSON.parse(eventData);
+
+              if (eventType === 'chunk') {
+                const delta = json.text ?? '';
+                assistantText += delta;
+                setMessages((prev) =>
+                  prev.map((m) => (m.id === assistantId ? { ...m, content: assistantText } : m)),
+                );
+              } else if (eventType === 'done') {
+                assistantText = json.text ?? assistantText;
+                setMessages((prev) =>
+                  prev.map((m) => (m.id === assistantId ? { ...m, content: assistantText } : m)),
+                );
+              }
+            } catch {
+              assistantText += eventData;
+              setMessages((prev) =>
+                prev.map((m) => (m.id === assistantId ? { ...m, content: assistantText } : m)),
+              );
+            }
           }
-        } else {
-          // Plain JSON response
-          const json = await res.json();
-          assistantText =
-            json.choices?.[0]?.message?.content ??
-            json.choices?.[0]?.text ??
-            json.content ??
-            json.text ??
-            JSON.stringify(json);
-          setMessages((prev) => [
-            ...prev,
-            { id: nextMsgId.current++, role: 'assistant', content: assistantText },
-          ]);
         }
       } catch (err: any) {
         setMessages((prev) => [

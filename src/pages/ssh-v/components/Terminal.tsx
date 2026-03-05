@@ -28,6 +28,7 @@ import { useTabStore } from '@/store/rightSidebarTabStore';
 import { useDiagnosticsStore } from '@/store/diagnosticsStore';
 import AISuggestionBox from "./terminal2/suggestion-box";
 import GhostText from "./terminal2/ghost-text";
+import AIGhostText from "./terminal2/ai-ghost-text";
 import TerminalPlaceholder from "./terminal2/terminal-placeholder";
 import {
   useDiagnostics,
@@ -107,6 +108,13 @@ const XTerminal = memo(function XTerminal({
       setIsVisible(false);
     }
   }, [commandBuffer, socket]);
+
+  /* ── AI Ghost text: accept the AI-suggested command ── */
+  const handleAIGhostAccept = useCallback((cmd: string) => {
+    if (cmd) {
+      socket.emit(SocketEventConstants.SSH_EMIT_INPUT, cmd);
+    }
+  }, [socket]);
 
   let lastPromptPrefix = '';
 
@@ -586,6 +594,14 @@ const XTerminal = memo(function XTerminal({
           commandBuffer={commandBuffer}
         />
       )}
+
+      {/* AI Ghost text (from Ask AI sidebar input) */}
+      <AIGhostText
+        termRef={termRef}
+        containerRef={terminalRef}
+        sessionId={sessionId}
+        onAccept={handleAIGhostAccept}
+      />
 
       {/* Placeholder hint when shell is empty */}
       <TerminalPlaceholder

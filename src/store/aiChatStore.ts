@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { __config } from '@/lib/config';
 
 export interface AIChatMessage {
   id: number;
@@ -13,6 +14,20 @@ interface AIChatSession {
   nextMsgId: number;
 }
 
+export interface AIModelOption {
+  providerId: string;
+  modelId: string;
+  label: string;
+}
+
+export interface AIProvider {
+  id: string;
+  name: string;
+  icon?: string;
+  models: { id: string; name: string; maxTokens?: number }[];
+  available: boolean;
+}
+
 interface AIChatState {
   /** Per-session chat histories keyed by sessionId */
   sessions: Record<string, AIChatSession>;
@@ -22,17 +37,31 @@ interface AIChatState {
   loading: Record<string, boolean>;
   /** Current user selection from terminal, keyed by sessionId */
   terminalSelection: Record<string, string>;
+  /** Selected AI model per session */
+  selectedModel: Record<string, AIModelOption>;
+  /** AI-generated ghost command to display in xterm, keyed by sessionId */
+  ghostCommand: Record<string, string>;
+  /** Providers fetched from the API */
+  providers: AIProvider[];
+  /** Whether providers are being fetched */
+  providersFetching: boolean;
+  /** Whether providers have been fetched at least once */
+  providersFetched: boolean;
 
   toggle: () => void;
   open: () => void;
   close: () => void;
   setLoading: (sessionId: string, loading: boolean) => void;
   setTerminalSelection: (sessionId: string, selection: string) => void;
+  setSelectedModel: (sessionId: string, model: AIModelOption) => void;
+  fetchProviders: () => Promise<void>;
   addUserMessage: (sessionId: string, content: string) => number;
   addAssistantMessage: (sessionId: string) => number;
   updateAssistantMessage: (sessionId: string, msgId: number, content: string) => void;
   appendAssistantContent: (sessionId: string, msgId: number, delta: string) => void;
   setMessageCommands: (sessionId: string, msgId: number, commands: string[]) => void;
+  setGhostCommand: (sessionId: string, command: string) => void;
+  clearGhostCommand: (sessionId: string) => void;
   clearSession: (sessionId: string) => void;
   removeSession: (sessionId: string) => void;
 }
@@ -46,6 +75,11 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
   isOpen: false,
   loading: {},
   terminalSelection: {},
+  selectedModel: {},
+  ghostCommand: {},
+  providers: [],
+  providersFetching: false,
+  providersFetched: false,
 
   toggle: () => set((s) => ({ isOpen: !s.isOpen })),
   open: () => set({ isOpen: true }),
@@ -56,6 +90,32 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
 
   setTerminalSelection: (sessionId, selection) =>
     set((s) => ({ terminalSelection: { ...s.terminalSelection, [sessionId]: selection } })),
+
+  setSelectedModel: (sessionId, model) =>
+    set((s) => ({ selectedModel: { ...s.selectedModel, [sessionId]: model } })),
+
+  fetchProviders: async () => {
+    const state = get();
+    if (state.providersFetching) return;
+    set({ providersFetching: true });
+    try {
+      const res = await fetch(`${__config.API_URL}/api/ai/providers`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const providers: AIProvider[] = Array.isArray(data.data)
+        ? data.data
+        : data?.data?.providers && Array.isArray(data.data.providers)
+          ? data.data.providers
+          : [];
+      set({ providers, providersFetched: true });
+    } catch {
+      set({ providersFetched: true });
+    } finally {
+      set({ providersFetching: false });
+    }
+  },
 
   addUserMessage: (sessionId, content) => {
     const session = getOrCreateSession(get().sessions, sessionId);
@@ -138,6 +198,15 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
       };
     }),
 
+  setGhostCommand: (sessionId, command) =>
+    set((s) => ({ ghostCommand: { ...s.ghostCommand, [sessionId]: command } })),
+
+  clearGhostCommand: (sessionId) =>
+    set((s) => {
+      const { [sessionId]: _, ...rest } = s.ghostCommand;
+      return { ghostCommand: rest };
+    }),
+
   clearSession: (sessionId) =>
     set((s) => ({
       sessions: {
@@ -151,6 +220,26 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
       const { [sessionId]: _, ...rest } = s.sessions;
       const { [sessionId]: __, ...loadingRest } = s.loading;
       const { [sessionId]: ___, ...selectionRest } = s.terminalSelection;
-      return { sessions: rest, loading: loadingRest, terminalSelection: selectionRest };
+      const { [sessionId]: ____, ...modelRest } = s.selectedModel;
+      const { [sessionId]: _____, ...ghostRest } = s.ghostCommand;
+      return { sessions: rest, loading: loadingRest, terminalSelection: selectionRest, selectedModel: modelRest, ghostCommand: ghostRest };
     }),
 }));
+
+/** Flatten providers into a list of AIModelOption */
+export function getModelOptions(providers: AIProvider[]): AIModelOption[] {
+  return providers
+    .filter((p) => p.available)
+    .flatMap((p) =>
+      p.models.map((m) => ({
+        providerId: p.id,
+        modelId: m.id,
+        label: m.name,
+      })),
+    );
+}
+
+/** Get the default model option from current providers */
+export function getDefaultModel(providers: AIProvider[]): AIModelOption | undefined {
+  return getModelOptions(providers)[0];
+}

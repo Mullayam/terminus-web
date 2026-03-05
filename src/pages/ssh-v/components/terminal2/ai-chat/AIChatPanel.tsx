@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bot,
   ChevronDown,
@@ -11,9 +11,10 @@ import {
   StopCircle,
   Trash2,
   X,
+  ChevronsUpDown,
 } from 'lucide-react';
 import { useSessionTheme } from '@/hooks/useSessionTheme';
-import { useAIChatStore, type AIChatMessage } from '@/store/aiChatStore';
+import { useAIChatStore, type AIChatMessage, getModelOptions, getDefaultModel } from '@/store/aiChatStore';
 import { useSSHStore } from '@/store/sshStore';
 import { useAIChat, extractCommands } from './useAIChat';
 import { SocketEventConstants } from '@/lib/sockets/event-constants';
@@ -197,12 +198,27 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
   const selection = useAIChatStore((s) => s.terminalSelection[sessionId] ?? '');
   const clearSession = useAIChatStore((s) => s.clearSession);
   const setTerminalSelection = useAIChatStore((s) => s.setTerminalSelection);
+  const providers = useAIChatStore((s) => s.providers);
+  const providersFetched = useAIChatStore((s) => s.providersFetched);
+  const fetchProviders = useAIChatStore((s) => s.fetchProviders);
+  const modelOptions = useMemo(() => getModelOptions(providers), [providers]);
+  const defaultModel = useMemo(() => getDefaultModel(providers), [providers]);
+  const selectedModel = useAIChatStore(
+    (s) => s.selectedModel[sessionId] ?? defaultModel,
+  );
+  const setSelectedModel = useAIChatStore((s) => s.setSelectedModel);
+
+  // Fetch providers on mount
+  useEffect(() => {
+    if (!providersFetched) fetchProviders();
+  }, [providersFetched, fetchProviders]);
 
   const { sendMessage, abort } = useAIChat(sessionId);
   const session = useSSHStore((s) => s.sessions[sessionId]);
   const socket = session?.socket;
 
   const [input, setInput] = useState('');
+  const [showModelPicker, setShowModelPicker] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -300,6 +316,75 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
             </span>
           </div>
         </div>
+
+        {/* Model selector */}
+        <div className="relative">
+          <button
+            onClick={() => setShowModelPicker((v) => !v)}
+            className="flex items-center gap-1 px-2 py-1 rounded text-[10px] transition-colors hover:brightness-125"
+            style={{
+              backgroundColor: `${colors.foreground}10`,
+              color: `${colors.foreground}70`,
+              border: `1px solid ${colors.foreground}15`,
+            }}
+            title="Select AI model"
+          >
+            <span className="max-w-[90px] truncate">{selectedModel?.label ?? 'No model'}</span>
+            <ChevronsUpDown size={10} />
+          </button>
+          {showModelPicker && (
+            <div
+              className="absolute right-0 top-full mt-1 z-50 rounded-lg border py-1 shadow-xl min-w-[180px] max-h-[300px] overflow-y-auto"
+              style={{
+                backgroundColor: colors.background,
+                borderColor: `${colors.foreground}20`,
+              }}
+            >
+              {providers.filter((p) => p.available).map((provider) => (
+                <div key={provider.id}>
+                  <div
+                    className="px-3 py-1 text-[9px] font-semibold uppercase tracking-wider"
+                    style={{ color: `${colors.foreground}40` }}
+                  >
+                    {provider.name}
+                  </div>
+                  {provider.models.map((model) => (
+                    <button
+                      key={`${provider.id}-${model.id}`}
+                      onClick={() => {
+                        setSelectedModel(sessionId, {
+                          providerId: provider.id,
+                          modelId: model.id,
+                          label: model.name,
+                        });
+                        setShowModelPicker(false);
+                      }}
+                      className="w-full text-left px-3 py-1.5 text-[11px] transition-colors hover:brightness-125 flex items-center justify-between"
+                      style={{
+                        color:
+                          selectedModel?.modelId === model.id && selectedModel?.providerId === provider.id
+                            ? colors.cyan
+                            : `${colors.foreground}80`,
+                        backgroundColor:
+                          selectedModel?.modelId === model.id && selectedModel?.providerId === provider.id
+                            ? `${colors.cyan}10`
+                            : 'transparent',
+                      }}
+                    >
+                      <span>{model.name}</span>
+                    </button>
+                  ))}
+                </div>
+              ))}
+              {modelOptions.length === 0 && (
+                <div className="px-3 py-2 text-[11px]" style={{ color: `${colors.foreground}40` }}>
+                  No models available
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="flex items-center gap-1">
           <button
             onClick={() => clearSession(sessionId)}
@@ -468,7 +553,7 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
           className="text-[9px] mt-1.5 text-center"
           style={{ color: `${colors.foreground}25` }}
         >
-          Shift+Enter for new line • Select terminal text for context
+          Shift+Enter for new line • {selectedModel?.label ?? 'No model'} ({selectedModel?.providerId ?? ''})
         </p>
       </div>
     </div>
