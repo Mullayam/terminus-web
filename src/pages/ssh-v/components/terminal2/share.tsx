@@ -41,7 +41,7 @@ const TerminalShare = () => {
         socket?.emit(SocketEventConstants.SSH_SESSION, JSON.stringify(data))
     }
     const handleCopySessionLink = () => {
-        const link = `${window.location.origin}/ssh/terminal/${activeTabId}`;
+        const link = `${window.location.origin}/collab/terminal/${activeTabId}`;
         navigator.clipboard.writeText(link);
         setIsCopied(true);
         const timer = setTimeout(() => {

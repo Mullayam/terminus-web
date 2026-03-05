@@ -2,10 +2,13 @@
  * Toolbar (top bar) for the Monaco editor page.
  * Memoized — only re-renders when its specific props change.
  */
-import React from "react";
-import { Loader2, Save, WrapText, RefreshCw, Info, Columns2 } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Loader2, Save, WrapText, RefreshCw, Info, Columns2, Sparkles } from "lucide-react";
 import FileIcon from "@/components/FileIcon";
 import { ThemePicker, type ThemeId } from "./ThemePicker";
+import { ChangelogModal } from "./ChangelogModal";
+
+const CHANGELOG_DISMISSED_KEY = "terminus-changelog-dismissed-v2";
 
 interface EditorToolbarProps {
     currentFileName: string;
@@ -44,7 +47,26 @@ function EditorToolbarInner({
     onSave,
     onSplit,
 }: EditorToolbarProps) {
+    const [showChangelog, setShowChangelog] = useState(false);
+    const [badgeDismissed, setBadgeDismissed] = useState(() => {
+        try { return localStorage.getItem(CHANGELOG_DISMISSED_KEY) === "1"; }
+        catch { return false; }
+    });
+
+    useEffect(() => {
+        if (badgeDismissed) {
+            try { localStorage.setItem(CHANGELOG_DISMISSED_KEY, "1"); }
+            catch { /* noop */ }
+        }
+    }, [badgeDismissed]);
+
+    const handleOpenChangelog = () => {
+        setShowChangelog(true);
+        setBadgeDismissed(true);
+    };
+
     return (
+        <>
         <div
             className="flex items-center justify-between px-3 py-1.5 shrink-0 select-none"
             style={{
@@ -70,6 +92,31 @@ function EditorToolbarInner({
                     {currentFilePath}
                 </span>
             </div>
+
+            {/* Center: announcement badge */}
+            <button
+                onClick={handleOpenChangelog}
+                className="hidden md:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium transition-all cursor-pointer shrink-0"
+                style={{
+                    background: badgeDismissed
+                        ? "var(--editor-hover-bg, #2d2d2d)"
+                        : "var(--editor-accent, #007acc)",
+                    color: badgeDismissed ? "var(--editor-fg, #999)" : "#fff",
+                    border: badgeDismissed
+                        ? "1px solid var(--editor-border, #3c3c3c)"
+                        : "1px solid transparent",
+                }}
+                title="View changelog"
+            >
+                <Sparkles className="w-3 h-3" />
+                <span>{badgeDismissed ? "Changelog" : "Try new features!"}</span>
+                {!badgeDismissed && (
+                    <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+                    </span>
+                )}
+            </button>
 
             {/* Right: actions */}
             <div className="flex items-center gap-1 shrink-0">
@@ -139,6 +186,8 @@ function EditorToolbarInner({
                 )}
             </div>
         </div>
+            {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
+        </>
     );
 }
 
