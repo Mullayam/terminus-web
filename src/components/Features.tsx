@@ -1,140 +1,153 @@
 import { Badge } from "./ui/badge";
 import {
-    Terminal,
-    FolderOpen,
-    Code2,
-    Shield,
-    Split,
-    Sparkles,
-    Globe,
-    Keyboard,
-    Palette,
-    Search,
-    Puzzle,
-    Download,
-    Upload,
-    FileEdit,
-    Eye,
-    GitBranch,
-    Layers,
-    Settings,
-    Users,
-    HardDrive,
-    RefreshCw,
-    Timer,
-    MonitorSmartphone,
-    PanelLeft,
-    type LucideIcon,
+  Terminal,
+  FolderOpen,
+  Code2,
+  Shield,
+  Sparkles,
+  Users,
+  ArrowRight,
+  type LucideIcon,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 
 /* ------------------------------------------------------------------ */
 /*  Data                                                               */
 /* ------------------------------------------------------------------ */
 
-interface FeatureItem {
-    label: string;
-    icon: LucideIcon;
-    upcoming?: boolean;
+interface FeatureHighlight {
+  text: string;
 }
 
-interface FeatureGroup {
-    category: string;
-    icon: LucideIcon;
-    color: string;
-    items: FeatureItem[];
+interface FeatureCard {
+  category: string;
+  tagline: string;
+  description: string;
+  icon: LucideIcon;
+  color: string;
+  gradient: string;
+  borderGlow: string;
+  highlights: FeatureHighlight[];
+  cta: { label: string; href: string };
+  isNew?: boolean;
 }
 
-const featureGroups: FeatureGroup[] = [
-    {
-        category: "SSH Terminal",
-        icon: Terminal,
-        color: "text-green-400",
-        items: [
-            { label: "Web-based SSH terminal (XTerm.js)", icon: Terminal },
-            { label: "Multi-tab sessions", icon: Layers },
-            { label: "Password & private-key auth", icon: Shield },
-            { label: "Saved hosts (IndexedDB)", icon: HardDrive },
-            { label: "Per-session themes & fonts", icon: Palette },
-            { label: "Split terminal (H / V)", icon: Split },
-            { label: "Idle auto-reconnect", icon: RefreshCw },
-            { label: "Shared terminal sessions", icon: Users, upcoming: true },
-            { label: "Per-session diagnostics overlay", icon: Eye },
-            { label: "Command palette (PM2, Nginx…)", icon: Keyboard },
-            { label: "Auto-hide toolbar", icon: PanelLeft },
-        ],
-    },
-    {
-        category: "SFTP File Manager",
-        icon: FolderOpen,
-        color: "text-blue-400",
-        items: [
-            { label: "Multi-tab SFTP connections", icon: Layers },
-            { label: "Breadcrumb navigation", icon: FolderOpen },
-            { label: "Upload & download with progress", icon: Upload },
-            { label: "Context menu (13 actions)", icon: Settings },
-            { label: "File permission editing (chmod)", icon: Shield },
-            { label: "New file / folder creation", icon: FileEdit },
-            { label: "Move, copy, rename & delete", icon: FolderOpen },
-            { label: "Media file preview", icon: Eye },
-            { label: "Persistent sessions & dirs", icon: HardDrive },
-            { label: "SFTP auto-reconnect", icon: RefreshCw },
-        ],
-    },
-    {
-        category: "Code Editor",
-        icon: Code2,
-        color: "text-violet-400",
-        items: [
-            { label: "Monaco Editor + IntelliSense", icon: Code2 },
-            { label: "Multi-tab & split editing", icon: Split },
-            { label: "200+ themes", icon: Palette },
-            { label: "Find & Replace, Go-to-line", icon: Search },
-            { label: "Command Palette (Ctrl+Shift+P)", icon: Keyboard },
-            { label: "Minimap & bracket colorization", icon: Eye },
-            { label: "Auto-close brackets & tags", icon: Code2 },
-            { label: "Auto-save with debounce", icon: Timer },
-            { label: "Snippets (Go, JS, Python, TS)", icon: FileEdit },
-            { label: "Code folding & sticky scroll", icon: Layers },
-            { label: "Diff viewer", icon: GitBranch },
-            { label: "Embedded terminal panel", icon: Terminal },
-        ],
-    },
-    {
-        category: "AI Assistance",
-        icon: Sparkles,
-        color: "text-amber-400",
-        items: [
-            { label: "AI ghost-text completions", icon: Sparkles },
-            { label: "AI Chat (apply suggestions)", icon: Sparkles },
-            { label: "Context-aware code generation", icon: Code2 },
-            { label: "Free open-source tier", icon: Globe },
-        ],
-    },
-    {
-        category: "Extensions & Plugins",
-        icon: Puzzle,
-        color: "text-cyan-400",
-        items: [
-            { label: "Open VSX marketplace", icon: Puzzle },
-            { label: "Install from GitHub (VSIX)", icon: Download },
-            { label: "Drag & drop .vsix install", icon: Upload },
-            { label: "Theme, grammar & snippet packs", icon: Palette },
-            { label: "Full plugin lifecycle", icon: Settings },
-            { label: "LSP over WebSocket", icon: Globe },
-        ],
-    },
-    {
-        category: "Security & Management",
-        icon: Shield,
-        color: "text-emerald-400",
-        items: [
-            { label: "Encrypted key vault (IndexedDB)", icon: Shield },
-            { label: "Session resilience on disconnect", icon: RefreshCw },
-            { label: "Role-based shared permissions", icon: Users },
-            { label: "Server status indicator", icon: MonitorSmartphone },
-            { label: "Diagnostics & error reporting", icon: Eye },
-        ],
-    },
+const features: FeatureCard[] = [
+  {
+    category: "SSH Terminal",
+    tagline: "Your server, one click away",
+    description:
+      "A full-featured web terminal powered by xterm.js with WebGL rendering. Connect to any server via SSH, open multiple tabs, split panes, and personalize with 17+ themes — all without leaving your browser.",
+    icon: Terminal,
+    color: "text-green-400",
+    gradient: "from-green-500/20 via-green-500/5 to-transparent",
+    borderGlow: "group-hover:shadow-green-500/10",
+    highlights: [
+      { text: "Multi-tab & split terminal sessions" },
+      { text: "Password & private-key authentication" },
+      { text: "17+ themes with per-session customization" },
+      { text: "Idle auto-reconnect & session resilience" },
+      { text: "Command palette (PM2, Nginx, Docker)" },
+      { text: "Ghost-text autocomplete & diagnostics overlay" },
+    ],
+    cta: { label: "Launch Terminal", href: "/ssh/connect" },
+  },
+  {
+    category: "Collaborative Terminal",
+    tagline: "Multiplayer DevOps, built in",
+    description:
+      "Share your terminal session with a single link. Teammates join instantly with role-based permissions. Every keystroke syncs live, blocked users see a ghost-text lock overlay, and admins can kick or ban with one click.",
+    icon: Users,
+    color: "text-pink-400",
+    gradient: "from-pink-500/20 via-pink-500/5 to-transparent",
+    borderGlow: "group-hover:shadow-pink-500/10",
+    isNew: true,
+    highlights: [
+      { text: "Real-time multi-user sessions via WebSocket" },
+      { text: "Share terminal with a shareable link" },
+      { text: "Role-based permissions (read / write / admin)" },
+      { text: "Ghost lock overlay for blocked users" },
+      { text: "Admin panel: kick, block, lock PTY" },
+      { text: "Independent theme system per session" },
+    ],
+    cta: { label: "Start Sharing", href: "/ssh/connect" },
+  },
+  {
+    category: "SFTP File Manager",
+    tagline: "Visual file management, reimagined",
+    description:
+      "Browse, upload, download, rename, chmod, and delete files on your remote servers through a visual file-tree interface. Full drag-and-drop support, context-menu actions, real-time progress tracking, and media preview.",
+    icon: FolderOpen,
+    color: "text-blue-400",
+    gradient: "from-blue-500/20 via-blue-500/5 to-transparent",
+    borderGlow: "group-hover:shadow-blue-500/10",
+    highlights: [
+      { text: "Multi-tab SFTP with breadcrumb navigation" },
+      { text: "Drag-and-drop upload with progress bars" },
+      { text: "13 context-menu actions (copy, move, chmod...)" },
+      { text: "Inline media preview (images, video, audio)" },
+      { text: "Persistent sessions & directory bookmarks" },
+      { text: "Auto-reconnect on connection drop" },
+    ],
+    cta: { label: "Manage Files", href: "/ssh/connect" },
+  },
+  {
+    category: "Code Editor",
+    tagline: "A full IDE in your browser",
+    description:
+      "Monaco-powered editor with IntelliSense autocomplete, 25+ color themes, multi-tab and split editing, command palette, minimap, bracket colorization, diff viewer, and AI ghost-text completions.",
+    icon: Code2,
+    color: "text-violet-400",
+    gradient: "from-violet-500/20 via-violet-500/5 to-transparent",
+    borderGlow: "group-hover:shadow-violet-500/10",
+    highlights: [
+      { text: "Monaco Editor with full IntelliSense" },
+      { text: "25+ themes with live preview switching" },
+      { text: "Multi-tab, split-group, & diff editing" },
+      { text: "Command Palette, minimap, & sticky scroll" },
+      { text: "Snippets for Go, JavaScript, Python, TypeScript" },
+      { text: "Auto-save with debounce & embedded terminal" },
+    ],
+    cta: { label: "Open Editor", href: "/ssh/connect" },
+  },
+  {
+    category: "AI Assistance",
+    tagline: "Your intelligent co-pilot",
+    description:
+      "Context-aware AI that predicts your next command, detects errors in real time, suggests fixes, and generates code. Ghost-text completions in the terminal, diagnostics chat in the sidebar, and code generation in the editor.",
+    icon: Sparkles,
+    color: "text-amber-400",
+    gradient: "from-amber-500/20 via-amber-500/5 to-transparent",
+    borderGlow: "group-hover:shadow-amber-500/10",
+    highlights: [
+      { text: "Ghost-text command autocomplete in terminal" },
+      { text: "AI Chat with apply-to-editor suggestions" },
+      { text: "Context-aware code generation" },
+      { text: "Real-time diagnostics & error detection" },
+      { text: "Best-practice recommendations" },
+      { text: "Free & open-source, no API key required" },
+    ],
+    cta: { label: "Try AI Features", href: "/ssh/connect" },
+  },
+  {
+    category: "Security & Extensions",
+    tagline: "Enterprise-grade, zero compromise",
+    description:
+      "End-to-end encryption, an encrypted key vault in IndexedDB, session resilience on disconnect, and a full extension marketplace. Install themes, grammars, and plugins from Open VSX or drag-and-drop .vsix files.",
+    icon: Shield,
+    color: "text-cyan-400",
+    gradient: "from-cyan-500/20 via-cyan-500/5 to-transparent",
+    borderGlow: "group-hover:shadow-cyan-500/10",
+    highlights: [
+      { text: "E2E encryption on all sessions & transfers" },
+      { text: "Encrypted credential vault (browser IndexedDB)" },
+      { text: "Open VSX marketplace & GitHub VSIX installs" },
+      { text: "Drag-and-drop .vsix extension installer" },
+      { text: "Session resilience & auto-reconnect" },
+      { text: "Server status indicator & health monitoring" },
+    ],
+    cta: { label: "Learn More", href: "#about" },
+  },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -142,63 +155,93 @@ const featureGroups: FeatureGroup[] = [
 /* ------------------------------------------------------------------ */
 
 export const Features = () => {
-    return (
-        <section id="features" className="container py-20 sm:py-28">
-            {/* Heading */}
-            <div className="text-center space-y-3 mb-10">
-                <h2 className="text-3xl lg:text-4xl font-bold">
-                    Many{" "}
-                    <span className="bg-gradient-to-b from-primary/60 to-primary text-transparent bg-clip-text">
-                        Great Features
-                    </span>
-                </h2>
-                <p className="text-muted-foreground text-sm md:w-3/4 mx-auto lg:w-2/3">
-                    SSH, SFTP, Code Editor, AI, Extensions — all running in your browser.
-                </p>
-            </div>
+  return (
+    <section id="features" className="container py-24 sm:py-32">
+      {/* Header */}
+      <div className="text-center space-y-4 mb-16">
+        <Badge
+          variant="outline"
+          className="text-xs px-4 py-1 border-primary/30 text-primary tracking-wider uppercase"
+        >
+          Features
+        </Badge>
+        <h2 className="text-3xl md:text-5xl font-bold">
+          One Platform.{" "}
+          <span className="bg-gradient-to-b from-primary/60 to-primary text-transparent bg-clip-text">
+            Every Tool You Need.
+          </span>
+        </h2>
+        <p className="text-xl text-muted-foreground md:w-3/4 mx-auto lg:w-2/3">
+          SSH, SFTP, Code Editor, AI, Collaboration, Extensions — a complete
+          DevOps workspace running entirely in your browser.
+        </p>
+      </div>
 
-            {/* Feature groups */}
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {featureGroups.map((group) => {
-                    const GroupIcon = group.icon;
-                    return (
-                        <div
-                            key={group.category}
-                            className="rounded-lg border border-border/60 bg-card/50 p-3.5 space-y-2.5 hover:border-primary/40 transition-colors"
-                        >
-                            {/* Category header */}
-                            <div className="flex items-center gap-2">
-                                <GroupIcon className={`h-4 w-4 ${group.color} shrink-0`} />
-                                <h3 className="font-semibold text-sm">{group.category}</h3>
-                            </div>
+      {/* Feature grid — 2 cols on desktop, stacked on mobile */}
+      <div className="grid md:grid-cols-2 gap-6 max-w-6xl mx-auto">
+        {features.map((feature) => {
+          const Icon = feature.icon;
+          return (
+            <div
+              key={feature.category}
+              className={`group relative rounded-2xl border border-border/50 bg-gradient-to-br ${feature.gradient} p-8 transition-all duration-300 hover:border-primary/30 hover:shadow-xl ${feature.borderGlow}`}
+            >
+              {/* New badge */}
+              {feature.isNew && (
+                <div className="absolute top-4 right-4">
+                  <Badge className="bg-primary/90 text-primary-foreground text-[10px] px-2 py-0.5">
+                    NEW
+                  </Badge>
+                </div>
+              )}
 
-                            {/* Compact feature chips */}
-                            <div className="flex flex-wrap gap-1.5">
-                                {group.items.map((item, i) => {
-                                    const ItemIcon = item.icon;
-                                    return (
-                                        <div
-                                            key={i}
-                                            className="inline-flex items-center gap-1 rounded-md bg-muted/50 border border-border/40 px-2 py-0.5 text-[11px] text-muted-foreground leading-tight hover:bg-muted transition-colors"
-                                        >
-                                            <ItemIcon className="h-3 w-3 shrink-0 opacity-60" />
-                                            <span>{item.label}</span>
-                                            {item.upcoming && (
-                                                <Badge
-                                                    variant="outline"
-                                                    className="ml-0.5 text-[9px] py-0 px-1 border-amber-500/40 text-amber-500 leading-none"
-                                                >
-                                                    soon
-                                                </Badge>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    );
-                })}
+              {/* Icon + Category */}
+              <div className="flex items-center gap-3 mb-4">
+                <div
+                  className={`flex items-center justify-center w-11 h-11 rounded-xl bg-background/80 border border-border/40 ${feature.color} transition-colors group-hover:bg-background`}
+                >
+                  <Icon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">{feature.category}</h3>
+                  <p className="text-xs text-muted-foreground/80 italic">
+                    {feature.tagline}
+                  </p>
+                </div>
+              </div>
+
+              {/* Description */}
+              <p className="text-sm text-muted-foreground leading-relaxed mb-5">
+                {feature.description}
+              </p>
+
+              {/* Highlight list */}
+              <ul className="space-y-2 mb-6">
+                {feature.highlights.map((h, i) => (
+                  <li
+                    key={i}
+                    className="flex items-start gap-2.5 text-sm text-foreground/80"
+                  >
+                    <span
+                      className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${feature.color.replace("text-", "bg-")}`}
+                    />
+                    {h.text}
+                  </li>
+                ))}
+              </ul>
+
+              {/* CTA link */}
+              <Link
+                to={feature.cta.href}
+                className={`inline-flex items-center gap-1.5 text-sm font-medium ${feature.color} hover:underline underline-offset-4 transition-colors`}
+              >
+                {feature.cta.label}
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+              </Link>
             </div>
-        </section>
-    );
+          );
+        })}
+      </div>
+    </section>
+  );
 };

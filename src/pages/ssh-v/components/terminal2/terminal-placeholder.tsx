@@ -1,5 +1,21 @@
-import { useEffect, useRef, useCallback, memo } from "react";
+import { useEffect, useRef, useCallback, useState, memo } from "react";
 import type { Terminal } from "@xterm/xterm";
+
+// Module-level counter persists across re-renders but resets on page reload
+let showCount = 0;
+
+async function fetchJoke(fallback: string): Promise<string> {
+  try {
+    const res = await fetch('https://icanhazdadjoke.com/', {
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return fallback;
+    const data = await res.json();
+    return typeof data?.joke === 'string' ? `😂 ${data.joke}` : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 interface TerminalPlaceholderProps {
   /** Ref to the xterm Terminal instance */
@@ -25,8 +41,24 @@ const TerminalPlaceholder = memo(function TerminalPlaceholder({
   const overlayRef = useRef<HTMLSpanElement>(null);
   const rafId = useRef(0);
   const intervalId = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [displayHint, setDisplayHint] = useState(hint);
 
   const visible = commandBuffer.trim().length === 0;
+
+  // Show default hint for the first 3 times, then fetch a joke
+  useEffect(() => {
+    if (!visible) return;
+    showCount++;
+    if (showCount <= 3) {
+      setDisplayHint(hint);
+    } else {
+      let cancelled = false;
+      fetchJoke(hint!).then((joke) => {
+        if (!cancelled) setDisplayHint(joke);
+      });
+      return () => { cancelled = true; };
+    }
+  }, [visible, hint]);
 
   const syncPosition = useCallback(() => {
     const el = overlayRef.current;
@@ -124,7 +156,7 @@ const TerminalPlaceholder = memo(function TerminalPlaceholder({
         WebkitUserSelect: "none",
       }}
     >
-      {hint}
+      {displayHint}
     </span>
   );
 });
