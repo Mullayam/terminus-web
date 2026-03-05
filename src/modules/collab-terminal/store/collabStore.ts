@@ -21,8 +21,10 @@ interface CollabStore {
   // ── Connection ──────────────────────────────────────────────────────────
   sessionId: string | null;
   joined: boolean;
-  joinError: { reason: string; message: string } | null;
-
+  joinError: { reason: string; message: string } | null;  /** Pre-join room check result */
+  roomStatus: { exists: boolean; blocked: boolean; userCount: number } | null;
+  /** Whether the room check is pending */
+  roomChecking: boolean;
   // ── Room state ──────────────────────────────────────────────────────────
   permission: CollabPermission;
   isAdmin: boolean;
@@ -63,6 +65,8 @@ interface CollabStore {
   }) => void;
   setJoined: (joined: boolean) => void;
   setJoinError: (error: { reason: string; message: string } | null) => void;
+  setRoomStatus: (status: { exists: boolean; blocked: boolean; userCount: number }) => void;
+  setRoomChecking: (checking: boolean) => void;
 
   // Permission
   setPermission: (permission: CollabPermission) => void;
@@ -102,6 +106,8 @@ const INITIAL_STATE = {
   sessionId: null,
   joined: false,
   joinError: null,
+  roomStatus: null as { exists: boolean; blocked: boolean; userCount: number } | null,
+  roomChecking: false,
   permission: '400' as CollabPermission,
   isAdmin: false,
   userCount: 0,
@@ -137,6 +143,8 @@ export const useCollabStore = create<CollabStore>((set) => ({
 
   setJoined: (joined) => set({ joined }),
   setJoinError: (error) => set({ joinError: error, joined: false }),
+  setRoomStatus: (status) => set({ roomStatus: status, roomChecking: false }),
+  setRoomChecking: (checking) => set({ roomChecking: checking }),
 
   setPermission: (permission) => set({ permission }),
 

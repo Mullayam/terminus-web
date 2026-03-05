@@ -5,6 +5,7 @@
 
 // ─── Client → Server ─────────────────────────────────────────────────────────
 export enum CollabClientEvent {
+  CHECK_ROOM          = '@@COLLAB_CHECK_ROOM',
   JOIN_TERMINAL       = '@@COLLAB_JOIN_TERMINAL',
   INPUT               = '@@COLLAB_INPUT',
   ADMIN_LOCK          = '@@COLLAB_ADMIN_LOCK',
@@ -16,6 +17,7 @@ export enum CollabClientEvent {
 
 // ─── Server → Client ─────────────────────────────────────────────────────────
 export enum CollabServerEvent {
+  ROOM_STATUS         = '@@COLLAB_ROOM_STATUS',
   ROOM_STATE          = '@@COLLAB_ROOM_STATE',
   JOIN_REJECTED       = '@@COLLAB_JOIN_REJECTED',
   USER_JOINED         = '@@COLLAB_USER_JOINED',

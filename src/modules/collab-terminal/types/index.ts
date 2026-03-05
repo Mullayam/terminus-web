@@ -10,6 +10,7 @@ export type {
   KickUserPayload,
   BlockUserPayload,
   UnblockIPPayload,
+  RoomStatusPayload,
   RoomStatePayload,
   JoinRejectedPayload,
   UserJoinedPayload,

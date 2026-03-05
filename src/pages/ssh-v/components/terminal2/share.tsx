@@ -11,20 +11,21 @@ import { } from "lucide-react";
 import { Users, Play, Pause, Square, Globe, Copy, Check } from 'lucide-react';
 
 
-import { SocketEventConstants } from "@/lib/sockets/event-constants";
-import { useEffect, useState } from "react";
+import { CollabClientEvent } from "@/modules/collab-terminal/types/events";
+import { useState } from "react";
 import { useSSHStore } from "@/store/sshStore";
 import { useTerminalStore } from '@/store/terminalStore';
 import { toast } from "@/hooks/use-toast";
-type SocketPermission = '400' | '700' | '777';
+type SocketPermission = '400' | '700';
 
 const TerminalShare = () => {
     const { sessions, activeTabId } = useSSHStore()
-    const { sessionInfo, addPermissions } = useTerminalStore()
+    const { sessionInfo, addPermissions, deleteSharedSession, deletePermission } = useTerminalStore()
     const [isCopied, setIsCopied] = useState(false)
     const [selectedSocketId, setSelectedSocketId] = useState<string | null>(null)
     const info = sessionInfo?.shared_sessions[activeTabId!]
     const socket = sessions[activeTabId!].socket
+
     const handleCreateShareTerminalClick = () => {
         handleCopySessionLink();
         toast({
@@ -32,14 +33,31 @@ const TerminalShare = () => {
             description: "Paste URL in browser tab",
         })
     }
-    const updateSessionSettings = (socketId: string, type: "pause" | "kick") => {
-        const data = {
-            socketId,
+
+    /** Pause = set collaborator to read-only "400" */
+    const handlePause = (socketId: string) => {
+        socket?.emit(CollabClientEvent.CHANGE_PERMISSION, {
             sessionId: activeTabId!,
-            type
-        }
-        socket?.emit(SocketEventConstants.SSH_SESSION, JSON.stringify(data))
+            targetSocketId: socketId,
+            permission: '400',
+        });
+        addPermissions(activeTabId!, socketId, '400');
+        toast({ title: "User set to read-only" });
     }
+
+    /** End = kick the collaborator from the session */
+    const handleKick = (socketId: string) => {
+        socket?.emit(CollabClientEvent.KICK_USER, {
+            sessionId: activeTabId!,
+            targetSocketId: socketId,
+            message: 'Removed by admin.',
+        });
+        deleteSharedSession(activeTabId!, socketId);
+        deletePermission(activeTabId!, socketId);
+        if (selectedSocketId === socketId) setSelectedSocketId(null);
+        toast({ title: "User removed from session" });
+    }
+
     const handleCopySessionLink = () => {
         const link = `${window.location.origin}/collab/terminal/${activeTabId}`;
         navigator.clipboard.writeText(link);
@@ -48,37 +66,17 @@ const TerminalShare = () => {
             setIsCopied(false);
         }, 2000);
         return () => clearTimeout(timer);
-
     };
+
     const updateSessionPermission = (socketId: string, permissions: SocketPermission) => {
-
-        const data = {
-            socketId,
-            permissions,
-            sessionId: activeTabId!
-        };
-        socket?.emit(SocketEventConstants.SSH_PERMISSIONS, JSON.stringify(data))
+        socket?.emit(CollabClientEvent.CHANGE_PERMISSION, {
+            sessionId: activeTabId!,
+            targetSocketId: socketId,
+            permission: permissions,
+        });
+        addPermissions(activeTabId!, socketId, permissions);
+        toast({ title: "Permissions updated successfully" });
     }
-
-
-    useEffect(() => {
-        socket?.on(SocketEventConstants.SSH_PERMISSIONS, (input: string) => {
-            const data = JSON.parse(input) as {
-                socketId: string,
-                permissions: SocketPermission,
-                sessionId: string
-            };
-            addPermissions(activeTabId!, data.socketId, data.permissions)
-            toast({ title: "Permissions updated successfully" })
-        })
-
-
-
-        return () => {
-
-            socket?.off(SocketEventConstants.SSH_PERMISSIONS);
-        }
-    }, [socket, activeTabId])
     return (
         <div className="p-4">
             <div className="flex flex-col w-full">
@@ -117,7 +115,7 @@ const TerminalShare = () => {
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation()
-                                                    updateSessionSettings(session, "pause")
+                                                    handlePause(session)
                                                 }}
                                                 className="flex-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 py-1 px-2 rounded text-xs font-medium transition-colors">
                                                 Pause
@@ -125,7 +123,7 @@ const TerminalShare = () => {
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation()
-                                                    updateSessionSettings(session, "kick")
+                                                    handleKick(session)
                                                 }}
                                                 className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 py-1 px-2 rounded text-xs font-medium transition-colors">
                                                 End
@@ -176,7 +174,7 @@ const TerminalShare = () => {
                             </SelectTrigger>
                             <SelectContent defaultValue={"400"}>
                                 <SelectItem value="400">can view</SelectItem>
-                                <SelectItem value="777">can edit</SelectItem>
+                                <SelectItem value="700">can edit</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>

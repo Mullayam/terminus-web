@@ -14,6 +14,7 @@ import { useEffect, useCallback } from 'react';
 import type { Socket } from 'socket.io-client';
 import { CollabClientEvent, CollabServerEvent } from '../types/events';
 import type {
+  RoomStatusPayload,
   RoomStatePayload,
   JoinRejectedPayload,
   UserJoinedPayload,
@@ -39,10 +40,15 @@ export function useCollabSocket(socket: Socket | null, sessionId: string) {
 
     store.setSessionId(sessionId);
 
-    // Join the room
-    socket.emit(CollabClientEvent.JOIN_TERMINAL, { sessionId });
+    // NOTE: We no longer auto-join here. The page should call
+    // emitCheckRoom() first, then joinRoom() after ROOM_STATUS confirms
+    // the session is joinable.
 
     // ── Handlers ──────────────────────────────────────────────────────
+    const onRoomStatus = (data: RoomStatusPayload) => {
+      store.setRoomStatus(data);
+    };
+
     const onRoomState = (data: RoomStatePayload) => {
       store.setRoomState({
         permission: data.permission,
@@ -112,6 +118,7 @@ export function useCollabSocket(socket: Socket | null, sessionId: string) {
     };
 
     // ── Bind ─────────────────────────────────────────────────────────
+    socket.on(CollabServerEvent.ROOM_STATUS, onRoomStatus);
     socket.on(CollabServerEvent.ROOM_STATE, onRoomState);
     socket.on(CollabServerEvent.JOIN_REJECTED, onJoinRejected);
     socket.on(CollabServerEvent.USER_JOINED, onUserJoined);
@@ -125,6 +132,7 @@ export function useCollabSocket(socket: Socket | null, sessionId: string) {
     socket.on(CollabServerEvent.SESSION_ENDED, onSessionEnded);
 
     return () => {
+      socket.off(CollabServerEvent.ROOM_STATUS, onRoomStatus);
       socket.off(CollabServerEvent.ROOM_STATE, onRoomState);
       socket.off(CollabServerEvent.JOIN_REJECTED, onJoinRejected);
       socket.off(CollabServerEvent.USER_JOINED, onUserJoined);
@@ -141,6 +149,17 @@ export function useCollabSocket(socket: Socket | null, sessionId: string) {
   }, [socket, sessionId]);
 
   // ── Emitters ──────────────────────────────────────────────────────────
+
+  /** Pre-flight: check if session exists and IP is not blocked */
+  const emitCheckRoom = useCallback(() => {
+    socket?.emit(CollabClientEvent.CHECK_ROOM, { sessionId });
+  }, [socket, sessionId]);
+
+  /** Join the collab room (call only after ROOM_STATUS confirms it's safe) */
+  const joinRoom = useCallback(() => {
+    socket?.emit(CollabClientEvent.JOIN_TERMINAL, { sessionId });
+  }, [socket, sessionId]);
+
   const emitInput = useCallback(
     (data: string) => {
       socket?.emit(CollabClientEvent.INPUT, data);
@@ -196,6 +215,8 @@ export function useCollabSocket(socket: Socket | null, sessionId: string) {
   );
 
   return {
+    emitCheckRoom,
+    joinRoom,
     emitInput,
     emitAdminLock,
     emitChangePermission,

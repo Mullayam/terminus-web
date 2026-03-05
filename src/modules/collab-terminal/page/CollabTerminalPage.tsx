@@ -94,6 +94,8 @@ export default function CollabTerminalPage() {
 
   // ── Wire collab events ───────────────────────────────────────────────
   const {
+    emitCheckRoom,
+    joinRoom,
     emitInput,
     emitAdminLock,
     emitChangePermission,
@@ -101,6 +103,26 @@ export default function CollabTerminalPage() {
     emitBlockUser,
     emitUnblockIP,
   } = useCollabSocket(socketRef.current, sessionId || '');
+
+  // ── Pre-join: check room once socket is ready ─────────────────────────
+  const roomStatus = useCollabStore((s) => s.roomStatus);
+  const roomChecking = useCollabStore((s) => s.roomChecking);
+
+  useEffect(() => {
+    if (!socketReady || !sessionId) return;
+    // Only check once (roomStatus starts null)
+    if (roomStatus !== null) return;
+    useCollabStore.getState().setRoomChecking(true);
+    emitCheckRoom();
+  }, [socketReady, sessionId, roomStatus, emitCheckRoom]);
+
+  // ── After room check passes, join the room ────────────────────────────
+  useEffect(() => {
+    if (!roomStatus) return;
+    if (roomStatus.exists && !roomStatus.blocked) {
+      joinRoom();
+    }
+  }, [roomStatus, joinRoom]);
 
   // ── Terminal output handler ──────────────────────────────────────────
   useEffect(() => {
@@ -170,7 +192,6 @@ export default function CollabTerminalPage() {
     const disposable = term.onData((data: string) => {
       const currentPermission = useCollabStore.getState().permission;
       const currentIsLocked = useCollabStore.getState().isLocked;
-      const currentLockType = useCollabStore.getState().lockType;
 
       // Read-only: don't even try
       if (currentPermission === '400') return;
@@ -193,6 +214,18 @@ export default function CollabTerminalPage() {
     return () => disposable.dispose();
   }, [termRef.current, emitInput, appendToBuffer]);
 
+  // ── Block user (track IP locally for unblock UI) ─────────────────────
+  const handleBlockUser = useCallback(
+    (targetSocketId: string, message?: string) => {
+      const user = useCollabStore.getState().users.find((u) => u.socketId === targetSocketId);
+      if (user?.ip) {
+        useCollabStore.getState().addBlockedIP(user.ip);
+      }
+      emitBlockUser(targetSocketId, message);
+    },
+    [emitBlockUser]
+  );
+
   // ── Buffer send ──────────────────────────────────────────────────────
   const handleBufferSend = useCallback(
     (buffer: string) => {
@@ -212,6 +245,44 @@ export default function CollabTerminalPage() {
           <h2 className="text-lg font-semibold text-gray-200">Session Ended</h2>
           <p className="text-sm text-gray-400">{sessionEnded.message}</p>
           <span className="text-xs text-gray-600">Reason: {sessionEnded.reason}</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Room check in progress
+  if (roomChecking || (!roomStatus && !joined)) {
+    return (
+      <div className="flex items-center justify-center h-screen w-full bg-[#0a0a0a]">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+          <span className="text-sm text-gray-500">Checking session…</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Room does not exist
+  if (roomStatus && !roomStatus.exists) {
+    return (
+      <div className="flex items-center justify-center h-screen w-full bg-[#0a0a0a]">
+        <div className="flex flex-col items-center gap-4 max-w-md text-center px-6">
+          <AlertTriangle className="w-12 h-12 text-yellow-400" />
+          <h2 className="text-lg font-semibold text-gray-200">Session Not Found</h2>
+          <p className="text-sm text-gray-400">This session does not exist or has already ended.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // IP is blocked
+  if (roomStatus && roomStatus.blocked) {
+    return (
+      <div className="flex items-center justify-center h-screen w-full bg-[#0a0a0a]">
+        <div className="flex flex-col items-center gap-4 max-w-md text-center px-6">
+          <AlertTriangle className="w-12 h-12 text-red-400" />
+          <h2 className="text-lg font-semibold text-gray-200">Access Blocked</h2>
+          <p className="text-sm text-gray-400">Your IP has been blocked from this session by the admin.</p>
         </div>
       </div>
     );
@@ -294,7 +365,7 @@ export default function CollabTerminalPage() {
             onAdminLock={emitAdminLock}
             onChangePermission={emitChangePermission}
             onKick={emitKickUser}
-            onBlock={emitBlockUser}
+            onBlock={handleBlockUser}
             onUnblock={emitUnblockIP}
           />
         </div>

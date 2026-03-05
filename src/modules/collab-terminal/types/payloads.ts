@@ -42,6 +42,12 @@ export interface UnblockIPPayload {
 }
 
 // ─── Server → Client payloads ────────────────────────────────────────────────
+export interface RoomStatusPayload {
+  exists: boolean;
+  blocked: boolean;
+  userCount: number;
+}
+
 export interface RoomStatePayload {
   lockedBy: string | null;
   lockType: LockType | null;
