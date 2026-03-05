@@ -36,7 +36,6 @@ import {
   LockGhostOverlay,
   TypingIndicator,
   InputBufferBar,
-  AdminPanel,
   JoinError,
   CollabRightSidebar,
 } from '../components';
@@ -59,7 +58,6 @@ export default function CollabTerminalPage() {
   const isLocked = useCollabStore((s) => s.isLocked);
   const appendToBuffer = useCollabStore((s) => s.appendToBuffer);
   const sessionEnded = useCollabStore((s) => s.sessionEnded);
-  const [showAdmin, setShowAdmin] = React.useState(false);
   const [showSettings, setShowSettings] = React.useState(false);
 
   // ── Theme ────────────────────────────────────────────────────────────
@@ -355,33 +353,20 @@ export default function CollabTerminalPage() {
             >
               <Settings size={14} style={{ color: `${colors.foreground}99` }} />
             </button>
-            {isAdmin && (
-              <button
-                onClick={() => setShowAdmin(!showAdmin)}
-                className="px-2 py-0.5 rounded text-[11px] font-medium bg-purple-700/60 text-purple-200 hover:bg-purple-600/70 transition-colors"
-              >
-                {showAdmin ? 'Hide Admin' : 'Admin Panel'}
-              </button>
-            )}
           </div>
         </div>
       </div>
 
-      {/* Admin sidebar */}
-      {isAdmin && showAdmin && (
-        <div className="w-80 border-l border-gray-800 bg-[#0e0e10] overflow-y-auto shrink-0">
-          <AdminPanel
-            onAdminLock={emitAdminLock}
-            onChangePermission={emitChangePermission}
-            onKick={emitKickUser}
-            onBlock={handleBlockUser}
-            onUnblock={emitUnblockIP}
-          />
-        </div>
-      )}
-
-      {/* Settings right sidebar */}
-      <CollabRightSidebar isOpen={showSettings} onClose={() => setShowSettings(false)} />
+      {/* Right sidebar (Settings + Admin) */}
+      <CollabRightSidebar
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        onAdminLock={emitAdminLock}
+        onChangePermission={emitChangePermission}
+        onKick={emitKickUser}
+        onBlock={handleBlockUser}
+        onUnblock={emitUnblockIP}
+      />
     </div>
   );
 }
