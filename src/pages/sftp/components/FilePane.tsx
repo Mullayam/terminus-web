@@ -54,7 +54,8 @@ export function FilePane({
 }: any) {
   const splitedPath = path.split("/") as string[];
   const { socket, tabId } = useSFTPContext();
-  const sftpStore = useSFTPStore((state) => state);
+  const session = useSFTPStore((s) => tabId ? s.sessions[tabId] : undefined);
+  const updateSession = useSFTPStore((s) => s.updateSession);
   const [filteredFiles, setFilteredFiles] = useState(files);
   const [dragOver, setDragOver] = useState(false);
   const [open, setOpen] = useState(false);
@@ -76,7 +77,6 @@ export function FilePane({
   const [dirTreePaths, setDirTreePaths] = useState<string[]>([]);
 
   // Get homeDir from the store — always use own tabId, never activeTabId
-  const session = tabId ? sftpStore.sessions[tabId] : undefined;
   const homeDir = session?.homeDir || "/";
 
   /** Navigate to parent directory, clamped to homeDir */
@@ -197,7 +197,7 @@ export function FilePane({
   const treeContextActions = useMemo<TreeContextActions>(
     () => ({
       onEditWithEditor: (fullPath) => {
-        const host = tabId ? sftpStore.sessions[tabId]?.host ?? "" : "";
+        const host = session?.host ?? "";
         window.open(
           `/ssh/sftp/editor?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? "")}&user=${encodeURIComponent(host)}`,
           "_blank",
@@ -356,7 +356,7 @@ export function FilePane({
         />
       ),
     }),
-    [socket, tabId, path, homeDir, handleTreeCreateFileOrDir, treeStats],
+    [socket, tabId, path, homeDir, session?.host, handleTreeCreateFileOrDir, treeStats],
   );
 
   const handleHiddenFilesFilter = () => {
@@ -416,13 +416,12 @@ export function FilePane({
   };
   const handleRetrySFTPConnect = () => {
     handleSetLoading(true);
-    const retrySession = tabId ? sftpStore.sessions[tabId] : undefined;
-    if (retrySession) {
+    if (session) {
       const d = JSON.stringify({
-        host: retrySession.host,
-        username: retrySession.username,
-        password: retrySession.password || "",
-        authMethod: retrySession.authMethod || "password",
+        host: session.host,
+        username: session.username,
+        password: session.password || "",
+        authMethod: session.authMethod || "password",
       });
 
       return socket?.emit(SocketEventConstants.SFTP_CONNECT, d);
@@ -444,7 +443,7 @@ export function FilePane({
     };
     socket.on(SocketEventConstants.SFTP_READY, () => {
       if (tabId) {
-        sftpStore.updateSession(tabId, {
+        updateSession(tabId, {
           isConnected: true,
           isConnecting: false,
           error: undefined,
@@ -463,7 +462,7 @@ export function FilePane({
       });
       setSessionClosed(true);
       if (tabId) {
-        sftpStore.updateSession(tabId, {
+        updateSession(tabId, {
           isConnected: false,
           isConnecting: false,
           error: "Session Ended",
