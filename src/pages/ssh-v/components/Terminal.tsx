@@ -31,6 +31,7 @@ import GhostText from "./terminal2/ghost-text";
 import AIGhostText from "./terminal2/ai-ghost-text";
 import { CollabServerEvent } from "@/modules/collab-terminal/types/events";
 import TerminalPlaceholder from "./terminal2/terminal-placeholder";
+import TypingOverlay from "./terminal2/typing-overlay";
 import {
   useDiagnostics,
   TerminalInfoOverlay,
@@ -40,6 +41,7 @@ import useAudio from "@/hooks/useAudio";
 import { XtermTheme, ThemeName } from "./themes";
 import { getAllCommandData } from "@/lib/context-engine/contextEngineStorage";
 import { useAIChatStore } from "@/store/aiChatStore";
+import CursorTextOverlay from "./terminal2/cursor-text-overlay";
 
 
 // https://github.com/xtermjs/xterm.js/blob/master/demo/client.ts
@@ -267,7 +269,7 @@ const XTerminal = memo(function XTerminal({
       fontSize,
       fontWeight: fontWeight as any,
       fontWeightBold: fontWeightBold as any,
-      theme: XtermTheme[sessionTheme] || XtermTheme.default,      
+      theme: XtermTheme[sessionTheme] || XtermTheme.default,
     });
 
     termRef.current = term;
@@ -393,7 +395,7 @@ const XTerminal = memo(function XTerminal({
       if (cmds.length > 0) {
         ghostSourcesRef.current = Array.from(new Set([...ghostSourcesRef.current, ...cmds]));
       }
-    }).catch(() => {});
+    }).catch(() => { });
     // Listen for collab typing indicators (joiner typing → admin sees indicator)
     socket.on(CollabServerEvent.PTY_LOCKED, (data: { lockedBy: string; type: string; expiresIn?: number }) => {
       if (data.type === 'auto' && data.lockedBy) {
@@ -642,27 +644,22 @@ const XTerminal = memo(function XTerminal({
       />
 
       {/* Placeholder hint when shell is empty */}
-      <TerminalPlaceholder
-        termRef={termRef}
-        commandBuffer={commandBuffer}
-        containerRef={terminalRef}
-        hint="💡 Like this project? Press ⭐ on GitHub to support it github.com/Mullayam"
-      />
 
       {/* Info overlay — shown once per host, self-managed */}
       <TerminalInfoOverlay hostKey={sessionHost ?? sessionId} />
 
       {/* Collab typing indicator — shown when a joiner is typing */}
-      {collabTyping && (
-        <div className="absolute bottom-1 left-3 z-10 flex items-center gap-2 px-3 py-1 rounded bg-[#1a1b26]/90 border border-gray-700/50 pointer-events-none">
-          <span className="flex gap-0.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce [animation-delay:0ms]" />
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce [animation-delay:150ms]" />
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-bounce [animation-delay:300ms]" />
-          </span>
-          <span className="text-xs text-gray-400">Someone is typing…</span>
-        </div>
-      )}
+      {collabTyping ? <CursorTextOverlay
+        termRef={termRef}
+        text="Someone is typing..."
+      /> : <TerminalPlaceholder
+        termRef={termRef}
+        commandBuffer={commandBuffer}
+        containerRef={terminalRef}
+        hint="💡 Like this project? Press ⭐ on GitHub to support it github.com/Mullayam"
+      />
+      }
+      {collabTyping && <TypingOverlay text="Someone is typing…" />}
 
       {/* Diagnostics AI chat modal */}
       {diagnosticsEnabled && showDiagChat && (
