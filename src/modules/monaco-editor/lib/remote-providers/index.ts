@@ -2,21 +2,27 @@
  * @module monaco-editor/lib/remote-providers
  *
  * Fetches a manifest + JSON data files from a remote BASE_URL and registers
- * Monaco language providers automatically.
+ * Monaco language providers automatically. Supports 26 provider types.
  *
  * ─────────────────────────────────────────────────────────────
- * AUTO-FETCH MODE
+ * AUTO-FETCH MODE (with CDN)
  * ─────────────────────────────────────────────────────────────
  *
- *   import { registerRemoteProviders } from "@/modules/monaco-editor";
+ *   import { registerRemoteProviders, fetchManifest, getAvailableLanguages } from "@/modules/monaco-editor";
  *
+ *   // 1. Fetch manifest to show available languages in UI
+ *   const manifest = await fetchManifest("https://cdn.jsdelivr.net/npm/@enjoys/context-engine/data");
+ *   const languages = getAvailableLanguages(manifest);
+ *   // → [{ id: "javascript", name: "JavaScript", providers: ["completion", "hover", ...] }, ...]
+ *
+ *   // 2. User clicks "Install" on a language
  *   const registration = await registerRemoteProviders(monaco, {
- *     baseUrl: "https://cdn.example.com/lang-pack/v1",
- *     languages: ["javascript", "typescript"],           // optional filter
- *     providerTypes: ["completion", "hover", "codeLens"], // optional filter
+ *     baseUrl: "https://cdn.jsdelivr.net/npm/@enjoys/context-engine/data",
+ *     languages: ["javascript"],           // only install selected languages
+ *     providerTypes: ["completion", "hover"], // optional: filter provider types
  *   });
  *
- *   // Later: clean up
+ *   // 3. Uninstall
  *   registration.dispose();
  *
  * ─────────────────────────────────────────────────────────────
@@ -29,23 +35,49 @@
  *   const disposable = createCompletionProvider(monaco, "javascript", data);
  *
  * ─────────────────────────────────────────────────────────────
- * MANIFEST FORMAT (BASE_URL/manifest.json)
+ * MANIFEST FORMATS (auto-detected)
  * ─────────────────────────────────────────────────────────────
  *
+ * Format A: Language-first (CDN style, @enjoys/context-engine)
+ *
  *   {
- *     "name": "my-pack",
+ *     "version": "1.0.0",
+ *     "languages": [
+ *       {
+ *         "id": "javascript",
+ *         "name": "JavaScript",
+ *         "files": {
+ *           "completion": "completion/javascript.json",
+ *           "hover": "hover/javascript.json",
+ *           "definition": "definition/javascript.json"
+ *         }
+ *       }
+ *     ]
+ *   }
+ *
+ * Format B: Provider-first (legacy)
+ *
+ *   {
  *     "version": "1.0.0",
  *     "languages": ["javascript", "typescript"],
  *     "providers": {
  *       "completion": {
  *         "javascript": "completion/javascript.json",
  *         "typescript": "completion/typescript.json"
- *       },
- *       "hover": {
- *         "javascript": "hover/javascript.json"
  *       }
  *     }
  *   }
+ *
+ * ─────────────────────────────────────────────────────────────
+ * SUPPORTED PROVIDER TYPES (26 total)
+ * ─────────────────────────────────────────────────────────────
+ *
+ *   completion, definition, hover, codeActions, documentHighlight,
+ *   documentSymbol, links, typeDefinition, references, implementation,
+ *   inlineCompletions, formatting, codeLens, color, declaration,
+ *   inlayHints, signatureHelp, linkedEditingRange, rangeFormatting,
+ *   onTypeFormatting, foldingRange, rename, newSymbolNames,
+ *   selectionRange, semanticTokens, rangeSemanticTokens
  */
 
 import type * as monacoNs from "monaco-editor";
@@ -55,8 +87,9 @@ import type {
   RemoteProviderRegistration,
   ProviderKey,
   ProviderDataMap,
-  PROVIDER_KEYS,
+  LanguageEntry,
 } from "./types";
+import { isLanguageFirstManifest } from "./types";
 import { ADAPTERS } from "./adapters";
 
 type Monaco = typeof monacoNs;
@@ -80,6 +113,101 @@ async function fetchJson<T>(
     throw new Error(`Failed to fetch ${url}: ${res.status} ${res.statusText}`);
   }
   return res.json() as Promise<T>;
+}
+
+/* ── Transform language-first to provider-first ────────────── */
+
+/**
+ * Transform a language-first manifest (CDN style) to the provider-first format.
+ * This allows the same registration logic to work with both formats.
+ */
+interface NormalizedManifest {
+  version: string;
+  name?: string;
+  description?: string;
+  languages: string[];
+  providers: Partial<Record<ProviderKey, Record<string, string>>>;
+}
+
+function transformToProviderFirst(
+  manifest: RemoteProviderManifest & { languages: LanguageEntry[] }
+): NormalizedManifest {
+  const providers: Record<string, Record<string, string>> = {};
+  const languageIds: string[] = [];
+
+  for (const lang of manifest.languages) {
+    languageIds.push(lang.id);
+    for (const [providerKey, filePath] of Object.entries(lang.files)) {
+      if (!providers[providerKey]) {
+        providers[providerKey] = {};
+      }
+      providers[providerKey][lang.id] = filePath;
+    }
+  }
+
+  return {
+    version: manifest.version,
+    name: manifest.name,
+    description: manifest.description,
+    languages: languageIds,
+    providers,
+  };
+}
+
+/**
+ * Normalize a manifest to the provider-first format.
+ * Supports both language-first (CDN style) and provider-first formats.
+ */
+function normalizeManifest(manifest: RemoteProviderManifest): NormalizedManifest {
+  if (isLanguageFirstManifest(manifest)) {
+    return transformToProviderFirst(manifest);
+  }
+  
+  // Provider-first format
+  return {
+    version: manifest.version,
+    name: manifest.name,
+    description: manifest.description,
+    languages: manifest.languages as string[],
+    providers: manifest.providers ?? {},
+  };
+}
+
+/**
+ * Get available languages from a manifest (supports both formats).
+ * Useful for displaying in UI before installation.
+ */
+export function getAvailableLanguages(manifest: RemoteProviderManifest): Array<{
+  id: string;
+  name: string;
+  providers: ProviderKey[];
+}> {
+  if (isLanguageFirstManifest(manifest)) {
+    return manifest.languages.map((lang) => ({
+      id: lang.id,
+      name: lang.name,
+      providers: Object.keys(lang.files) as ProviderKey[],
+    }));
+  }
+
+  // Provider-first format - cast to the correct type since type guard already checked
+  const langMap = new Map<string, Set<ProviderKey>>();
+  const providerEntries = (manifest as { providers?: Record<string, Record<string, string>> }).providers ?? {};
+  for (const [key, langFiles] of Object.entries(providerEntries)) {
+    if (!langFiles) continue;
+    for (const langId of Object.keys(langFiles)) {
+      if (!langMap.has(langId)) {
+        langMap.set(langId, new Set());
+      }
+      langMap.get(langId)!.add(key as ProviderKey);
+    }
+  }
+
+  return Array.from(langMap.entries()).map(([id, providers]) => ({
+    id,
+    name: id, // No display name in provider-first format
+    providers: Array.from(providers),
+  }));
 }
 
 /* ── Fetch manifest ────────────────────────────────────────── */
@@ -110,11 +238,14 @@ export async function registerRemoteProviders(
   config: RemoteProviderConfig,
 ): Promise<RemoteProviderRegistration> {
   const base = normalizeBaseUrl(config.baseUrl);
-  const manifest = await fetchManifest(
+  const rawManifest = await fetchManifest(
     base,
     config.manifestFile,
     config.fetchOptions,
   );
+
+  // Auto-detect and normalize manifest format
+  const normalized = normalizeManifest(rawManifest);
 
   const disposables: monacoNs.IDisposable[] = [];
   const registered = new Map<string, Set<ProviderKey>>();
@@ -134,7 +265,7 @@ export async function registerRemoteProviders(
     url: string;
   }> = [];
 
-  for (const [key, langMap] of Object.entries(manifest.providers)) {
+  for (const [key, langMap] of Object.entries(normalized.providers)) {
     const providerKey = key as ProviderKey;
     if (allowedTypes && !allowedTypes.has(providerKey)) continue;
     if (!langMap) continue;
@@ -185,7 +316,7 @@ export async function registerRemoteProviders(
   }
 
   return {
-    manifest,
+    manifest: rawManifest,
     registered,
     dispose() {
       for (const d of disposables) {
@@ -256,6 +387,7 @@ export type {
   RemoteProviderRegistration,
   ProviderKey,
   ProviderDataMap,
+  LanguageEntry,
   // JSON data types (for manual mode consumers)
   CompletionData,
   CompletionItemData,

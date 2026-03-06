@@ -9,6 +9,7 @@
  *   - terminus-context-commands   : terminal command context per category
  */
 import Dexie, { type EntityTable } from "dexie";
+import { PROVIDER_TYPES, type ProviderType, type LanguageDataResult } from "./contextEngineApi";
 
 /* ── Record Types ──────────────────────────────────────────── */
 
@@ -20,12 +21,12 @@ export interface ContextLanguagePack {
     installedAt: number;
 }
 
-/** Stored completion / definition / hover JSON blob for a language */
+/** Stored provider data JSON blob for a language */
 export interface ContextLanguageData {
-    /** "completion::bash", "defination::bash", "hover::bash" */
+    /** "completion::bash", "definition::bash", etc. */
     id: string;
     languageId: string;
-    type: "completion" | "defination" | "hover";
+    type: ProviderType;
     /** The raw JSON payload from CDN */
     data: unknown;
 }
@@ -90,17 +91,19 @@ export const cmdDb = new ContextCommandDB();
 export async function saveLanguagePack(
     id: string,
     name: string,
-    completion: unknown,
-    defination: unknown,
-    hover: unknown,
+    data: LanguageDataResult,
 ): Promise<void> {
     await langDb.transaction("rw", [langDb.languages, langDb.data], async () => {
         await langDb.languages.put({ id, name, installedAt: Date.now() });
-        await langDb.data.bulkPut([
-            { id: `completion::${id}`, languageId: id, type: "completion", data: completion },
-            { id: `defination::${id}`, languageId: id, type: "defination", data: defination },
-            { id: `hover::${id}`, languageId: id, type: "hover", data: hover },
-        ]);
+        const records = PROVIDER_TYPES
+            .filter((type) => data[type] != null)
+            .map((type) => ({
+                id: `${type}::${id}`,
+                languageId: id,
+                type,
+                data: data[type],
+            }));
+        await langDb.data.bulkPut(records);
     });
 }
 
@@ -121,7 +124,7 @@ export async function isLanguageInstalled(id: string): Promise<boolean> {
 
 export async function getLanguageData(
     languageId: string,
-    type: "completion" | "defination" | "hover",
+    type: ProviderType,
 ): Promise<unknown | undefined> {
     const record = await langDb.data.get(`${type}::${languageId}`);
     return record?.data;

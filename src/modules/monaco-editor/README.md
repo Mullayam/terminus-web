@@ -20,6 +20,11 @@ src/modules/monaco-editor/
 ├── hooks/
 │   ├── useMonacoEditor.ts    # Imperative editor access hook
 │   └── useMonacoPlugins.ts   # Runtime plugin management hook
+├── lib/
+│   └── remote-providers/     # CDN language pack loader
+│       ├── index.ts          # Main API (registerRemoteProviders, etc.)
+│       ├── types.ts          # Manifest & data types
+│       └── adapters.ts       # 26 provider adapters
 ├── plugins/
 │   ├── save-state-plugin.ts      # Persist cursor/scroll state
 │   ├── bracket-colorizer-plugin.ts # Enhanced bracket matching
@@ -274,3 +279,134 @@ import { MonacoDiffEditor } from "@/modules/monaco-editor";
 | `wordHighlightPlugin` | Highlights all occurrences of word under cursor |
 | `todoHighlightPlugin` | Marks TODO/FIXME/HACK/NOTE/XXX with colors |
 | `minimapColorsPlugin` | Colors minimap based on markers/diagnostics |
+
+## Remote Providers (CDN Language Packs)
+
+Load language support (completions, hover, definitions, etc.) from remote JSON files.
+Supports **26 provider types** and auto-detects manifest format.
+
+### Quick Start with CDN
+
+```typescript
+import {
+  fetchManifest,
+  getAvailableLanguages,
+  registerRemoteProviders,
+} from "@/modules/monaco-editor";
+
+// 1. Fetch manifest to display in UI
+const manifest = await fetchManifest(
+  "https://cdn.jsdelivr.net/npm/@enjoys/context-engine/data"
+);
+
+// 2. Get available languages for sidebar/list
+const languages = getAvailableLanguages(manifest);
+// → [{ id: "javascript", name: "JavaScript", providers: ["completion", "hover", ...] }, ...]
+
+// 3. User clicks "Install" on Python
+const registration = await registerRemoteProviders(monaco, {
+  baseUrl: "https://cdn.jsdelivr.net/npm/@enjoys/context-engine/data",
+  languages: ["python"],  // only download Python files
+});
+
+// 4. Uninstall later
+registration.dispose();
+```
+
+### Supported Provider Types
+
+| Provider | Monaco Registration |
+|----------|--------------------|
+| `completion` | `registerCompletionItemProvider` |
+| `definition` | `registerDefinitionProvider` |
+| `hover` | `registerHoverProvider` |
+| `codeActions` | `registerCodeActionProvider` |
+| `documentHighlight` | `registerDocumentHighlightProvider` |
+| `documentSymbol` | `registerDocumentSymbolProvider` |
+| `links` | `registerLinkProvider` |
+| `typeDefinition` | `registerTypeDefinitionProvider` |
+| `references` | `registerReferenceProvider` |
+| `implementation` | `registerImplementationProvider` |
+| `inlineCompletions` | `registerInlineCompletionsProvider` |
+| `formatting` | `registerDocumentFormattingEditProvider` |
+| `codeLens` | `registerCodeLensProvider` |
+| `color` | `registerColorProvider` |
+| `declaration` | `registerDeclarationProvider` |
+| `inlayHints` | `registerInlayHintsProvider` |
+| `signatureHelp` | `registerSignatureHelpProvider` |
+| `linkedEditingRange` | `registerLinkedEditingRangeProvider` |
+| `rangeFormatting` | `registerDocumentRangeFormattingEditProvider` |
+| `onTypeFormatting` | `registerOnTypeFormattingEditProvider` |
+| `foldingRange` | `registerFoldingRangeProvider` |
+| `rename` | `registerRenameProvider` |
+| `newSymbolNames` | `registerNewSymbolNamesProvider` |
+| `selectionRange` | `registerSelectionRangeProvider` |
+| `semanticTokens` | `registerDocumentSemanticTokensProvider` |
+| `rangeSemanticTokens` | `registerDocumentRangeSemanticTokensProvider` |
+
+### Manifest Formats
+
+**Format A: Language-first** (recommended, used by `@enjoys/context-engine`)
+
+```json
+{
+  "version": "1.0.0",
+  "languages": [
+    {
+      "id": "javascript",
+      "name": "JavaScript",
+      "files": {
+        "completion": "completion/javascript.json",
+        "hover": "hover/javascript.json",
+        "definition": "definition/javascript.json"
+      }
+    }
+  ]
+}
+```
+
+**Format B: Provider-first** (legacy)
+
+```json
+{
+  "version": "1.0.0",
+  "languages": ["javascript", "typescript"],
+  "providers": {
+    "completion": {
+      "javascript": "completion/javascript.json"
+    }
+  }
+}
+```
+
+### Manual Provider Registration
+
+For pre-fetched data or custom sources:
+
+```typescript
+import {
+  createCompletionProvider,
+  createHoverProvider,
+  registerProviderFromData,
+} from "@/modules/monaco-editor";
+
+// Option 1: Use specific adapter
+const data = await fetch("/api/completions.json").then(r => r.json());
+const disposable = createCompletionProvider(monaco, "javascript", data);
+
+// Option 2: Use generic function
+const d = registerProviderFromData(monaco, "hover", "python", hoverData);
+```
+
+### Configuration Options
+
+```typescript
+interface RemoteProviderConfig {
+  baseUrl: string;              // Base URL for manifest and data files
+  manifestFile?: string;        // Override manifest filename (default: "manifest.json")
+  languages?: string[];         // Only install these languages
+  providerTypes?: ProviderKey[];// Only install these provider types
+  fetchOptions?: RequestInit;   // Custom fetch options (headers, etc.)
+  onError?: (key, lang, err) => void; // Error callback per-provider
+}
+```

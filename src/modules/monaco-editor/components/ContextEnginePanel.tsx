@@ -192,7 +192,7 @@ function LanguagePacksTab({ search, onExtensionChange }: { search: string; onExt
         setInstallState((s) => ({ ...s, [lang.id]: "installing" }));
         try {
             const data = await fetchLanguageData(lang);
-            await saveLanguagePack(lang.id, lang.name, data.completion, data.defination, data.hover);
+            await saveLanguagePack(lang.id, lang.name, data);
             setInstalled((s) => new Set(s).add(lang.id));
             setInstallState((s) => ({ ...s, [lang.id]: "installed" }));
             // Register Monaco providers immediately for the new language

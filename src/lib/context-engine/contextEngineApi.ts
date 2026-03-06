@@ -14,7 +14,7 @@ const VERSION_STORAGE_KEY = "terminus-context-engine-version";
  * Fetch the latest published version of @enjoys/context-engine from CDN.
  */
 export async function fetchContextEngineVersion(): Promise<string> {
-    const res = await fetch(`${CDN_BASE}/package.json`,{cache: "no-cache"});
+    const res = await fetch(`${CDN_BASE}/package.json`, { cache: "no-store" });
     if (!res.ok) throw new Error(`Failed to fetch context-engine version: ${res.status}`);
     const pkg = await res.json();
     return pkg.version as string;
@@ -51,14 +51,38 @@ export function isNewerVersion(remote: string, local: string): boolean {
 
 /* ── Manifest Types ────────────────────────────────────────── */
 
+export interface ManifestLanguageFiles {
+    completion: string;
+    definition: string;
+    hover: string;
+    codeActions: string;
+    documentHighlight: string;
+    documentSymbol: string;
+    links: string;
+    typeDefinition: string;
+    references: string;
+    implementation: string;
+    inlineCompletions: string;
+    formatting: string;
+    codeLens: string;
+    color: string;
+    declaration: string;
+    inlayHints: string;
+    signatureHelp: string;
+    foldingRange: string;
+    rename: string;
+    selectionRange: string;
+    linkedEditingRange: string;
+    onTypeFormatting: string;
+    documentRangeFormatting: string;
+    semanticTokens: string;
+    rangeSemanticTokens: string;
+}
+
 export interface ManifestLanguage {
     id: string;
     name: string;
-    files: {
-        completion: string;
-        defination: string;
-        hover: string;
-    };
+    files: ManifestLanguageFiles;
 }
 
 export interface ManifestDirectoryInfo {
@@ -66,16 +90,40 @@ export interface ManifestDirectoryInfo {
     files: string[];
 }
 
+export interface ManifestDirectories {
+    completion: ManifestDirectoryInfo;
+    definition: ManifestDirectoryInfo;
+    hover: ManifestDirectoryInfo;
+    codeActions: ManifestDirectoryInfo;
+    documentHighlight: ManifestDirectoryInfo;
+    documentSymbol: ManifestDirectoryInfo;
+    links: ManifestDirectoryInfo;
+    typeDefinition: ManifestDirectoryInfo;
+    references: ManifestDirectoryInfo;
+    implementation: ManifestDirectoryInfo;
+    inlineCompletions: ManifestDirectoryInfo;
+    formatting: ManifestDirectoryInfo;
+    codeLens: ManifestDirectoryInfo;
+    color: ManifestDirectoryInfo;
+    declaration: ManifestDirectoryInfo;
+    inlayHints: ManifestDirectoryInfo;
+    signatureHelp: ManifestDirectoryInfo;
+    foldingRange: ManifestDirectoryInfo;
+    rename: ManifestDirectoryInfo;
+    selectionRange: ManifestDirectoryInfo;
+    linkedEditingRange: ManifestDirectoryInfo;
+    onTypeFormatting: ManifestDirectoryInfo;
+    documentRangeFormatting: ManifestDirectoryInfo;
+    semanticTokens: ManifestDirectoryInfo;
+    rangeSemanticTokens: ManifestDirectoryInfo;
+}
+
 export interface LanguageManifest {
     version: string;
     description: string;
     generatedAt: string;
     languages: ManifestLanguage[];
-    directories: {
-        completion: ManifestDirectoryInfo;
-        defination: ManifestDirectoryInfo;
-        hover: ManifestDirectoryInfo;
-    };
+    directories: ManifestDirectories;
     totalLanguages: number;
     totalFiles: number;
 }
@@ -104,7 +152,7 @@ let cmdManifestCache: TerminalCommandsManifest | null = null;
  */
 export async function fetchLanguageManifest(): Promise<LanguageManifest> {
     if (langManifestCache) return langManifestCache;
-    const res = await fetch(`${CDN_BASE}/data/manifest.json`);
+    const res = await fetch(`${CDN_BASE}/data/manifest.json`, { cache: "no-store" });
     if (!res.ok) throw new Error(`Failed to fetch language manifest: ${res.status}`);
     const data = await res.json();
     langManifestCache = data;
@@ -117,7 +165,7 @@ export async function fetchLanguageManifest(): Promise<LanguageManifest> {
  */
 export async function fetchTerminalCommandsManifest(): Promise<TerminalCommandsManifest> {
     if (cmdManifestCache) return cmdManifestCache;
-    const res = await fetch(`${CDN_BASE}/data/commands/manifest.json`);
+    const res = await fetch(`${CDN_BASE}/data/commands/manifest.json`, { cache: "no-store" });
     if (!res.ok) throw new Error(`Failed to fetch terminal commands manifest: ${res.status}`);
     const data = await res.json();
     cmdManifestCache = data;
@@ -144,23 +192,58 @@ export function buildCmdFileUrl(fileName: string): string {
  * Fetch a single JSON file from CDN.
  */
 export async function fetchJsonFile(url: string): Promise<unknown> {
-    const res = await fetch(url);
+    const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
     return res.json();
 }
 
+/** All provider type keys */
+export const PROVIDER_TYPES = [
+    "completion",
+    "definition",
+    "hover",
+    "codeActions",
+    "documentHighlight",
+    "documentSymbol",
+    "links",
+    "typeDefinition",
+    "references",
+    "implementation",
+    "inlineCompletions",
+    "formatting",
+    "codeLens",
+    "color",
+    "declaration",
+    "inlayHints",
+    "signatureHelp",
+    "foldingRange",
+    "rename",
+    "selectionRange",
+    "linkedEditingRange",
+    "onTypeFormatting",
+    "documentRangeFormatting",
+    "semanticTokens",
+    "rangeSemanticTokens",
+] as const;
+
+export type ProviderType = (typeof PROVIDER_TYPES)[number];
+
+export type LanguageDataResult = Record<ProviderType, unknown>;
+
 /**
- * Fetch all three data files for a language in parallel.
+ * Fetch all data files for a language in parallel.
  */
 export async function fetchLanguageData(
     lang: ManifestLanguage,
-): Promise<{ completion: unknown; defination: unknown; hover: unknown }> {
-    const [completion, defination, hover] = await Promise.all([
-        fetchJsonFile(buildLangFileUrl(lang.files.completion)),
-        fetchJsonFile(buildLangFileUrl(lang.files.defination)),
-        fetchJsonFile(buildLangFileUrl(lang.files.hover)),
-    ]);
-    return { completion, defination, hover };
+): Promise<LanguageDataResult> {
+    const entries = await Promise.all(
+        PROVIDER_TYPES.map(async (type) => {
+            const filePath = lang.files[type];
+            const data = filePath ? await fetchJsonFile(buildLangFileUrl(filePath)) : null;
+            return [type, data] as const;
+        }),
+    );
+    return Object.fromEntries(entries) as LanguageDataResult;
 }
 
 /**

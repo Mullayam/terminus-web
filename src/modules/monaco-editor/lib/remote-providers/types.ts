@@ -109,18 +109,47 @@ export type ProviderKey = (typeof PROVIDER_KEYS)[number];
  */
 export interface RemoteProviderManifest {
   /** Pack name */
-  name: string;
+  name?: string;
   /** Semver version */
   version: string;
   /** Optional description */
   description?: string;
-  /** Language IDs this pack provides for */
-  languages: string[];
+  /** Language IDs or language entries this pack provides for */
+  languages: string[] | LanguageEntry[];
   /**
    * Map of provider type → { languageId: relative-path-to-json }.
    * Paths are relative to the BASE_URL.
+   * Used in provider-first format.
    */
-  providers: Partial<Record<ProviderKey, Record<string, string>>>;
+  providers?: Partial<Record<ProviderKey, Record<string, string>>>;
+}
+
+/**
+ * Language entry for the language-first manifest format (CDN style).
+ * Used by @enjoys/context-engine manifest.
+ */
+export interface LanguageEntry {
+  /** Language ID (e.g., "javascript", "python") */
+  id: string;
+  /** Display name (e.g., "JavaScript", "Python") */
+  name: string;
+  /** Map of provider type → relative file path */
+  files: Partial<Record<ProviderKey, string>>;
+}
+
+/**
+ * Check if manifest uses language-first format (CDN style)
+ */
+export function isLanguageFirstManifest(
+  manifest: RemoteProviderManifest
+): manifest is RemoteProviderManifest & { languages: LanguageEntry[] } {
+  return (
+    Array.isArray(manifest.languages) &&
+    manifest.languages.length > 0 &&
+    typeof manifest.languages[0] === "object" &&
+    "id" in manifest.languages[0] &&
+    "files" in manifest.languages[0]
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════
