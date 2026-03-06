@@ -357,10 +357,10 @@ const AISuggestionBox: React.FC<SuggestionBoxProps> = ({ terminalHeight, setSugg
       {suggestions.length > 0 && (
         <>
           <div style={{ padding: "6px 12px 2px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: c.dimFg }}>
+            <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: mixHex(c.bg, c.fg, 0.55) }}>
               Suggestions
             </span>
-            <span style={{ fontSize: 10, color: c.dimFg }}>
+            <span style={{ fontSize: 10, color: mixHex(c.bg, c.fg, 0.55) }}>
               {suggestions.length}
             </span>
           </div>
@@ -463,19 +463,19 @@ const AISuggestionBox: React.FC<SuggestionBoxProps> = ({ terminalHeight, setSugg
           alignItems: "center",
           gap: 10,
           fontSize: 10,
-          color: c.dimFg,
+          color: mixHex(c.bg, c.fg, 0.55),
         }}
       >
         <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
-          <kbd style={{ padding: "0 4px", borderRadius: 3, background: `${c.fg}10`, border: `1px solid ${c.border}`, fontSize: 9, lineHeight: "16px" }}>↑↓</kbd>
+          <kbd style={{ padding: "0 4px", borderRadius: 3, background: `${c.fg}18`, border: `1px solid ${c.fg}22`, fontSize: 9, lineHeight: "16px" }}>↑↓</kbd>
           navigate
         </span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
-          <kbd style={{ padding: "0 4px", borderRadius: 3, background: `${c.fg}10`, border: `1px solid ${c.border}`, fontSize: 9, lineHeight: "16px" }}>Tab</kbd>
+          <kbd style={{ padding: "0 4px", borderRadius: 3, background: `${c.fg}18`, border: `1px solid ${c.fg}22`, fontSize: 9, lineHeight: "16px" }}>Tab</kbd>
           accept
         </span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
-          <kbd style={{ padding: "0 4px", borderRadius: 3, background: `${c.fg}10`, border: `1px solid ${c.border}`, fontSize: 9, lineHeight: "16px" }}>Esc</kbd>
+          <kbd style={{ padding: "0 4px", borderRadius: 3, background: `${c.fg}18`, border: `1px solid ${c.fg}22`, fontSize: 9, lineHeight: "16px" }}>Esc</kbd>
           close
         </span>
       </div>
