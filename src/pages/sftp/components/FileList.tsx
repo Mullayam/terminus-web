@@ -428,8 +428,8 @@ export function FileList({
 }) {
   const { toast } = useToast();
   const { socket, tabId } = useSFTPContext();
-  const sftpStore = useSFTPStore();
-  const homeDir = tabId ? sftpStore.sessions[tabId]?.homeDir || '/' : '/';
+  const session = useSFTPStore((s) => tabId ? s.sessions[tabId] : undefined);
+  const homeDir = session?.homeDir || '/';
   const [rowSelection, setRowSelection] = useState({});
   const { setLoading } = useLoadingState();
   const [stats, setStats] = useState<null | RootObject>(null);
@@ -457,19 +457,24 @@ export function FileList({
     [toast],
   );
 
+  const sessionHostRef = useRef(session?.host);
+  useEffect(() => {
+    sessionHostRef.current = session?.host;
+  }, [session?.host]);
+
   const handleDirectoryChange = useCallback(
     (path: string) => {
       setLoading(true);
       const newDir = `${currentDirRef.current}/${path}`;
       localStorage.setItem(`sftp_current_dir_${tabId}`, newDir);
       // Also persist per host so future tabs to the same host start here
-      const host = tabId ? sftpStore.sessions[tabId]?.host : undefined;
+      const host = sessionHostRef.current;
       if (host) localStorage.setItem(`sftp_host_dir_${host}`, newDir);
       socketRef.current?.emit(SocketEventConstants.SFTP_GET_FILE, {
         dirPath: newDir,
       });
     },
-    [setLoading, tabId, sftpStore.sessions],
+    [setLoading, tabId],
   );
   // Memoize columns so react-table doesn't re-render all cells on every state change
   const columns: ColumnDef<SFTP_FILES_LIST>[] = useMemo(
@@ -830,7 +835,7 @@ export function FileList({
                             action: () => {
                               const fullPath = `${currentDir}/${row.getValue("name")}`;
                               window.open(
-                                `/ssh/sftp/editor?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? "")}&user=${encodeURIComponent(tabId ? sftpStore.sessions[tabId]?.host ?? "" : "")}`,
+                                `/ssh/sftp/editor?path=${encodeURIComponent(fullPath)}&tabId=${encodeURIComponent(tabId ?? "")}&user=${encodeURIComponent(session?.host ?? "")}`,
                                 "_blank",
                               );
                             },

@@ -143,6 +143,8 @@ export const useSFTPStore = create<SFTPStore>()(
               tabId: v.tabId,
               host: v.host,
               username: v.username,
+              password: v.password,
+              authMethod: v.authMethod,
               status: 'idle' as const,
               isConnecting: false,
               isConnected: false,
