@@ -210,7 +210,7 @@ export default function TerminalTab({ sessionId }: Props) {
 
 
         const storeHandshakeLogs = (data: string) => {
-            //  console.log(data)   
+             console.log(data)   
         }
         const handleDeleteSession = (socketId: string) => {
             console.log("first")
@@ -237,8 +237,8 @@ export default function TerminalTab({ sessionId }: Props) {
 
         }
         socket.on(SocketEventConstants.session_info, handleAddSession)
-        socket.on('@@COLLAB_USER_JOINED', handleCollabUserJoined)
-        socket.on('@@COLLAB_USER_LEFT', handleCollabUserLeft)
+        socket.on(SocketEventConstants.COLLAB_USER_JOINED, handleCollabUserJoined)
+        socket.on(SocketEventConstants.COLLAB_USER_LEFT, handleCollabUserLeft)
         socket.on(SocketEventConstants.SSH_DISCONNECTED, handleDeleteSession);
         socket.on(SocketEventConstants.SSH_EMIT_LOGS, storeHandshakeLogs);
         socket.on(SocketEventConstants.SSH_READY, handleSSHReady);
@@ -260,8 +260,8 @@ export default function TerminalTab({ sessionId }: Props) {
             socket.off(SocketEventConstants.SFTP_READY, handleSFTPStatus);
             socket.off(SocketEventConstants.SSH_EMIT_ERROR, handleSSHError);
             socket.off(SocketEventConstants.session_info, handleAddSession);
-            socket.off('@@COLLAB_USER_JOINED', handleCollabUserJoined);
-            socket.off('@@COLLAB_USER_LEFT', handleCollabUserLeft);
+            socket.off(SocketEventConstants.COLLAB_USER_JOINED, handleCollabUserJoined);
+            socket.off(SocketEventConstants.COLLAB_USER_LEFT, handleCollabUserLeft);
             socket.off("connect");
             socket.off("connect_error");
             socket.off("disconnect");

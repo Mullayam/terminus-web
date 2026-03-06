@@ -21,7 +21,7 @@ const StoredHosts = ({ hosts, handleClickOnHostCard }: { hosts: any[], handleCli
     }
 
     return (
-        <div className="p-8 pb-10 relative h-full">
+        <div className="p-2 pb-10 relative h-full">
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-white text-xl font-semibold">Hosts</h2>
                 <Button

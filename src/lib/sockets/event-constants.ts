@@ -11,6 +11,9 @@ export enum SocketEventConstants {
   session_not_found = "@@session_not_found",
   session_info = "@@session_info",
 
+  COLLAB_USER_JOINED = "@@COLLAB_USER_JOINED",
+  COLLAB_USER_LEFT = "@@COLLAB_USER_LEFT",
+
   SSH_START_SESSION = "@@SSH_START_SESSION",
   SSH_SESSION = "@@SSH_SESSION",
 

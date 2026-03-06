@@ -1,34 +1,180 @@
 import { useNavigate } from 'react-router-dom';
 import { HostsObject } from '../..';
-import { Trash } from 'lucide-react';
+import { Monitor, Trash2, Terminal, Key, Lock } from 'lucide-react';
 import { idb } from '@/lib/idb';
+import { useCallback, useMemo } from 'react';
 
-interface HostCardProps {
-    info: HostsObject,
-    onClick?: (key: number) => void
-    index: number
+/* ── Inline SVG icons for OS/platform detection ── */
+
+const UbuntuIcon = ({ size = 18 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-.47 15.88c-3.23-.2-5.81-2.86-5.89-6.12-.09-3.58 2.83-6.54 6.39-6.42 3.05.1 5.6 2.56 5.85 5.6.03.38-.26.7-.64.7h-.02a.63.63 0 01-.62-.58c-.21-2.45-2.3-4.36-4.82-4.25-2.53.11-4.53 2.24-4.4 4.78.12 2.34 2.05 4.22 4.39 4.33.3.01.55.24.59.54.04.34-.22.63-.55.64-.1 0-.19 0-.28-.02zM7.5 12c0 .55-.45 1-1 1s-1-.45-1-1 .45-1 1-1 1 .45 1 1zm10 2c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-3-5.5c-.28.48-.9.64-1.38.36s-.64-.9-.36-1.38c.28-.48.9-.64 1.38-.36.48.28.64.9.36 1.38z" />
+    </svg>
+);
+
+const AWSIcon = ({ size = 18 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+        <path d="M6.763 10.036c0 .296.032.535.088.71.064.176.144.368.256.576.04.063.056.127.056.183 0 .08-.048.16-.152.24l-.503.335a.383.383 0 01-.208.072c-.08 0-.16-.04-.239-.112a2.47 2.47 0 01-.287-.375 6.18 6.18 0 01-.248-.471c-.622.734-1.405 1.101-2.347 1.101-.67 0-1.205-.191-1.596-.574-.391-.384-.59-.894-.59-1.533 0-.678.239-1.23.726-1.644.487-.415 1.133-.623 1.955-.623.272 0 .551.024.846.064.296.04.6.104.918.176v-.583c0-.607-.127-1.03-.375-1.277-.255-.248-.686-.367-1.3-.367-.28 0-.568.032-.862.104-.295.072-.583.16-.862.272a2.287 2.287 0 01-.28.104.488.488 0 01-.127.024c-.112 0-.168-.08-.168-.247v-.391c0-.128.016-.224.056-.28a.597.597 0 01.224-.167c.279-.144.614-.264 1.005-.36a4.84 4.84 0 011.246-.152c.95 0 1.644.216 2.091.648.44.432.662 1.085.662 1.963v2.586zm-3.24 1.214c.263 0 .534-.048.822-.144.287-.096.543-.271.758-.51.128-.152.224-.32.272-.512.047-.191.08-.423.08-.694v-.335a6.66 6.66 0 00-.735-.136 6.02 6.02 0 00-.75-.048c-.535 0-.926.104-1.19.32-.263.215-.39.518-.39.917 0 .375.095.655.295.846.191.2.47.296.838.296zm6.41.862c-.144 0-.24-.024-.304-.08-.064-.048-.12-.16-.168-.311L7.586 5.55a1.398 1.398 0 01-.072-.32c0-.128.064-.2.191-.2h.783c.151 0 .255.025.31.08.065.048.113.16.16.312l1.342 5.284 1.245-5.284c.04-.16.088-.264.151-.312a.549.549 0 01.32-.08h.638c.152 0 .256.025.32.08.063.048.12.16.151.312l1.261 5.348 1.381-5.348c.048-.16.104-.264.16-.312a.52.52 0 01.311-.08h.743c.127 0 .2.065.2.2 0 .04-.009.08-.017.128a1.137 1.137 0 01-.056.2l-1.923 6.17c-.048.16-.104.264-.168.312a.549.549 0 01-.304.08h-.687c-.151 0-.255-.024-.32-.08-.063-.056-.119-.16-.15-.32l-1.238-5.148-1.23 5.14c-.04.16-.087.272-.15.328-.064.056-.176.08-.32.08zm10.256.215c-.415 0-.83-.048-1.229-.143-.399-.096-.71-.2-.918-.32-.128-.071-.216-.151-.248-.215a.563.563 0 01-.048-.224v-.407c0-.167.064-.247.183-.247.048 0 .096.008.144.024s.12.048.2.08c.271.12.566.215.878.279.319.064.63.096.95.096.502 0 .894-.088 1.165-.264a.86.86 0 00.415-.758.777.777 0 00-.215-.559c-.144-.151-.415-.287-.806-.415l-1.157-.36c-.583-.183-1.014-.455-1.277-.815a1.903 1.903 0 01-.4-1.19c0-.343.073-.643.224-.901.151-.264.35-.487.599-.672.248-.191.535-.327.862-.415.328-.088.68-.128 1.053-.128.184 0 .375.008.559.032.191.024.367.056.535.088.16.04.312.08.455.127.144.048.256.096.336.144a.69.69 0 01.24.2.43.43 0 01.071.263v.375c0 .168-.064.256-.184.256a.83.83 0 01-.303-.096 3.652 3.652 0 00-1.532-.311c-.455 0-.815.071-1.062.223-.248.152-.375.383-.375.694 0 .224.08.416.24.567.159.152.454.304.877.44l1.134.358c.574.184.99.44 1.237.767.248.328.367.703.367 1.117 0 .343-.072.655-.207.926-.144.272-.336.511-.583.703-.248.2-.543.343-.886.44-.36.104-.735.152-1.142.152z" />
+        <path d="M21.725 16.943C19.155 18.867 15.395 19.88 12.14 19.88c-4.467 0-8.49-1.652-11.532-4.396-.24-.215-.024-.511.263-.343 3.283 1.91 7.343 3.06 11.54 3.06 2.83 0 5.94-.583 8.803-1.798.432-.191.798.28.511.54z" />
+        <path d="M22.853 15.647c-.327-.416-2.167-.2-2.995-.104-.248.032-.287-.191-.063-.351 1.469-1.03 3.875-.735 4.155-.39.287.351-.08 2.78-1.453 3.94-.207.176-.407.08-.311-.152.303-.75.99-2.523.663-2.943z" />
+    </svg>
+);
+
+const LinuxIcon = ({ size = 18 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 00-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.699-.058 1.574.267 2.577.2.025.134.063.198.114.333l.003.003c.391.778 1.113 1.368 1.884 1.43.868.065 1.571-.284 1.773-.869.172.017.344.014.5-.08.394-.122.553-.517.564-.917.007-.325-.08-.635-.1-.928-.027-.388-.075-.81.005-1.179.053-.46.158-.95.278-1.443.035-.153.074-.307.11-.377.543-.11.906-.519 1.213-.899.405-.5.606-1.044.606-1.044s-.199-.093-.404.048c-.301.208-.7.636-.972.447-.306-.213-.378-.627-.375-1.091 0-.474.078-.972.133-1.393.078-.602.13-1.156-.004-1.625-.166-.518-.49-.907-.94-1.082-.455-.14-.775.036-1.015.252-.3.261-.5.605-.728.96-.118.186-.238.379-.37.538-.197.176-.46.306-.696.387-.195.069-.442.075-.654.06a.6.6 0 01-.155-.013c-.166-.04-.358-.123-.57-.09-.296.016-.463.166-.464.404a1.09 1.09 0 00.227.596c.204.284.498.46.798.593-.108.322-.213.7-.213 1.094 0 .466.12.866.345 1.146.09.108.22.193.362.218a.48.48 0 00.407-.11c.092-.3.132-.715.128-1.126-.01-.41-.066-.794-.098-1.024a2.36 2.36 0 00.45-.137c.252-.12.484-.273.677-.498.217-.258.375-.563.539-.9.21-.42.38-.788.622-1.005.121-.037.258-.076.408-.08.142 0 .292.033.447.089.238.084.348.328.432.67.09.378.088.848.037 1.377-.023.256-.075.56-.113.86l-.001.005c-.05.398-.104.831-.105 1.247-.008.707.17 1.458.711 1.74.21.1.408.157.544.136.064.05.142.068.244.065.192-.007.34-.1.396-.313a.84.84 0 00-.02-.48c-.03-.121.002-.285.058-.479.031-.141.078-.291.144-.468.074-.229.158-.476.238-.725.161-.501.319-1.016.369-1.418.202-.157.381-.37.532-.66.165-.32.246-.66.27-.92.024-.32-.015-.6-.082-.81a15.19 15.19 0 00-.173-.45c-.002-.026-.002-.05.002-.075zm-4.126 8.397c-.098.033-.22.117-.361.124a.7.7 0 01-.373-.082c-.13-.068-.262-.187-.355-.27a.86.86 0 01-.107-.117c.094.005.168.018.228.042.148.063.206.146.343.19.138.046.262.062.393.036.056-.01.085.004.141.04.059.035.098.068.091.037z" />
+    </svg>
+);
+
+const DebianIcon = ({ size = 18 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+        <path d="M13.88 12.685c-.4 0 .08.2.601.28.14-.1.27-.206.39-.318a3.2 3.2 0 01-.991.038zm4.218-2.063c.03-.6-.12-.94-.25-1.354.13.4.08.87.25 1.354zM12.29.002C5.952-.14.596 5.065.06 11.31c-.273 3.207.721 6.216 2.442 8.568L2.37 20a7.665 7.665 0 01-.494-.544c-.58-.785-1.1-1.648-1.33-2.64.38.89.68 1.79 1.246 2.52-.73-1.18-1.26-2.47-1.412-3.94l.07.64a9.04 9.04 0 01.31-3.16c-.137.61-.14.74-.225 1.2.63-2.48 1.87-4.29 3.35-5.78-.507.49-.86 1.1-1.27 1.68.88-1.18 1.88-2.17 3.14-2.79-.82.34-1.54 1.03-2.13 1.71 1.99-2.06 4.78-3.11 5.01-3.34.66-.22 1.39-.28 1.33-.33-.81.1-1.07 0-1.55.09.43-.27 1.72-.39 1.35-.34-.95.13-1.04.23-1.5.35 1.07-.27 1.4-.19 2.23-.2-.67.06-1.12.17-1.62.37l.2-.07c.82-.24 1.18-.15 1.79-.15a6.83 6.83 0 00-2.05.53l.16-.04c.92-.33 1.86-.23 2.64-.13-.91-.2-1.35-.16-2.36.2.93-.2 1.36-.12 2.07 0 .77.1-.07-.14-.14-.21.77.37 1.77.35 2.2.89-.35-.27-.87-.38-1.02-.39.33.25.76.42.95.73-.28-.15-.43-.17-.63-.27.64.72 1.08.64 1.51 1.33.22.37.36.83.45 1.37-.11-.32-.28-.57-.42-.7.05.46.26.93.17 1.37.03-.38-.1-.6-.17-.89-.05.58-.15.67-.23 1.11-.08-.4-.02-.66 0-1-.16.54-.22.61-.3.88-.1-.35-.07-.57-.07-.81-.22.63-.26 1.35-.57 2l.11-.52c-.2.63-.37.73-.53 1.26l-.04-.36c-.17.63-.58 1.22-.86 1.46.09-.19.17-.46.15-.66-.38.58-.36.66-.43.73-.22.2-.47.69-.64 1.09l-.06-.24c-.3.52-.91.99-1.4 1.29.15-.17.36-.35.47-.57-.64.36-.56.55-1.28.82l.15-.18c-.87.42-1.01.4-1.74.55l.08-.1c-.79.22-2.3.26-3.32-.29.48.17.97.29 1.46.24-.61-.08-1.24-.24-1.78-.63l.27.05c-.52-.23-.97-.48-1.33-.85l-.27.22c-.43-.48-1.17-.77-1.53-1.34l-.14.02c-.72-1-.77-1.1-.86-1.33l-.12.18c-.16-.33-.65-1-.57-1.31.12.19.22.27.33.38-.32-.72-.62-1.06-.72-1.76.08.16.2.36.32.47-.28-.87-.58-1.45-.58-2.08l-.08.28c-.1-.8-.47-1.57-.37-2.75-.2.49-.2 1.31-.12 1.76-.19-1.31.1-2.41.26-3.28-.14.17-.3.73-.34.55.24-1.53.72-2.55 1.22-3.42-.2.16-.44.63-.51.44.74-1.4 2.96-3.62 3.63-3.62-.5.15-1.08.78-1.35 1.1 1.02-.94 2.12-1.64 3.33-2.04l-.19-.04c.53-.26 1.19-.37 1.81-.67-1.1.24-1.31.24-1.88.44.97-.62 3.26-1.08 4.39-.68-.53-.23-1.48-.38-2.45-.27.88.05 2.18.22 3.02.83l-.08-.12c.64.41 2.43 1.97 2.54 3.68l.04-.45c.07.62-.03 1.34-.22 2l.14-.15c-.01.46-.15.95-.3 1.38z" />
+    </svg>
+);
+
+const CentOSIcon = ({ size = 18 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 3.478l-3.592 3.593H4.816v3.593L1.223 14.256v-4.512L4.816 6.15V2.557l3.593-3.592 3.591 3.592V6.15L15.592 9.743v4.512l-3.592-3.593zM12 20.522l3.592-3.593h3.593v-3.592l3.592-3.593v4.512l-3.593 3.593v3.593l-3.592 3.593-3.592-3.593v-3.593L4.816 14.256v-4.512l3.592 3.593z" />
+        <path d="M12 7.071L8.408 10.664v6.672L12 20.929l3.592-3.593v-6.672z" opacity=".6" />
+    </svg>
+);
+
+const ServerIcon = ({ size = 18 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
+        <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
+        <line x1="6" y1="6" x2="6.01" y2="6" />
+        <line x1="6" y1="18" x2="6.01" y2="18" />
+    </svg>
+);
+
+type HostBrand = {
+    icon: React.FC<{ size?: number }>;
+    gradient: string;
+    border: string;
+    text: string;
+    dot: string;
+    label: string;
+};
+
+function detectHostBrand(username: string, host: string, localName: string): HostBrand {
+    const u = username.toLowerCase();
+    const h = host.toLowerCase();
+    const n = localName.toLowerCase();
+    const all = `${u} ${h} ${n}`;
+
+    if (u === 'ubuntu' || all.includes('ubuntu')) {
+        return { icon: UbuntuIcon, gradient: 'from-orange-500/25 to-orange-500/5', border: 'border-orange-500/25', text: 'text-orange-400', dot: 'bg-orange-500', label: 'Ubuntu' };
+    }
+    if (u.startsWith('ec2') || all.includes('aws') || all.includes('ec2') || all.includes('amazon')) {
+        return { icon: AWSIcon, gradient: 'from-amber-500/25 to-amber-500/5', border: 'border-amber-500/25', text: 'text-amber-400', dot: 'bg-amber-500', label: 'AWS' };
+    }
+    if (u === 'debian' || all.includes('debian')) {
+        return { icon: DebianIcon, gradient: 'from-red-500/25 to-red-500/5', border: 'border-red-500/25', text: 'text-red-400', dot: 'bg-red-500', label: 'Debian' };
+    }
+    if (u === 'centos' || all.includes('centos') || all.includes('rhel') || all.includes('redhat')) {
+        return { icon: CentOSIcon, gradient: 'from-purple-500/25 to-purple-500/5', border: 'border-purple-500/25', text: 'text-purple-400', dot: 'bg-purple-500', label: 'CentOS' };
+    }
+    if (u === 'root' || u === 'admin') {
+        return { icon: LinuxIcon, gradient: 'from-yellow-500/25 to-yellow-500/5', border: 'border-yellow-500/25', text: 'text-yellow-400', dot: 'bg-yellow-500', label: 'Linux' };
+    }
+    if (all.includes('pi') || all.includes('raspberry')) {
+        return { icon: LinuxIcon, gradient: 'from-pink-500/25 to-pink-500/5', border: 'border-pink-500/25', text: 'text-pink-400', dot: 'bg-pink-500', label: 'RPi' };
+    }
+    // Default — generic server
+    return { icon: ServerIcon, gradient: 'from-emerald-500/20 to-emerald-500/5', border: 'border-emerald-500/20', text: 'text-emerald-400', dot: 'bg-emerald-500', label: 'Server' };
 }
 
-export function HostCard({ info, onClick,index }: HostCardProps) {
+interface HostCardProps {
+    info: HostsObject;
+    onClick?: (key: number) => void;
+    index: number;
+}
+
+export function HostCard({ info, onClick, index }: HostCardProps) {
     const navigate = useNavigate();
+
+    const handleConnect = useCallback(() => {
+        if (onClick) {
+            onClick(index);
+        } else {
+            navigate('/ssh/connect', { state: info });
+        }
+    }, [onClick, index, navigate, info]);
+
+    const handleDelete = useCallback(
+        (e: React.MouseEvent) => {
+            e.stopPropagation();
+            idb.deleteItem('hosts', info.id);
+        },
+        [info.id],
+    );
+
+    const displayName = info.localName || info.host;
+
+    const isKey = info.authMethod === 'privateKey';
+
+    // Detect OS/platform from username, host, and localName
+    const brand = useMemo(
+        () => detectHostBrand(info.username || '', info.host || '', info.localName || ''),
+        [info.username, info.host, info.localName],
+    );
+    const BrandIcon = brand.icon;
+
     return (
-        <div className="bg-slate-800 rounded-lg p-4 flex items-center gap-4 hover:bg-slate-700 transition-colors cursor-pointer">
-            <div onClick={onClick ? () => onClick(index) : () => navigate('/ssh/connect', {
-                state: info
-            })} className="bg-orange-500 w-12 h-12 rounded-lg flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />
-                </svg>
-            </div>
-            <div className="flex-grow" onClick={onClick ? () => onClick(index) : () => navigate('/ssh/connect', {
-                state: info
-            })}>
-                <h3 className="text-white font-medium">{info.localName || info.host}</h3>
-                <p className="text-slate-400 text-sm">ssh,{info.username}</p>
-            </div>
-            <button onClick={() => idb.deleteItem("hosts",info.id)} className="text-red-400 hover:text-red-500 transition-colors">
-                <Trash />
+        <div
+            onClick={handleConnect}
+            className="group relative rounded-xl border border-white/[0.06] bg-white/[0.03] p-4 cursor-pointer
+                       transition-all duration-200 hover:bg-white/[0.06] hover:border-white/[0.12] hover:shadow-lg hover:shadow-black/20
+                       hover:-translate-y-0.5"
+        >
+            {/* Delete button — top-right, visible on hover */}
+            <button
+                onClick={handleDelete}
+                className="absolute top-2.5 right-2.5 p-1.5 rounded-md
+                           opacity-0 group-hover:opacity-100 transition-all duration-150
+                           text-gray-500 hover:text-red-400 hover:bg-red-400/10"
+                title="Remove host"
+            >
+                <Trash2 size={14} />
             </button>
+
+            <div className="flex items-start gap-3.5">
+                {/* Avatar — OS/platform icon */}
+                <div className="relative shrink-0">
+                    <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${brand.gradient} ${brand.border} border flex items-center justify-center`}>
+                        <span className={`${brand.text} select-none`}>
+                            <BrandIcon size={20} />
+                        </span>
+                    </div>
+                    {/* Online dot */}
+                    <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ${brand.dot} border-2 border-[#0a0a0a] group-hover:border-[#111]`} />
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0 pt-0.5">
+                    <h3 className="text-sm font-medium text-gray-100 truncate leading-tight">
+                        {displayName}
+                    </h3>
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                        <Terminal size={12} className="text-gray-400 shrink-0" />
+                        <span className="text-xs text-gray-300 truncate">
+                            {info.username}@{info.host}{info.port && info.port !== 22 ? `:${info.port}` : ''}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Footer tags */}
+            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/[0.06]">
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-white/[0.06] ${brand.text}`}>
+                    {brand.label}
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-gray-400 bg-white/[0.05]">
+                    {isKey ? <Key size={10} /> : <Lock size={10} />}
+                    {isKey ? 'Key' : 'Password'}
+                </span>
+            </div>
         </div>
     );
 }
