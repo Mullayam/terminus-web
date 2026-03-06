@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo, useState, memo } from "react";
+import { useEffect, useRef, useMemo, memo, useReducer } from "react";
 import type { Terminal } from "@xterm/xterm";
 
 interface GhostTextProps {
@@ -75,8 +75,10 @@ const GhostText = memo(function GhostText({
   const rafId = useRef(0);
   const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Whether the cursor has settled after the last keystroke echo
-  const [settled, setSettled] = useState(false);
+  // Use a simple counter to force a single re-render when completion changes
+  // The settled/unsettled state is handled via direct DOM style writes (no extra re-renders)
+  const [, forceRender] = useReducer((c: number) => c + 1, 0);
+  const settledRef = useRef(false);
 
   const completion = useMemo(
     () => getGhostCompletion(commandBuffer, suggestions),
@@ -93,7 +95,9 @@ const GhostText = memo(function GhostText({
 
   /* ── When completion changes, hide ghost until cursor settles ── */
   useEffect(() => {
-    setSettled(false);
+    settledRef.current = false;
+    // Immediately hide via DOM (no setState)
+    if (overlayRef.current) overlayRef.current.style.opacity = '0';
 
     // Fallback: if cursor doesn't move within 120ms (e.g. local echo off
     // or cursor happened to already be at the right cell), settle anyway.
@@ -108,10 +112,13 @@ const GhostText = memo(function GhostText({
           if (pos) {
             el.style.transform = `translate3d(${pos.x}px,${pos.y}px,0)`;
           }
+          settledRef.current = true;
+          el.style.opacity = '1';
         }
-        setSettled(true);
       }, 120);
     }
+    // Force one re-render so the JSX includes/excludes the span based on completion
+    forceRender();
     return () => {
       if (settleTimer.current) clearTimeout(settleTimer.current);
     };
@@ -136,7 +143,8 @@ const GhostText = memo(function GhostText({
         clearTimeout(settleTimer.current);
         settleTimer.current = null;
       }
-      setSettled(true);
+      settledRef.current = true;
+      el.style.opacity = '1';
     };
 
     const scheduleSync = () => {
@@ -189,8 +197,8 @@ const GhostText = memo(function GhostText({
         fontSize: term?.options.fontSize ?? 15,
         lineHeight: "normal",
         color: "rgba(255,255,255,0.30)",
-        // Hidden until cursor settles after echo, then fades in
-        opacity: settled ? 1 : 0,
+        // Hidden until cursor settles after echo, then fades in (managed via DOM)
+        opacity: 0,
         transition: "opacity 0.06s ease-in",
         zIndex: 10,
         userSelect: "none",

@@ -3,17 +3,23 @@ import type { Terminal } from "@xterm/xterm";
 
 // Module-level counter persists across re-renders but resets on page reload
 let showCount = 0;
+// Cache the last fetched joke to avoid re-fetching on every visibility toggle
+let cachedJoke: string | null = null;
 
 async function fetchJoke(fallback: string): Promise<string> {
+  // Return cached joke if we already have one (refresh every 10th show)
+  if (cachedJoke && showCount % 10 !== 0) return cachedJoke;
   try {
     const res = await fetch('https://icanhazdadjoke.com/', {
       headers: { Accept: 'application/json' },
     });
-    if (!res.ok) return fallback;
+    if (!res.ok) return cachedJoke ?? fallback;
     const data = await res.json();
-    return typeof data?.joke === 'string' ? `😂 ${data.joke}` : fallback;
+    const joke = typeof data?.joke === 'string' ? `😂 ${data.joke}` : fallback;
+    cachedJoke = joke;
+    return joke;
   } catch {
-    return fallback;
+    return cachedJoke ?? fallback;
   }
 }
 

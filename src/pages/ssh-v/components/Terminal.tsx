@@ -78,14 +78,15 @@ const XTerminal = memo(function XTerminal({
   }, [sessionId, sessionHost]);
 
   const termRef = useRef<Terminal | null>(null);
-  const { logs, addLogLine } = useTerminalStore();
+  // Access logs/addLogLine directly — avoid subscribing to the whole store
+  const addLogLine = useTerminalStore((s) => s.addLogLine);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const terminalRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchAddonRef = useRef<SearchAddon | null>(null);
-  const { allCommands } = useCommandStore();
+  const allCommands = useCommandStore((s) => s.allCommands);
   const [suggestionPos, setSuggestionPos] = useState({ top: 0, left: 0 });
   const [suggestions, setSuggestions] = useState<string[]>(() => {
     try {
@@ -96,21 +97,27 @@ const XTerminal = memo(function XTerminal({
   /** Extra ghost-text sources (store commands + context-engine packs). Not persisted to history. */
   const ghostSourcesRef = useRef<string[]>([]);
   const [commandBuffer, setCommandBuffer] = useState<string>("");
+  const commandBufferRef = useRef<string>("");
   const [collabTyping, setCollabTyping] = useState<string | null>(null);
   const collabTypingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { command, clickType, setCommand, addShellHistoryCommand, addShellHistoryBatch } = useCommandStore();
+  const command = useCommandStore((s) => s.command);
+  const clickType = useCommandStore((s) => s.clickType);
+  const setCommand = useCommandStore((s) => s.setCommand);
+  const addShellHistoryCommand = useCommandStore((s) => s.addShellHistoryCommand);
+  const addShellHistoryBatch = useCommandStore((s) => s.addShellHistoryBatch);
   const shellHistoryHost = sessionHost ?? sessionId;
 
   /* ── Ghost text: accept the inline autocomplete suggestion ── */
   const handleGhostAccept = useCallback((fullCommand: string) => {
     // Type the remaining characters into the terminal
-    const remaining = fullCommand.slice(commandBuffer.length);
+    const remaining = fullCommand.slice(commandBufferRef.current.length);
     if (remaining && termRef.current) {
       socket.emit(SocketEventConstants.SSH_EMIT_INPUT, remaining);
+      commandBufferRef.current = fullCommand;
       setCommandBuffer(fullCommand);
       setIsVisible(false);
     }
-  }, [commandBuffer, socket]);
+  }, [socket]);
 
   /* ── AI Ghost text: accept the AI-suggested command ── */
   const handleAIGhostAccept = useCallback((cmd: string) => {
@@ -307,9 +314,9 @@ const XTerminal = memo(function XTerminal({
     });
 
 
-    const t = logs[sessionId];
-    if (t?.length) {
-      term.write(t.join(""));
+    const currentLogs = useTerminalStore.getState().logs[sessionId];
+    if (currentLogs?.length) {
+      term.write(currentLogs.join(""));
     }
     const handleResize = () => {
       fitAddon.fit();
@@ -485,24 +492,27 @@ const XTerminal = memo(function XTerminal({
 
       // Ctrl+C / Ctrl+D / Ctrl+Z → interrupt / EOF / suspend → clear buffer
       if (domEvent.ctrlKey && (domEvent.key === 'c' || domEvent.key === 'd' || domEvent.key === 'z')) {
+        commandBufferRef.current = "";
         setCommandBuffer("");
         setIsVisible(false);
         return;
       }
 
       if (isEnter) {
-        const trimmed = commandBuffer.trim();
+        const trimmed = commandBufferRef.current.trim();
         if (trimmed.length > 0) {
           setSuggestions(prev => prev.includes(trimmed) ? prev : [...prev, trimmed]);
           addShellHistoryCommand(shellHistoryHost, trimmed);
         }
+        commandBufferRef.current = "";
         setCommandBuffer("");
         setIsVisible(false);
         return;
       }
 
       if (isBackspace) {
-        const updated = commandBuffer.slice(0, -1);
+        const updated = commandBufferRef.current.slice(0, -1);
+        commandBufferRef.current = updated;
         setCommandBuffer(updated);
         setIsVisible(
           updated.trim() !== "" &&
@@ -512,7 +522,8 @@ const XTerminal = memo(function XTerminal({
       }
 
       if (isPrintable) {
-        const updated = commandBuffer + key;
+        const updated = commandBufferRef.current + key;
+        commandBufferRef.current = updated;
         setCommandBuffer(updated);
         setIsVisible(
           updated.trim() !== "" &&
@@ -537,10 +548,11 @@ const XTerminal = memo(function XTerminal({
       el.removeEventListener("contextmenu", handleContextMenu);
 
     };
-  }, [commandBuffer]);
+  }, []);
 
   useEffect(() => {
-    const toAppend = getRemainingSuggestion(commandBuffer, command);
+    if (!command) return;
+    const toAppend = getRemainingSuggestion(commandBufferRef.current, command);
 
     if (clickType === "single") {
       termRef.current?.input(toAppend);
