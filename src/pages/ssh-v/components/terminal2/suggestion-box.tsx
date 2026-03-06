@@ -42,13 +42,11 @@ function mixHex(c1: string, c2: string, t: number): string {
 
 /**
  * Derive suggestion-box UI colors from the active terminal theme.
- * Falls back to the current hardcoded palette (tokyoNight-ish).
  */
 function useBoxColors() {
   const { colors } = useSessionTheme();
 
   return useMemo(() => {
-    // Cast to a loose record so we can safely read any xterm color key
     const c = colors as Record<string, string | undefined>;
 
     const bg = c.background ?? "#1a1b26";
@@ -56,14 +54,16 @@ function useBoxColors() {
     const accent = c.green ?? c.cyan ?? "#22c55e";
     const accentBright = c.brightGreen ?? c.brightCyan ?? "#4ade80";
     const border = c.brightBlack ?? "#2c2d3c";
-    // Mix bg toward fg at 12% so hover is always visible regardless of theme
-    const hoverBg = mixHex(bg, fg, 0.12);
+    const hoverBg = mixHex(bg, fg, 0.08);
+    const activeBg = mixHex(bg, fg, 0.14);
     const dimFg = c.brightBlack ?? "#6272a4";
     const errorFg = c.red ?? "#f43f5e";
     const errorBright = c.brightRed ?? "#fb7185";
+    const blue = c.blue ?? c.brightBlue ?? "#7aa2f7";
+    const yellow = c.yellow ?? c.brightYellow ?? "#e0af68";
+    const surfaceBg = mixHex(bg, fg, 0.04);
 
-    const hoverBorder = `${accent}40`; // subtle accent border on hover
-    return { bg, fg, accent, accentBright, border, hoverBg, hoverBorder, dimFg, errorFg, errorBright };
+    return { bg, fg, accent, accentBright, border, hoverBg, activeBg, dimFg, errorFg, errorBright, blue, yellow, surfaceBg };
   }, [colors]);
 }
 
@@ -189,160 +189,309 @@ const AISuggestionBox: React.FC<SuggestionBoxProps> = ({ terminalHeight, setSugg
   const { setCommand } = useCommandStore();
   const c = useBoxColors();
   const { aiLoading, aiError, fetchAISuggestions } = useAICommandSuggestion(commandBuffer, isVisible, sessionId);
-  const BOX_HEIGHT = 160;
-  const AI_SECTION_HEIGHT = 32;
-  const BOX_WIDTH = 280;
-  const OUTER_PADDING = 16; // p-2 = 0.5rem = 8px per side, total 16px
-  const GAP = 30
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const listRef = useRef<HTMLDivElement>(null);
+  const BOX_WIDTH = 320;
+  const MAX_HEIGHT = 280;
+  const GAP = 12;
 
+  // Reset active index when suggestions or buffer changes
+  useEffect(() => { setActiveIndex(-1); }, [suggestions.length, commandBuffer]);
 
-  const handleCommandClick = (command: string) => {
-    setCommand(command, "single");
+  // Keyboard navigation
+  useEffect(() => {
+    if (!isVisible) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setActiveIndex((i) => (i + 1) % suggestions.length);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setActiveIndex((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
+      } else if (e.key === "Enter" && activeIndex >= 0 && activeIndex < suggestions.length) {
+        e.preventDefault();
+        e.stopPropagation();
+        setCommand(suggestions[activeIndex], "single");
+      }
+    };
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
+  }, [isVisible, activeIndex, suggestions, setCommand]);
+
+  // Scroll active item into view
+  useEffect(() => {
+    if (activeIndex < 0 || !listRef.current) return;
+    const el = listRef.current.children[activeIndex] as HTMLElement | undefined;
+    el?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex]);
+
+  const handleCommandClick = (command: string) => setCommand(command, "single");
+
+  const handleRemove = (command: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSuggestions((prev) => {
+      const updated = prev.filter((s) => s !== command);
+      if (hostKey) {
+        try { localStorage.setItem(`terminus-suggestions:${hostKey}`, JSON.stringify(updated)); } catch { /* ignore */ }
+      }
+      return updated;
+    });
   };
 
   if (!isVisible) return null;
 
-  // Horizontal position
+  // Position
   const fitsRight = suggestionPos.left + BOX_WIDTH < terminalWidth;
   const adjustedLeft = fitsRight
     ? suggestionPos.left
-    : Math.max(0, terminalWidth - BOX_WIDTH - 10); // 10px padding
+    : Math.max(8, terminalWidth - BOX_WIDTH - 8);
 
-  // Vertical position
-  const fitsBelow = suggestionPos.top + BOX_HEIGHT + GAP < terminalHeight;
+  const fitsBelow = suggestionPos.top + MAX_HEIGHT + GAP < terminalHeight;
   const adjustedTop = fitsBelow
-    ? suggestionPos.top + 8
-    : suggestionPos.top - BOX_HEIGHT - GAP;
+    ? suggestionPos.top + GAP
+    : suggestionPos.top - MAX_HEIGHT - GAP;
+
+  // Highlight matched portion in suggestion text
+  const renderHighlighted = (text: string) => {
+    if (!commandBuffer) return <>{text}</>;
+    const idx = text.toLowerCase().indexOf(commandBuffer.toLowerCase());
+    if (idx < 0) return <>{text}</>;
+    return (
+      <>
+        {text.slice(0, idx)}
+        <span style={{ color: c.accentBright, fontWeight: 600 }}>{text.slice(idx, idx + commandBuffer.length)}</span>
+        {text.slice(idx + commandBuffer.length)}
+      </>
+    );
+  };
+
   return (
     <div
-      className="absolute rounded-lg z-50 p-2"
       style={{
+        position: "absolute",
         top: adjustedTop,
-        left: suggestionPos.left,
+        left: adjustedLeft,
         width: BOX_WIDTH,
-        maxHeight: BOX_HEIGHT + AI_SECTION_HEIGHT,
+        maxHeight: MAX_HEIGHT,
+        zIndex: 50,
+        display: "flex",
+        flexDirection: "column",
+        background: `${c.bg}e6`,
+        backdropFilter: "blur(16px) saturate(1.4)",
+        WebkitBackdropFilter: "blur(16px) saturate(1.4)",
+        border: `1px solid ${c.border}`,
+        borderRadius: 10,
+        boxShadow: `0 8px 32px rgba(0,0,0,0.45), 0 1px 3px rgba(0,0,0,0.25), inset 0 1px 0 ${c.fg}08`,
         overflow: "hidden",
-        background: c.bg,
-        borderWidth: 1,
-        borderStyle: "solid",
-        borderColor: c.border,
-        color: c.accent,
+        fontFamily: "'Inter', 'SF Pro Text', system-ui, -apple-system, sans-serif",
+        animation: "suggestionSlideIn 0.15s ease-out",
       }}
     >
-      {/* ── AI Suggest section ─────────────────────────────── */}
-      <div
-        style={{
-          borderBottom: `1px solid ${c.border}`,
-          paddingBottom: 4,
-          marginBottom: 4,
-        }}
-      >
-        {/* Ask AI button row */}
-        <div
-          className="flex items-center gap-1.5 px-2 py-1 rounded text-xs cursor-pointer transition-colors duration-150"
-          style={{ color: c.fg }}
+      {/* ── Header: Ask AI ── */}
+      <div style={{ padding: "8px 10px 6px", borderBottom: `1px solid ${c.border}` }}>
+        <button
+          onClick={() => { if (commandBuffer.trim()) fetchAISuggestions(commandBuffer.trim()); }}
+          disabled={aiLoading || !commandBuffer.trim()}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            width: "100%",
+            padding: "6px 10px",
+            border: `1px solid ${c.border}`,
+            borderRadius: 8,
+            background: c.surfaceBg,
+            color: c.fg,
+            cursor: aiLoading || !commandBuffer.trim() ? "default" : "pointer",
+            opacity: !commandBuffer.trim() ? 0.5 : 1,
+            fontSize: 12,
+            transition: "all 0.15s ease",
+          }}
           onMouseEnter={(e) => {
-            const el = e.currentTarget as HTMLElement;
-            el.style.background = c.hoverBg;
-          }}
-          onMouseLeave={(e) => {
-            const el = e.currentTarget as HTMLElement;
-            el.style.background = "transparent";
-          }}
-          onClick={() => {
-            if (commandBuffer.trim()) {
-              fetchAISuggestions(commandBuffer.trim());
+            if (!aiLoading && commandBuffer.trim()) {
+              (e.currentTarget as HTMLElement).style.background = c.hoverBg;
+              (e.currentTarget as HTMLElement).style.borderColor = `${c.accent}60`;
             }
           }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.background = c.surfaceBg;
+            (e.currentTarget as HTMLElement).style.borderColor = c.border;
+          }}
         >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: c.accent, flexShrink: 0 }}>
-            <path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4Z" />
-            <path d="M18 14a6 6 0 0 1-12 0" />
-            <line x1="12" y1="20" x2="12" y2="22" />
-            <line x1="8" y1="22" x2="16" y2="22" />
+          {/* Sparkle icon */}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={c.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+            <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
           </svg>
-          <span className="font-medium" style={{ color: c.accent }}>
+          <span style={{ fontWeight: 500, color: c.fg }}>
             {aiLoading ? "Thinking…" : "Ask AI"}
           </span>
           {commandBuffer.trim() && !aiLoading && (
-            <span className="truncate ml-1" style={{ color: c.dimFg, maxWidth: 160 }}>
-              "{commandBuffer.trim().slice(0, 30)}"
+            <span style={{ color: c.dimFg, fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textAlign: "left" }}>
+              {commandBuffer.trim().slice(0, 35)}
             </span>
           )}
           {aiLoading && (
             <span
-              className="ml-auto inline-block w-3 h-3 border-2 rounded-full animate-spin"
-              style={{ borderColor: `${c.accent} transparent ${c.accent} transparent` }}
+              style={{
+                marginLeft: "auto",
+                width: 12,
+                height: 12,
+                border: `2px solid ${c.accent}40`,
+                borderTopColor: c.accent,
+                borderRadius: "50%",
+                animation: "spin 0.6s linear infinite",
+                flexShrink: 0,
+              }}
             />
           )}
-        </div>
-
-        {/* AI error */}
+          {!aiLoading && (
+            <span style={{ marginLeft: "auto", fontSize: 10, color: c.dimFg, flexShrink: 0 }}>⏎</span>
+          )}
+        </button>
         {aiError && (
-          <div className="px-2 py-0.5 text-[10px]" style={{ color: c.errorFg }}>
-            {aiError}
-          </div>
+          <div style={{ padding: "2px 10px 0", fontSize: 10, color: c.errorFg }}>{aiError}</div>
         )}
       </div>
 
-      {/* ── History suggestions ──────────────────────────── */}
-      <div
-        className="overflow-y-auto scrollbar-thin scrollbar-green"
-        style={{ height: BOX_HEIGHT - OUTER_PADDING - AI_SECTION_HEIGHT }}
-      >
-        {suggestions.map((command, index) => (
-          <div
-            key={index}
-            className="group flex justify-between items-center font-mono whitespace-nowrap overflow-hidden px-2 py-1 rounded text-xs transition-colors duration-150 cursor-pointer"
-            style={{
-              color: c.accent,
-              borderBottom: index < suggestions.length - 1 ? `1px solid ${c.border}` : "none",
-              background: "transparent",
-            }}
-            onMouseEnter={(e) => {
-              const el = e.currentTarget as HTMLElement;
-              el.style.background = c.hoverBg;
-              el.style.color = c.accentBright;
-              el.style.borderRadius = "4px";
-              el.style.outline = `1px solid ${c.hoverBorder}`;
-            }}
-            onMouseLeave={(e) => {
-              const el = e.currentTarget as HTMLElement;
-              el.style.background = "transparent";
-              el.style.color = c.accent;
-              el.style.outline = "none";
-            }}
-            onClick={() => handleCommandClick(command)}
-          >
-            <span className="truncate">{command}</span>
-
-            {/* Cross button - visible only on hover */}
-            <button
-              className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity"
-              style={{ color: c.errorFg }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = c.errorBright; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = c.errorFg; }}
-              onClick={(e) => {
-                e.stopPropagation();
-                setSuggestions((prevSuggestions) => {
-                  const updated = Array.from(new Set(prevSuggestions.filter((s) => s !== command)));
-                  // Persist removal to localStorage immediately
-                  if (hostKey) {
-                    try { localStorage.setItem(`terminus-suggestions:${hostKey}`, JSON.stringify(updated)); } catch { /* ignore */ }
-                  }
-                  return updated;
-                });
-              }}
-            >
-              ×
-            </button>
+      {/* ── Suggestions list ── */}
+      {suggestions.length > 0 && (
+        <>
+          <div style={{ padding: "6px 12px 2px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: c.dimFg }}>
+              Suggestions
+            </span>
+            <span style={{ fontSize: 10, color: c.dimFg }}>
+              {suggestions.length}
+            </span>
           </div>
+          <div
+            ref={listRef}
+            style={{
+              flex: 1,
+              overflowY: "auto",
+              padding: "2px 6px 6px",
+              scrollbarWidth: "thin",
+              scrollbarColor: `${c.dimFg}40 transparent`,
+            }}
+          >
+            {suggestions.map((cmd, index) => {
+              const isActive = index === activeIndex;
+              return (
+                <div
+                  key={index}
+                  onClick={() => handleCommandClick(cmd)}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "5px 8px",
+                    marginBottom: 1,
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+                    color: isActive ? c.fg : c.accent,
+                    background: isActive ? c.activeBg : "transparent",
+                    transition: "background 0.1s ease, color 0.1s ease",
+                  }}
+                >
+                  {/* Command icon */}
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={isActive ? c.accentBright : c.dimFg} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.7 }}>
+                    <polyline points="4 17 10 11 4 5" />
+                    <line x1="12" y1="19" x2="20" y2="19" />
+                  </svg>
 
-        ))}
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                    {renderHighlighted(cmd)}
+                  </span>
+
+                  {/* Remove button */}
+                  <button
+                    onClick={(e) => handleRemove(cmd, e)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 18,
+                      height: 18,
+                      borderRadius: 4,
+                      border: "none",
+                      background: "transparent",
+                      color: c.dimFg,
+                      cursor: "pointer",
+                      opacity: isActive ? 0.7 : 0,
+                      transition: "opacity 0.15s, background 0.15s, color 0.15s",
+                      flexShrink: 0,
+                      fontSize: 14,
+                      lineHeight: 1,
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLElement).style.opacity = "1";
+                      (e.currentTarget as HTMLElement).style.background = `${c.errorFg}20`;
+                      (e.currentTarget as HTMLElement).style.color = c.errorBright;
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLElement).style.opacity = isActive ? "0.7" : "0";
+                      (e.currentTarget as HTMLElement).style.background = "transparent";
+                      (e.currentTarget as HTMLElement).style.color = c.dimFg;
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {/* ── Empty state ── */}
+      {suggestions.length === 0 && (
+        <div style={{ padding: "16px 12px", textAlign: "center" }}>
+          <div style={{ fontSize: 11, color: c.dimFg }}>No matching commands</div>
+          <div style={{ fontSize: 10, color: `${c.dimFg}80`, marginTop: 2 }}>Type to search or ask AI</div>
+        </div>
+      )}
+
+      {/* ── Footer hints ── */}
+      <div
+        style={{
+          padding: "4px 12px 6px",
+          borderTop: `1px solid ${c.border}`,
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          fontSize: 10,
+          color: c.dimFg,
+        }}
+      >
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+          <kbd style={{ padding: "0 4px", borderRadius: 3, background: `${c.fg}10`, border: `1px solid ${c.border}`, fontSize: 9, lineHeight: "16px" }}>↑↓</kbd>
+          navigate
+        </span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+          <kbd style={{ padding: "0 4px", borderRadius: 3, background: `${c.fg}10`, border: `1px solid ${c.border}`, fontSize: 9, lineHeight: "16px" }}>Tab</kbd>
+          accept
+        </span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+          <kbd style={{ padding: "0 4px", borderRadius: 3, background: `${c.fg}10`, border: `1px solid ${c.border}`, fontSize: 9, lineHeight: "16px" }}>Esc</kbd>
+          close
+        </span>
       </div>
-    </div>
 
-  )
+      {/* Keyframe animations injected via style tag */}
+      <style>{`
+        @keyframes suggestionSlideIn {
+          from { opacity: 0; transform: translateY(-4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
 }
 
 

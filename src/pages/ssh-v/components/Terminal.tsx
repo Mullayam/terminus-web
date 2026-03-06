@@ -82,6 +82,8 @@ const XTerminal = memo(function XTerminal({
   const addLogLine = useTerminalStore((s) => s.addLogLine);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const [isVisible, setIsVisible] = useState(false);
+  const isVisibleRef = useRef(false);
+  useEffect(() => { isVisibleRef.current = isVisible; }, [isVisible]);
   const [showSearch, setShowSearch] = useState(false);
   const terminalRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -297,6 +299,14 @@ const XTerminal = memo(function XTerminal({
     searchAddonRef.current = searchAddon;
 
     new LigaturesAddon().activate(term);
+
+    // Block arrow keys from reaching xterm while suggestion box is open
+    term.attachCustomKeyEventHandler((e) => {
+      if (isVisibleRef.current && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        return false; // prevent xterm from sending escape sequences to shell
+      }
+      return true;
+    });
 
     if (!sessionHost) {
       term.write("\x1b[32mConnecting...\r\n\x1b[0m");
@@ -554,14 +564,10 @@ const XTerminal = memo(function XTerminal({
     if (!command) return;
     const toAppend = getRemainingSuggestion(commandBufferRef.current, command);
 
-    if (clickType === "single") {
-      termRef.current?.input(toAppend);
-      setIsVisible(false);
-      setCommand("", "single");
-    } else {
-      termRef.current?.input(`${toAppend}\r`);
-      setCommand("", "double");
-    }
+    // Paste only — write text into terminal without executing
+    termRef.current?.input(toAppend);
+    setIsVisible(false);
+    setCommand("", "single");
     handleFocus();
   }, [command]);
 
