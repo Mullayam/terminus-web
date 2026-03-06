@@ -29,9 +29,7 @@ import { useDiagnosticsStore } from '@/store/diagnosticsStore';
 import AISuggestionBox from "./terminal2/suggestion-box";
 import GhostText from "./terminal2/ghost-text";
 import AIGhostText from "./terminal2/ai-ghost-text";
-import { CollabServerEvent } from "@/modules/collab-terminal/types/events";
-import TerminalPlaceholder from "./terminal2/terminal-placeholder";
-import TypingOverlay from "./terminal2/typing-overlay";
+import CollabTypingIndicator from "./terminal2/collab-typing-indicator";
 import {
   useDiagnostics,
   TerminalInfoOverlay,
@@ -41,7 +39,6 @@ import useAudio from "@/hooks/useAudio";
 import { XtermTheme, ThemeName } from "./themes";
 import { getAllCommandData } from "@/lib/context-engine/contextEngineStorage";
 import { useAIChatStore } from "@/store/aiChatStore";
-import CursorTextOverlay from "./terminal2/cursor-text-overlay";
 
 
 // https://github.com/xtermjs/xterm.js/blob/master/demo/client.ts
@@ -101,8 +98,6 @@ const XTerminal = memo(function XTerminal({
   const ghostSourcesRef = useRef<string[]>([]);
   const [commandBuffer, setCommandBuffer] = useState<string>("");
   const commandBufferRef = useRef<string>("");
-  const [collabTyping, setCollabTyping] = useState<string | null>(null);
-  const collabTypingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const command = useCommandStore((s) => s.command);
   const clickType = useCommandStore((s) => s.clickType);
   const setCommand = useCommandStore((s) => s.setCommand);
@@ -396,27 +391,11 @@ const XTerminal = memo(function XTerminal({
         ghostSourcesRef.current = Array.from(new Set([...ghostSourcesRef.current, ...cmds]));
       }
     }).catch(() => { });
-    // Listen for collab typing indicators (joiner typing → admin sees indicator)
-    socket.on(CollabServerEvent.PTY_LOCKED, (data: { lockedBy: string; type: string; expiresIn?: number }) => {
-      if (data.type === 'auto' && data.lockedBy) {
-        setCollabTyping(data.lockedBy);
-        // Auto-clear after expiry (fallback 5s)
-        if (collabTypingTimer.current) clearTimeout(collabTypingTimer.current);
-        collabTypingTimer.current = setTimeout(() => setCollabTyping(null), data.expiresIn || 5000);
-      }
-    });
-    socket.on(CollabServerEvent.PTY_UNLOCKED, () => {
-      setCollabTyping(null);
-      if (collabTypingTimer.current) clearTimeout(collabTypingTimer.current);
-    });
 
     return () => {
       window.removeEventListener("resize", handleResize);
       socket.off(SocketEventConstants.SSH_EMIT_DATA);
       socket.off(SocketEventConstants.SSH_EXEC_SILENT_RESULT);
-      socket.off(CollabServerEvent.PTY_LOCKED);
-      socket.off(CollabServerEvent.PTY_UNLOCKED);
-      if (collabTypingTimer.current) clearTimeout(collabTypingTimer.current);
       term.dispose();
       termRef.current = null;
     };
@@ -649,17 +628,13 @@ const XTerminal = memo(function XTerminal({
       <TerminalInfoOverlay hostKey={sessionHost ?? sessionId} />
 
       {/* Collab typing indicator — shown when a joiner is typing */}
-      {collabTyping ? <CursorTextOverlay
-        termRef={termRef}
-        text="Someone is typing..."
-      /> : <TerminalPlaceholder
+      {/* Collab typing indicator + placeholder — self-contained, no parent re-render */}
+      <CollabTypingIndicator
+        socket={socket}
         termRef={termRef}
         commandBuffer={commandBuffer}
         containerRef={terminalRef}
-        hint="💡 Like this project? Press ⭐ on GitHub to support it github.com/Mullayam"
       />
-      }
-      {collabTyping && <TypingOverlay text="Someone is typing…" />}
 
       {/* Diagnostics AI chat modal */}
       {diagnosticsEnabled && showDiagChat && (
