@@ -123,7 +123,16 @@ export function useCollabSocket(socket: Socket | null, sessionId: string) {
     };
 
     const onSessionEnded = (data: SessionEndedPayload) => {
+      store.setAdminDisconnect(null);
       store.setSessionEnded({ reason: data.reason, message: data.message });
+    };
+
+    const onAdminDisconnected = (data: { sessionId: string; message: string; gracePeriod: number }) => {
+      store.setAdminDisconnect({ message: data.message, gracePeriod: data.gracePeriod });
+    };
+
+    const onAdminReconnected = (_data: { sessionId: string; message: string }) => {
+      store.setAdminDisconnect(null);
     };
 
     // ── Bind ─────────────────────────────────────────────────────────
@@ -139,6 +148,8 @@ export function useCollabSocket(socket: Socket | null, sessionId: string) {
     socket.on(CollabServerEvent.USER_KICKED, onKicked);
     socket.on(CollabServerEvent.USER_BLOCKED, onBlocked);
     socket.on(CollabServerEvent.SESSION_ENDED, onSessionEnded);
+    socket.on(CollabServerEvent.ADMIN_DISCONNECTED, onAdminDisconnected);
+    socket.on(CollabServerEvent.ADMIN_RECONNECTED, onAdminReconnected);
 
     return () => {
       socket.off('connect', onConnect);
@@ -154,6 +165,8 @@ export function useCollabSocket(socket: Socket | null, sessionId: string) {
       socket.off(CollabServerEvent.USER_KICKED, onKicked);
       socket.off(CollabServerEvent.USER_BLOCKED, onBlocked);
       socket.off(CollabServerEvent.SESSION_ENDED, onSessionEnded);
+      socket.off(CollabServerEvent.ADMIN_DISCONNECTED, onAdminDisconnected);
+      socket.off(CollabServerEvent.ADMIN_RECONNECTED, onAdminReconnected);
       store.reset();
     };
   }, [socket, sessionId]);

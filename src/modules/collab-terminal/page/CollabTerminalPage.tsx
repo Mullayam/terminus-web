@@ -34,6 +34,7 @@ import {
   PermissionBadge,
   UserCountBadge,
   LockGhostOverlay,
+  AdminDisconnectOverlay,
   TypingIndicator,
   InputBufferBar,
   JoinError,
@@ -313,6 +314,7 @@ export default function CollabTerminalPage() {
         {/* Terminal container (relative for ghost lock overlay) */}
         <div className="relative flex-1 min-h-0 overflow-hidden">
           <LockGhostOverlay />
+          <AdminDisconnectOverlay />
           <div
             ref={terminalRef}
             className="w-full h-full"

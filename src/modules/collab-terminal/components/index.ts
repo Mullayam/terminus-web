@@ -10,5 +10,6 @@ export { AdminPanel } from './AdminPanel';
 export { AdminUserList } from './AdminUserList';
 export { AdminUnblockList } from './AdminUnblockList';
 export { JoinError } from './JoinError';
+export { AdminDisconnectOverlay } from './AdminDisconnectOverlay';
 export { CollabSettingsTab } from './CollabSettingsTab';
 export { CollabRightSidebar } from './CollabRightSidebar';

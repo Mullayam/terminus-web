@@ -52,6 +52,8 @@ interface CollabStore {
   blockedMessage: string | null;
   // ── Session ended ────────────────────────────────────────────────────────────
   sessionEnded: { reason: string; message: string } | null;
+  // ── Admin disconnect ─────────────────────────────────────────────────────────
+  adminDisconnect: { message: string; gracePeriod: number } | null;
   // ── Actions ─────────────────────────────────────────────────────────────
   setMySocketId: (id: string) => void;
   setSessionId: (id: string) => void;
@@ -99,6 +101,7 @@ interface CollabStore {
   setKickedMessage: (message: string | null) => void;
   setBlockedMessage: (message: string | null) => void;
   setSessionEnded: (info: { reason: string; message: string } | null) => void;
+  setAdminDisconnect: (info: { message: string; gracePeriod: number } | null) => void;
 
   // Reset
   reset: () => void;
@@ -125,6 +128,7 @@ const INITIAL_STATE = {
   kickedMessage: null as string | null,
   blockedMessage: null as string | null,
   sessionEnded: null as { reason: string; message: string } | null,
+  adminDisconnect: null as { message: string; gracePeriod: number } | null,
 };
 
 export const useCollabStore = create<CollabStore>((set) => ({
@@ -208,6 +212,7 @@ export const useCollabStore = create<CollabStore>((set) => ({
   setKickedMessage: (message) => set({ kickedMessage: message }),
   setBlockedMessage: (message) => set({ blockedMessage: message }),
   setSessionEnded: (info) => set({ sessionEnded: info }),
+  setAdminDisconnect: (info) => set({ adminDisconnect: info }),
 
   reset: () => set(INITIAL_STATE),
 }));
