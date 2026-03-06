@@ -66,7 +66,6 @@ const XTerminal = memo(function XTerminal({
   const showDiagChat = useDiagnosticsStore((s) => s.showDiagChat);
   const diagFilter = useDiagnosticsStore((s) => s.diagFilter);
   const closeDiagChat = useDiagnosticsStore((s) => s.closeDiagChat);
-  const [showInfoOverlay, setShowInfoOverlay] = useState(true);
 
   // ── AI Chat: capture terminal selection ──
   const setTerminalSelection = useAIChatStore((s) => s.setTerminalSelection);
@@ -650,10 +649,8 @@ const XTerminal = memo(function XTerminal({
         hint="💡 Like this project? Press ⭐ on GitHub to support it github.com/Mullayam"
       />
 
-      {/* Info overlay — shown once on connect */}
-      {showInfoOverlay && (
-        <TerminalInfoOverlay onDismiss={() => setShowInfoOverlay(false)} />
-      )}
+      {/* Info overlay — shown once per host, self-managed */}
+      <TerminalInfoOverlay hostKey={sessionHost ?? sessionId} />
 
       {/* Collab typing indicator — shown when a joiner is typing */}
       {collabTyping && (

@@ -1,41 +1,73 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSessionTheme } from '@/hooks/useSessionTheme';
 import { Lightbulb, X } from 'lucide-react';
 
 interface Props {
-  /** Called when the overlay is dismissed */
-  onDismiss?: () => void;
+  /** Unique key per host to persist shown state */
+  hostKey: string;
+}
+
+const STORAGE_PREFIX = 'terminus-tips-shown:';
+
+function mixHex(c1: string, c2: string, t: number): string {
+  const parse = (hex: string) => {
+    const h = hex.replace("#", "").slice(0, 6);
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  };
+  const [r1, g1, b1] = parse(c1);
+  const [r2, g2, b2] = parse(c2);
+  const m = (a: number, b: number) => Math.round(a + (b - a) * t);
+  return `#${m(r1, r2).toString(16).padStart(2, "0")}${m(g1, g2).toString(16).padStart(2, "0")}${m(b1, b2).toString(16).padStart(2, "0")}`;
 }
 
 /**
- * A non-intrusive grey info overlay shown once when the user first
- * connects to a terminal session. Auto-fades after 8 seconds or
- * can be dismissed manually.
- *
- * Single Responsibility: only displays informational tips.
+ * A non-intrusive info overlay shown once per host.
+ * Manages its own visibility via localStorage — no parent state needed.
+ * On unmount (disconnect) the storage key is removed so tips show again
+ * on the next connection to the same host.
  */
-export default function TerminalInfoOverlay({ onDismiss }: Props) {
+export default function TerminalInfoOverlay({ hostKey }: Props) {
   const { colors } = useSessionTheme();
-  const [visible, setVisible] = useState(true);
+  const bg = colors.background ?? '#1a1b26';
+  const fg = colors.foreground ?? '#e0e0e0';
+  const t = useMemo(() => ({
+    label: mixHex(bg, fg, 0.7),
+    icon: mixHex(bg, fg, 0.45),
+    tip: mixHex(bg, fg, 0.55),
+    border: mixHex(bg, fg, 0.12),
+  }), [bg, fg]);
+  const storageKey = `${STORAGE_PREFIX}${hostKey}`;
+  const dismissed = useRef(false);
+
+  const [visible, setVisible] = useState(() => {
+    try { return localStorage.getItem(storageKey) !== '1'; } catch { return true; }
+  });
   const [fading, setFading] = useState(false);
 
+  const markShown = () => {
+    if (dismissed.current) return;
+    dismissed.current = true;
+    try { localStorage.setItem(storageKey, '1'); } catch { /* ignore */ }
+  };
+
   useEffect(() => {
+    if (!visible) return;
     const fadeTimer = setTimeout(() => setFading(true), 6000);
     const hideTimer = setTimeout(() => {
       setVisible(false);
-      onDismiss?.();
+      markShown();
     }, 8000);
     return () => {
       clearTimeout(fadeTimer);
       clearTimeout(hideTimer);
     };
-  }, [onDismiss]);
+  }, [visible]);
 
   const dismiss = () => {
     setFading(true);
     setTimeout(() => {
       setVisible(false);
-      onDismiss?.();
+      markShown();
     }, 300);
   };
 
@@ -60,15 +92,15 @@ export default function TerminalInfoOverlay({ onDismiss }: Props) {
       <div
         className="pointer-events-auto rounded-lg border px-4 py-3 max-w-md w-full shadow-lg backdrop-blur-sm"
         style={{
-          backgroundColor: `${colors.background}cc`,
-          borderColor: `${colors.foreground}20`,
-          color: `${colors.foreground}80`,
+          backgroundColor: `${bg}cc`,
+          borderColor: t.border,
+          color: t.tip,
         }}
       >
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <Lightbulb size={14} style={{ color: `${colors.foreground}60` }} />
-            <span className="text-xs font-medium" style={{ color: `${colors.foreground}aa` }}>
+            <Lightbulb size={14} style={{ color: t.icon }} />
+            <span className="text-xs font-medium" style={{ color: t.label }}>
               Quick Tips
             </span>
           </div>
@@ -76,13 +108,13 @@ export default function TerminalInfoOverlay({ onDismiss }: Props) {
             onClick={dismiss}
             className="p-0.5 rounded hover:bg-white/10 transition-colors"
           >
-            <X size={12} style={{ color: `${colors.foreground}60` }} />
+            <X size={12} style={{ color: t.icon }} />
           </button>
         </div>
         <div className="space-y-1">
-          {tips.map((t) => (
-            <p key={t.key} className="text-[11px] leading-relaxed" style={{ color: `${colors.foreground}70` }}>
-              • {t.text}
+          {tips.map((tip) => (
+            <p key={tip.key} className="text-[11px] leading-relaxed" style={{ color: t.tip }}>
+              • {tip.text}
             </p>
           ))}
         </div>
