@@ -22,8 +22,10 @@ import type { ITheme } from "@xterm/xterm";
 export interface EditorTerminalPanelProps {
   /** Whether the terminal panel is open */
   open: boolean;
-  /** Toggle the terminal panel */
+  /** Toggle the terminal panel (minimize / restore — keeps connection alive) */
   onToggle: () => void;
+  /** Close the terminal entirely (unmounts the terminal, killing the connection) */
+  onClose?: () => void;
   /** Socket.IO server URL for the terminal backend */
   terminalUrl?: string;
   /** Session identifier for the terminal connection */
@@ -45,6 +47,7 @@ export interface EditorTerminalPanelProps {
 export const EditorTerminalPanel = memo(function EditorTerminalPanel({
   open,
   onToggle,
+  onClose,
   terminalUrl,
   sessionId = "default",
   cwd = "/",
@@ -149,7 +152,7 @@ export const EditorTerminalPanel = memo(function EditorTerminalPanel({
           <PanelBtn
             icon={<X className="w-3.5 h-3.5" />}
             title="Close terminal"
-            onClick={onToggle}
+            onClick={onClose ?? onToggle}
           />
         </div>
       </div>

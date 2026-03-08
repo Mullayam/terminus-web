@@ -68,6 +68,7 @@ import type { LSPConnection } from "./lib/connectLanguageServer";
 import type { CompletionRegistration } from "monacopilot";
 import type { AICompletionRegistration } from "./lib/aiCompletions";
 import { registerCustomHoverProviders } from "./lib/hoverProvider";
+import { registerBuiltinProviders } from "./lib/lsp/dummy-providers";
 import { registerContextEngineProviders } from "./lib/contextEngineProviders";
 import { monacoThemeIdToXterm } from "./lib/monacoThemeToXterm";
 
@@ -359,6 +360,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
 
   // Terminal panel state
   const [terminalOpen, setTerminalOpen] = useState(false);
+  const [terminalMounted, setTerminalMounted] = useState(false);
 
   // ── Merge all plugins: registry (global) + props (instance) ──
   const getAllPlugins = useCallback((): MonacoPlugin[] => {
@@ -462,7 +464,11 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
           label: "Toggle Terminal",
           keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Backquote],
           run: () => {
-            setTerminalOpen((o) => !o);
+            setTerminalOpen((o) => {
+              const next = !o;
+              if (next) setTerminalMounted(true);
+              return next;
+            });
           },
         });
       }
@@ -579,6 +585,12 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
               );
             });
         }
+      }
+
+      // ── Built-in diagnostics, CodeLens, and CodeAction providers ──
+      {
+        const disposeBuiltin = registerBuiltinProviders(monaco, resolvedLanguage);
+        disposables.push({ dispose: disposeBuiltin });
       }
 
       // ── Link opener: open external URLs in a new tab ──
@@ -1391,7 +1403,17 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   }, [filePath, shouldLoadExtensions]);
 
   const handleTerminalToggle = useCallback(() => {
-    setTerminalOpen((o) => !o);
+    setTerminalOpen((o) => {
+      const next = !o;
+      if (next) setTerminalMounted(true);
+      return next;
+    });
+  }, []);
+
+  /** Close the terminal entirely — unmounts it so the socket connection is disposed */
+  const handleTerminalClose = useCallback(() => {
+    setTerminalOpen(false);
+    setTerminalMounted(false);
   }, []);
 
   // ── Settings change handler ──
@@ -1434,6 +1456,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
     // Handle panel toggles
     if (newSettings.showTerminal !== editorSettings.showTerminal) {
       setTerminalOpen(newSettings.showTerminal);
+      if (newSettings.showTerminal) setTerminalMounted(true);
     }
   }, [editorSettings.showTerminal, editorSettings.aiCompletionProvider, onAIProviderChange]);
 
@@ -1555,10 +1578,11 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
       </div>
 
       {/* Terminal panel (below editor) */}
-      {enableTerminal && (
+      {enableTerminal && terminalMounted && (
         <EditorTerminalPanel
           open={terminalOpen}
           onToggle={handleTerminalToggle}
+          onClose={handleTerminalClose}
           terminalUrl={terminalUrl}
           sessionId={terminalSessionId}
           cwd={terminalCwd}
