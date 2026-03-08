@@ -199,7 +199,7 @@ export function buildLSPWebSocketUrl(baseUrl: string, langId: string): string | 
   const wsBase = baseUrl.replace(/^http/, "ws").replace(/\/$/, "");
 
   // Use query parameter format: /lsp?languageId=typescript
-  return `${wsBase}/lsp?languageId=${encodeURIComponent(lspInfo.wsPath)}`;
+  return `${wsBase}/lsp?lang=${encodeURIComponent(lspInfo.wsPath)}`;
 }
 
 /**
@@ -276,22 +276,23 @@ export async function connectLanguageServer(
           }
         }
       },
-      onConnected: () => {
+      onConnected: (client) => {
         connected = true;
         reconnectAttempts = 0;
+        lspClient = client;
         onConnected?.();
 
         // Register Monaco providers if monaco + editor are available
-        if (monaco && lspClient) {
+        if (monaco && client) {
           providerReg?.dispose();
-          providerReg = registerLSPProviders(monaco, languageId, lspClient, resolvedDocUri);
+          providerReg = registerLSPProviders(monaco, languageId, client, resolvedDocUri);
         }
 
         // Send didOpen for the current document
-        if (lspClient && editor) {
+        if (client && editor) {
           const model = editor.getModel();
           if (model) {
-            lspClient.didOpen(
+            client.didOpen(
               resolvedDocUri,
               languageId,
               docVersion,
@@ -300,9 +301,9 @@ export async function connectLanguageServer(
 
             // Listen for content changes → didChange
             const changeDisposable = model.onDidChangeContent(() => {
-              if (lspClient?.isConnected()) {
+              if (client?.isConnected()) {
                 docVersion++;
-                lspClient.didChange(resolvedDocUri, docVersion, model.getValue());
+                client.didChange(resolvedDocUri, docVersion, model.getValue());
               }
             });
             // Store disposable for cleanup

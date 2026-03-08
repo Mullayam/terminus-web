@@ -858,6 +858,9 @@ export default function FileEditorMonacoPage() {
                                                             showStatusBar={isActiveGroup && gi === splitGroups.length - 1}
                                                             enableTerminal={isActiveGroup && gi === splitGroups.length - 1}
                                                             enableAutoClose
+                                                            enableLSP
+                                                            lspBaseUrl="ws://localhost:9257"
+                                                            documentUri={`file://${editorFilePath || editorFileName}`}
                                                             pluginDebounceMs={1200}
                                                             enableVsixDrop={isActiveGroup}
                                                             terminalUrl={`${__config.API_URL}/dedicated-terminal`}

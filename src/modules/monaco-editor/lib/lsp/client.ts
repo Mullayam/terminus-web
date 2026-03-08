@@ -52,7 +52,7 @@ export interface LSPClientOptions {
   onShowMessage?: (params: LSPShowMessageParams) => void;
   /** Called when the server sends window/logMessage */
   onLogMessage?: (params: LSPShowMessageParams) => void;
-  onConnected?: () => void;
+  onConnected?: (client: LSPClient) => void;
   onDisconnected?: () => void;
   onError?: (error: Error) => void;
 }
@@ -258,9 +258,9 @@ export function createLSPClient(opts: LSPClientOptions): Promise<LSPClient> {
           connection.sendNotification("initialized", {});
 
           connected = true;
-          opts.onConnected?.();
 
-          // Build the client facade
+          // Build the client facade BEFORE firing onConnected
+          // so the callback receives the ready client instance.
           const client: LSPClient = {
             connection,
             isConnected: () => connected && !disposed,
@@ -376,6 +376,7 @@ export function createLSPClient(opts: LSPClientOptions): Promise<LSPClient> {
             },
           };
 
+          opts.onConnected?.(client);
           resolve(client);
         } catch (err) {
           reject(err);

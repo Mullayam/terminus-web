@@ -550,6 +550,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
               });
             },
             onServerMessage: (message, severity, langId) => {
+              console.log(message, severity, langId)
               const severityMap: Record<string, "error" | "warning" | "info"> = {
                 error: "error",
                 warning: "warning",
