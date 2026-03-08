@@ -309,15 +309,17 @@ const LSP_TO_MONACO_SYMBOL_KIND: Record<number, number> = {
 export function toMonacoDocumentSymbols(
   symbols: lsp.DocumentSymbol[],
 ): monacoNs.languages.DocumentSymbol[] {
-  return symbols.map((s) => ({
-    name: s.name,
-    detail: s.detail ?? "",
-    kind: LSP_TO_MONACO_SYMBOL_KIND[s.kind] ?? 12,
-    tags: (s.tags as number[]) ?? [],
-    range: toMonacoRange(s.range),
-    selectionRange: toMonacoRange(s.selectionRange),
-    children: s.children ? toMonacoDocumentSymbols(s.children) : undefined,
-  }));
+  return symbols
+    .filter((s) => s?.range != null && s?.selectionRange != null)
+    .map((s) => ({
+      name: s.name,
+      detail: s.detail ?? "",
+      kind: LSP_TO_MONACO_SYMBOL_KIND[s.kind] ?? 12,
+      tags: (s.tags as number[]) ?? [],
+      range: toMonacoRange(s.range),
+      selectionRange: toMonacoRange(s.selectionRange),
+      children: s.children ? toMonacoDocumentSymbols(s.children) : undefined,
+    }));
 }
 
 /* ────────────────────────────────────────────────────────────

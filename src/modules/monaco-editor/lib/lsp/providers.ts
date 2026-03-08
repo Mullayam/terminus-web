@@ -140,15 +140,17 @@ export function registerLSPProviders(
           return toMonacoDocumentSymbols(result as lsp.DocumentSymbol[]);
         }
 
-        // SymbolInformation[] → flat list
-        return (result as lsp.SymbolInformation[]).map((si) => ({
-          name: si.name,
-          detail: "",
-          kind: si.kind as unknown as monacoNs.languages.SymbolKind,
-          tags: [],
-          range: toMonacoRange(si.location.range),
-          selectionRange: toMonacoRange(si.location.range),
-        }));
+        // SymbolInformation[] → flat list (skip malformed entries)
+        return (result as lsp.SymbolInformation[])
+          .filter((si) => si?.location?.range != null)
+          .map((si) => ({
+            name: si.name,
+            detail: "",
+            kind: si.kind as unknown as monacoNs.languages.SymbolKind,
+            tags: [],
+            range: toMonacoRange(si.location.range),
+            selectionRange: toMonacoRange(si.location.range),
+          }));
       },
     }),
   );
