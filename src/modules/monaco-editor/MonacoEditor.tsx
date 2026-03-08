@@ -68,7 +68,7 @@ import type { LSPConnection } from "./lib/connectLanguageServer";
 import type { CompletionRegistration } from "monacopilot";
 import type { AICompletionRegistration } from "./lib/aiCompletions";
 import { registerCustomHoverProviders } from "./lib/hoverProvider";
-import { registerBuiltinProviders } from "./lib/lsp/dummy-providers";
+import { registerBuiltinProviders } from "./lib/lsp/builtin-providers";
 import { registerContextEngineProviders } from "./lib/contextEngineProviders";
 import { monacoThemeIdToXterm } from "./lib/monacoThemeToXterm";
 
@@ -330,6 +330,19 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   // Track selected text (for AI chat context)
   const [selectedText, setSelectedText] = useState("");
 
+  // Listen for Explain events from builtin providers
+  useEffect(() => {
+    const handleExplain = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail) return;
+      // Open the AI sidebar tab so the user can see the explain prompt
+      setSidebarOpen(true);
+      setSidebarTab("ai");
+    };
+    window.addEventListener("terminus:explain", handleExplain);
+    return () => window.removeEventListener("terminus:explain", handleExplain);
+  }, []);
+
   // Editor settings (persisted to localStorage)
   const [editorSettings, setEditorSettings] = useState<EditorSettings>(() => loadEditorSettings());
 
@@ -524,6 +537,11 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
         }
       }
 
+      // ── Built-in diagnostics, CodeLens, and CodeAction providers ──
+      // (registered first so CodeLens/CodeActions work immediately)
+      const builtinHandle = registerBuiltinProviders(monaco, resolvedLanguage);
+      disposables.push(builtinHandle);
+
       // ── LSP over WebSocket ──
       const shouldEnableLSP = enableLSP && editorSettings.enableLSP;
       if (shouldEnableLSP && lspBaseUrl && hasLSPSupport(resolvedLanguage)) {
@@ -539,6 +557,8 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
             editor,
             onConnected: () => {
               console.log(`[LSP] Connected: ${resolvedLanguage}`);
+              // Pause all builtin providers — LSP provides its own
+              builtinHandle.pause();
               showEditorNotification(`Language server connected`, "info", {
                 source: `LSP: ${lspName}`,
                 timeout: 3000,
@@ -546,6 +566,8 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
             },
             onDisconnected: () => {
               console.log(`[LSP] Disconnected: ${resolvedLanguage}`);
+              // Resume builtin providers when LSP disconnects
+              builtinHandle.resume();
             },
             onError: (err) => {
               console.warn(`[LSP] Error:`, err);
@@ -585,12 +607,6 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
               );
             });
         }
-      }
-
-      // ── Built-in diagnostics, CodeLens, and CodeAction providers ──
-      {
-        const disposeBuiltin = registerBuiltinProviders(monaco, resolvedLanguage);
-        disposables.push({ dispose: disposeBuiltin });
       }
 
       // ── Link opener: open external URLs in a new tab ──

@@ -886,7 +886,7 @@ function registerBuiltinDiagnostics(
 
   const clearMarkers = () => {
     for (const model of monaco.editor.getModels()) {
-      monaco.editor.setModelMarkers(model, "@enjoys/context-engine-lint", []);
+      monaco.editor.setModelMarkers(model, "builtin-lint", []);
     }
   };
 
@@ -998,10 +998,10 @@ function registerBuiltinCodeLens(
 export interface BuiltinProvidersHandle {
   /** Dispose all providers */
   dispose: () => void;
-  /** Pause builtin diagnostics (e.g. when LSP takes over) */
-  pauseDiagnostics: () => void;
-  /** Resume builtin diagnostics */
-  resumeDiagnostics: () => void;
+  /** Pause all builtin providers (diagnostics, CodeLens, CodeActions) — call when LSP takes over */
+  pause: () => void;
+  /** Resume all builtin providers — call when LSP disconnects */
+  resume: () => void;
 }
 
 /**
@@ -1014,21 +1014,21 @@ export function registerBuiltinProviders(
   monaco: Monaco,
   languageId: string,
 ): BuiltinProvidersHandle {
+  let paused = false;
+
   const diagnostics = registerBuiltinDiagnostics(monaco, languageId);
   const codeActions = registerBuiltinCodeActions(monaco, languageId);
   const codeLens = registerBuiltinCodeLens(monaco, languageId);
 
-  // Register Explain commands (idempotent — keyed by command id)
+  // Register Explain commands
   const explainSymbolCmd = monaco.editor.registerCommand(
     "terminus.explainSymbol",
     (_accessor, symbolName: string) => {
-      // Trigger the AI chat with an explain prompt for the symbol
       const editor = monaco.editor.getEditors()[0];
       if (editor) {
         const model = editor.getModel();
         const langId = model?.getLanguageId() ?? languageId;
         const prompt = `Explain the "${symbolName}" symbol (${langId})`;
-        // Fire a custom event that the host can listen to
         window.dispatchEvent(new CustomEvent("terminus:explain", {
           detail: { type: "symbol", name: symbolName, language: langId, prompt },
         }));
@@ -1045,21 +1045,37 @@ export function registerBuiltinProviders(
     },
   );
 
-  console.log(`[builtin-providers] Registered diagnostics + CodeAction + CodeLens + Explain for "${languageId}"`);
+  // When paused, dispose CodeLens + CodeActions so LSP's versions take precedence.
+  // We re-register them on resume. Diagnostics have their own pause/resume.
+  let currentCodeActions = codeActions;
+  let currentCodeLens = codeLens;
+
+  console.log(`[builtin-providers] Registered for "${languageId}"`);
 
   return {
     dispose: () => {
       diagnostics.dispose();
-      codeActions.dispose();
-      codeLens.dispose();
+      currentCodeActions.dispose();
+      currentCodeLens.dispose();
       explainSymbolCmd.dispose();
       explainCodeCmd.dispose();
-      console.log(`[builtin-providers] Disposed all providers for "${languageId}"`);
+      console.log(`[builtin-providers] Disposed all for "${languageId}"`);
     },
-    pauseDiagnostics: () => diagnostics.pause(),
-    resumeDiagnostics: () => diagnostics.resume(),
+    pause: () => {
+      if (paused) return;
+      paused = true;
+      diagnostics.pause();
+      currentCodeActions.dispose();
+      currentCodeLens.dispose();
+      console.log(`[builtin-providers] Paused for "${languageId}" — LSP active`);
+    },
+    resume: () => {
+      if (!paused) return;
+      paused = false;
+      diagnostics.resume();
+      currentCodeActions = registerBuiltinCodeActions(monaco, languageId);
+      currentCodeLens = registerBuiltinCodeLens(monaco, languageId);
+      console.log(`[builtin-providers] Resumed for "${languageId}" — LSP disconnected`);
+    },
   };
 }
-
-// Keep backward compat
-export const registerDummyProviders = registerBuiltinProviders;

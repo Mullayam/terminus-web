@@ -388,7 +388,9 @@ export function toMonacoDocumentHighlights(
 function toMonacoCommand(cmd: lsp.Command): monacoNs.languages.Command {
   return {
     id: cmd.command,
-    title: cmd.title,
+    // Strip VS Code codicon syntax $(icon-name) — Monaco doesn't render it
+    // and it shows as literal text with %20 artifacts
+    title: cmd.title.replace(/\$\([^)]+\)\s*/g, ""),
     arguments: cmd.arguments,
   };
 }
