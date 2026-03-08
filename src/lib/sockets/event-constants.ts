@@ -79,14 +79,5 @@ export enum SocketEventConstants {
   AI_DONE = "@@AI_DONE",
   AI_ERROR = "@@AI_ERROR",
 
-  // LSP Namespace  (/lsp)
-  LSP_READY = "@@LSP_READY",
-  LSP_ERROR = "@@LSP_ERROR",
-  LSP_OPEN = "@@LSP_OPEN",
-  LSP_CHANGE = "@@LSP_CHANGE",
-  LSP_CLOSE = "@@LSP_CLOSE",
-  LSP_COMPLETE = "@@LSP_COMPLETE",
-  LSP_COMPLETE_RESULT = "@@LSP_COMPLETE_RESULT",
-  LSP_HOVER = "@@LSP_HOVER",
-  LSP_HOVER_RESULT = "@@LSP_HOVER_RESULT",
+ 
 }

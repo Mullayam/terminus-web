@@ -86,6 +86,52 @@ export interface LSPClient {
   formatting: (uri: string, options: lsp.FormattingOptions) => Promise<lsp.TextEdit[] | null>;
   /** Request textDocument/rename */
   rename: (uri: string, position: lsp.Position, newName: string) => Promise<lsp.WorkspaceEdit | null>;
+  /** Request textDocument/declaration */
+  declaration: (uri: string, position: lsp.Position) => Promise<lsp.Declaration | lsp.LocationLink[] | null>;
+  /** Request textDocument/typeDefinition */
+  typeDefinition: (uri: string, position: lsp.Position) => Promise<lsp.Definition | lsp.LocationLink[] | null>;
+  /** Request textDocument/implementation */
+  implementation: (uri: string, position: lsp.Position) => Promise<lsp.Definition | lsp.LocationLink[] | null>;
+  /** Request textDocument/documentHighlight */
+  documentHighlight: (uri: string, position: lsp.Position) => Promise<lsp.DocumentHighlight[] | null>;
+  /** Request textDocument/codeAction */
+  codeAction: (uri: string, range: lsp.Range, context: lsp.CodeActionContext) => Promise<(lsp.Command | lsp.CodeAction)[] | null>;
+  /** Request textDocument/codeLens */
+  codeLens: (uri: string) => Promise<lsp.CodeLens[] | null>;
+  /** Request codeLens/resolve */
+  codeLensResolve: (lens: lsp.CodeLens) => Promise<lsp.CodeLens>;
+  /** Request textDocument/documentLink */
+  documentLink: (uri: string) => Promise<lsp.DocumentLink[] | null>;
+  /** Request documentLink/resolve */
+  documentLinkResolve: (link: lsp.DocumentLink) => Promise<lsp.DocumentLink>;
+  /** Request textDocument/documentColor */
+  documentColor: (uri: string) => Promise<lsp.ColorInformation[] | null>;
+  /** Request textDocument/colorPresentation */
+  colorPresentation: (uri: string, color: lsp.Color, range: lsp.Range) => Promise<lsp.ColorPresentation[] | null>;
+  /** Request textDocument/rangeFormatting */
+  rangeFormatting: (uri: string, range: lsp.Range, options: lsp.FormattingOptions) => Promise<lsp.TextEdit[] | null>;
+  /** Request textDocument/onTypeFormatting */
+  onTypeFormatting: (uri: string, position: lsp.Position, ch: string, options: lsp.FormattingOptions) => Promise<lsp.TextEdit[] | null>;
+  /** Request textDocument/prepareRename */
+  prepareRename: (uri: string, position: lsp.Position) => Promise<lsp.Range | { range: lsp.Range; placeholder: string } | null>;
+  /** Request textDocument/foldingRange */
+  foldingRange: (uri: string) => Promise<lsp.FoldingRange[] | null>;
+  /** Request textDocument/selectionRange */
+  selectionRange: (uri: string, positions: lsp.Position[]) => Promise<lsp.SelectionRange[] | null>;
+  /** Request textDocument/linkedEditingRange */
+  linkedEditingRange: (uri: string, position: lsp.Position) => Promise<lsp.LinkedEditingRanges | null>;
+  /** Request textDocument/inlayHint */
+  inlayHint: (uri: string, range: lsp.Range) => Promise<lsp.InlayHint[] | null>;
+  /** Request inlayHint/resolve */
+  inlayHintResolve: (hint: lsp.InlayHint) => Promise<lsp.InlayHint>;
+  /** Request textDocument/semanticTokens/full */
+  semanticTokensFull: (uri: string) => Promise<lsp.SemanticTokens | null>;
+  /** Request textDocument/semanticTokens/range */
+  semanticTokensRange: (uri: string, range: lsp.Range) => Promise<lsp.SemanticTokens | null>;
+  /** Request completionItem/resolve */
+  completionItemResolve: (item: lsp.CompletionItem) => Promise<lsp.CompletionItem>;
+  /** Server capabilities returned from initialize */
+  serverCapabilities: Record<string, any>;
 }
 
 /**
@@ -195,7 +241,7 @@ export function createLSPClient(opts: LSPClientOptions): Promise<LSPClient> {
           connection.listen();
 
           // ── LSP Initialize ──
-          await connection.sendRequest("initialize", {
+          const initResult = await connection.sendRequest("initialize", {
             processId: null,
             rootUri: opts.rootUri ?? null,
             capabilities: {
@@ -245,6 +291,42 @@ export function createLSPClient(opts: LSPClientOptions): Promise<LSPClient> {
                       valueSet: ["quickfix", "refactor", "source"],
                     },
                   },
+                  resolveSupport: { properties: ["edit"] },
+                },
+                declaration: { dynamicRegistration: false },
+                typeDefinition: { dynamicRegistration: false },
+                implementation: { dynamicRegistration: false },
+                documentHighlight: { dynamicRegistration: false },
+                codeLens: { dynamicRegistration: false },
+                documentLink: { dynamicRegistration: false },
+                colorProvider: { dynamicRegistration: false },
+                rangeFormatting: { dynamicRegistration: false },
+                onTypeFormatting: { dynamicRegistration: false },
+                foldingRange: {
+                  dynamicRegistration: false,
+                  rangeLimit: 5000,
+                },
+                selectionRange: { dynamicRegistration: false },
+                linkedEditingRange: { dynamicRegistration: false },
+                inlayHint: { dynamicRegistration: false },
+                semanticTokens: {
+                  dynamicRegistration: false,
+                  tokenTypes: [
+                    "namespace", "type", "class", "enum", "interface",
+                    "struct", "typeParameter", "parameter", "variable",
+                    "property", "enumMember", "event", "function",
+                    "method", "macro", "keyword", "modifier", "comment",
+                    "string", "number", "regexp", "operator", "decorator",
+                  ],
+                  tokenModifiers: [
+                    "declaration", "definition", "readonly", "static",
+                    "deprecated", "abstract", "async", "modification",
+                    "documentation", "defaultLibrary",
+                  ],
+                  formats: ["relative"],
+                  requests: { full: true, range: true },
+                  multilineTokenSupport: false,
+                  overlappingTokenSupport: false,
                 },
               },
               workspace: {
@@ -253,6 +335,8 @@ export function createLSPClient(opts: LSPClientOptions): Promise<LSPClient> {
               },
             },
           });
+
+          const serverCaps = (initResult as any)?.capabilities ?? {};
 
           // ── LSP Initialized notification ──
           connection.sendNotification("initialized", {});
@@ -263,6 +347,7 @@ export function createLSPClient(opts: LSPClientOptions): Promise<LSPClient> {
           // so the callback receives the ready client instance.
           const client: LSPClient = {
             connection,
+            serverCapabilities: serverCaps,
             isConnected: () => connected && !disposed,
             dispose: () => {
               if (disposed) return;
@@ -373,6 +458,192 @@ export function createLSPClient(opts: LSPClientOptions): Promise<LSPClient> {
                   newName,
                 });
               } catch { return null; }
+            },
+
+            async declaration(uri, position) {
+              try {
+                return await connection.sendRequest("textDocument/declaration", {
+                  textDocument: { uri },
+                  position,
+                });
+              } catch { return null; }
+            },
+
+            async typeDefinition(uri, position) {
+              try {
+                return await connection.sendRequest("textDocument/typeDefinition", {
+                  textDocument: { uri },
+                  position,
+                });
+              } catch { return null; }
+            },
+
+            async implementation(uri, position) {
+              try {
+                return await connection.sendRequest("textDocument/implementation", {
+                  textDocument: { uri },
+                  position,
+                });
+              } catch { return null; }
+            },
+
+            async documentHighlight(uri, position) {
+              try {
+                return await connection.sendRequest("textDocument/documentHighlight", {
+                  textDocument: { uri },
+                  position,
+                });
+              } catch { return null; }
+            },
+
+            async codeAction(uri, range, context) {
+              try {
+                return await connection.sendRequest("textDocument/codeAction", {
+                  textDocument: { uri },
+                  range,
+                  context,
+                });
+              } catch { return null; }
+            },
+
+            async codeLens(uri) {
+              try {
+                return await connection.sendRequest("textDocument/codeLens", {
+                  textDocument: { uri },
+                });
+              } catch { return null; }
+            },
+
+            async codeLensResolve(lens) {
+              try {
+                return await connection.sendRequest("codeLens/resolve", lens);
+              } catch { return lens; }
+            },
+
+            async documentLink(uri) {
+              try {
+                return await connection.sendRequest("textDocument/documentLink", {
+                  textDocument: { uri },
+                });
+              } catch { return null; }
+            },
+
+            async documentLinkResolve(link) {
+              try {
+                return await connection.sendRequest("documentLink/resolve", link);
+              } catch { return link; }
+            },
+
+            async documentColor(uri) {
+              try {
+                return await connection.sendRequest("textDocument/documentColor", {
+                  textDocument: { uri },
+                });
+              } catch { return null; }
+            },
+
+            async colorPresentation(uri, color, range) {
+              try {
+                return await connection.sendRequest("textDocument/colorPresentation", {
+                  textDocument: { uri },
+                  color,
+                  range,
+                });
+              } catch { return null; }
+            },
+
+            async rangeFormatting(uri, range, options) {
+              try {
+                return await connection.sendRequest("textDocument/rangeFormatting", {
+                  textDocument: { uri },
+                  range,
+                  options,
+                });
+              } catch { return null; }
+            },
+
+            async onTypeFormatting(uri, position, ch, options) {
+              try {
+                return await connection.sendRequest("textDocument/onTypeFormatting", {
+                  textDocument: { uri },
+                  position,
+                  ch,
+                  options,
+                });
+              } catch { return null; }
+            },
+
+            async prepareRename(uri, position) {
+              try {
+                return await connection.sendRequest("textDocument/prepareRename", {
+                  textDocument: { uri },
+                  position,
+                });
+              } catch { return null; }
+            },
+
+            async foldingRange(uri) {
+              try {
+                return await connection.sendRequest("textDocument/foldingRange", {
+                  textDocument: { uri },
+                });
+              } catch { return null; }
+            },
+
+            async selectionRange(uri, positions) {
+              try {
+                return await connection.sendRequest("textDocument/selectionRange", {
+                  textDocument: { uri },
+                  positions,
+                });
+              } catch { return null; }
+            },
+
+            async linkedEditingRange(uri, position) {
+              try {
+                return await connection.sendRequest("textDocument/linkedEditingRange", {
+                  textDocument: { uri },
+                  position,
+                });
+              } catch { return null; }
+            },
+
+            async inlayHint(uri, range) {
+              try {
+                return await connection.sendRequest("textDocument/inlayHint", {
+                  textDocument: { uri },
+                  range,
+                });
+              } catch { return null; }
+            },
+
+            async inlayHintResolve(hint) {
+              try {
+                return await connection.sendRequest("inlayHint/resolve", hint);
+              } catch { return hint; }
+            },
+
+            async semanticTokensFull(uri) {
+              try {
+                return await connection.sendRequest("textDocument/semanticTokens/full", {
+                  textDocument: { uri },
+                });
+              } catch { return null; }
+            },
+
+            async semanticTokensRange(uri, range) {
+              try {
+                return await connection.sendRequest("textDocument/semanticTokens/range", {
+                  textDocument: { uri },
+                  range,
+                });
+              } catch { return null; }
+            },
+
+            async completionItemResolve(item) {
+              try {
+                return await connection.sendRequest("completionItem/resolve", item);
+              } catch { return item; }
             },
           };
 

@@ -365,3 +365,284 @@ function monacoUri(uriStr: string) {
   // Fallback — shouldn't happen if setMonacoRef was called
   return { toString: () => uriStr } as unknown as monacoNs.Uri;
 }
+
+/* ────────────────────────────────────────────────────────────
+ * Document Highlight
+ * ──────────────────────────────────────────────────────────── */
+
+/** Convert LSP DocumentHighlight[] → Monaco DocumentHighlight[] */
+export function toMonacoDocumentHighlights(
+  highlights: lsp.DocumentHighlight[],
+): monacoNs.languages.DocumentHighlight[] {
+  return highlights.map((h) => ({
+    range: toMonacoRange(h.range),
+    kind: h.kind as unknown as monacoNs.languages.DocumentHighlightKind,
+  }));
+}
+
+/* ────────────────────────────────────────────────────────────
+ * Code Actions
+ * ──────────────────────────────────────────────────────────── */
+
+/** Convert LSP Command → Monaco Command */
+function toMonacoCommand(cmd: lsp.Command): monacoNs.languages.Command {
+  return {
+    id: cmd.command,
+    title: cmd.title,
+    arguments: cmd.arguments,
+  };
+}
+
+/** Convert LSP WorkspaceEdit → Monaco WorkspaceEdit */
+export function toMonacoWorkspaceEdit(
+  edit: lsp.WorkspaceEdit,
+): monacoNs.languages.WorkspaceEdit {
+  const edits: monacoNs.languages.IWorkspaceTextEdit[] = [];
+  if (edit.changes) {
+    for (const [uri, textEdits] of Object.entries(edit.changes)) {
+      for (const te of textEdits) {
+        edits.push({
+          resource: monacoUri(uri),
+          textEdit: { range: toMonacoRange(te.range), text: te.newText },
+          versionId: undefined,
+        });
+      }
+    }
+  }
+  if (edit.documentChanges) {
+    for (const change of edit.documentChanges) {
+      if ("textDocument" in change && "edits" in change) {
+        for (const te of change.edits) {
+          const textEdit = "range" in te ? te : (te as any);
+          if (textEdit.range) {
+            edits.push({
+              resource: monacoUri(change.textDocument.uri),
+              textEdit: { range: toMonacoRange(textEdit.range), text: textEdit.newText },
+              versionId: undefined,
+            });
+          }
+        }
+      }
+    }
+  }
+  return { edits };
+}
+
+/** Convert LSP (Command | CodeAction)[] → Monaco CodeActionList */
+export function toMonacoCodeActions(
+  monaco: Monaco,
+  actions: (lsp.Command | lsp.CodeAction)[],
+): monacoNs.languages.CodeActionList {
+  const monacoActions: monacoNs.languages.CodeAction[] = [];
+  for (const action of actions) {
+    if ("command" in action && typeof action.command === "string" && !("title" in action && "edit" in action)) {
+      // It's a Command
+      monacoActions.push({
+        title: (action as lsp.Command).title,
+        command: toMonacoCommand(action as lsp.Command),
+      });
+    } else {
+      // It's a CodeAction
+      const ca = action as lsp.CodeAction;
+      monacoActions.push({
+        title: ca.title,
+        kind: ca.kind,
+        isPreferred: ca.isPreferred,
+        disabled: ca.disabled?.reason,
+        edit: ca.edit ? toMonacoWorkspaceEdit(ca.edit) : undefined,
+        command: ca.command ? toMonacoCommand(ca.command) : undefined,
+        diagnostics: ca.diagnostics?.map((d) => ({
+          severity: toMonacoSeverity(monaco, d.severity),
+          message: d.message,
+          source: d.source,
+          code: typeof d.code === "number" || typeof d.code === "string" ? String(d.code) : undefined,
+          ...toMonacoRange(d.range),
+        })),
+      });
+    }
+  }
+  return { actions: monacoActions, dispose: () => {} };
+}
+
+/* ────────────────────────────────────────────────────────────
+ * Code Lens
+ * ──────────────────────────────────────────────────────────── */
+
+/** Convert a single LSP CodeLens → Monaco CodeLens */
+export function toMonacoCodeLens(lens: lsp.CodeLens): monacoNs.languages.CodeLens {
+  return {
+    range: toMonacoRange(lens.range),
+    command: lens.command ? toMonacoCommand(lens.command) : undefined,
+  };
+}
+
+/* ────────────────────────────────────────────────────────────
+ * Document Links
+ * ──────────────────────────────────────────────────────────── */
+
+/** Convert LSP DocumentLink → Monaco ILink */
+export function toMonacoDocumentLink(link: lsp.DocumentLink): monacoNs.languages.ILink {
+  return {
+    range: toMonacoRange(link.range),
+    url: link.target,
+    tooltip: link.tooltip,
+  };
+}
+
+/* ────────────────────────────────────────────────────────────
+ * Document Color
+ * ──────────────────────────────────────────────────────────── */
+
+/** Convert LSP ColorInformation → Monaco IColorInformation */
+export function toMonacoColorInformation(
+  info: lsp.ColorInformation,
+): monacoNs.languages.IColorInformation {
+  return {
+    range: toMonacoRange(info.range),
+    color: info.color,
+  };
+}
+
+/** Convert LSP ColorPresentation → Monaco IColorPresentation */
+export function toMonacoColorPresentation(
+  pres: lsp.ColorPresentation,
+): monacoNs.languages.IColorPresentation {
+  return {
+    label: pres.label,
+    textEdit: pres.textEdit ? toMonacoTextEdit(pres.textEdit) : undefined,
+    additionalTextEdits: pres.additionalTextEdits?.map(toMonacoTextEdit),
+  };
+}
+
+/** Monaco IColor → LSP Color */
+export function fromMonacoColor(color: monacoNs.languages.IColor): lsp.Color {
+  return { red: color.red, green: color.green, blue: color.blue, alpha: color.alpha };
+}
+
+/* ────────────────────────────────────────────────────────────
+ * Folding Ranges
+ * ──────────────────────────────────────────────────────────── */
+
+const LSP_FOLDING_KIND_MAP: Record<string, monacoNs.languages.FoldingRangeKind | undefined> = {};
+
+function initFoldingKindMap(monaco: Monaco) {
+  if (Object.keys(LSP_FOLDING_KIND_MAP).length > 0) return;
+  LSP_FOLDING_KIND_MAP["comment"] = monaco.languages.FoldingRangeKind.Comment;
+  LSP_FOLDING_KIND_MAP["imports"] = monaco.languages.FoldingRangeKind.Imports;
+  LSP_FOLDING_KIND_MAP["region"] = monaco.languages.FoldingRangeKind.Region;
+}
+
+/** Convert LSP FoldingRange[] → Monaco FoldingRange[] */
+export function toMonacoFoldingRanges(
+  monaco: Monaco,
+  ranges: lsp.FoldingRange[],
+): monacoNs.languages.FoldingRange[] {
+  initFoldingKindMap(monaco);
+  return ranges.map((r) => ({
+    start: r.startLine + 1, // LSP 0-based → Monaco 1-based
+    end: r.endLine + 1,
+    kind: r.kind ? LSP_FOLDING_KIND_MAP[r.kind] : undefined,
+  }));
+}
+
+/* ────────────────────────────────────────────────────────────
+ * Selection Ranges
+ * ──────────────────────────────────────────────────────────── */
+
+/**
+ * Convert an LSP SelectionRange (linked list via parent) to a
+ * flat Monaco SelectionRange[] from innermost to outermost.
+ */
+export function flattenSelectionRange(
+  sr: lsp.SelectionRange,
+): monacoNs.languages.SelectionRange[] {
+  const result: monacoNs.languages.SelectionRange[] = [];
+  let current: lsp.SelectionRange | undefined = sr;
+  while (current) {
+    result.push({ range: toMonacoRange(current.range) });
+    current = current.parent;
+  }
+  return result;
+}
+
+/* ────────────────────────────────────────────────────────────
+ * Linked Editing Ranges
+ * ──────────────────────────────────────────────────────────── */
+
+/** Convert LSP LinkedEditingRanges → Monaco LinkedEditingRanges */
+export function toMonacoLinkedEditingRanges(
+  result: lsp.LinkedEditingRanges,
+): monacoNs.languages.LinkedEditingRanges {
+  return {
+    ranges: result.ranges.map(toMonacoRange),
+    wordPattern: result.wordPattern ? new RegExp(result.wordPattern) : undefined,
+  };
+}
+
+/* ────────────────────────────────────────────────────────────
+ * Inlay Hints
+ * ──────────────────────────────────────────────────────────── */
+
+/** Convert a single LSP InlayHint → Monaco InlayHint */
+export function toMonacoInlayHint(
+  hint: lsp.InlayHint,
+): monacoNs.languages.InlayHint {
+  let label: string | monacoNs.languages.InlayHintLabelPart[];
+  if (typeof hint.label === "string") {
+    label = hint.label;
+  } else {
+    label = hint.label.map((part) => ({
+      label: part.value,
+      tooltip: part.tooltip
+        ? typeof part.tooltip === "string"
+          ? part.tooltip
+          : { value: part.tooltip.value }
+        : undefined,
+      location: part.location
+        ? { uri: monacoUri(part.location.uri), range: toMonacoRange(part.location.range) }
+        : undefined,
+      command: part.command
+        ? { id: part.command.command, title: part.command.title, arguments: part.command.arguments }
+        : undefined,
+    }));
+  }
+  return {
+    label,
+    position: toMonacoPosition(hint.position),
+    kind: hint.kind as unknown as monacoNs.languages.InlayHintKind,
+    tooltip: hint.tooltip
+      ? typeof hint.tooltip === "string"
+        ? hint.tooltip
+        : { value: hint.tooltip.value }
+      : undefined,
+    textEdits: hint.textEdits?.map(toMonacoTextEdit),
+    paddingLeft: hint.paddingLeft,
+    paddingRight: hint.paddingRight,
+  };
+}
+
+/* ────────────────────────────────────────────────────────────
+ * Semantic Tokens
+ * ──────────────────────────────────────────────────────────── */
+
+/** Convert LSP SemanticTokens → Monaco SemanticTokens */
+export function toMonacoSemanticTokens(
+  tokens: lsp.SemanticTokens,
+): monacoNs.languages.SemanticTokens {
+  return {
+    resultId: tokens.resultId,
+    data: new Uint32Array(tokens.data),
+  };
+}
+
+/** Extract semantic tokens legend from server capabilities */
+export function getSemanticTokensLegend(
+  serverCaps: Record<string, any>,
+): monacoNs.languages.SemanticTokensLegend | null {
+  const provider = serverCaps?.semanticTokensProvider;
+  if (!provider?.legend) return null;
+  return {
+    tokenTypes: provider.legend.tokenTypes ?? [],
+    tokenModifiers: provider.legend.tokenModifiers ?? [],
+  };
+}
