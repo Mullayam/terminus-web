@@ -1289,6 +1289,10 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
     renderWhitespace: editorSettings.renderWhitespace,
     // CodeLens (used by AI Suggest buttons on functions/classes)
     codeLens: true,
+    // Inlay hints (type annotations, parameter names from LSP)
+    inlayHints: { enabled: "on" },
+    // Lightbulb (code action indicator)
+    lightbulb: { enabled: "on" as any },
     // IntelliSense / text hint settings
     parameterHints: { enabled: editorSettings.parameterHints },
     hover: { enabled: editorSettings.hoverEnabled },
@@ -1413,6 +1417,8 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
         // IntelliSense settings
         parameterHints: { enabled: newSettings.parameterHints },
         hover: { enabled: newSettings.hoverEnabled },
+        inlayHints: { enabled: "on" },
+        lightbulb: { enabled: "on" as any },
         quickSuggestions: newSettings.quickSuggestions
           ? { other: "on", comments: "off", strings: "off" }
           : false,

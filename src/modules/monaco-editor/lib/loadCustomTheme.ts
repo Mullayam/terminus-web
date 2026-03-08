@@ -19,6 +19,7 @@
  */
 
 import type * as monacoNs from "monaco-editor";
+import { ensureWidgetColors } from "../core/theme-registry";
 
 type Monaco = typeof monacoNs;
 
@@ -116,12 +117,13 @@ export async function loadCustomTheme(
       const themeData: VSCodeTheme = await res.json();
       const base: "vs" | "vs-dark" | "hc-black" =
         themeData.type === "light" ? "vs" : themeData.type === "hc" ? "hc-black" : "vs-dark";
+      const isDark = base === "vs-dark" || base === "hc-black";
 
       monaco.editor.defineTheme(themeId, {
         base,
         inherit: true,
         rules: convertTokenColors(themeData.tokenColors),
-        colors: convertColors(themeData.colors),
+        colors: ensureWidgetColors(convertColors(themeData.colors), isDark),
       });
 
       loadedThemes.add(themeId);
