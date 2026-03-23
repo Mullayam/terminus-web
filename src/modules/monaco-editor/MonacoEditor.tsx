@@ -47,6 +47,8 @@ import { createPluginContext } from "./core/plugin-context";
 import { EventBus } from "./core/event-bus";
 import { pluginRegistry } from "./core/plugin-registry";
 import { registerTheme, registerThemes } from "./core/theme-registry";
+import { registerLanguage } from "./core/language-registry";
+import { dotenvLanguageDef } from "./languages/dotenv";
 import { BUILT_IN_THEMES } from "./themes";
 import { loadMonacoTheme } from "./themes/monaco-themes-catalog";
 import { detectLanguage, initMonacoLanguages, refreshLanguageCache } from "./utils/language-detect";
@@ -430,6 +432,9 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
 
       // Populate the language detection cache from Monaco's built-in registry
       initMonacoLanguages(monaco);
+
+      // Register custom languages
+      registerLanguage(monaco, dotenvLanguageDef);
 
       // Register built-in themes
       registerThemes(monaco, BUILT_IN_THEMES);

@@ -10,6 +10,8 @@
  * microsoft/vscode `extensions/` tree on GitHub.
  */
 
+import { isDotenvFile } from "../languages/dotenv";
+
 /* ── Extension → Language ID ─────────────────────────────── */
 
 /**
@@ -47,7 +49,7 @@ const EXT_TO_LANG: Record<string, string> = {
   ".xml": "xml",
   ".svg": "xml",
   ".ini": "ini",
-  ".env": "ini",
+  ".env": "dotenv",
   ".properties": "ini",
 
   // Systems
@@ -182,6 +184,7 @@ const LANG_TO_FOLDER: Record<string, string> = {
   diff: "diff",
   latex: "latex",
   ini: "ini",
+  dotenv: "ini",
   toml: "toml",                // Not in vscode tree by default
   log: "log",
   hlsl: "hlsl",
@@ -216,6 +219,13 @@ export function resolveFileLanguage(filePath: string): {
   languageId: string | null;
   extensionFolder: string | null;
 } {
+  const fileName = filePath.split(/[/\\]/).pop() ?? filePath;
+
+  // Dotenv pattern detection takes priority
+  if (isDotenvFile(fileName)) {
+    return { ext: ".env", languageId: "dotenv", extensionFolder: getExtensionFolder("dotenv") };
+  }
+
   const lastDot = filePath.lastIndexOf(".");
   const ext = lastDot >= 0 ? filePath.slice(lastDot).toLowerCase() : "";
   const languageId = getLanguageFromExtension(ext);

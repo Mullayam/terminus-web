@@ -11,6 +11,7 @@
  */
 
 import type * as monacoNs from "monaco-editor";
+import { isDotenvFile } from "../languages/dotenv";
 
 type Monaco = typeof monacoNs;
 
@@ -60,6 +61,10 @@ export function detectLanguage(filePath: string): string {
 
   const fileName = filePath.split(/[/\\]/).pop() ?? "";
   const lowerName = fileName.toLowerCase();
+
+  // Dotenv files → always "dotenv" regardless of extension
+  if (isDotenvFile(lowerName)) return "dotenv";
+
   const ext = fileName.includes(".")
     ? "." + (fileName.split(".").pop()?.toLowerCase() ?? "")
     : "";
@@ -126,6 +131,7 @@ const BOOTSTRAP_LANGUAGES: LangEntry[] = [
   { id: "bat",         extensions: [".bat", ".cmd"] },
   { id: "sql",         extensions: [".sql"] },
   { id: "dockerfile",  filenames: ["Dockerfile"], extensions: [".dockerfile"] },
-  { id: "ini",         extensions: [".ini", ".cfg", ".conf", ".env", ".properties"] },
+  { id: "dotenv",      extensions: [".env"] },
+  { id: "ini",         extensions: [".ini", ".cfg", ".conf", ".properties"] },
   { id: "plaintext",   extensions: [".txt", ".log", ".csv"] },
 ];

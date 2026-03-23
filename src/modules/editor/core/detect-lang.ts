@@ -4,6 +4,8 @@
  * Maps extensions to human-readable names and Prism.js grammar identifiers.
  */
 
+import { isDotenvFile } from "@/modules/monaco-editor/languages/dotenv";
+
 /** Human-readable language name for status bar display */
 const DISPLAY_MAP: Record<string, string> = {
     js: "JavaScript", jsx: "JavaScript (JSX)", ts: "TypeScript", tsx: "TypeScript (TSX)",
@@ -13,7 +15,7 @@ const DISPLAY_MAP: Record<string, string> = {
     json: "JSON", yaml: "YAML", yml: "YAML", toml: "TOML", xml: "XML",
     md: "Markdown", sh: "Shell", bash: "Bash", zsh: "Zsh",
     sql: "SQL", graphql: "GraphQL", dockerfile: "Dockerfile",
-    env: "Environment", conf: "Config", ini: "INI", cfg: "Config",
+    env: "DotEnv", conf: "Config", ini: "INI", cfg: "Config",
     txt: "Plain Text", log: "Log", lua: "Lua", php: "PHP",
     r: "R", scala: "Scala", perl: "Perl", pl: "Perl",
 };
@@ -28,6 +30,7 @@ const PRISM_MAP: Record<string, string> = {
     md: "markdown", sh: "bash", bash: "bash", zsh: "bash",
     sql: "sql", graphql: "graphql", dockerfile: "docker",
     ini: "ini", conf: "ini", cfg: "ini",
+    env: "dotenv",
     lua: "lua", php: "php", r: "r", scala: "scala", perl: "perl", pl: "perl",
 };
 
@@ -42,7 +45,7 @@ function extOf(name: string): string {
  */
 export function detectLanguage(name: string): string {
     if (name.toLowerCase() === "dockerfile") return "Dockerfile";
-    if (name.toLowerCase().startsWith(".env")) return "Environment";
+    if (isDotenvFile(name)) return "DotEnv";
     return DISPLAY_MAP[extOf(name)] ?? "Plain Text";
 }
 
@@ -52,7 +55,7 @@ export function detectLanguage(name: string): string {
  */
 export function detectPrismLanguage(name: string): string | null {
     if (name.toLowerCase() === "dockerfile") return "docker";
-    if (name.toLowerCase().startsWith(".env")) return "bash"; // .env ≈ bash-like
+    if (isDotenvFile(name)) return "dotenv";
     return PRISM_MAP[extOf(name)] ?? null;
 }
 

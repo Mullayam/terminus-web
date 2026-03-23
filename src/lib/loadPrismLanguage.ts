@@ -81,6 +81,7 @@ const LANG_META: Record<string, LangMeta> = {
   yaml:       { alias: "yml" },
   toml:       {},
   ini:        {},
+  dotenv:     { require: "bash" },
   markdown:   { require: "markup", alias: "md" },
   scss:       { require: "css" },
   less:       { require: "css" },
@@ -169,10 +170,29 @@ export async function loadPrismLanguage(language: string): Promise<void> {
 
     // 2. Load the language itself
     if (!Prism.languages[id]) {
-      try {
-        await importGrammar(id);
-      } catch {
-        console.warn(`Prism: language "${id}" not found, falling back to plaintext`);
+      if (id === "dotenv") {
+        // Custom inline grammar for .env files
+        Prism.languages.dotenv = {
+          comment: { pattern: /#.*/, greedy: true },
+          keyword: /\b(?:export)\b/,
+          value: {
+            pattern: /(=\s*)(?:"(?:[^"\\]|\\.)*"|'[^']*'|[^\s#]*)/,
+            lookbehind: true,
+            greedy: true,
+            inside: {
+              "interpolation": { pattern: /\$\{[^}]*\}|\$[A-Za-z_]\w*/, inside: { "punctuation": /\$\{|\}/ } },
+              "string": { pattern: /^(?:".*"|'.*')$/ },
+            },
+          },
+          key: { pattern: /^[A-Za-z_]\w*(?=\s*=)/m, alias: "variable" },
+          punctuation: /=/,
+        };
+      } else {
+        try {
+          await importGrammar(id);
+        } catch {
+          console.warn(`Prism: language "${id}" not found, falling back to plaintext`);
+        }
       }
     }
 
@@ -214,7 +234,7 @@ const EXT_TO_PRISM: Record<string, string> = {
   json: "json", jsonc: "json",
   yaml: "yaml", yml: "yaml",
   toml: "toml",
-  ini: "ini", conf: "ini", cfg: "ini", env: "ini",
+  ini: "ini", conf: "ini", cfg: "ini", env: "dotenv",
   md: "markdown", mdx: "markdown",
   sh: "bash", bash: "bash", zsh: "bash",
   ps1: "powershell", psm1: "powershell",
@@ -256,7 +276,7 @@ export function detectPrismLanguage(fileName: string): string | null {
   // Special filenames
   if (lower === "dockerfile") return "docker";
   if (lower === "makefile" || lower === "gnumakefile") return "makefile";
-  if (lower.startsWith(".env")) return "ini";
+  if (lower.startsWith(".env") || /\.env(?:$|[._-])/i.test(lower)) return "dotenv";
   if (lower === ".gitignore" || lower === ".dockerignore") return "ignore";
   if (lower === "nginx.conf") return "nginx";
 
