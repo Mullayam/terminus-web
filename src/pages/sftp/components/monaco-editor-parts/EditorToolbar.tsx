@@ -3,7 +3,7 @@
  * Memoized — only re-renders when its specific props change.
  */
 import React, { useState, useEffect } from "react";
-import { Loader2, Save, WrapText, RefreshCw, Info, Columns2, Sparkles } from "lucide-react";
+import { Loader2, Save, WrapText, RefreshCw, Info, Columns2, Sparkles, Bug } from "lucide-react";
 import FileIcon from "@/components/FileIcon";
 import { ThemePicker, type ThemeId } from "./ThemePicker";
 import { ChangelogModal } from "./ChangelogModal";
@@ -48,6 +48,9 @@ function EditorToolbarInner({
     onSplit,
 }: EditorToolbarProps) {
     const [showChangelog, setShowChangelog] = useState(false);
+    const [showIssueForm, setShowIssueForm] = useState(false);
+    const [issueTitle, setIssueTitle] = useState("");
+    const [issueBody, setIssueBody] = useState("");
     const [badgeDismissed, setBadgeDismissed] = useState(() => {
         try { return localStorage.getItem(CHANGELOG_DISMISSED_KEY) === "1"; }
         catch { return false; }
@@ -63,6 +66,20 @@ function EditorToolbarInner({
     const handleOpenChangelog = () => {
         setShowChangelog(true);
         setBadgeDismissed(true);
+    };
+
+    const handleSubmitIssue = () => {
+        const params = new URLSearchParams();
+        if (issueTitle.trim()) params.set("title", issueTitle.trim());
+        if (issueBody.trim()) params.set("body", issueBody.trim());
+        window.open(
+            `https://github.com/Mullayam/terminus-web/issues/new?${params.toString()}`,
+            "_blank",
+            "noopener,noreferrer",
+        );
+        setShowIssueForm(false);
+        setIssueTitle("");
+        setIssueBody("");
     };
 
     return (
@@ -116,6 +133,21 @@ function EditorToolbarInner({
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
                     </span>
                 )}
+            </button>
+
+            {/* Report Issue */}
+            <button
+                onClick={() => setShowIssueForm(true)}
+                className="hidden md:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium transition-all cursor-pointer shrink-0"
+                style={{
+                    background: "var(--editor-hover-bg, #2d2d2d)",
+                    color: "var(--editor-fg, #999)",
+                    border: "1px solid var(--editor-border, #3c3c3c)",
+                }}
+                title="Report an issue"
+            >
+                <Bug className="w-3 h-3" />
+                <span>Report Issue</span>
             </button>
 
             {/* Right: actions */}
@@ -187,6 +219,69 @@ function EditorToolbarInner({
             </div>
         </div>
             {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
+
+            {/* Report Issue modal */}
+            {showIssueForm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div
+                        className="w-full max-w-md rounded-lg p-5 shadow-xl"
+                        style={{
+                            background: "var(--editor-sidebar-bg, #252526)",
+                            border: "1px solid var(--editor-border, #3c3c3c)",
+                            color: "var(--editor-fg, #d4d4d4)",
+                        }}
+                    >
+                        <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                            <Bug className="w-4 h-4" /> Report an Issue
+                        </h3>
+                        <input
+                            type="text"
+                            placeholder="Issue title"
+                            value={issueTitle}
+                            onChange={(e) => setIssueTitle(e.target.value)}
+                            className="w-full mb-2 px-3 py-1.5 rounded text-[12px] outline-none"
+                            style={{
+                                background: "var(--editor-input-bg, #3c3c3c)",
+                                border: "1px solid var(--editor-border, #555)",
+                                color: "var(--editor-fg, #d4d4d4)",
+                            }}
+                            autoFocus
+                        />
+                        <textarea
+                            placeholder="Describe your concern…"
+                            value={issueBody}
+                            onChange={(e) => setIssueBody(e.target.value)}
+                            rows={5}
+                            className="w-full mb-3 px-3 py-1.5 rounded text-[12px] outline-none resize-none"
+                            style={{
+                                background: "var(--editor-input-bg, #3c3c3c)",
+                                border: "1px solid var(--editor-border, #555)",
+                                color: "var(--editor-fg, #d4d4d4)",
+                            }}
+                        />
+                        <div className="flex justify-end gap-2">
+                            <button
+                                onClick={() => { setShowIssueForm(false); setIssueTitle(""); setIssueBody(""); }}
+                                className="px-3 py-1.5 rounded text-[11px] font-medium transition-colors"
+                                style={{
+                                    background: "var(--editor-hover-bg, #2d2d2d)",
+                                    color: "var(--editor-fg, #999)",
+                                    border: "1px solid var(--editor-border, #3c3c3c)",
+                                }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSubmitIssue}
+                                disabled={!issueTitle.trim()}
+                                className="px-3 py-1.5 rounded text-[11px] font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-blue-600 text-white hover:bg-blue-700"
+                            >
+                                Submit on GitHub
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 }
