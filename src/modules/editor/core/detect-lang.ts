@@ -5,6 +5,7 @@
  */
 
 import { isDotenvFile } from "@/modules/monaco-editor/languages/dotenv";
+import { isDockerfile } from "@/modules/monaco-editor/languages/filename-patterns";
 
 /** Human-readable language name for status bar display */
 const DISPLAY_MAP: Record<string, string> = {
@@ -44,7 +45,7 @@ function extOf(name: string): string {
  * Falls back to "Plain Text" for unknown extensions.
  */
 export function detectLanguage(name: string): string {
-    if (name.toLowerCase() === "dockerfile") return "Dockerfile";
+    if (isDockerfile(name)) return "Dockerfile";
     if (isDotenvFile(name)) return "DotEnv";
     return DISPLAY_MAP[extOf(name)] ?? "Plain Text";
 }
@@ -54,7 +55,7 @@ export function detectLanguage(name: string): string {
  * Returns `null` when no grammar is available.
  */
 export function detectPrismLanguage(name: string): string | null {
-    if (name.toLowerCase() === "dockerfile") return "docker";
+    if (isDockerfile(name)) return "docker";
     if (isDotenvFile(name)) return "dotenv";
     return PRISM_MAP[extOf(name)] ?? null;
 }

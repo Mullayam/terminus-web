@@ -11,6 +11,7 @@
  */
 
 import { isDotenvFile } from "../languages/dotenv";
+import { isDockerfile } from "../languages/filename-patterns";
 
 /* ── Extension → Language ID ─────────────────────────────── */
 
@@ -224,6 +225,11 @@ export function resolveFileLanguage(filePath: string): {
   // Dotenv pattern detection takes priority
   if (isDotenvFile(fileName)) {
     return { ext: ".env", languageId: "dotenv", extensionFolder: getExtensionFolder("dotenv") };
+  }
+
+  // Dockerfile variants
+  if (isDockerfile(fileName)) {
+    return { ext: ".dockerfile", languageId: "dockerfile", extensionFolder: getExtensionFolder("dockerfile") };
   }
 
   const lastDot = filePath.lastIndexOf(".");

@@ -12,6 +12,7 @@
 
 import type * as monacoNs from "monaco-editor";
 import { isDotenvFile } from "../languages/dotenv";
+import { isDockerfile } from "../languages/filename-patterns";
 
 type Monaco = typeof monacoNs;
 
@@ -64,6 +65,9 @@ export function detectLanguage(filePath: string): string {
 
   // Dotenv files → always "dotenv" regardless of extension
   if (isDotenvFile(lowerName)) return "dotenv";
+
+  // Dockerfile variants → always "dockerfile"
+  if (isDockerfile(lowerName)) return "dockerfile";
 
   const ext = fileName.includes(".")
     ? "." + (fileName.split(".").pop()?.toLowerCase() ?? "")

@@ -274,7 +274,7 @@ export function detectPrismLanguage(fileName: string): string | null {
   const lower = name.toLowerCase();
 
   // Special filenames
-  if (lower === "dockerfile") return "docker";
+  if (/^dockerfile(?:\..+)?$/i.test(lower)) return "docker";
   if (lower === "makefile" || lower === "gnumakefile") return "makefile";
   if (lower.startsWith(".env") || /\.env(?:$|[._-])/i.test(lower)) return "dotenv";
   if (lower === ".gitignore" || lower === ".dockerignore") return "ignore";

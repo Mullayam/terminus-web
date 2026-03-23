@@ -401,6 +401,7 @@ const SPECIAL_NAMES: Record<string, { label: string; color: string }> = {
 };
 
 const _DOTENV = { label: "DOTENV", color: "bg-yellow-500/15 text-yellow-400" };
+const _DOCKER = { label: "DOCKER", color: "bg-sky-500/15 text-sky-400" };
 
 function getFileKind(file: SFTP_FILES_LIST): { label: string; color: string } {
   if (file.type === "d")
@@ -413,6 +414,12 @@ function getFileKind(file: SFTP_FILES_LIST): { label: string; color: string } {
 
   // Detect .env file variants (.env, .env.local, .env.production, etc.)
   if (/\.env(?:$|[._-])/i.test(lower)) return _DOTENV;
+
+  // Detect Dockerfile variants (Dockerfile, Dockerfile.dev, Dockerfile.prod, etc.)
+  if (/^dockerfile(?:\..+)?$/i.test(lower)) return _DOCKER;
+
+  // Detect docker-compose variants
+  if (/^docker-compose(?:\..+)?\.ya?ml$/i.test(lower)) return _DOCKER;
 
   // Check special filenames first (exact match)
   if (SPECIAL_NAMES[lower]) return SPECIAL_NAMES[lower];
