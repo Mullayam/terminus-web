@@ -251,7 +251,7 @@ const EXT_MAP: Record<string, { label: string; color: string }> = {
   yml: _CFG,
   toml: _CFG,
   ini: _CFG,
-  env: _CFG,
+  env: { label: "DOTENV", color: "bg-yellow-500/15 text-yellow-400" },
   xml: _CFG,
   conf: _CFG,
   cfg: _CFG,
@@ -390,7 +390,7 @@ const SPECIAL_NAMES: Record<string, { label: string; color: string }> = {
   ".gitignore": { label: "GIT", color: "bg-orange-500/15 text-orange-400" },
   ".gitattributes": { label: "GIT", color: "bg-orange-500/15 text-orange-400" },
   ".gitmodules": { label: "GIT", color: "bg-orange-500/15 text-orange-400" },
-  ".env": _CFG,
+  ".env": { label: "DOTENV", color: "bg-yellow-500/15 text-yellow-400" },
   ".editorconfig": _CFG,
   ".npmrc": { label: "CONFIG", color: "bg-red-500/15 text-red-400" },
   ".yarnrc": { label: "CONFIG", color: "bg-blue-500/15 text-blue-400" },
@@ -400,6 +400,8 @@ const SPECIAL_NAMES: Record<string, { label: string; color: string }> = {
   ".babelrc": { label: "CONFIG", color: "bg-yellow-500/15 text-yellow-400" },
 };
 
+const _DOTENV = { label: "DOTENV", color: "bg-yellow-500/15 text-yellow-400" };
+
 function getFileKind(file: SFTP_FILES_LIST): { label: string; color: string } {
   if (file.type === "d")
     return { label: "FOLDER", color: "bg-blue-500/15 text-blue-400" };
@@ -408,6 +410,9 @@ function getFileKind(file: SFTP_FILES_LIST): { label: string; color: string } {
 
   const name = file.name || "";
   const lower = name.toLowerCase();
+
+  // Detect .env file variants (.env, .env.local, .env.production, etc.)
+  if (/\.env(?:$|[._-])/i.test(lower)) return _DOTENV;
 
   // Check special filenames first (exact match)
   if (SPECIAL_NAMES[lower]) return SPECIAL_NAMES[lower];

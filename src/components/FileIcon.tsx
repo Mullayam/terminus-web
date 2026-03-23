@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getIconForFile, getIconForFolder, getIconForOpenFolder } from 'vscode-icons-js';
 import { cachedIconUrl } from '@/lib/iconCache';
+import { isDotenvFile } from '@/modules/monaco-editor/languages/dotenv';
 
 const CDN_BASE = 'https://raw.githubusercontent.com/vscode-icons/vscode-icons/master/icons';
 
@@ -15,9 +16,15 @@ interface Props {
 }
 
 export default function FileIcon({ name, isDirectory, isOpen = false, size = 16, className = '' }: Props) {
-  const iconFile = isDirectory
-    ? (isOpen ? getIconForOpenFolder(name) : getIconForFolder(name))
-    : getIconForFile(name);
+  let iconFile: string | undefined;
+
+  if (!isDirectory && isDotenvFile(name)) {
+    iconFile = 'file_type_dotenv.svg';
+  } else if (isDirectory) {
+    iconFile = isOpen ? getIconForOpenFolder(name) : getIconForFolder(name);
+  } else {
+    iconFile = getIconForFile(name);
+  }
 
   /* fallback: the package returns undefined for truly unknown names */
   const rawSrc = iconFile
