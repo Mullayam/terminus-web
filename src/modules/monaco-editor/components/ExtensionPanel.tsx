@@ -12,6 +12,7 @@
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import type * as monacoNs from "monaco-editor";
+import { useCachedUrl } from "@/lib/iconCache";
 import {
   Search,
   Download,
@@ -419,14 +420,15 @@ const ExtensionSearchItem: React.FC<{
   const isInstalling = installState && !["done", "error"].includes(installState.stage);
   const isDone = installState?.stage === "done";
   const isError = installState?.stage === "error";
+  const iconSrc = useCachedUrl(ext.files.icon);
 
   return (
     <div className="flex items-start gap-2 px-3 py-2 hover:bg-[#2a2d2e] transition-colors group">
       {/* Icon */}
       <div className="w-8 h-8 rounded bg-[#3c3c3c] flex items-center justify-center shrink-0 overflow-hidden">
-        {ext.files.icon ? (
+        {iconSrc ? (
           <img
-            src={ext.files.icon}
+            src={iconSrc}
             alt=""
             className="w-full h-full object-cover"
             onError={(e) => {
@@ -508,15 +510,16 @@ const InstalledExtensionItem: React.FC<{
   onApplyTheme: (themeId: string) => void;
 }> = ({ ext, themes, onToggle, onUninstall, onApplyTheme }) => {
   const [expanded, setExpanded] = useState(false);
+  const iconSrc = useCachedUrl(ext.iconUrl);
 
   return (
     <div className="border-b border-[#3c3c3c]/50">
       <div className="flex items-start gap-2 px-3 py-2 hover:bg-[#2a2d2e] transition-colors group">
         {/* Icon */}
         <div className="w-7 h-7 rounded bg-[#3c3c3c] flex items-center justify-center shrink-0 overflow-hidden mt-0.5">
-          {ext.iconUrl ? (
+          {iconSrc ? (
             <img
-              src={ext.iconUrl}
+              src={iconSrc}
               alt=""
               className="w-full h-full object-cover"
               onError={(e) => {
@@ -625,6 +628,7 @@ const ExtensionDetail: React.FC<{
   const [readme, setReadme] = useState("");
   const [loadingReadme, setLoadingReadme] = useState(false);
   const [detailTab, setDetailTab] = useState<"overview" | "readme">("overview");
+  const iconSrc = useCachedUrl(ext.files.icon);
 
   // Fetch README
   useEffect(() => {
@@ -657,9 +661,9 @@ const ExtensionDetail: React.FC<{
       {/* Header */}
       <div className="flex items-start gap-3 mb-3">
         <div className="w-12 h-12 rounded-lg bg-[#3c3c3c] flex items-center justify-center shrink-0 overflow-hidden">
-          {ext.files.icon ? (
+          {iconSrc ? (
             <img
-              src={ext.files.icon}
+              src={iconSrc}
               alt=""
               className="w-full h-full object-cover"
               onError={(e) => {

@@ -1,10 +1,10 @@
 /**
  * @module iconCache
  *
- * Cache Storage helper scoped to vscode-icons CDN URLs.
+ * Cache Storage helper for vscode-icons CDN and OpenVSX image URLs.
  *
- * Uses the browser Cache API to persist icon SVGs across sessions,
- * eliminating redundant network requests for the same icons.
+ * Uses the browser Cache API to persist icons/images across sessions,
+ * eliminating redundant network requests for the same resources.
  *
  * Usage:
  *   const url = await cachedIconUrl("https://raw.githubusercontent.com/vscode-icons/vscode-icons/master/icons/file_type_ts.svg");
@@ -14,9 +14,21 @@
  * or a blob URL created from the response body.
  */
 
+import { useState, useEffect } from "react";
+
 const CACHE_NAME = "terminus-vscode-icons-v1";
+const OPENVSX_CACHE_NAME = "terminus-openvsx-icons-v1";
+
 const ORIGIN_PREFIX =
   "https://raw.githubusercontent.com/vscode-icons/vscode-icons/";
+const OPENVSX_PREFIX = "https://openvsx.eclipsecontent.org/";
+
+/** Determine which cache bucket a URL belongs to, or null if uncacheable */
+function getCacheName(url: string): string | null {
+  if (url.startsWith(ORIGIN_PREFIX)) return CACHE_NAME;
+  if (url.startsWith(OPENVSX_PREFIX)) return OPENVSX_CACHE_NAME;
+  return null;
+}
 
 /** In-flight dedup map so parallel requests for the same URL share one fetch */
 const inFlight = new Map<string, Promise<string>>();
@@ -34,8 +46,8 @@ const blobUrls = new Map<string, string>();
  * Falls back to the raw URL if Cache API is unavailable.
  */
 export async function cachedIconUrl(url: string): Promise<string> {
-  // Only cache vscode-icons URLs
-  if (!url.startsWith(ORIGIN_PREFIX)) return url;
+  const cacheBucket = getCacheName(url);
+  if (!cacheBucket) return url;
 
   // Fast path — already resolved this session
   const existing = blobUrls.get(url);
@@ -45,7 +57,7 @@ export async function cachedIconUrl(url: string): Promise<string> {
   const pending = inFlight.get(url);
   if (pending) return pending;
 
-  const work = _resolve(url);
+  const work = _resolve(url, cacheBucket);
   inFlight.set(url, work);
 
   try {
@@ -55,9 +67,9 @@ export async function cachedIconUrl(url: string): Promise<string> {
   }
 }
 
-async function _resolve(url: string): Promise<string> {
+async function _resolve(url: string, cacheBucket: string): Promise<string> {
   try {
-    const cache = await caches.open(CACHE_NAME);
+    const cache = await caches.open(cacheBucket);
 
     // 1. Check cache
     const cached = await cache.match(url);
@@ -93,4 +105,21 @@ export function prewarmIcons(urls: string[]): void {
   for (const url of urls) {
     cachedIconUrl(url).catch(() => {});
   }
+}
+
+/**
+ * React hook – returns a cached blob URL for the given image URL.
+ * While resolving, returns the original URL so the image is never blank.
+ */
+export function useCachedUrl(src: string | undefined): string | undefined {
+  const [resolved, setResolved] = useState<string | undefined>(src);
+
+  useEffect(() => {
+    if (!src) { setResolved(undefined); return; }
+    let cancelled = false;
+    cachedIconUrl(src).then((url) => { if (!cancelled) setResolved(url); });
+    return () => { cancelled = true; };
+  }, [src]);
+
+  return resolved;
 }

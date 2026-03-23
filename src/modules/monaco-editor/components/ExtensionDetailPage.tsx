@@ -9,6 +9,7 @@
  */
 import React, { useState, useEffect, useCallback } from "react";
 import type * as monacoNs from "monaco-editor";
+import { useCachedUrl } from "@/lib/iconCache";
 import {
   X,
   Download,
@@ -86,6 +87,7 @@ export const ExtensionDetailPage: React.FC<ExtensionDetailPageProps> = ({
 
   const extId = `${ext.namespace}.${ext.name}`;
   const isInstalled = !!installed;
+  const iconSrc = useCachedUrl(ext.files.icon);
 
   // Fetch README from Open VSX or installed data
   useEffect(() => {
@@ -167,9 +169,9 @@ export const ExtensionDetailPage: React.FC<ExtensionDetailPageProps> = ({
         <div className="flex items-start gap-4 p-4">
           {/* Icon */}
           <div className="w-16 h-16 rounded-lg bg-[#3c3c3c] flex items-center justify-center shrink-0 overflow-hidden">
-            {ext.files.icon ? (
+            {iconSrc ? (
               <img
-                src={ext.files.icon}
+                src={iconSrc}
                 alt=""
                 className="w-full h-full object-cover"
                 onError={(e) => {
