@@ -6,15 +6,36 @@ import { AIChatPanel } from "./ai-chat";
 import { useSessionTheme } from "@/hooks/useSessionTheme";
 import { useSSHStore } from "@/store/sshStore";
 import { useTabStore } from "@/store/rightSidebarTabStore";
+import { useAIChatStore } from "@/store/aiChatStore";
 
 export default function TerminalLayout({ children }: { children: React.ReactNode }) {
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
     const [isRightSidebarOpen, setIsRightSidebarOpen] = React.useState(false);
     const setRightSidebarOpen = useTabStore((s) => s.setRightSidebarOpen);
+    const isAIChatOpen = useAIChatStore((s) => s.isOpen);
+    const closeAIChat = useAIChatStore((s) => s.close);
     const { colors } = useSessionTheme();
     const activeTabId = useSSHStore((s) => s.activeTabId);
     const activeTab = useSSHStore((s) => s.tabs.find((t) => t.id === s.activeTabId));
     const sessionId = activeTab?.sessionId;
+
+    // Close sidebar when AI chat opens
+    React.useEffect(() => {
+        if (isAIChatOpen && isRightSidebarOpen) {
+            setIsRightSidebarOpen(false);
+            setRightSidebarOpen(false);
+        }
+    }, [isAIChatOpen]);
+
+    const handleToggleRightSidebar = () => {
+        const next = !isRightSidebarOpen;
+        setIsRightSidebarOpen(next);
+        setRightSidebarOpen(next);
+        // Close AI chat when opening sidebar
+        if (next && isAIChatOpen) {
+            closeAIChat();
+        }
+    };
 
     return (
         <>
@@ -25,11 +46,7 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
                 <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
                     <TopBar
                         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-                        onToggleRightSidebar={() => {
-                            const next = !isRightSidebarOpen;
-                            setIsRightSidebarOpen(next);
-                            setRightSidebarOpen(next);
-                        }}
+                        onToggleRightSidebar={handleToggleRightSidebar}
                         isRightSidebarOpen={isRightSidebarOpen}
                     />
                     <div className="flex flex-1 min-h-0 overflow-hidden">

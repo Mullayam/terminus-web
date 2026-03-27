@@ -104,20 +104,27 @@ const AIGhostText = memo(function AIGhostText({
         userSelect: "none",
         WebkitUserSelect: "none",
         display: "flex",
-        alignItems: "center",
-        gap: "8px",
+        flexDirection: "column",
+        gap: "2px",
       }}
     >
       <span>{ghostCommand}</span>
       <span
         style={{
           fontSize: "10px",
-          opacity: 0.6,
-          color: "rgba(255,255,255,0.25)",
+          opacity: 0.7,
+          color: "rgba(255,255,255,0.35)",
           whiteSpace: "nowrap",
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
         }}
       >
-        Tab ↵
+        <span style={{ padding: "1px 4px", borderRadius: "3px", border: "1px solid rgba(255,255,255,0.15)", fontSize: "9px" }}>Tab</span>
+        <span>to accept</span>
+        <span style={{ opacity: 0.5 }}>·</span>
+        <span style={{ padding: "1px 4px", borderRadius: "3px", border: "1px solid rgba(255,255,255,0.15)", fontSize: "9px" }}>Esc</span>
+        <span>to dismiss</span>
       </span>
     </div>
   );

@@ -30,6 +30,7 @@ import { useDiagnosticsStore } from '@/store/diagnosticsStore';
 import AISuggestionBox from "./terminal2/suggestion-box";
 import GhostText from "./terminal2/ghost-text";
 import AIGhostText from "./terminal2/ai-ghost-text";
+import InlineCommandInput from "./terminal2/inline-command-input";
 import CollabTypingIndicator from "./terminal2/collab-typing-indicator";
 import {
   useDiagnostics,
@@ -88,6 +89,9 @@ const XTerminal = memo(function XTerminal({
   const isVisibleRef = useRef(false);
   useEffect(() => { isVisibleRef.current = isVisible; }, [isVisible]);
   const [showSearch, setShowSearch] = useState(false);
+  const [showInlineAI, setShowInlineAI] = useState(false);
+  const showInlineAIRef = useRef(false);
+  useEffect(() => { showInlineAIRef.current = showInlineAI; }, [showInlineAI]);
   const terminalRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchAddonRef = useRef<SearchAddon | null>(null);
@@ -125,7 +129,15 @@ const XTerminal = memo(function XTerminal({
   /* ── AI Ghost text: accept the AI-suggested command ── */
   const handleAIGhostAccept = useCallback((cmd: string) => {
     if (cmd) {
+      // Clear current input by sending backspaces, then type the AI command
+      const currentLen = commandBufferRef.current.length;
+      if (currentLen > 0) {
+        socket.emit(SocketEventConstants.SSH_EMIT_INPUT, '\x7f'.repeat(currentLen));
+      }
       socket.emit(SocketEventConstants.SSH_EMIT_INPUT, cmd);
+      commandBufferRef.current = cmd;
+      setCommandBuffer(cmd);
+      setIsVisible(false);
     }
   }, [socket]);
 
@@ -181,9 +193,11 @@ const XTerminal = memo(function XTerminal({
       e.preventDefault();
       setShowSearch(true);
       setTimeout(() => searchInputRef.current?.focus(), 50);
-    } else if (e.ctrlKey && e.key === 'i') {
+    } else if (e.ctrlKey && e.shiftKey && e.key === 'I') {
       e.preventDefault();
-      toggleAIChat();
+      const next = !showInlineAIRef.current;
+      showInlineAIRef.current = next;
+      setShowInlineAI(next);
     } else if (e.key === 'Escape') {
       searchAddonRef.current?.clearDecorations();
       searchAddonRef.current?.clearActiveDecoration();
@@ -703,6 +717,21 @@ const XTerminal = memo(function XTerminal({
           containerRef={terminalRef}
           sessionId={sessionId}
           onAccept={handleAIGhostAccept}
+        />
+      )}
+
+      {/* Inline AI command input (Ctrl+Shift+I) */}
+      {showInlineAI && (
+        <InlineCommandInput
+          sessionId={sessionId}
+          termRef={termRef}
+          isRightSidebarOpen={isRightSidebarOpen}
+          isAIChatOpen={isAIChatOpen}
+          onClose={() => {
+            setShowInlineAI(false);
+            showInlineAIRef.current = false;
+            termRef.current?.focus();
+          }}
         />
       )}
 

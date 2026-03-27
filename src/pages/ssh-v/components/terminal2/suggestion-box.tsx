@@ -208,10 +208,18 @@ const AISuggestionBox: React.FC<SuggestionBoxProps> = ({ terminalHeight, setSugg
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         setActiveIndex((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
+      } else if (e.key === "Tab" && activeIndex >= 0 && activeIndex < suggestions.length) {
+        e.preventDefault();
+        e.stopPropagation();
+        setCommand(suggestions[activeIndex], "single");
       } else if (e.key === "Enter" && activeIndex >= 0 && activeIndex < suggestions.length) {
         e.preventDefault();
         e.stopPropagation();
         setCommand(suggestions[activeIndex], "single");
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        setActiveIndex(-1);
       }
     };
     window.addEventListener("keydown", handler, true);
