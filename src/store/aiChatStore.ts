@@ -37,6 +37,8 @@ interface AIChatState {
   loading: Record<string, boolean>;
   /** Current user selection from terminal, keyed by sessionId */
   terminalSelection: Record<string, string>;
+  /** Full visible terminal screen content, keyed by sessionId */
+  terminalContent: Record<string, string>;
   /** Selected AI model per session */
   selectedModel: Record<string, AIModelOption>;
   /** AI-generated ghost command to display in xterm, keyed by sessionId */
@@ -53,6 +55,7 @@ interface AIChatState {
   close: () => void;
   setLoading: (sessionId: string, loading: boolean) => void;
   setTerminalSelection: (sessionId: string, selection: string) => void;
+  setTerminalContent: (sessionId: string, content: string) => void;
   setSelectedModel: (sessionId: string, model: AIModelOption) => void;
   fetchProviders: () => Promise<void>;
   addUserMessage: (sessionId: string, content: string) => number;
@@ -75,6 +78,7 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
   isOpen: false,
   loading: {},
   terminalSelection: {},
+  terminalContent: {},
   selectedModel: {},
   ghostCommand: {},
   providers: [],
@@ -90,6 +94,9 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
 
   setTerminalSelection: (sessionId, selection) =>
     set((s) => ({ terminalSelection: { ...s.terminalSelection, [sessionId]: selection } })),
+
+  setTerminalContent: (sessionId, content) =>
+    set((s) => ({ terminalContent: { ...s.terminalContent, [sessionId]: content } })),
 
   setSelectedModel: (sessionId, model) =>
     set((s) => ({ selectedModel: { ...s.selectedModel, [sessionId]: model } })),

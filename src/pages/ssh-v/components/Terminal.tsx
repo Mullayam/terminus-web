@@ -72,6 +72,7 @@ const XTerminal = memo(function XTerminal({
 
   // ── AI Chat: capture terminal selection ──
   const setTerminalSelection = useAIChatStore((s) => s.setTerminalSelection);
+  const setTerminalContent = useAIChatStore((s) => s.setTerminalContent);
   const toggleAIChat = useAIChatStore((s) => s.toggle);
 
   // Derive localStorage key from the session host/IP
@@ -425,6 +426,21 @@ const XTerminal = memo(function XTerminal({
     });
     return () => disposeSelection.dispose();
   }, [sessionId, setTerminalSelection]);
+
+  // Capture full visible terminal screen for AI context when chat is open
+  useEffect(() => {
+    if (!isAIChatOpen || !termRef.current) return;
+    const term = termRef.current;
+    const buf = term.buffer.active;
+    const lines: string[] = [];
+    const start = Math.max(0, buf.baseY);
+    const end = buf.baseY + term.rows;
+    for (let i = start; i < end; i++) {
+      const line = buf.getLine(i);
+      if (line) lines.push(line.translateToString(true));
+    }
+    setTerminalContent(sessionId, lines.join('\n').trimEnd());
+  }, [isAIChatOpen, sessionId, setTerminalContent]);
 
   // Reactively apply font settings changes
   useEffect(() => {

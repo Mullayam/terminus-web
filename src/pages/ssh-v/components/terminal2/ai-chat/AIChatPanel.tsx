@@ -196,6 +196,7 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
   );
   const loading = useAIChatStore((s) => !!s.loading[sessionId]);
   const selection = useAIChatStore((s) => s.terminalSelection[sessionId] ?? '');
+  const screenContent = useAIChatStore((s) => s.terminalContent[sessionId] ?? '');
   const clearSession = useAIChatStore((s) => s.clearSession);
   const setTerminalSelection = useAIChatStore((s) => s.setTerminalSelection);
   const providers = useAIChatStore((s) => s.providers);
@@ -476,8 +477,8 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
       {/* ── Scroll to bottom ── */}
       <ScrollToBottom scrollRef={scrollRef} colors={colors as Record<string, string>} />
 
-      {/* ── Selection context badge ── */}
-      {selection && (
+      {/* ── Context badge ── */}
+      {selection ? (
         <div
           className="mx-4 mb-1 px-3 py-1.5 rounded-lg flex items-center gap-2 text-[10px]"
           style={{
@@ -496,7 +497,20 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
             <X size={10} />
           </button>
         </div>
-      )}
+      ) : screenContent ? (
+        <div
+          className="mx-4 mb-1 px-3 py-1.5 rounded-lg flex items-center gap-2 text-[10px]"
+          style={{
+            backgroundColor: `${colors.cyan}12`,
+            color: colors.cyan,
+            border: `1px solid ${colors.cyan}25`,
+          }}
+        >
+          <span className="flex-1 truncate">
+            🖥 Full screen context ({screenContent.length} chars)
+          </span>
+        </div>
+      ) : null}
 
       {/* ── Input ── */}
       <div

@@ -56,6 +56,12 @@ export function useAIChat(sessionId: string) {
       let question = userPrompt;
       if (selection) {
         question = `Selected terminal text:\n\`\`\`\n${selection}\n\`\`\`\n\n${userPrompt}`;
+      } else {
+        // No explicit selection — attach full visible screen as context
+        const screenContent = useAIChatStore.getState().terminalContent[sessionId] ?? '';
+        if (screenContent) {
+          question = `Current terminal screen:\n\`\`\`\n${screenContent}\n\`\`\`\n\n${userPrompt}`;
+        }
       }
 
       // Build history array for the API
