@@ -6,6 +6,7 @@ import {
   Loader2,
   Play,
   ClipboardPaste,
+  RefreshCw,
   Send,
   Sparkles,
   StopCircle,
@@ -80,6 +81,29 @@ function renderContent(
           >
             {code}
           </pre>
+          <div
+            className="flex items-center gap-1.5 px-3 py-1.5 border-t"
+            style={{ borderColor: `${colors.foreground}10`, backgroundColor: `${colors.foreground}05` }}
+          >
+            <button
+              onClick={() => onExecute(code)}
+              className="flex items-center gap-1 px-2 py-1 rounded text-[10px] transition-colors hover:brightness-125"
+              style={{ backgroundColor: `${colors.green}18`, color: colors.green }}
+              title="Execute in terminal"
+            >
+              <Play size={10} />
+              Run
+            </button>
+            <button
+              onClick={() => onPaste(code)}
+              className="flex items-center gap-1 px-2 py-1 rounded text-[10px] transition-colors hover:brightness-125"
+              style={{ backgroundColor: `${colors.yellow}18`, color: colors.yellow }}
+              title="Paste in terminal"
+            >
+              <ClipboardPaste size={10} />
+              Paste
+            </button>
+          </div>
         </div>
       );
     }
@@ -140,43 +164,6 @@ function MessageBubble({
             Thinking...
           </span>
         ) : null}
-
-        {/* Quick action buttons for commands */}
-        {!isUser && msg.commands && msg.commands.length > 0 && (
-          <div
-            className="mt-2 pt-2 flex flex-wrap gap-1.5 border-t"
-            style={{ borderColor: `${colors.foreground}10` }}
-          >
-            {msg.commands.map((cmd, i) => (
-              <div key={i} className="flex items-center gap-0.5">
-                <button
-                  onClick={() => onExecute(cmd)}
-                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] transition-colors hover:brightness-125"
-                  style={{
-                    backgroundColor: `${colors.green}18`,
-                    color: colors.green,
-                  }}
-                  title={`Execute: ${cmd}`}
-                >
-                  <Play size={10} />
-                  Run
-                </button>
-                <button
-                  onClick={() => onPaste(cmd)}
-                  className="flex items-center gap-1 px-2 py-1 rounded text-[10px] transition-colors hover:brightness-125"
-                  style={{
-                    backgroundColor: `${colors.yellow}18`,
-                    color: colors.yellow,
-                  }}
-                  title={`Paste: ${cmd}`}
-                >
-                  <ClipboardPaste size={10} />
-                  Paste
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -201,6 +188,7 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
   const setTerminalSelection = useAIChatStore((s) => s.setTerminalSelection);
   const providers = useAIChatStore((s) => s.providers);
   const providersFetched = useAIChatStore((s) => s.providersFetched);
+  const providersFetching = useAIChatStore((s) => s.providersFetching);
   const fetchProviders = useAIChatStore((s) => s.fetchProviders);
   const modelOptions = useMemo(() => getModelOptions(providers), [providers]);
   const defaultModel = useMemo(() => getDefaultModel(providers), [providers]);
@@ -319,7 +307,7 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
         </div>
 
         {/* Model selector */}
-        <div className="relative">
+        <div className="relative flex items-center gap-1">
           <button
             onClick={() => setShowModelPicker((v) => !v)}
             className="flex items-center gap-1 px-2 py-1 rounded text-[10px] transition-colors hover:brightness-125"
@@ -332,6 +320,14 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
           >
             <span className="max-w-[90px] truncate">{selectedModel?.label ?? 'No model'}</span>
             <ChevronsUpDown size={10} />
+          </button>
+          <button
+            onClick={() => fetchProviders()}
+            disabled={providersFetching}
+            className="p-1 rounded transition-colors hover:bg-white/10 disabled:opacity-30"
+            title="Refresh providers"
+          >
+            <RefreshCw size={12} className={providersFetching ? 'animate-spin' : ''} style={{ color: `${colors.foreground}60` }} />
           </button>
           {showModelPicker && (
             <div

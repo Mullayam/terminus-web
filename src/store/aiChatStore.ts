@@ -118,7 +118,8 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
           : [];
       set({ providers, providersFetched: true });
     } catch {
-      set({ providersFetched: true });
+      // Mark fetch failed so the auto-effect won't retry, but manual refresh can
+      set({ providersFetched: false });
     } finally {
       set({ providersFetching: false });
     }
