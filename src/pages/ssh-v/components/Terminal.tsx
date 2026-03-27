@@ -55,6 +55,7 @@ const XTerminal = memo(function XTerminal({
   const isRendered = useRef(false);
   const sessionHost = useSSHStore((s) => s.sessions[sessionId]?.host);
   const autocomplete = useTabStore((s) => s.settings.autocomplete);
+  const suggestionBox = useTabStore((s) => s.settings.suggestionBox);
   const diagnosticsEnabled = useTabStore((s) => s.settings.diagnostics);
   const sessionTheme = useSSHStore((s) => s.sessionThemes[sessionId]) || 'custom';
   const { fontSize = 15, fontWeight = '400', fontWeightBold = '700' } = useSSHStore((s) => s.sessionFonts[sessionId]) || {};
@@ -600,7 +601,7 @@ const XTerminal = memo(function XTerminal({
         />
       )}
 
-      {autocomplete && (
+      {autocomplete && suggestionBox && (
         <AISuggestionBox
           suggestionPos={suggestionPos}
           isVisible={isVisible}
@@ -615,12 +616,14 @@ const XTerminal = memo(function XTerminal({
       )}
 
       {/* AI Ghost text (from Ask AI sidebar input) */}
-      <AIGhostText
-        termRef={termRef}
-        containerRef={terminalRef}
-        sessionId={sessionId}
-        onAccept={handleAIGhostAccept}
-      />
+      {suggestionBox && (
+        <AIGhostText
+          termRef={termRef}
+          containerRef={terminalRef}
+          sessionId={sessionId}
+          onAccept={handleAIGhostAccept}
+        />
+      )}
 
       {/* Placeholder hint when shell is empty */}
 
