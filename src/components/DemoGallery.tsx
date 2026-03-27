@@ -8,7 +8,10 @@ import {
   Shield,
   Search,
   Upload,
-  Ghost,
+  Settings,
+  Puzzle,
+  Zap,
+  type LucideIcon,
 } from "lucide-react";
 import { Badge } from "./ui/badge";
 
@@ -23,6 +26,7 @@ interface DemoItem {
   step: number;
   title: string;
   subtitle: string;
+  subtitleIcon: LucideIcon;
   description: string;
   image: string;
   accent: string;
@@ -33,59 +37,124 @@ interface DemoItem {
 const demos: DemoItem[] = [
   {
     step: 1,
-    title: "Connect & Customize",
+    title: "Connect & Command",
     subtitle: "SSH Terminal",
+    subtitleIcon: Terminal,
     description:
-      "Instantly connect to any remote server via SSH. Personalize with 17+ terminal themes, adjustable font sizes, weights, and ligature support. Your workspace, your rules.",
-    image: "/2.png",
+      "Instantly connect to any remote server via SSH. Ghost-text autocomplete predicts your next command, the AI suggestion box helps you discover commands, and shell history syncs automatically.",
+    image: "/1.png",
     accent: "from-green-500 to-emerald-600",
     glow: "bg-green-500/15",
     callouts: [
-      { label: "17+ Themes", icon: <Palette className="w-3 h-3" />, position: "top-6 right-4", animation: "animate-float" },
-      { label: "Search Terminal", icon: <Search className="w-3 h-3" />, position: "bottom-20 left-4", animation: "animate-float-delayed" },
+      { label: "Ghost Autocomplete", icon: <Sparkles className="w-3 h-3" />, position: "top-6 right-4", animation: "animate-float" },
+      { label: "AI Suggestion Box", icon: <Search className="w-3 h-3" />, position: "bottom-20 left-4", animation: "animate-float-delayed" },
     ],
   },
   {
     step: 2,
-    title: "Code with Intelligence",
-    subtitle: "Monaco Editor",
+    title: "Customize Everything",
+    subtitle: "Settings & Themes",
+    subtitleIcon: Settings,
     description:
-      "Edit files directly on the server with our built-in code editor. IntelliSense autocomplete, 25+ themes, command palette, minimap, diff viewer, and AI ghost-text completions.",
-    image: "/7.png",
-    accent: "from-violet-500 to-purple-600",
-    glow: "bg-violet-500/15",
+      "17+ terminal themes with live preview, per-session font size & weight controls, behavior toggles for autocomplete, AI suggestions, and diagnostics. Make every session uniquely yours.",
+    image: "/2.png",
+    accent: "from-orange-500 to-amber-600",
+    glow: "bg-orange-500/15",
     callouts: [
-      { label: "IntelliSense", icon: <Code2 className="w-3 h-3" />, position: "top-6 left-4", animation: "animate-float" },
-      { label: "AI Autocomplete", icon: <Sparkles className="w-3 h-3" />, position: "bottom-16 right-4", animation: "animate-float-delayed" },
+      { label: "17+ Themes", icon: <Palette className="w-3 h-3" />, position: "top-6 right-4", animation: "animate-float" },
+      { label: "Font Controls", icon: <Settings className="w-3 h-3" />, position: "bottom-16 left-4", animation: "animate-float-delayed" },
     ],
   },
   {
     step: 3,
+    title: "Collaborate in Real Time",
+    subtitle: "Shared Terminal",
+    subtitleIcon: Users,
+    description:
+      "Share your terminal session with a single link. Role-based permissions, live keystroke sync, typing indicators for collaborators, and one-click kick or ban controls — multiplayer DevOps.",
+    image: "/3.png",
+    accent: "from-pink-500 to-rose-600",
+    glow: "bg-pink-500/15",
+    callouts: [
+      { label: "Live Sync", icon: <Users className="w-3 h-3" />, position: "top-6 left-4", animation: "animate-float" },
+      { label: "Role Permissions", icon: <Shield className="w-3 h-3" />, position: "bottom-16 right-4", animation: "animate-float-delayed" },
+    ],
+  },
+  {
+    step: 4,
     title: "Manage Files Visually",
     subtitle: "SFTP Client",
+    subtitleIcon: FolderTree,
     description:
-      "Browse, upload, download, rename, chmod, and delete files through a visual file-tree interface. Drag-and-drop uploads, real-time progress tracking, and 13 context-menu actions.",
+      "Browse, upload, download, rename, chmod, and delete files through a visual file-tree interface. Drag-and-drop uploads, real-time progress tracking, media preview, and 13 context-menu actions.",
     image: "/4.png",
     accent: "from-blue-500 to-cyan-600",
     glow: "bg-blue-500/15",
     callouts: [
       { label: "Drag & Drop", icon: <Upload className="w-3 h-3" />, position: "top-8 right-4", animation: "animate-float" },
-      { label: "13 Actions", icon: <FolderTree className="w-3 h-3" />, position: "bottom-16 left-4", animation: "animate-float-delayed" },
+      { label: "13 Context Actions", icon: <FolderTree className="w-3 h-3" />, position: "bottom-16 left-4", animation: "animate-float-delayed" },
     ],
   },
   {
-    step: 4,
-    title: "Collaborate in Real Time",
-    subtitle: "Shared Terminal",
+    step: 5,
+    title: "Edit Like a Pro",
+    subtitle: "Code Editor",
+    subtitleIcon: Code2,
     description:
-      "Share your terminal session with a single link. Role-based permissions, live keystroke sync, ghost-text lock overlays for blocked users, and one-click kick or ban controls.",
-    image: "/6.png",
-    accent: "from-pink-500 to-rose-600",
-    glow: "bg-pink-500/15",
+      "Monaco-powered editor with full context menus, multi-tab editing, command palette, minimap, bracket colorization, diff viewer, and AI ghost-text completions. Everything you expect from a desktop IDE.",
+    image: "/5.png",
+    accent: "from-violet-500 to-purple-600",
+    glow: "bg-violet-500/15",
     callouts: [
-      { label: "Live Sync", icon: <Users className="w-3 h-3" />, position: "top-6 left-4", animation: "animate-float" },
-      { label: "Ghost Lock", icon: <Ghost className="w-3 h-3" />, position: "top-10 right-4", animation: "animate-float-delayed" },
-      { label: "Encrypted", icon: <Shield className="w-3 h-3" />, position: "bottom-16 left-8", animation: "animate-float" },
+      { label: "Full Context Menu", icon: <Code2 className="w-3 h-3" />, position: "top-6 left-4", animation: "animate-float" },
+      { label: "AI Completions", icon: <Sparkles className="w-3 h-3" />, position: "bottom-16 right-4", animation: "animate-float-delayed" },
+    ],
+  },
+  {
+    step: 6,
+    title: "Extend with Plugins",
+    subtitle: "Plugin System",
+    subtitleIcon: Puzzle,
+    description:
+      "17 built-in editor plugins — IntelliSense, Code Lens, inline annotations, auto-detect indentation, JSON/YAML validation, diff viewer, focus mode, and more. Toggle each on or off instantly.",
+    image: "/6.png",
+    accent: "from-teal-500 to-emerald-600",
+    glow: "bg-teal-500/15",
+    callouts: [
+      { label: "17 Plugins", icon: <Puzzle className="w-3 h-3" />, position: "top-6 right-4", animation: "animate-float" },
+      { label: "IntelliSense", icon: <Sparkles className="w-3 h-3" />, position: "bottom-16 left-4", animation: "animate-float-delayed" },
+      { label: "Validation", icon: <Shield className="w-3 h-3" />, position: "bottom-8 right-8", animation: "animate-float" },
+    ],
+  },
+  {
+    step: 7,
+    title: "Theme & IntelliSense",
+    subtitle: "Themes & AI",
+    subtitleIcon: Palette,
+    description:
+      "25+ editor themes with live preview, full IntelliSense autocomplete with document symbols and keywords, import & export themes, or install from Open VSX marketplace.",
+    image: "/7.png",
+    accent: "from-indigo-500 to-violet-600",
+    glow: "bg-indigo-500/15",
+    callouts: [
+      { label: "25+ Themes", icon: <Palette className="w-3 h-3" />, position: "top-8 right-4", animation: "animate-float" },
+      { label: "IntelliSense", icon: <Code2 className="w-3 h-3" />, position: "top-10 left-4", animation: "animate-float-delayed" },
+      { label: "Import & Export", icon: <Zap className="w-3 h-3" />, position: "bottom-16 left-8", animation: "animate-float" },
+    ],
+  },
+  {
+    step: 8,
+    title: "Editor + Terminal",
+    subtitle: "Embedded Terminal",
+    subtitleIcon: Terminal,
+    description:
+      "Split your workspace with an embedded terminal panel below the editor. Run commands, see output, and edit code — all without switching tabs. Resize, minimize, or go full-screen.",
+    image: "/8.png",
+    accent: "from-emerald-500 to-green-600",
+    glow: "bg-emerald-500/15",
+    callouts: [
+      { label: "Embedded Terminal", icon: <Terminal className="w-3 h-3" />, position: "top-6 right-4", animation: "animate-float" },
+      { label: "Resizable Panels", icon: <Zap className="w-3 h-3" />, position: "bottom-16 left-4", animation: "animate-float-delayed" },
     ],
   },
 ];
@@ -109,7 +178,7 @@ export const DemoGallery = () => {
       </div>
 
       <div className="space-y-32">
-        {demos.map(({ step, title, subtitle, description, image, accent, glow, callouts }, index) => (
+        {demos.map(({ step, title, subtitle, subtitleIcon: SubIcon, description, image, accent, glow, callouts }, index) => (
           <div
             key={title}
             className={`flex flex-col ${index % 2 === 0 ? "lg:flex-row" : "lg:flex-row-reverse"} items-center gap-12 lg:gap-16`}
@@ -158,10 +227,7 @@ export const DemoGallery = () => {
             <div className="flex-1 space-y-5 text-center lg:text-left">
               <div className="flex items-center gap-3 justify-center lg:justify-start">
                 <span className={`inline-flex items-center gap-1.5 text-xs font-bold tracking-widest uppercase px-3 py-1 rounded-full bg-gradient-to-r ${accent} text-white`}>
-                  {subtitle === "SSH Terminal" && <Terminal className="w-3 h-3" />}
-                  {subtitle === "Monaco Editor" && <Code2 className="w-3 h-3" />}
-                  {subtitle === "SFTP Client" && <FolderTree className="w-3 h-3" />}
-                  {subtitle === "Shared Terminal" && <Users className="w-3 h-3" />}
+                  <SubIcon className="w-3 h-3" />
                   {subtitle}
                 </span>
               </div>

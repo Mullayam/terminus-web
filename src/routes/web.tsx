@@ -17,22 +17,22 @@ const MediaPreviewPage = lazy(() => import("@/pages/sftp/components/MediaPreview
 
 const TerminalComponent = lazy(() => import("@/pages/shared-terminal"));
 const CollabTerminalPage = lazy(() => import("@/modules/collab-terminal/page/CollabTerminalPage"));
- 
+
 /** Inline loading spinner shown while a lazy route chunk is being fetched */
 function RouteLoader() {
-  return (
-    <div className="flex items-center justify-center h-screen w-full bg-[#1e1e2e]">
-      <div className="flex flex-col items-center gap-3">
-        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-        <span className="text-sm text-gray-500">Loading…</span>
-      </div>
-    </div>
-  );
+    return (
+        <div className="flex items-center justify-center h-screen w-full bg-[#1e1e2e]">
+            <div className="flex flex-col items-center gap-3">
+                <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+                <span className="text-sm text-gray-500">Loading…</span>
+            </div>
+        </div>
+    );
 }
 
 /** Wrap a lazy element in Suspense with the route loader */
 function withSuspense(element: React.ReactNode) {
-  return <Suspense fallback={<RouteLoader />}>{element}</Suspense>;
+    return <Suspense fallback={<RouteLoader />}>{element}</Suspense>;
 }
 
 
@@ -50,7 +50,7 @@ export const router = createBrowserRouter([
         path: "about",
         element: <div>About</div>,
     },
-     
+
     {
         path: "/ssh/terminal/:sessionid",
         errorElement: <RouteErrorBoundary />,

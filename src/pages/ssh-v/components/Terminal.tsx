@@ -42,6 +42,14 @@ import { XtermTheme, ThemeName } from "./themes";
 import { getAllCommandData } from "@/lib/context-engine/contextEngineStorage";
 import { useAIChatStore } from "@/store/aiChatStore";
 
+const SEARCH_DECORATIONS: ISearchOptions["decorations"] = {
+  matchBackground: "#FFA50080",
+  matchBorder: "#FFA500",
+  matchOverviewRuler: "#FFA500",
+  activeMatchBackground: "#FF8C00",
+  activeMatchBorder: "#FFFFFF",
+  activeMatchColorOverviewRuler: "#FF8C00",
+};
 
 // https://github.com/xtermjs/xterm.js/blob/master/demo/client.ts
 const XTerminal = memo(function XTerminal({
@@ -54,7 +62,6 @@ const XTerminal = memo(function XTerminal({
   backgroundColor?: string;
 }) {
   const { play } = useAudio(sound)
-  const isRendered = useRef(false);
   const sessionHost = useSSHStore((s) => s.sessions[sessionId]?.host);
   const autocomplete = useTabStore((s) => s.settings.autocomplete);
   const suggestionBox = useTabStore((s) => s.settings.suggestionBox);
@@ -74,7 +81,6 @@ const XTerminal = memo(function XTerminal({
   // ── AI Chat: capture terminal selection ──
   const setTerminalSelection = useAIChatStore((s) => s.setTerminalSelection);
   const setTerminalContent = useAIChatStore((s) => s.setTerminalContent);
-  const toggleAIChat = useAIChatStore((s) => s.toggle);
 
   // Derive localStorage key from the session host/IP
   const hostKey = useMemo(() => {
@@ -105,10 +111,14 @@ const XTerminal = memo(function XTerminal({
   });
   /** Extra ghost-text sources (store commands + context-engine packs). Not persisted to history. */
   const ghostSourcesRef = useRef<string[]>([]);
+  const [ghostSourcesVersion, setGhostSourcesVersion] = useState(0);
+  const suggestionsRef = useRef(suggestions);
+  useEffect(() => { suggestionsRef.current = suggestions; }, [suggestions]);
+  const diagnosticsEnabledRef = useRef(diagnosticsEnabled);
+  useEffect(() => { diagnosticsEnabledRef.current = diagnosticsEnabled; }, [diagnosticsEnabled]);
   const [commandBuffer, setCommandBuffer] = useState<string>("");
   const commandBufferRef = useRef<string>("");
   const command = useCommandStore((s) => s.command);
-  const clickType = useCommandStore((s) => s.clickType);
   const setCommand = useCommandStore((s) => s.setCommand);
   const addShellHistoryCommand = useCommandStore((s) => s.addShellHistoryCommand);
   const addShellHistoryBatch = useCommandStore((s) => s.addShellHistoryBatch);
@@ -141,27 +151,26 @@ const XTerminal = memo(function XTerminal({
     }
   }, [socket]);
 
-  let lastPromptPrefix = '';
+  const lastPromptPrefixRef = useRef('');
 
   const filteredSuggestions = useMemo(() => {
     const all = [...suggestions, ...ghostSourcesRef.current];
     if (commandBuffer === "") return all;
     return all.filter((command) => command.includes(commandBuffer));
-  }, [commandBuffer, suggestions])
+  }, [commandBuffer, suggestions, ghostSourcesVersion])
 
 
   const handleSearchNext = () => {
     const query = searchInputRef.current?.value || '';
     searchAddonRef.current?.findNext(query, {
-      decorations: getSearchOptions()
+      decorations: SEARCH_DECORATIONS
     });
   };
 
   const handleSearchPrev = () => {
     const query = searchInputRef.current?.value || '';
     searchAddonRef.current?.findPrevious(query, {
-      decorations: getSearchOptions()
-
+      decorations: SEARCH_DECORATIONS
     });
   };
 
@@ -182,8 +191,7 @@ const XTerminal = memo(function XTerminal({
 
       const match = text.match(/^(.*?[#$>] )/);
       if (match) {
-        lastPromptPrefix = match[1];
-
+        lastPromptPrefixRef.current = match[1];
       }
     }
 
@@ -204,18 +212,6 @@ const XTerminal = memo(function XTerminal({
       setShowSearch(false);
     }
   };
-  function getCurrentCommandInput() {
-    const buffer = termRef.current?.buffer.active;
-    if (buffer) {
-      const line = buffer.getLine(buffer.cursorY);
-      const lineText = line?.translateToString(true) ?? '';
-      if (lineText.startsWith(lastPromptPrefix)) {
-        return lineText.slice(lastPromptPrefix.length);
-      }
-      return lineText;
-    }
-    return '';
-  }
   const handleContextMenu = async (e: MouseEvent) => {
     e.preventDefault();
 
@@ -241,17 +237,6 @@ const XTerminal = memo(function XTerminal({
     }
   };
 
-
-  function getSearchOptions(): ISearchOptions["decorations"] {
-    return {
-      matchBackground: "#FFA50080",         // semi-transparent orange
-      matchBorder: "#FFA500",               // solid orange border
-      matchOverviewRuler: "#FFA500",        // ruler stripe
-      activeMatchBackground: "#FF8C00",     // darker orange
-      activeMatchBorder: "#FFFFFF",         // white border for active
-      activeMatchColorOverviewRuler: "#FF8C00",
-    }
-  }
   const updateSuggestionBox = () => {
     const textarea = terminalRef.current?.querySelector(
       ".xterm-helper-textarea"
@@ -294,11 +279,10 @@ const XTerminal = memo(function XTerminal({
       highlightLimit: 1000,
 
     });
-    term.loadAddon(new WebglAddon());
+    try { term.loadAddon(new WebglAddon()); } catch { term.loadAddon(new CanvasAddon()); }
     term.loadAddon(new ImageAddon());
     term.loadAddon(new SerializeAddon());
     term.loadAddon(new Unicode11Addon());
-    term.loadAddon(new CanvasAddon());
     term.loadAddon(new ClipboardAddon());
     term.loadAddon(new WebLinksAddon());
     term.loadAddon(fitAddon);
@@ -327,14 +311,14 @@ const XTerminal = memo(function XTerminal({
       term.write("\x1b[32mConnecting...\r\n\x1b[0m");
     }
 
-    term.onData((input) => {
+    const disposeOnData = term.onData((input) => {
       socket.emit(SocketEventConstants.SSH_EMIT_INPUT, input);
       if (input === '\r') {
         capturePrompt();
       }
     });
 
-    term.onResize((size) => {
+    const disposeOnResize = term.onResize((size) => {
       socket.emit(SocketEventConstants.SSH_EMIT_RESIZE, size);
     });
 
@@ -352,7 +336,7 @@ const XTerminal = memo(function XTerminal({
       term.scrollToBottom();
       addLogLine(sessionId, input);
       // Feed output to diagnostics scanner (only if enabled)
-      diagFeed(input);
+      if (diagnosticsEnabledRef.current) diagFeed(input);
     });
 
     // Server sends shell history after ready
@@ -372,7 +356,9 @@ const XTerminal = memo(function XTerminal({
         for (const cmd of cleaned) {
           if (!set.has(cmd)) { set.add(cmd); added = true; }
         }
-        return added ? Array.from(set) : prev;
+        if (!added) return prev;
+        const arr = Array.from(set);
+        return arr.length > 500 ? arr.slice(-500) : arr;
       });
     });
 
@@ -408,6 +394,7 @@ const XTerminal = memo(function XTerminal({
       }
       if (cmds.length > 0) {
         ghostSourcesRef.current = Array.from(new Set([...ghostSourcesRef.current, ...cmds]));
+        setGhostSourcesVersion(v => v + 1);
       }
     }).catch(() => { });
 
@@ -415,6 +402,8 @@ const XTerminal = memo(function XTerminal({
       window.removeEventListener("resize", handleResize);
       socket.off(SocketEventConstants.SSH_EMIT_DATA);
       socket.off(SocketEventConstants.SSH_EXEC_SILENT_RESULT);
+      disposeOnData.dispose();
+      disposeOnResize.dispose();
       term.dispose();
       termRef.current = null;
     };
@@ -488,7 +477,6 @@ const XTerminal = memo(function XTerminal({
       key: string;
       domEvent: KeyboardEvent;
     }) => {
-
       const isEnter = domEvent.key === "Enter";
       const isBackspace = domEvent.key === "Backspace";
       const isPrintable =
@@ -496,18 +484,6 @@ const XTerminal = memo(function XTerminal({
         !domEvent.ctrlKey &&
         !domEvent.metaKey &&
         !domEvent.altKey;
-      if (domEvent.ctrlKey && domEvent.key === 'f') {
-        domEvent.preventDefault();
-        setShowSearch(true);
-        setTimeout(() => searchInputRef.current?.focus(), 50);
-      }
-
-
-      if (domEvent.key === 'Escape') {
-        searchAddonRef.current?.clearDecorations();
-        searchAddonRef.current?.clearActiveDecoration();
-        setShowSearch(false);
-      }
 
       if (domEvent.ctrlKey && domEvent.code === "Space") {
         domEvent.preventDefault();
@@ -525,7 +501,11 @@ const XTerminal = memo(function XTerminal({
       if (isEnter) {
         const trimmed = commandBufferRef.current.trim();
         if (trimmed.length > 0) {
-          setSuggestions(prev => prev.includes(trimmed) ? prev : [...prev, trimmed]);
+          setSuggestions(prev => {
+            if (prev.includes(trimmed)) return prev;
+            const next = [...prev, trimmed];
+            return next.length > 500 ? next.slice(-500) : next;
+          });
           addShellHistoryCommand(shellHistoryHost, trimmed);
         }
         commandBufferRef.current = "";
@@ -540,7 +520,7 @@ const XTerminal = memo(function XTerminal({
         setCommandBuffer(updated);
         setIsVisible(
           updated.trim() !== "" &&
-          suggestions.some((cmd) => cmd.includes(updated))
+          suggestionsRef.current.some((cmd) => cmd.includes(updated))
         );
         return;
       }
@@ -551,7 +531,7 @@ const XTerminal = memo(function XTerminal({
         setCommandBuffer(updated);
         setIsVisible(
           updated.trim() !== "" &&
-          suggestions.some((cmd) => cmd.includes(updated))
+          suggestionsRef.current.some((cmd) => cmd.includes(updated))
         );
       }
     };

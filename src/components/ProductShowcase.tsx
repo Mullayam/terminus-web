@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Terminal,
   Code2,
@@ -9,6 +9,10 @@ import {
   Palette,
   Zap,
   ArrowRight,
+  Settings,
+  Search,
+  Puzzle,
+  type LucideIcon,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "./ui/button";
@@ -20,7 +24,7 @@ import { Badge } from "./ui/badge";
 interface Callout {
   label: string;
   icon: React.ReactNode;
-  position: string; // tailwind absolute positioning classes
+  position: string;
   animation: string;
 }
 
@@ -30,6 +34,7 @@ interface ShowcaseSlide {
   headline: string;
   description: string;
   image: string;
+  icon: LucideIcon;
   gradient: string;
   glowColor: string;
   callouts: Callout[];
@@ -42,26 +47,27 @@ const slides: ShowcaseSlide[] = [
     tagline: "SSH Terminal",
     headline: "Your Server, One Click Away",
     description:
-      "Full xterm.js terminal with 17+ themes, font customization, search, image rendering, and ligature support. Connect to any server in seconds.",
-    image: "/2.png",
+      "Full xterm.js terminal with WebGL rendering, ghost-text autocomplete, AI suggestion box, shell history sync, and VS Code-style search. Connect to any server in seconds.",
+    image: "/1.png",
+    icon: Terminal,
     gradient: "from-green-500/30 via-emerald-500/10 to-transparent",
     glowColor: "bg-green-500/20",
     callouts: [
       {
-        label: "17+ Terminal Themes",
-        icon: <Palette className="w-3.5 h-3.5" />,
+        label: "Ghost-Text Autocomplete",
+        icon: <Sparkles className="w-3.5 h-3.5" />,
         position: "top-8 -right-3 lg:right-4",
         animation: "animate-float",
       },
       {
-        label: "Search & Highlight",
+        label: "AI Suggestion Box",
         icon: <Zap className="w-3.5 h-3.5" />,
         position: "bottom-20 -left-3 lg:left-4",
         animation: "animate-float-delayed",
       },
       {
-        label: "Encrypted Sessions",
-        icon: <Shield className="w-3.5 h-3.5" />,
+        label: "Command Palette",
+        icon: <Terminal className="w-3.5 h-3.5" />,
         position: "bottom-8 -right-3 lg:right-8",
         animation: "animate-float",
       },
@@ -69,74 +75,45 @@ const slides: ShowcaseSlide[] = [
     cta: { label: "Launch Terminal", href: "/ssh/connect" },
   },
   {
-    id: "editor",
-    tagline: "Code Editor",
-    headline: "A Full IDE in Your Browser",
+    id: "settings",
+    tagline: "Customization",
+    headline: "Make It Yours",
     description:
-      "Monaco-powered editor with IntelliSense, 25+ themes, multi-tab editing, command palette, minimap, bracket colorization, and AI ghost-text completions.",
-    image: "/7.png",
-    gradient: "from-violet-500/30 via-purple-500/10 to-transparent",
-    glowColor: "bg-violet-500/20",
+      "17+ terminal themes, per-session font size & weight controls, behavior toggles for autocomplete, AI suggestions, and diagnostics. Every detail is customizable.",
+    image: "/2.png",
+    icon: Settings,
+    gradient: "from-orange-500/30 via-amber-500/10 to-transparent",
+    glowColor: "bg-orange-500/20",
     callouts: [
       {
-        label: "IntelliSense",
-        icon: <Code2 className="w-3.5 h-3.5" />,
-        position: "top-8 -left-3 lg:left-4",
-        animation: "animate-float",
-      },
-      {
-        label: "AI Completions",
-        icon: <Sparkles className="w-3.5 h-3.5" />,
-        position: "top-12 -right-3 lg:right-4",
-        animation: "animate-float-delayed",
-      },
-      {
-        label: "25+ Themes",
+        label: "17+ Themes",
         icon: <Palette className="w-3.5 h-3.5" />,
-        position: "bottom-16 -left-3 lg:left-8",
-        animation: "animate-float",
-      },
-    ],
-    cta: { label: "Open Editor", href: "/ssh/connect" },
-  },
-  {
-    id: "sftp",
-    tagline: "SFTP Manager",
-    headline: "Visual File Management, Reimagined",
-    description:
-      "Browse, upload, download, rename, chmod — all with a visual file tree, drag-and-drop, context menus, and real-time progress tracking.",
-    image: "/4.png",
-    gradient: "from-blue-500/30 via-cyan-500/10 to-transparent",
-    glowColor: "bg-blue-500/20",
-    callouts: [
-      {
-        label: "Drag & Drop Upload",
-        icon: <FolderTree className="w-3.5 h-3.5" />,
-        position: "top-10 -right-3 lg:right-4",
+        position: "top-8 -right-3 lg:right-4",
         animation: "animate-float",
       },
       {
-        label: "Context Menus",
-        icon: <Zap className="w-3.5 h-3.5" />,
-        position: "bottom-16 -left-3 lg:left-4",
+        label: "Font Customization",
+        icon: <Settings className="w-3.5 h-3.5" />,
+        position: "bottom-20 -left-3 lg:left-4",
         animation: "animate-float-delayed",
       },
       {
-        label: "13 Actions",
-        icon: <Shield className="w-3.5 h-3.5" />,
+        label: "Per-Session Settings",
+        icon: <Zap className="w-3.5 h-3.5" />,
         position: "bottom-8 -right-3 lg:right-8",
         animation: "animate-float",
       },
     ],
-    cta: { label: "Manage Files", href: "/ssh/connect" },
+    cta: { label: "Customize Now", href: "/ssh/connect" },
   },
   {
     id: "collab",
-    tagline: "Collaborative Terminal",
+    tagline: "Collaboration",
     headline: "Share Your Terminal. Work Together.",
     description:
-      "One link, instant access. Role-based permissions, real-time sync, ghost-text lock overlays, kick & ban controls — multiplayer DevOps.",
-    image: "/6.png",
+      "One link, instant access. Role-based permissions, real-time keystroke sync, live typing indicators, and one-click kick or ban controls — multiplayer DevOps.",
+    image: "/3.png",
+    icon: Users,
     gradient: "from-pink-500/30 via-rose-500/10 to-transparent",
     glowColor: "bg-pink-500/20",
     callouts: [
@@ -153,13 +130,173 @@ const slides: ShowcaseSlide[] = [
         animation: "animate-float-delayed",
       },
       {
-        label: "Kick & Ban",
+        label: "Live Typing Indicator",
         icon: <Zap className="w-3.5 h-3.5" />,
         position: "bottom-12 -left-3 lg:left-8",
         animation: "animate-float",
       },
     ],
     cta: { label: "Start Sharing", href: "/ssh/connect" },
+  },
+  {
+    id: "editor-ctx",
+    tagline: "Code Editor",
+    headline: "A Full IDE in Your Browser",
+    description:
+      "Monaco-powered editor with full context menus — undo, redo, cut, copy, paste, indent, toggle comment, sort lines, duplicate, move lines, and more. Everything you expect from a desktop IDE.",
+    image: "/5.png",
+    icon: Code2,
+    gradient: "from-violet-500/30 via-purple-500/10 to-transparent",
+    glowColor: "bg-violet-500/20",
+    callouts: [
+      {
+        label: "Full Context Menu",
+        icon: <Code2 className="w-3.5 h-3.5" />,
+        position: "top-8 -left-3 lg:left-4",
+        animation: "animate-float",
+      },
+      {
+        label: "Move & Duplicate Lines",
+        icon: <Zap className="w-3.5 h-3.5" />,
+        position: "top-12 -right-3 lg:right-4",
+        animation: "animate-float-delayed",
+      },
+      {
+        label: "Toggle Comment & Sort",
+        icon: <Sparkles className="w-3.5 h-3.5" />,
+        position: "bottom-16 -left-3 lg:left-8",
+        animation: "animate-float",
+      },
+    ],
+    cta: { label: "Open Editor", href: "/ssh/connect" },
+  },
+  {
+    id: "sftp",
+    tagline: "SFTP Manager",
+    headline: "Visual File Management, Reimagined",
+    description:
+      "Browse, upload, download, rename, chmod, and delete files through a visual file-tree. 13 context-menu actions, drag-and-drop uploads, inline media preview, and real-time progress tracking.",
+    image: "/4.png",
+    icon: FolderTree,
+    gradient: "from-blue-500/30 via-cyan-500/10 to-transparent",
+    glowColor: "bg-blue-500/20",
+    callouts: [
+      {
+        label: "Drag & Drop Upload",
+        icon: <FolderTree className="w-3.5 h-3.5" />,
+        position: "top-10 -right-3 lg:right-4",
+        animation: "animate-float",
+      },
+      {
+        label: "13 Context Actions",
+        icon: <Zap className="w-3.5 h-3.5" />,
+        position: "bottom-16 -left-3 lg:left-4",
+        animation: "animate-float-delayed",
+      },
+      {
+        label: "Media Preview",
+        icon: <Search className="w-3.5 h-3.5" />,
+        position: "bottom-8 -right-3 lg:right-8",
+        animation: "animate-float",
+      },
+    ],
+    cta: { label: "Manage Files", href: "/ssh/connect" },
+  },
+  {
+    id: "plugins",
+    tagline: "Plugins & Extensions",
+    headline: "Extend Everything",
+    description:
+      "17 built-in editor plugins — IntelliSense, Code Lens, inline annotations, auto-detect indentation, JSON/YAML validation, diff viewer, focus mode, and more. Toggle each on or off instantly.",
+    image: "/6.png",
+    icon: Puzzle,
+    gradient: "from-teal-500/30 via-emerald-500/10 to-transparent",
+    glowColor: "bg-teal-500/20",
+    callouts: [
+      {
+        label: "17 Active Plugins",
+        icon: <Puzzle className="w-3.5 h-3.5" />,
+        position: "top-8 -right-3 lg:right-4",
+        animation: "animate-float",
+      },
+      {
+        label: "IntelliSense Engine",
+        icon: <Sparkles className="w-3.5 h-3.5" />,
+        position: "bottom-20 -left-3 lg:left-4",
+        animation: "animate-float-delayed",
+      },
+      {
+        label: "Validation & Linting",
+        icon: <Shield className="w-3.5 h-3.5" />,
+        position: "bottom-8 -right-3 lg:right-8",
+        animation: "animate-float",
+      },
+    ],
+    cta: { label: "Explore Plugins", href: "/ssh/connect" },
+  },
+  {
+    id: "themes",
+    tagline: "Themes & IntelliSense",
+    headline: "Code with Intelligence",
+    description:
+      "25+ editor themes with live preview switching, full IntelliSense autocomplete with document symbols, keywords, and word completions. Import & export themes or install from Open VSX.",
+    image: "/7.png",
+    icon: Palette,
+    gradient: "from-indigo-500/30 via-violet-500/10 to-transparent",
+    glowColor: "bg-indigo-500/20",
+    callouts: [
+      {
+        label: "25+ Editor Themes",
+        icon: <Palette className="w-3.5 h-3.5" />,
+        position: "top-8 -left-3 lg:left-4",
+        animation: "animate-float",
+      },
+      {
+        label: "IntelliSense",
+        icon: <Code2 className="w-3.5 h-3.5" />,
+        position: "top-12 -right-3 lg:right-4",
+        animation: "animate-float-delayed",
+      },
+      {
+        label: "Import & Export",
+        icon: <Zap className="w-3.5 h-3.5" />,
+        position: "bottom-16 -left-3 lg:left-8",
+        animation: "animate-float",
+      },
+    ],
+    cta: { label: "Browse Themes", href: "/ssh/connect" },
+  },
+  {
+    id: "embedded",
+    tagline: "Embedded Terminal",
+    headline: "Editor + Terminal, Side by Side",
+    description:
+      "Split your workspace with an embedded terminal panel below the editor. Run commands, see output, and edit code — all without switching tabs. Resize, minimize, or go full-screen.",
+    image: "/8.png",
+    icon: Terminal,
+    gradient: "from-emerald-500/30 via-green-500/10 to-transparent",
+    glowColor: "bg-emerald-500/20",
+    callouts: [
+      {
+        label: "Embedded Terminal",
+        icon: <Terminal className="w-3.5 h-3.5" />,
+        position: "top-8 -right-3 lg:right-4",
+        animation: "animate-float",
+      },
+      {
+        label: "Resizable Panels",
+        icon: <Zap className="w-3.5 h-3.5" />,
+        position: "bottom-16 -left-3 lg:left-4",
+        animation: "animate-float-delayed",
+      },
+      {
+        label: "Full-Screen Mode",
+        icon: <Sparkles className="w-3.5 h-3.5" />,
+        position: "bottom-8 -right-3 lg:right-8",
+        animation: "animate-float",
+      },
+    ],
+    cta: { label: "Try It Now", href: "/ssh/connect" },
   },
 ];
 
@@ -169,6 +306,14 @@ const slides: ShowcaseSlide[] = [
 export const ProductShowcase = () => {
   const [active, setActive] = useState(0);
   const slide = slides[active];
+
+  // Auto-rotate slides every 5 seconds
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActive((prev) => (prev + 1) % slides.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   return (
     <section className="relative py-24 sm:py-32 overflow-hidden">
@@ -197,23 +342,39 @@ export const ProductShowcase = () => {
           </h2>
         </div>
 
-        {/* Tab navigation */}
+        {/* Tab navigation — scrollable on mobile */}
         <div className="flex flex-wrap justify-center gap-2 mb-12">
-          {slides.map((s, i) => (
+          {slides.map((s, i) => {
+            const Icon = s.icon;
+            return (
+              <button
+                key={s.id}
+                onClick={() => setActive(i)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
+                  i === active
+                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25"
+                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40"
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span className="hidden sm:inline">{s.tagline}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Progress bar */}
+        <div className="flex justify-center gap-1.5 mb-8">
+          {slides.map((_, i) => (
             <button
-              key={s.id}
+              key={i}
               onClick={() => setActive(i)}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
-                i === active
-                  ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25"
-                  : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40"
-              }`}
+              className="relative h-1 rounded-full overflow-hidden transition-all duration-300"
+              style={{ width: i === active ? 32 : 12 }}
             >
-              {s.id === "terminal" && <Terminal className="w-4 h-4" />}
-              {s.id === "editor" && <Code2 className="w-4 h-4" />}
-              {s.id === "sftp" && <FolderTree className="w-4 h-4" />}
-              {s.id === "collab" && <Users className="w-4 h-4" />}
-              {s.tagline}
+              <span className={`absolute inset-0 rounded-full transition-colors duration-300 ${
+                i === active ? "bg-primary" : "bg-muted-foreground/20"
+              }`} />
             </button>
           ))}
         </div>

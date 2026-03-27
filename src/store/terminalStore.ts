@@ -36,12 +36,16 @@ export const useTerminalStore = create<TerminalLogsStore>((set) => ({
   },
 
   addLogLine: (sessionId, line) =>
-    set((state) => ({
-      logs: {
-        ...state.logs,
-        [sessionId]: [...(state.logs[sessionId] || []), line],
-      },
-    })),
+    set((state) => {
+      const prev = state.logs[sessionId] || [];
+      const next = [...prev, line];
+      return {
+        logs: {
+          ...state.logs,
+          [sessionId]: next.length > 10000 ? next.slice(-10000) : next,
+        },
+      };
+    }),
 
   clearLogs: (sessionId) =>
     set((state) => ({

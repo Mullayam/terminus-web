@@ -7,19 +7,27 @@ import { ArrowRight, Terminal, Users, Shield, Sparkles, FolderTree, Code2 } from
 
 const heroScreenshots = [
   {
-    src: "/2.png",
-    alt: "SSH Terminal with theme settings and command autocomplete",
+    src: "/1.png",
+    alt: "SSH Terminal with ghost-text autocomplete and AI suggestion box",
     callouts: [
-      { label: "17+ Themes", position: "top-8 right-4", anim: "animate-float" },
-      { label: "Full xterm.js", position: "bottom-20 left-4", anim: "animate-float-delayed" },
+      { label: "Ghost Autocomplete", position: "top-8 right-4", anim: "animate-float" },
+      { label: "AI Commands", position: "bottom-20 left-4", anim: "animate-float-delayed" },
     ],
   },
   {
-    src: "/7.png",
-    alt: "Built-in code editor with IntelliSense and multiple themes",
+    src: "/2.png",
+    alt: "Terminal settings with 17+ themes and font customization",
     callouts: [
-      { label: "IntelliSense", position: "top-8 left-4", anim: "animate-float" },
-      { label: "AI Completions", position: "bottom-16 right-4", anim: "animate-float-delayed" },
+      { label: "17+ Themes", position: "top-8 right-4", anim: "animate-float" },
+      { label: "Font Controls", position: "bottom-20 left-4", anim: "animate-float-delayed" },
+    ],
+  },
+  {
+    src: "/3.png",
+    alt: "Collaborative terminal sharing with role-based permissions",
+    callouts: [
+      { label: "Share Sessions", position: "top-8 left-4", anim: "animate-float" },
+      { label: "Role Permissions", position: "bottom-16 right-4", anim: "animate-float-delayed" },
     ],
   },
   {
@@ -30,12 +38,44 @@ const heroScreenshots = [
       { label: "13 Actions", position: "bottom-20 left-4", anim: "animate-float-delayed" },
     ],
   },
+  {
+    src: "/5.png",
+    alt: "Code editor with full context menu and editing tools",
+    callouts: [
+      { label: "Context Menu", position: "top-8 right-4", anim: "animate-float" },
+      { label: "Sort & Comment", position: "bottom-16 left-4", anim: "animate-float-delayed" },
+    ],
+  },
+  {
+    src: "/6.png",
+    alt: "Editor with 17 built-in plugins and IntelliSense",
+    callouts: [
+      { label: "17 Plugins", position: "top-8 right-4", anim: "animate-float" },
+      { label: "IntelliSense", position: "bottom-20 left-4", anim: "animate-float-delayed" },
+    ],
+  },
+  {
+    src: "/7.png",
+    alt: "Editor with 25+ themes and IntelliSense autocomplete",
+    callouts: [
+      { label: "25+ Themes", position: "top-8 left-4", anim: "animate-float" },
+      { label: "AI Completions", position: "bottom-16 right-4", anim: "animate-float-delayed" },
+    ],
+  },
+  {
+    src: "/8.png",
+    alt: "Editor with embedded terminal panel",
+    callouts: [
+      { label: "Embedded Terminal", position: "top-8 right-4", anim: "animate-float" },
+      { label: "Resizable", position: "bottom-16 left-4", anim: "animate-float-delayed" },
+    ],
+  },
 ];
 
 const stats = [
   { label: "Terminal Themes", value: "17+" },
   { label: "Editor Themes", value: "25+" },
-  { label: "SFTP Actions", value: "13" },
+  { label: "Editor Plugins", value: "17" },
   { label: "Open Source", value: "100%" },
 ];
 
@@ -67,7 +107,7 @@ export const Hero = () => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
             </span>
-            Now with Collaborative Terminal Sharing
+            Now with AI Ghost-Text & Inline Command Input
           </div>
 
           {/* Headline */}
@@ -108,15 +148,18 @@ export const Hero = () => {
           </div>
 
           {/* Trust signals */}
-          <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground pt-2">
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-sm text-muted-foreground pt-2">
             <span className="flex items-center gap-1.5">
               <Terminal className="w-4 h-4" /> Full xterm.js
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4" /> AI Powered
             </span>
             <span className="flex items-center gap-1.5">
               <Users className="w-4 h-4" /> Multi-user collab
             </span>
             <span className="flex items-center gap-1.5">
-              <Shield className="w-4 h-4" /> End-to-end encrypted
+              <Shield className="w-4 h-4" /> E2E Encrypted
             </span>
           </div>
         </div>
@@ -183,6 +226,7 @@ export const Hero = () => {
                 { icon: <Code2 className="w-4 h-4" />, bg: "bg-violet-500" },
                 { icon: <FolderTree className="w-4 h-4" />, bg: "bg-blue-500" },
                 { icon: <Users className="w-4 h-4" />, bg: "bg-pink-500" },
+                { icon: <Sparkles className="w-4 h-4" />, bg: "bg-amber-500" },
               ].map((item, i) => (
                 <div
                   key={i}
