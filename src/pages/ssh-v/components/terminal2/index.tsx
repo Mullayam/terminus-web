@@ -5,10 +5,12 @@ import { RightSidebar } from "./rightSidebar";
 import { AIChatPanel } from "./ai-chat";
 import { useSessionTheme } from "@/hooks/useSessionTheme";
 import { useSSHStore } from "@/store/sshStore";
+import { useTabStore } from "@/store/rightSidebarTabStore";
 
 export default function TerminalLayout({ children }: { children: React.ReactNode }) {
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
     const [isRightSidebarOpen, setIsRightSidebarOpen] = React.useState(false);
+    const setRightSidebarOpen = useTabStore((s) => s.setRightSidebarOpen);
     const { colors } = useSessionTheme();
     const activeTabId = useSSHStore((s) => s.activeTabId);
     const activeTab = useSSHStore((s) => s.tabs.find((t) => t.id === s.activeTabId));
@@ -23,7 +25,11 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
                 <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
                     <TopBar
                         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-                        onToggleRightSidebar={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
+                        onToggleRightSidebar={() => {
+                            const next = !isRightSidebarOpen;
+                            setIsRightSidebarOpen(next);
+                            setRightSidebarOpen(next);
+                        }}
                         isRightSidebarOpen={isRightSidebarOpen}
                     />
                     <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -31,7 +37,7 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
                             {children}
                         </div>
                     </div>
-                    <RightSidebar isRightSidebarOpen={isRightSidebarOpen} onClose={() => setIsRightSidebarOpen(false)} />
+                    <RightSidebar isRightSidebarOpen={isRightSidebarOpen} onClose={() => { setIsRightSidebarOpen(false); setRightSidebarOpen(false); }} />
                     {/* AI Chat Panel — overlays the terminal without shrinking it */}
                     {sessionId && <AIChatPanel sessionId={sessionId} />}
                 </div>

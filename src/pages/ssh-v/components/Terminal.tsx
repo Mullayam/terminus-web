@@ -2,6 +2,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import "@xterm/xterm/css/xterm.css";
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
+import { ChevronUp, ChevronDown, X, Search } from "lucide-react";
 import { Terminal } from "@xterm/xterm";
 
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -57,6 +58,8 @@ const XTerminal = memo(function XTerminal({
   const autocomplete = useTabStore((s) => s.settings.autocomplete);
   const suggestionBox = useTabStore((s) => s.settings.suggestionBox);
   const diagnosticsEnabled = useTabStore((s) => s.settings.diagnostics);
+  const isRightSidebarOpen = useTabStore((s) => s.rightSidebarOpen);
+  const isAIChatOpen = useAIChatStore((s) => s.isOpen);
   const sessionTheme = useSSHStore((s) => s.sessionThemes[sessionId]) || 'custom';
   const { fontSize = 15, fontWeight = '400', fontWeightBold = '700' } = useSSHStore((s) => s.sessionFonts[sessionId]) || {};
 
@@ -560,33 +563,95 @@ const XTerminal = memo(function XTerminal({
         style={{ width: "100%", height: "100%" }}
 
       />
-      {showSearch && (
-        <div className="absolute top-2 right-2 bg-[#181818] shadow-md border border-gray-700 rounded px-2 py-1 flex items-center gap-2 z-10">
-          <input
-            ref={searchInputRef}
-            type="text"
-            placeholder="Search..."
-
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSearchNext();
-              if (e.key === 'Escape') setShowSearch(false);
+      {showSearch && (() => {
+        const t = XtermTheme[sessionTheme] || XtermTheme.default;
+        return (
+          <div
+            className="absolute top-0 z-20 flex items-center gap-0.5 rounded-bl-md shadow-lg px-2 py-1 transition-[right] duration-300 ease-in-out"
+            style={{
+              right: isRightSidebarOpen && isAIChatOpen
+                ? 'calc(25rem + 400px)'
+                : isRightSidebarOpen
+                  ? '25rem'
+                  : isAIChatOpen
+                    ? '26rem'
+                    : '1rem',
+              backgroundColor: t.background,
+              border: `1px solid ${t.foreground}20`,
+              borderTop: 'none',
             }}
-            className="px-2 py-1 border bg-[#181818] text-green-400 border-gray-600 rounded w-48"
-          />
-          <button
-            onClick={handleSearchNext}
-            className="text-sm bg-blue-600 text-green-400 px-2 py-1 rounded"
           >
-            Find
-          </button>
-          <button
-            onClick={handleSearchPrev}
-            className="text-sm bg-blue-600 text-green-400 px-2 py-1 rounded"
-          >
-            Prev
-          </button>
-        </div>
-      )}
+            <div className="relative flex items-center">
+              <Search
+                size={14}
+                className="absolute left-2 pointer-events-none"
+                style={{ color: `${t.foreground}60` }}
+              />
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Find"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.shiftKey) { handleSearchPrev(); }
+                  else if (e.key === 'Enter') { handleSearchNext(); }
+                  else if (e.key === 'Escape') {
+                    searchAddonRef.current?.clearDecorations();
+                    searchAddonRef.current?.clearActiveDecoration();
+                    setShowSearch(false);
+                  }
+                }}
+                className="pl-7 pr-2 py-[3px] text-xs rounded-sm w-52 outline-none focus:ring-1"
+                style={{
+                  backgroundColor: `${t.foreground}10`,
+                  color: t.foreground,
+                  border: `1px solid ${t.foreground}30`,
+                  caretColor: ('cursor' in t ? t.cursor : t.foreground) as string,
+                }}
+                onFocus={(e) => (e.target.style.borderColor = (t as any).cyan ?? (t as any).blue ?? `${t.foreground}60`)}
+                onBlur={(e) => (e.target.style.borderColor = `${t.foreground}30`)}
+              />
+            </div>
+
+            <button
+              onClick={handleSearchPrev}
+              title="Previous Match (Shift+Enter)"
+              className="p-1 rounded-sm transition-colors"
+              style={{ color: `${t.foreground}cc` }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = `${t.foreground}20`)}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+            >
+              <ChevronUp size={16} />
+            </button>
+
+            <button
+              onClick={handleSearchNext}
+              title="Next Match (Enter)"
+              className="p-1 rounded-sm transition-colors"
+              style={{ color: `${t.foreground}cc` }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = `${t.foreground}20`)}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+            >
+              <ChevronDown size={16} />
+            </button>
+
+            <button
+              onClick={() => {
+                searchAddonRef.current?.clearDecorations();
+                searchAddonRef.current?.clearActiveDecoration();
+                setShowSearch(false);
+              }}
+              title="Close (Escape)"
+              className="p-1 rounded-sm transition-colors ml-0.5"
+              style={{ color: `${t.foreground}cc` }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = `${t.foreground}20`)}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+            >
+              <X size={16} />
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Suggestion box positioned relative to .xterm-helper-textarea */}
 
