@@ -37,6 +37,21 @@ export { minimapSearchPlugin } from "./minimap-search-plugin";
 export { foldingRegionsPlugin } from "./folding-regions-plugin";
 export { imagePreviewPlugin } from "./image-preview-plugin";
 
+// Batch 2 plugins
+export { rainbowIndentPlugin } from "./rainbow-indent-plugin";
+export { trailingWhitespacePlugin } from "./trailing-whitespace-plugin";
+export { bracketPairLinesPlugin } from "./bracket-pair-lines-plugin";
+export { codeActionsLightbulbPlugin } from "./code-actions-lightbulb-plugin";
+export { smartSelectPlugin } from "./smart-select-plugin";
+export { parameterHintsPlugin } from "./parameter-hints-plugin";
+export { stickyScrollEnhancedPlugin } from "./sticky-scroll-enhanced-plugin";
+export { fontLigaturesPlugin } from "./font-ligatures-plugin";
+export { cursorHistoryPlugin } from "./cursor-history-plugin";
+export { rulerLinesPlugin } from "./ruler-lines-plugin";
+export { autoBracketPastePlugin } from "./auto-bracket-paste-plugin";
+export { textTransformPlugin } from "./text-transform-plugin";
+export { bookmarksPlugin } from "./bookmarks-plugin";
+
 // Convenience array of all built-in plugins
 import { saveStatePlugin } from "./save-state-plugin";
 import { bracketColorizerPlugin } from "./bracket-colorizer-plugin";
@@ -59,6 +74,19 @@ import { snippetManagerPlugin } from "./snippet-manager-plugin";
 import { minimapSearchPlugin } from "./minimap-search-plugin";
 import { foldingRegionsPlugin } from "./folding-regions-plugin";
 import { imagePreviewPlugin } from "./image-preview-plugin";
+import { rainbowIndentPlugin } from "./rainbow-indent-plugin";
+import { trailingWhitespacePlugin } from "./trailing-whitespace-plugin";
+import { bracketPairLinesPlugin } from "./bracket-pair-lines-plugin";
+import { codeActionsLightbulbPlugin } from "./code-actions-lightbulb-plugin";
+import { smartSelectPlugin } from "./smart-select-plugin";
+import { parameterHintsPlugin } from "./parameter-hints-plugin";
+import { stickyScrollEnhancedPlugin } from "./sticky-scroll-enhanced-plugin";
+import { fontLigaturesPlugin } from "./font-ligatures-plugin";
+import { cursorHistoryPlugin } from "./cursor-history-plugin";
+import { rulerLinesPlugin } from "./ruler-lines-plugin";
+import { autoBracketPastePlugin } from "./auto-bracket-paste-plugin";
+import { textTransformPlugin } from "./text-transform-plugin";
+import { bookmarksPlugin } from "./bookmarks-plugin";
 
 export const ALL_BUILTIN_PLUGINS = [
   vscodeClipboardPlugin,
@@ -82,4 +110,17 @@ export const ALL_BUILTIN_PLUGINS = [
   minimapSearchPlugin,
   foldingRegionsPlugin,
   imagePreviewPlugin,
+  rainbowIndentPlugin,
+  trailingWhitespacePlugin,
+  bracketPairLinesPlugin,
+  codeActionsLightbulbPlugin,
+  smartSelectPlugin,
+  parameterHintsPlugin,
+  stickyScrollEnhancedPlugin,
+  fontLigaturesPlugin,
+  cursorHistoryPlugin,
+  rulerLinesPlugin,
+  autoBracketPastePlugin,
+  textTransformPlugin,
+  bookmarksPlugin,
 ];
