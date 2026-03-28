@@ -18,6 +18,23 @@ import type {
   PluginRegistryListener,
 } from "../types";
 
+const DISABLED_PLUGINS_KEY = "terminus-disabled-plugins";
+
+function loadDisabledSet(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DISABLED_PLUGINS_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function saveDisabledSet(ids: Set<string>) {
+  try {
+    localStorage.setItem(DISABLED_PLUGINS_KEY, JSON.stringify([...ids]));
+  } catch { /* noop */ }
+}
+
 interface PluginEntry {
   plugin: MonacoPlugin;
   enabled: boolean;
@@ -26,6 +43,7 @@ interface PluginEntry {
 class PluginRegistry {
   private plugins = new Map<string, PluginEntry>();
   private listeners = new Set<PluginRegistryListener>();
+  private disabledSet = loadDisabledSet();
 
   // ── Registration ────────────────────────────────────────────
 
@@ -40,7 +58,9 @@ class PluginRegistry {
 
     this.plugins.set(plugin.id, {
       plugin,
-      enabled: plugin.defaultEnabled !== false,
+      enabled: this.disabledSet.has(plugin.id)
+        ? false
+        : plugin.defaultEnabled !== false,
     });
 
     this.emit({ type: "registered", pluginId: plugin.id });
@@ -87,6 +107,8 @@ class PluginRegistry {
     const entry = this.plugins.get(pluginId);
     if (!entry || entry.enabled) return;
     entry.enabled = true;
+    this.disabledSet.delete(pluginId);
+    saveDisabledSet(this.disabledSet);
     this.emit({ type: "enabled", pluginId });
   }
 
@@ -94,6 +116,8 @@ class PluginRegistry {
     const entry = this.plugins.get(pluginId);
     if (!entry || !entry.enabled) return;
     entry.enabled = false;
+    this.disabledSet.add(pluginId);
+    saveDisabledSet(this.disabledSet);
     this.emit({ type: "disabled", pluginId });
   }
 
@@ -101,6 +125,12 @@ class PluginRegistry {
     const entry = this.plugins.get(pluginId);
     if (!entry) return false;
     entry.enabled = !entry.enabled;
+    if (entry.enabled) {
+      this.disabledSet.delete(pluginId);
+    } else {
+      this.disabledSet.add(pluginId);
+    }
+    saveDisabledSet(this.disabledSet);
     this.emit({
       type: entry.enabled ? "enabled" : "disabled",
       pluginId,

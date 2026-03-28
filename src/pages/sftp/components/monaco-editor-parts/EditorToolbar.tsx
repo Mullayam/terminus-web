@@ -8,7 +8,7 @@ import FileIcon from "@/components/FileIcon";
 import { ThemePicker, type ThemeId } from "./ThemePicker";
 import { ChangelogModal } from "./ChangelogModal";
 
-const CHANGELOG_DISMISSED_KEY = "terminus-changelog-dismissed-v2";
+const CHANGELOG_DISMISSED_KEY = "terminus-changelog-dismissed-v3";
 
 interface EditorToolbarProps {
     currentFileName: string;

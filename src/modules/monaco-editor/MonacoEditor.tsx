@@ -318,10 +318,11 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
 
   // Sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarTab, setSidebarTab] = useState<"outline" | "problems" | "info" | "extensions" | "themes" | "settings" | "chat" | "ai" | "context-menu" | "hover" | "context-engine">("outline");
+  const [sidebarTab, setSidebarTab] = useState<"outline" | "problems" | "info" | "extensions" | "themes" | "settings" | "chat" | "ai" | "context-menu" | "hover" | "context-engine" | "plugins">("outline");
   const [symbols, setSymbols] = useState<DocumentSymbolItem[]>([]);
   const [problems, setProblems] = useState<monacoNs.editor.IMarkerData[]>([]);
   const [extensionCount, setExtensionCount] = useState(0);
+  const [pluginCount, setPluginCount] = useState(0);
   const [contextEngineCount, setContextEngineCount] = useState(0);
   const [notificationCount, setNotificationCount] = useState(0);
 
@@ -858,6 +859,13 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
       }
 
       pluginStatesRef.current = states;
+
+      // Update plugin count for sidebar badge
+      const loadedCount = states.filter((s) => s.context !== null).length;
+      setPluginCount(loadedCount);
+      if (loadedCount > 0) {
+        onNotify?.(`${loadedCount} plugins loaded`, "info");
+      }
 
       // Initial symbol extraction
       if (showSidebar) {
@@ -1593,6 +1601,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
             symbols={symbols}
             problems={problems}
             extensionCount={extensionCount}
+            pluginCount={pluginCount}
             contextEngineCount={contextEngineCount}
           />
         )}

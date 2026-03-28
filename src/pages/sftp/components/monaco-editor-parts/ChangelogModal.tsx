@@ -3,7 +3,7 @@
  * Styled to match the editor theme (uses --editor-* CSS vars with fallbacks).
  */
 import React, { useCallback, useEffect } from "react";
-import { X, Sparkles, Code2, Braces, FileSearch, Palette } from "lucide-react";
+import { X, Sparkles, Code2, Braces, FileSearch, Palette, Puzzle, Camera } from "lucide-react";
 
 /* ────────────────────────────────────────────────────────── */
 /*  Changelog data                                            */
@@ -65,6 +65,31 @@ const CHANGELOG: ChangelogEntry[] = [
       "All providers auto-tracked as IDisposable for clean teardown",
     ],
   },
+  {
+    icon: <Puzzle className="w-4 h-4" />,
+    title: "38 Built-in Editor Plugins",
+    items: [
+      "Rainbow Indent, Bracket Pair Lines, Trailing Whitespace",
+      "Smart Select, Parameter Hints, Bookmarks (Ctrl+F2)",
+      "Code Actions Lightbulb (Ctrl+.), Cursor History (Alt+←/→)",
+      "Font Ligatures Toggle, Ruler Lines, Text Transform (13 modes)",
+      "Comment Anchors (TODO/FIXME/HACK with gutter icons)",
+      "Code Screenshot (PNG export with syntax highlight)",
+      "Toggle Comment Style (line ↔ block, Ctrl+Alt+/)",
+      "Paste as JSON (auto-format, CSV→JSON, pretty-print/minify)",
+      "Plugin Manager sidebar — enable/disable plugins at runtime",
+    ],
+  },
+  {
+    icon: <Camera className="w-4 h-4" />,
+    title: "Plugin Manager Panel",
+    items: [
+      "New sidebar tab with Puzzle icon shows all loaded plugins",
+      "Search, enable/disable toggle with localStorage persistence",
+      "Plugin count badge on sidebar icon",
+      "Notification on editor load showing plugin count",
+    ],
+  },
 ];
 
 /* ────────────────────────────────────────────────────────── */
@@ -119,7 +144,7 @@ function ChangelogModalInner({ onClose }: ChangelogModalProps) {
                 color: "#fff",
               }}
             >
-              v2.0
+              v3.0
             </span>
           </div>
           <button

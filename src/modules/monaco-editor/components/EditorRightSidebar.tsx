@@ -37,6 +37,7 @@ import {
   Menu,
   FileText,
   DatabaseZap,
+  Puzzle,
 } from "lucide-react";
 import { ExtensionPanel } from "./ExtensionPanel";
 import { ThemeSidebar } from "./ThemeSidebar";
@@ -46,6 +47,7 @@ import { CustomContextMenuPanel } from "./CustomContextMenuPanel";
 import { HoverProviderPanel } from "./HoverProviderPanel";
 import { ContextEnginePanel } from "./ContextEnginePanel";
 import { ChatPanel } from "../chat";
+import { PluginManagerPanel } from "./PluginManagerPanel";
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -70,7 +72,7 @@ export interface DocumentSymbolItem {
   children?: DocumentSymbolItem[];
 }
 
-export type SidebarTab = "outline" | "problems" | "info" | "extensions" | "themes" | "settings" | "chat" | "ai" | "context-menu" | "hover" | "context-engine";
+export type SidebarTab = "outline" | "problems" | "info" | "extensions" | "themes" | "settings" | "chat" | "ai" | "context-menu" | "hover" | "context-engine" | "plugins";
 
 export interface EditorRightSidebarProps {
   open: boolean;
@@ -95,6 +97,8 @@ export interface EditorRightSidebarProps {
   onThemeApply?: (themeId: string) => void;
   /** Number of installed extensions (for badge) */
   extensionCount?: number;
+  /** Number of loaded plugins (for badge) */
+  pluginCount?: number;
   /** Number of installed context-engine language packs (for badge) */
   contextEngineCount?: number;
   /** Current active theme ID (for theme sidebar) */
@@ -129,6 +133,7 @@ const TABS: { id: SidebarTab; icon: React.FC<{ className?: string }>; label: str
   { id: "info", icon: Info, label: "File Info" },
   { id: "themes", icon: Palette, label: "Themes" },
   { id: "extensions", icon: Blocks, label: "Extensions" },
+  { id: "plugins", icon: Puzzle, label: "Plugins" },
   { id: "context-engine", icon: DatabaseZap, label: "Context Engine" },
 ];
 
@@ -230,6 +235,7 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
   editor: editorProp,
   onThemeApply,
   extensionCount = 0,
+  pluginCount = 0,
   contextEngineCount = 0,
   activeTheme,
   editorSettings,
@@ -326,9 +332,11 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
                 ? symbols.length
                 : tab.id === "extensions" && extensionCount > 0
                   ? extensionCount
-                  : tab.id === "context-engine" && contextEngineCount > 0
-                    ? contextEngineCount
-                    : null;
+                  : tab.id === "plugins" && pluginCount > 0
+                    ? pluginCount
+                    : tab.id === "context-engine" && contextEngineCount > 0
+                      ? contextEngineCount
+                      : null;
 
           return (
             <button
@@ -440,6 +448,9 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
             {activeTab === "context-engine" && (
               <ContextEnginePanel onExtensionChange={onExtensionChange} />
             )}
+            {activeTab === "plugins" && (
+              <PluginManagerPanel />
+            )}
             {activeTab === "themes" && (
               <ThemeSidebar
                 monaco={monacoProp ?? null}
@@ -491,12 +502,13 @@ export interface EditorSidebarActivityBarProps {
   symbols: DocumentSymbolItem[];
   problems: monacoNs.editor.IMarkerData[];
   extensionCount?: number;
+  pluginCount?: number;
   contextEngineCount?: number;
 }
 
 /** Activity bar icon strip (40 px, always visible, placed outside the resizable area). */
 export const EditorSidebarActivityBar: React.FC<EditorSidebarActivityBarProps> = ({
-  open, onToggle, activeTab, onTabChange, symbols, problems, extensionCount = 0, contextEngineCount = 0,
+  open, onToggle, activeTab, onTabChange, symbols, problems, extensionCount = 0, pluginCount = 0, contextEngineCount = 0,
 }) => {
   const errorCount = useMemo(() => problems.filter((p) => p.severity === 8).length, [problems]);
   const warningCount = useMemo(() => problems.filter((p) => p.severity === 4).length, [problems]);
@@ -526,9 +538,11 @@ export const EditorSidebarActivityBar: React.FC<EditorSidebarActivityBarProps> =
               ? symbols.length
               : tab.id === "extensions" && extensionCount > 0
                 ? extensionCount
-                : tab.id === "context-engine" && contextEngineCount > 0
-                  ? contextEngineCount
-                  : null;
+                : tab.id === "plugins" && pluginCount > 0
+                  ? pluginCount
+                  : tab.id === "context-engine" && contextEngineCount > 0
+                    ? contextEngineCount
+                    : null;
 
         return (
           <button
@@ -688,6 +702,9 @@ export const EditorSidebarContent: React.FC<EditorSidebarContentProps> = ({
         )}
         {activeTab === "context-engine" && (
           <ContextEnginePanel onExtensionChange={onExtensionChange} />
+        )}
+        {activeTab === "plugins" && (
+          <PluginManagerPanel />
         )}
         {activeTab === "themes" && (
           <ThemeSidebar
