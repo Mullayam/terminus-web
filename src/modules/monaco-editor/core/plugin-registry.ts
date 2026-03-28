@@ -52,7 +52,11 @@ class PluginRegistry {
    * it is replaced (the old one is unregistered first).
    */
   register(plugin: MonacoPlugin): void {
-    if (this.plugins.has(plugin.id)) {
+    const existing = this.plugins.get(plugin.id);
+    // Skip if the exact same plugin object is already registered
+    if (existing && existing.plugin === plugin) return;
+
+    if (existing) {
       this.unregister(plugin.id);
     }
 
@@ -173,12 +177,13 @@ class PluginRegistry {
   }
 
   /** Returns a snapshot of all plugin states */
-  getSnapshot(): Array<{ id: string; name: string; enabled: boolean; version: string }> {
+  getSnapshot(): Array<{ id: string; name: string; enabled: boolean; version: string; description?: string }> {
     return Array.from(this.plugins.values()).map((e) => ({
       id: e.plugin.id,
       name: e.plugin.name,
       enabled: e.enabled,
       version: e.plugin.version,
+      description: e.plugin.description,
     }));
   }
 

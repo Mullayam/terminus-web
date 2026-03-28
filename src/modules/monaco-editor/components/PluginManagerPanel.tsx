@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ChevronRight,
   AlertCircle,
+  Info,
 } from "lucide-react";
 import { useMonacoPlugins } from "../hooks/useMonacoPlugins";
 
@@ -154,13 +155,26 @@ export const PluginManagerPanel: React.FC = () => {
                   {isExpanded && (
                     <div
                       className="mx-3 mb-1 px-3 py-2 rounded-md text-[11px]"
-                      style={{
-                        background: "var(--editor-hover-bg, #1e1e1e)",
-                      }}
+                      style={
+                        { background: "var(--editor-hover-bg, #1e1e1e)" }
+                      }
                     >
+                      {/* Description */}
+                      {plugin.description && (
+                        <div className="flex items-start gap-1.5 mb-2 pb-2" style={{ borderBottom: "1px solid var(--editor-border, #3c3c3c)" }}>
+                          <Info className="w-3 h-3 text-blue-400 shrink-0 mt-0.5" />
+                          <span className="text-gray-300 leading-relaxed">
+                            {plugin.description}
+                          </span>
+                        </div>
+                      )}
                       <div className="text-gray-400 mb-1">
                         <span className="text-gray-500">ID:</span>{" "}
                         <span className="font-mono">{plugin.id}</span>
+                      </div>
+                      <div className="text-gray-400 mb-1">
+                        <span className="text-gray-500">Version:</span>{" "}
+                        <span className="font-mono">{plugin.version}</span>
                       </div>
                       <div className="flex items-center gap-1 mt-1.5">
                         <span

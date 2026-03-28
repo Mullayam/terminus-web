@@ -47,7 +47,6 @@ export { parameterHintsPlugin } from "./parameter-hints-plugin";
 export { stickyScrollEnhancedPlugin } from "./sticky-scroll-enhanced-plugin";
 export { fontLigaturesPlugin } from "./font-ligatures-plugin";
 export { cursorHistoryPlugin } from "./cursor-history-plugin";
-export { rulerLinesPlugin } from "./ruler-lines-plugin";
 export { autoBracketPastePlugin } from "./auto-bracket-paste-plugin";
 export { textTransformPlugin } from "./text-transform-plugin";
 export { bookmarksPlugin } from "./bookmarks-plugin";
@@ -89,7 +88,6 @@ import { parameterHintsPlugin } from "./parameter-hints-plugin";
 import { stickyScrollEnhancedPlugin } from "./sticky-scroll-enhanced-plugin";
 import { fontLigaturesPlugin } from "./font-ligatures-plugin";
 import { cursorHistoryPlugin } from "./cursor-history-plugin";
-import { rulerLinesPlugin } from "./ruler-lines-plugin";
 import { autoBracketPastePlugin } from "./auto-bracket-paste-plugin";
 import { textTransformPlugin } from "./text-transform-plugin";
 import { bookmarksPlugin } from "./bookmarks-plugin";
@@ -129,7 +127,6 @@ export const ALL_BUILTIN_PLUGINS = [
   stickyScrollEnhancedPlugin,
   fontLigaturesPlugin,
   cursorHistoryPlugin,
-  rulerLinesPlugin,
   autoBracketPastePlugin,
   textTransformPlugin,
   bookmarksPlugin,

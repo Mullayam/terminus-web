@@ -842,7 +842,15 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
       const allPlugins = getAllPlugins();
       const states: PluginState[] = [];
 
+      // Register all plugins into the global registry so PluginManagerPanel can see them
+      pluginRegistry.registerAll(allPlugins);
+
       for (const plugin of allPlugins) {
+        // Skip plugins that are disabled in the registry
+        if (!pluginRegistry.isEnabled(plugin.id)) {
+          states.push({ plugin, context: null });
+          continue;
+        }
         try {
           const ctx = createPluginContext(monaco, editor, {
             filePath,
