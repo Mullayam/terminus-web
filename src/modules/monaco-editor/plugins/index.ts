@@ -11,7 +11,6 @@ export { bracketColorizerPlugin } from "./bracket-colorizer-plugin";
 export { wordHighlightPlugin } from "./word-highlight-plugin";
 export { todoHighlightPlugin } from "./todo-highlight-plugin";
 export { minimapColorsPlugin } from "./minimap-colors-plugin";
-export { vscodeClipboardPlugin } from "./vscode-clipboard-plugin";
 export { createGhostTextPlugin } from "./ghost-text-plugin";
 export type { GhostTextPluginOptions } from "./ghost-text-plugin";
 export { createNotificationPlugin, setNotificationsHandle, getNotificationsHandle, showEditorNotification, NOTIFICATION_EVENTS } from "./notification-plugin";
@@ -63,7 +62,6 @@ import { bracketColorizerPlugin } from "./bracket-colorizer-plugin";
 import { wordHighlightPlugin } from "./word-highlight-plugin";
 import { todoHighlightPlugin } from "./todo-highlight-plugin";
 import { minimapColorsPlugin } from "./minimap-colors-plugin";
-import { vscodeClipboardPlugin } from "./vscode-clipboard-plugin";
 import { breadcrumbsPlugin } from "./breadcrumbs-plugin";
 import { focusModePlugin } from "./focus-mode-plugin";
 import { autoIndentDetectPlugin } from "./auto-indent-detect-plugin";
@@ -97,7 +95,6 @@ import { codeScreenshotPlugin } from "./code-screenshot-plugin";
 import { toggleCommentStylePlugin } from "./toggle-comment-style-plugin";
 
 export const ALL_BUILTIN_PLUGINS = [
-  vscodeClipboardPlugin,
   saveStatePlugin,
   bracketColorizerPlugin,
   wordHighlightPlugin,

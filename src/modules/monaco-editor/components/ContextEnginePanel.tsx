@@ -25,6 +25,7 @@ import {
     Languages,
     FolderOpen,
     Sparkles,
+    ArrowUpCircle,
 } from "lucide-react";
 import {
     fetchLanguageManifest,
@@ -34,6 +35,7 @@ import {
     type ManifestLanguage,
     type TerminalCommandContext,
 } from "@/lib/context-engine/contextEngineApi";
+import { useTabStore } from "@/store/rightSidebarTabStore";
 import {
     saveLanguagePack,
     removeLanguagePack,
@@ -73,6 +75,16 @@ export function ContextEnginePanel({ onExtensionChange }: ContextEnginePanelProp
     const [tab, setTab] = useState<Tab>("languages");
     const [search, setSearch] = useState("");
 
+    const updateAvailable = useTabStore((s) => s.updateAvailable);
+    const latestVersion = useTabStore((s) => s.latestContextEngineVersion);
+    const storedVersion = useTabStore((s) => s.contextEngineVersion);
+    const checkForUpdate = useTabStore((s) => s.checkForUpdate);
+    const dismissUpdate = useTabStore((s) => s.dismissUpdate);
+
+    useEffect(() => {
+        checkForUpdate();
+    }, [checkForUpdate]);
+
     return (
         <div className="flex flex-col h-full text-[13px]">
             {/* ── Header ── */}
@@ -82,7 +94,37 @@ export function ContextEnginePanel({ onExtensionChange }: ContextEnginePanelProp
             >
                 <Package className="w-4 h-4 text-primary" />
                 <span className="font-semibold text-sm">Context Engine</span>
+                {storedVersion && (
+                    <span className="text-[10px] text-muted-foreground font-mono">v{storedVersion}</span>
+                )}
             </div>
+
+            {/* ── Update available banner ── */}
+            {updateAvailable && latestVersion && (
+                <div
+                    className="flex items-center gap-2 px-3 py-2 shrink-0 border-b"
+                    style={{
+                        borderColor: "var(--editor-border, hsl(var(--border)))",
+                        background: "rgba(250, 204, 21, 0.08)",
+                    }}
+                >
+                    <ArrowUpCircle className="w-4 h-4 text-yellow-400 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                        <span className="text-[12px] text-yellow-300 font-medium">
+                            Update available
+                        </span>
+                        <span className="text-[10px] text-yellow-400/70 ml-1">
+                            v{latestVersion}
+                        </span>
+                    </div>
+                    <button
+                        onClick={dismissUpdate}
+                        className="text-[10px] px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-300 hover:bg-yellow-500/30 transition-colors shrink-0"
+                    >
+                        Dismiss
+                    </button>
+                </div>
+            )}
 
             {/* ── Tab bar ── */}
             <div

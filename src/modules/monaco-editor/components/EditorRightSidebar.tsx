@@ -48,6 +48,7 @@ import { HoverProviderPanel } from "./HoverProviderPanel";
 import { ContextEnginePanel } from "./ContextEnginePanel";
 import { ChatPanel } from "../chat";
 import { PluginManagerPanel } from "./PluginManagerPanel";
+import { useTabStore } from "@/store/rightSidebarTabStore";
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -256,6 +257,7 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
     () => problems.filter((p) => p.severity === 4).length,
     [problems],
   );
+  const contextEngineUpdateAvailable = useTabStore((s) => s.updateAvailable);
 
   /* ── Resizable panel width ── */
   const MIN_WIDTH = 200;
@@ -357,6 +359,10 @@ export const EditorRightSidebar: React.FC<EditorRightSidebarProps> = ({
               title={tab.label}
             >
               <Icon className="w-4 h-4" />
+              {/* Update available yellow dot for context-engine */}
+              {tab.id === "context-engine" && contextEngineUpdateAvailable && (
+                <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+              )}
               {badge != null && badge > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] flex items-center justify-center text-[9px] font-bold rounded-full bg-[#007acc] text-white px-0.5">
                   {badge > 99 ? "99+" : badge}
@@ -512,6 +518,7 @@ export const EditorSidebarActivityBar: React.FC<EditorSidebarActivityBarProps> =
 }) => {
   const errorCount = useMemo(() => problems.filter((p) => p.severity === 8).length, [problems]);
   const warningCount = useMemo(() => problems.filter((p) => p.severity === 4).length, [problems]);
+  const contextEngineUpdateAvailable = useTabStore((s) => s.updateAvailable);
 
   return (
     <div
@@ -563,6 +570,10 @@ export const EditorSidebarActivityBar: React.FC<EditorSidebarActivityBarProps> =
             title={tab.label}
           >
             <Icon className="w-4 h-4" />
+            {/* Update available yellow dot for context-engine */}
+            {tab.id === "context-engine" && contextEngineUpdateAvailable && (
+              <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+            )}
             {badge != null && badge > 0 && (
               <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] flex items-center justify-center text-[9px] font-bold rounded-full bg-[#007acc] text-white px-0.5">
                 {badge > 99 ? "99+" : badge}

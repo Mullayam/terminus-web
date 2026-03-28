@@ -114,7 +114,6 @@ export {
   wordHighlightPlugin,
   todoHighlightPlugin,
   minimapColorsPlugin,
-  vscodeClipboardPlugin,
   createGhostTextPlugin,
   createNotificationPlugin,
   setNotificationsHandle,
