@@ -284,6 +284,9 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   terminalUrl,
   terminalSessionId = "default",
   terminalCwd = "/",
+  onTerminalToggle: onTerminalToggleProp,
+  onTerminalClose: onTerminalCloseProp,
+  terminalOpen: terminalOpenProp,
   // Extension-contributed UI
   showStatusBar = false,
   statusBarItems = [],
@@ -477,17 +480,21 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
       }
 
       // ── Toggle terminal (Ctrl+`) ──
-      if (enableTerminal) {
+      if (enableTerminal || onTerminalToggleProp) {
         editor.addAction({
           id: "terminus-toggle-terminal",
           label: "Toggle Terminal",
           keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Backquote],
           run: () => {
-            setTerminalOpen((o) => {
-              const next = !o;
-              if (next) setTerminalMounted(true);
-              return next;
-            });
+            if (onTerminalToggleProp) {
+              onTerminalToggleProp();
+            } else {
+              setTerminalOpen((o) => {
+                const next = !o;
+                if (next) setTerminalMounted(true);
+                return next;
+              });
+            }
           },
         });
       }
@@ -882,7 +889,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
     },
     [
       onMountProp, onSave, filePath, onNotify, getAllPlugins,
-      customTheme, theme, resolvedLanguage, fileName, enableTerminal,
+      customTheme, theme, resolvedLanguage, fileName, enableTerminal, onTerminalToggleProp,
       enableSnippets, enableAutoClose,
       enableCopilot, copilotEndpoint,
       enableLSP, lspBaseUrl, documentUri,
@@ -1440,18 +1447,26 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   }, [filePath, shouldLoadExtensions]);
 
   const handleTerminalToggle = useCallback(() => {
-    setTerminalOpen((o) => {
-      const next = !o;
-      if (next) setTerminalMounted(true);
-      return next;
-    });
-  }, []);
+    if (onTerminalToggleProp) {
+      onTerminalToggleProp();
+    } else {
+      setTerminalOpen((o) => {
+        const next = !o;
+        if (next) setTerminalMounted(true);
+        return next;
+      });
+    }
+  }, [onTerminalToggleProp]);
 
   /** Close the terminal entirely — unmounts it so the socket connection is disposed */
   const handleTerminalClose = useCallback(() => {
-    setTerminalOpen(false);
-    setTerminalMounted(false);
-  }, []);
+    if (onTerminalCloseProp) {
+      onTerminalCloseProp();
+    } else {
+      setTerminalOpen(false);
+      setTerminalMounted(false);
+    }
+  }, [onTerminalCloseProp]);
 
   // ── Settings change handler ──
   const handleSettingsChange = useCallback((newSettings: EditorSettings) => {
@@ -1492,10 +1507,14 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
 
     // Handle panel toggles
     if (newSettings.showTerminal !== editorSettings.showTerminal) {
-      setTerminalOpen(newSettings.showTerminal);
-      if (newSettings.showTerminal) setTerminalMounted(true);
+      if (onTerminalToggleProp) {
+        onTerminalToggleProp();
+      } else {
+        setTerminalOpen(newSettings.showTerminal);
+        if (newSettings.showTerminal) setTerminalMounted(true);
+      }
     }
-  }, [editorSettings.showTerminal, editorSettings.aiCompletionProvider, onAIProviderChange]);
+  }, [editorSettings.showTerminal, editorSettings.aiCompletionProvider, onAIProviderChange, onTerminalToggleProp]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height, width }} className="monaco-editor-wrapper">
@@ -1615,8 +1634,8 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
         )}
       </div>
 
-      {/* Terminal panel (below editor) */}
-      {enableTerminal && terminalMounted && (
+      {/* Terminal panel (below editor) — only when managed internally */}
+      {enableTerminal && !onTerminalToggleProp && terminalMounted && (
         <EditorTerminalPanel
           open={terminalOpen}
           onToggle={handleTerminalToggle}
@@ -1643,8 +1662,8 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
           extraItems={statusBarItems}
           notificationCount={notificationCount}
           onNotificationToggle={() => notificationsRef.current?.toggleCenter()}
-          enableTerminal={enableTerminal}
-          terminalOpen={terminalOpen}
+          enableTerminal={enableTerminal || !!onTerminalToggleProp}
+          terminalOpen={terminalOpenProp ?? terminalOpen}
           onTerminalToggle={handleTerminalToggle}
         />
       )}

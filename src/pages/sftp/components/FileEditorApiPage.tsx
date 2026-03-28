@@ -25,22 +25,86 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-/** Detect language from file extension for the status bar */
+/** Detect language from file extension for the status bar.
+ *  Merged with all language IDs from @enjoys/context-engine manifest. */
 function detectLang(name: string): string {
-    const ext = name.split(".").pop()?.toLowerCase() ?? "";
+    const lower = name.toLowerCase();
+    const ext = lower.split(".").pop() ?? "";
+
+    // Filename-based detection
+    if (lower === "dockerfile" || lower.startsWith("dockerfile.")) return "Dockerfile";
+    if (lower === "makefile" || lower === "gnumakefile") return "Makefile";
+    if (lower.startsWith("docker-compose")) return "Docker Compose";
+    if (lower === "crontab") return "Crontab";
+    if (lower === "caddyfile") return "Caddy";
+
     const map: Record<string, string> = {
+        // ── Original entries ──
         js: "JavaScript", jsx: "JavaScript (JSX)", ts: "TypeScript", tsx: "TypeScript (TSX)",
-        py: "Python", rb: "Ruby", go: "Go", rs: "Rust", java: "Java", kt: "Kotlin",
-        c: "C", cpp: "C++", h: "C Header", cs: "C#", swift: "Swift",
+        mjs: "JavaScript", cjs: "JavaScript", mts: "TypeScript", cts: "TypeScript",
+        py: "Python", pyw: "Python", pyi: "Python",
+        rb: "Ruby", erb: "Ruby", rake: "Ruby", gemspec: "Ruby",
+        go: "Go", rs: "Rust", java: "Java", kt: "Kotlin", kts: "Kotlin",
+        c: "C", cpp: "C++", cc: "C++", cxx: "C++", h: "C Header", hpp: "C++", hh: "C++",
+        cs: "C#", swift: "Swift",
         html: "HTML", htm: "HTML", css: "CSS", scss: "SCSS", less: "LESS",
-        json: "JSON", yaml: "YAML", yml: "YAML", toml: "TOML", xml: "XML",
-        md: "Markdown", sh: "Shell", bash: "Bash", zsh: "Zsh",
-        sql: "SQL", graphql: "GraphQL", dockerfile: "Dockerfile",
-        lua: "Lua", php: "PHP", r: "R", perl: "Perl", pl: "Perl",
-        env: "Environment", conf: "Config", ini: "INI", cfg: "Config",
+        json: "JSON", jsonc: "JSON", json5: "JSON",
+        yaml: "YAML", yml: "YAML", toml: "TOML",
+        xml: "XML", xsl: "XML", xslt: "XML", svg: "XML", xsd: "XML",
+        md: "Markdown", markdown: "Markdown", mdx: "MDX",
+        sh: "Shell", bash: "Shell", zsh: "Shell", fish: "Shell",
+        sql: "SQL", graphql: "GraphQL", gql: "GraphQL",
+        lua: "Lua", php: "PHP", r: "R", perl: "Perl", pl: "Perl", pm: "Perl",
+        env: "Dotenv (.env)", conf: "Config", ini: "INI/Config", cfg: "Config",
         txt: "Plain Text", log: "Log",
+        // ── From @enjoys/context-engine manifest ──
+        abap: "ABAP",
+        cls: "Apex", trigger: "Apex",
+        awk: "Awk",
+        bicep: "Bicep",
+        clj: "Clojure", cljs: "Clojure", cljc: "Clojure", edn: "Clojure",
+        coffee: "CoffeeScript", litcoffee: "CoffeeScript",
+        cypher: "Cypher",
+        dart: "Dart",
+        ecl: "ECL",
+        ex: "Elixir", exs: "Elixir", heex: "Elixir",
+        ftl: "FreeMarker",
+        hcl: "HCL/Terraform", tf: "HCL/Terraform", tfvars: "HCL/Terraform",
+        jl: "Julia",
+        liquid: "Liquid",
+        m3: "Modula-3",
+        mips: "MIPS Assembly", asm: "Assembly", s: "Assembly",
+        dax: "DAX",
+        m: "Objective-C", mm: "Objective-C",
+        pas: "Pascal", pp: "Pascal", lpr: "Pascal",
+        pgsql: "PostgreSQL",
+        dats: "ATS/Postiats", sats: "ATS/Postiats",
+        pq: "Power Query M", pqm: "Power Query M",
+        ps1: "PowerShell", psm1: "PowerShell", psd1: "PowerShell",
+        proto: "Protocol Buffers",
+        qs: "Q#",
+        cshtml: "Razor", razor: "Razor",
+        rst: "reStructuredText",
+        scala: "Scala", sc: "Scala",
+        scm: "Scheme", ss: "Scheme", rkt: "Scheme",
+        sol: "Solidity",
+        sparql: "SPARQL", rq: "SPARQL",
+        st: "Structured Text",
+        service: "Systemd Unit", timer: "Systemd Unit", socket: "Systemd Unit",
+        sv: "SystemVerilog", svh: "SystemVerilog", v: "SystemVerilog",
+        tcl: "Tcl",
+        twig: "Twig",
+        vb: "Visual Basic", vbs: "Visual Basic", bas: "Visual Basic",
+        wgsl: "WGSL",
+        ligo: "PascaLIGO", mligo: "CameLIGO",
+        lex: "Lexon",
+        pla: "PLA",
+        sb: "Small Basic",
+        redis: "Redis",
+        nginx: "Nginx",
+        bat: "Batch", cmd: "Batch",
+        csv: "CSV",
     };
-    if (name.toLowerCase() === "dockerfile") return "Dockerfile";
     return map[ext] ?? "Plain Text";
 }
 

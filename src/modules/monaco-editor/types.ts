@@ -386,6 +386,12 @@ export interface MonacoEditorConfig {
   terminalSessionId?: string;
   /** Working directory for the terminal */
   terminalCwd?: string;
+  /** Called when the user toggles the terminal (Ctrl+` or status bar). Used when terminal is managed externally. */
+  onTerminalToggle?: () => void;
+  /** Called when the user closes the terminal. Used when terminal is managed externally. */
+  onTerminalClose?: () => void;
+  /** Externally controlled terminal open state (used when terminal is managed by parent) */
+  terminalOpen?: boolean;
 
   // ── Extension-contributed UI ───────────────────────────────
 

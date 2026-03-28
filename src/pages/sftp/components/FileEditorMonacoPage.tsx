@@ -31,8 +31,10 @@ import {
     createInlineCommandPlugin,
     showEditorNotification,
     loadEditorSettings,
+    EditorTerminalPanel,
 } from "@/modules/monaco-editor";
 import type { MonacoEditorInstance, AICompletionProvider } from "@/modules/monaco-editor";
+import { monacoThemeIdToXterm } from "@/modules/monaco-editor/lib/monacoThemeToXterm";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import {
     AlertDialog,
@@ -161,6 +163,23 @@ export default function FileEditorMonacoPage() {
     const [themeId, setThemeId] = useState<ThemeId>(
         () => (localStorage.getItem("monaco-editor-theme") as ThemeId) ?? "one-dark",
     );
+
+    /* ── Terminal state (page-level, spans full width) ────── */
+    const [terminalOpen, setTerminalOpen] = useState(false);
+    const [terminalMounted, setTerminalMounted] = useState(false);
+
+    const handlePageTerminalToggle = useCallback(() => {
+        setTerminalOpen((o) => {
+            const next = !o;
+            if (next) setTerminalMounted(true);
+            return next;
+        });
+    }, []);
+
+    const handlePageTerminalClose = useCallback(() => {
+        setTerminalOpen(false);
+        setTerminalMounted(false);
+    }, []);
 
     /* ── Refs ───────────────────────────────────────────────── */
     const editorRef = useRef<MonacoEditorInstance | null>(null);
@@ -802,119 +821,139 @@ export default function FileEditorMonacoPage() {
                     />
                     {/* Editor area with split groups */}
                     <ResizablePanel defaultSize={82} className="h-full">
-                        <ResizablePanelGroup direction="horizontal" className="h-full">
-                            {splitGroups.map((group, gi) => {
-                                const groupActiveTab = group.activeTabId ? tabs[group.activeTabId] : null;
-                                const isActiveGroup = group.id === activeGroupId;
-                                const editorContent = groupActiveTab
-                                    ? (tabContentRefs.current[groupActiveTab.id] ?? groupActiveTab.content ?? "")
-                                    : (initialContent ?? "");
-                                const editorFilePath = groupActiveTab?.filePath ?? filePath;
-                                const editorFileName = groupActiveTab?.fileName ?? fileName;
-                                return (
-                                    <React.Fragment key={group.id}>
-                                        {gi > 0 && <ResizableHandle withHandle className="hover:bg-blue-500/40 transition-colors" style={{ background: "var(--editor-border, #3c3c3c)" }} />}
-                                        <ResizablePanel minSize={20} className="h-full">
-                                            <div className="flex flex-col h-full">
-                                                {/* Tab bar (memoized) */}
-                                                <EditorTabBar
-                                                    tabIds={group.tabIds}
-                                                    tabs={tabs}
-                                                    activeTabId={group.activeTabId}
-                                                    pinnedTabId={initialTabId}
-                                                    groupId={group.id}
-                                                    onSwitch={switchTab}
-                                                    onClose={closeTab}
-                                                    onCloseToLeft={closeTabsToLeft}
-                                                    onCloseToRight={closeTabsToRight}
-                                                    onCloseAll={closeAllTabs}
-                                                    onCloseSaved={closeSavedTabs}
-                                                    onSplitRight={splitTabToNewGroup}
-                                                />
-                                                {/* Editor for active tab */}
-                                                <div className="flex-1 overflow-hidden" onClick={() => setActiveGroupId(group.id)}>
-                                                    {groupActiveTab?.loading ? (
-                                                        <div className="flex items-center justify-center h-full" style={{ background: "var(--editor-bg, #1e1e1e)" }}>
-                                                            <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
-                                                        </div>
-                                                    ) : groupActiveTab?.error ? (
-                                                        <div className="flex items-center justify-center h-full" style={{ background: "var(--editor-bg, #1e1e1e)" }}>
-                                                            <p className="text-sm text-red-400">{groupActiveTab.error}</p>
-                                                        </div>
-                                                    ) : (
-                                                        <MonacoEditor
-                                                            key={group.activeTabId}
-                                                            defaultValue={editorContent}
-                                                            filePath={editorFilePath || editorFileName}
-                                                            theme={themeId}
-                                                            wordWrap={wordWrap ? "on" : "off"}
-                                                            plugins={plugins}
-                                                            onChange={handleChange}
-                                                            onSave={handleSave}
-                                                            onMount={handleEditorMount}
-                                                            onThemeApply={handleExternalThemeApply}
-                                                            onCursorChange={(line, col) => {
-                                                                setCursorLine(line);
-                                                                setCursorCol(col);
-                                                            }}
-                                                            copilotEndpoint={`${__config.API_URL}/api/complete`}
-                                                            aiCompletionsEndpoint={`${__config.API_URL}/api/completions`}
-                                                            onAIProviderChange={handleAIProviderChange}
-                                                            showSidebar={isActiveGroup && gi === splitGroups.length - 1}
-                                                            showStatusBar={isActiveGroup && gi === splitGroups.length - 1}
-                                                            enableTerminal={isActiveGroup && gi === splitGroups.length - 1}
-                                                            enableAutoClose
-                                                            enableLSP
-                                                            lspBaseUrl="ws://localhost:9257"
-                                                            documentUri={`file://${editorFilePath || editorFileName}`}
-                                                            pluginDebounceMs={1200}
-                                                            enableVsixDrop={isActiveGroup}
-                                                            terminalUrl={`${__config.API_URL}/dedicated-terminal`}
-                                                            terminalSessionId={sessionIdRef.current}
-                                                            terminalCwd={terminalCwd}
-                                                            fontSize={14}
-                                                            tabSize={2}
-                                                            minimap={splitGroups.length === 1}
-                                                            statusBarItems={statusBarItems}
-                                                            options={{
-                                                                renderWhitespace: "selection",
-                                                                smoothScrolling: true,
-                                                                cursorBlinking: "smooth",
-                                                                cursorSmoothCaretAnimation: "on",
-                                                                formatOnPaste: true,
-                                                                linkedEditing: true,
-                                                                mouseWheelZoom: true,
-                                                                stickyScroll: { enabled: true },
-                                                            }}
-                                                            enableExtensions={isActiveGroup}
-                                                            chatBaseUrl={__config.API_URL}
-                                                            chatHostId={hostUser}
-                                                            onChatApplyCode={(code) => {
-                                                                const editor = editorRef.current;
-                                                                if (editor) {
-                                                                    editor.setValue(code);
-                                                                    setModified(true);
-                                                                    showEditorNotification("AI suggestion applied", "success", {
-                                                                        source: "AI Chat",
-                                                                        timeout: 3000,
-                                                                    });
-                                                                }
-                                                            }}
-                                                            onNotify={(msg, type) => {
-                                                                showEditorNotification(msg, type as any, {
-                                                                    source: "Editor",
-                                                                    timeout: type === "error" ? 6000 : 3000,
-                                                                });
-                                                            }}
+                        <div className="flex flex-col h-full">
+                            <div className="flex-1 min-h-0">
+                                <ResizablePanelGroup direction="horizontal" className="h-full">
+                                    {splitGroups.map((group, gi) => {
+                                        const groupActiveTab = group.activeTabId ? tabs[group.activeTabId] : null;
+                                        const isActiveGroup = group.id === activeGroupId;
+                                        const editorContent = groupActiveTab
+                                            ? (tabContentRefs.current[groupActiveTab.id] ?? groupActiveTab.content ?? "")
+                                            : (initialContent ?? "");
+                                        const editorFilePath = groupActiveTab?.filePath ?? filePath;
+                                        const editorFileName = groupActiveTab?.fileName ?? fileName;
+                                        return (
+                                            <React.Fragment key={group.id}>
+                                                {gi > 0 && <ResizableHandle withHandle className="hover:bg-blue-500/40 transition-colors" style={{ background: "var(--editor-border, #3c3c3c)" }} />}
+                                                <ResizablePanel minSize={20} className="h-full">
+                                                    <div className="flex flex-col h-full">
+                                                        {/* Tab bar (memoized) */}
+                                                        <EditorTabBar
+                                                            tabIds={group.tabIds}
+                                                            tabs={tabs}
+                                                            activeTabId={group.activeTabId}
+                                                            pinnedTabId={initialTabId}
+                                                            groupId={group.id}
+                                                            onSwitch={switchTab}
+                                                            onClose={closeTab}
+                                                            onCloseToLeft={closeTabsToLeft}
+                                                            onCloseToRight={closeTabsToRight}
+                                                            onCloseAll={closeAllTabs}
+                                                            onCloseSaved={closeSavedTabs}
+                                                            onSplitRight={splitTabToNewGroup}
                                                         />
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </ResizablePanel>
-                                    </React.Fragment>
-                                );
-                            })}
-                        </ResizablePanelGroup>
+                                                        {/* Editor for active tab */}
+                                                        <div className="flex-1 overflow-hidden" onClick={() => setActiveGroupId(group.id)}>
+                                                            {groupActiveTab?.loading ? (
+                                                                <div className="flex items-center justify-center h-full" style={{ background: "var(--editor-bg, #1e1e1e)" }}>
+                                                                    <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
+                                                                </div>
+                                                            ) : groupActiveTab?.error ? (
+                                                                <div className="flex items-center justify-center h-full" style={{ background: "var(--editor-bg, #1e1e1e)" }}>
+                                                                    <p className="text-sm text-red-400">{groupActiveTab.error}</p>
+                                                                </div>
+                                                            ) : (
+                                                                <MonacoEditor
+                                                                    key={group.activeTabId}
+                                                                    defaultValue={editorContent}
+                                                                    filePath={editorFilePath || editorFileName}
+                                                                    theme={themeId}
+                                                                    wordWrap={wordWrap ? "on" : "off"}
+                                                                    plugins={plugins}
+                                                                    onChange={handleChange}
+                                                                    onSave={handleSave}
+                                                                    onMount={handleEditorMount}
+                                                                    onThemeApply={handleExternalThemeApply}
+                                                                    onCursorChange={(line, col) => {
+                                                                        setCursorLine(line);
+                                                                        setCursorCol(col);
+                                                                    }}
+                                                                    copilotEndpoint={`${__config.API_URL}/api/complete`}
+                                                                    aiCompletionsEndpoint={`${__config.API_URL}/api/completions`}
+                                                                    onAIProviderChange={handleAIProviderChange}
+                                                                    showSidebar={isActiveGroup && gi === splitGroups.length - 1}
+                                                                    showStatusBar={isActiveGroup && gi === splitGroups.length - 1}
+                                                                    enableTerminal={false}
+                                                                    onTerminalToggle={handlePageTerminalToggle}
+                                                                    onTerminalClose={handlePageTerminalClose}
+                                                                    terminalOpen={terminalOpen}
+                                                                    enableAutoClose
+                                                                    enableLSP
+                                                                    lspBaseUrl="ws://localhost:9257"
+                                                                    documentUri={`file://${editorFilePath || editorFileName}`}
+                                                                    pluginDebounceMs={1200}
+                                                                    enableVsixDrop={isActiveGroup}
+                                                                    terminalUrl={`${__config.API_URL}/dedicated-terminal`}
+                                                                    terminalSessionId={sessionIdRef.current}
+                                                                    terminalCwd={terminalCwd}
+                                                                    fontSize={14}
+                                                                    tabSize={2}
+                                                                    minimap={splitGroups.length === 1}
+                                                                    statusBarItems={statusBarItems}
+                                                                    options={{
+                                                                        renderWhitespace: "selection",
+                                                                        smoothScrolling: true,
+                                                                        cursorBlinking: "smooth",
+                                                                        cursorSmoothCaretAnimation: "on",
+                                                                        formatOnPaste: true,
+                                                                        linkedEditing: true,
+                                                                        mouseWheelZoom: true,
+                                                                        stickyScroll: { enabled: true },
+                                                                    }}
+                                                                    enableExtensions={isActiveGroup}
+                                                                    chatBaseUrl={__config.API_URL}
+                                                                    chatHostId={hostUser}
+                                                                    onChatApplyCode={(code) => {
+                                                                        const editor = editorRef.current;
+                                                                        if (editor) {
+                                                                            editor.setValue(code);
+                                                                            setModified(true);
+                                                                            showEditorNotification("AI suggestion applied", "success", {
+                                                                                source: "AI Chat",
+                                                                                timeout: 3000,
+                                                                            });
+                                                                        }
+                                                                    }}
+                                                                    onNotify={(msg, type) => {
+                                                                        showEditorNotification(msg, type as any, {
+                                                                            source: "Editor",
+                                                                            timeout: type === "error" ? 6000 : 3000,
+                                                                        });
+                                                                    }}
+                                                                />
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </ResizablePanel>
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                </ResizablePanelGroup>
+                            </div>
+
+                            {/* Terminal panel (full width, below all split groups) */}
+                            {terminalMounted && (
+                                <EditorTerminalPanel
+                                    open={terminalOpen}
+                                    onToggle={handlePageTerminalToggle}
+                                    onClose={handlePageTerminalClose}
+                                    terminalUrl={`${__config.API_URL}/dedicated-terminal`}
+                                    sessionId={sessionIdRef.current}
+                                    cwd={terminalCwd}
+                                    terminalTheme={monacoThemeIdToXterm(themeId)}
+                                />
+                            )}
+                        </div>
                     </ResizablePanel>
                 </ResizablePanelGroup>
             </div>
