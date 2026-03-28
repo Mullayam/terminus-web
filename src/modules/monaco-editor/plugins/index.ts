@@ -52,6 +52,12 @@ export { autoBracketPastePlugin } from "./auto-bracket-paste-plugin";
 export { textTransformPlugin } from "./text-transform-plugin";
 export { bookmarksPlugin } from "./bookmarks-plugin";
 
+// Batch 3 plugins
+export { pasteAsJsonPlugin } from "./paste-as-json-plugin";
+export { commentAnchorsPlugin } from "./comment-anchors-plugin";
+export { codeScreenshotPlugin } from "./code-screenshot-plugin";
+export { toggleCommentStylePlugin } from "./toggle-comment-style-plugin";
+
 // Convenience array of all built-in plugins
 import { saveStatePlugin } from "./save-state-plugin";
 import { bracketColorizerPlugin } from "./bracket-colorizer-plugin";
@@ -87,6 +93,10 @@ import { rulerLinesPlugin } from "./ruler-lines-plugin";
 import { autoBracketPastePlugin } from "./auto-bracket-paste-plugin";
 import { textTransformPlugin } from "./text-transform-plugin";
 import { bookmarksPlugin } from "./bookmarks-plugin";
+import { pasteAsJsonPlugin } from "./paste-as-json-plugin";
+import { commentAnchorsPlugin } from "./comment-anchors-plugin";
+import { codeScreenshotPlugin } from "./code-screenshot-plugin";
+import { toggleCommentStylePlugin } from "./toggle-comment-style-plugin";
 
 export const ALL_BUILTIN_PLUGINS = [
   vscodeClipboardPlugin,
@@ -123,4 +133,8 @@ export const ALL_BUILTIN_PLUGINS = [
   autoBracketPastePlugin,
   textTransformPlugin,
   bookmarksPlugin,
+  pasteAsJsonPlugin,
+  commentAnchorsPlugin,
+  codeScreenshotPlugin,
+  toggleCommentStylePlugin,
 ];
