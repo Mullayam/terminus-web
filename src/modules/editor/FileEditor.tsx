@@ -322,10 +322,8 @@ function EditorInner(props: FileEditorProps) {
         reader.readAsText(file);
     }, [readOnly, editor, setError]);
 
-    // ── Active line highlight position ───────────────────────
-    const activeLineTop = useMemo(() => {
-        return (cursorLine - 1) * lineHeight + 10; // 10px = padding
-    }, [cursorLine, lineHeight]);
+    // Canvas padding — must match VirtualizedSyntaxOverlay & VirtualizedGutter
+    const CANVAS_PAD = 4;
 
     // ── Textarea input handler ───────────────────────────────
     const onTextareaInput = useCallback(
@@ -472,46 +470,48 @@ function EditorInner(props: FileEditorProps) {
             {/* Go to Line */}
             <GoToLineBar />
 
-            {/* Error toast (non-blocking) */}
+            {/* Error toast */}
             {error && content && (
-                <div
-                    className="px-3 py-1.5 text-[12px] flex items-center justify-between"
-                    style={{ background: "var(--editor-error)", color: "#fff" }}
-                >
+                <div className="editor-error-toast">
                     <span>{error}</span>
-                    <button
-                        onClick={() => setError(null)}
-                        style={{ background: "transparent", border: "none", color: "#fff", cursor: "pointer", fontSize: 12 }}
-                    >
-                        ✕
-                    </button>
+                    <button onClick={() => setError(null)}>✕</button>
                 </div>
             )}
 
-            {/* Editor body */}
+            {/* ═══════════════════════════════════════════════════
+                Editor Body — VS Code-style canvas
+               ═══════════════════════════════════════════════════ */}
             <div className="flex flex-1 min-h-0 overflow-hidden relative">
                 <SplitPane
                     direction="horizontal"
                     splitActive={splitView}
                     primary={
-                        /* Gutter + Code area (primary pane) */
-                        <div className="flex flex-1 min-w-0 overflow-hidden relative" style={{ width: "100%", height: "100%" }}>
+                        /* ── Primary pane: Gutter + Code Canvas ─────── */
+                        <div
+                            className="flex flex-1 min-w-0 overflow-hidden relative"
+                            style={{ width: "100%", height: "100%", background: "var(--editor-background)" }}
+                        >
+                            {/* Line-number gutter */}
                             <VirtualizedGutter />
-                            <div className="relative flex-1 min-w-0 overflow-hidden">
+
+                            {/* Code canvas — layered rendering surface */}
+                            <div className="editor-canvas">
+                                {/* Layer 1: Syntax-highlighted overlay + active line */}
                                 <VirtualizedSyntaxOverlay />
 
-                                {/* Plugin overlays */}
+                                {/* Layer 2: Plugin overlays (diagnostics, codelens, etc.) */}
                                 <CodeLensOverlay codeLenses={pluginSnapshot.codeLenses} />
                                 <InlineAnnotationsOverlay annotations={pluginSnapshot.inlineAnnotations} />
                                 <DiagnosticsOverlay diagnostics={pluginSnapshot.diagnostics} />
                                 <FoldingOverlay foldingRanges={pluginSnapshot.foldingRanges} />
                                 <GhostTextOverlay />
-                                {/* Whitespace visibility overlay */}
+
+                                {/* Layer 2.5: Whitespace visibility (optional) */}
                                 {showWhitespace && whitespaceHtml && (
                                     <pre
                                         className="editor-whitespace-overlay absolute inset-0 pointer-events-none overflow-hidden"
                                         style={{
-                                            padding: 10,
+                                            padding: `${CANVAS_PAD}px 16px`,
                                             fontSize,
                                             fontFamily: "var(--editor-font-family)",
                                             fontWeight: "var(--editor-font-weight)" as unknown as number,
@@ -520,12 +520,14 @@ function EditorInner(props: FileEditorProps) {
                                             overflowWrap: wordWrap ? "break-word" : "normal",
                                             tabSize,
                                             color: "transparent",
-                                            zIndex: 1,
+                                            zIndex: 2,
                                             margin: 0,
                                         }}
                                         dangerouslySetInnerHTML={{ __html: whitespaceHtml }}
                                     />
                                 )}
+
+                                {/* Layer 3: Invisible textarea — handles all input/selection */}
                                 <textarea
                                     ref={refs.textareaRef}
                                     value={content}
@@ -539,63 +541,43 @@ function EditorInner(props: FileEditorProps) {
                                     spellCheck={false}
                                     autoCapitalize="off"
                                     autoCorrect="off"
-                                    className="editor-textarea absolute inset-0 w-full h-full resize-none outline-none"
+                                    className="editor-textarea"
                                     style={{
-                                        padding: 10,
+                                        padding: `${CANVAS_PAD}px 16px`,
                                         fontSize,
                                         fontFamily: "var(--editor-font-family)",
                                         fontWeight: "var(--editor-font-weight)" as unknown as number,
                                         lineHeight: `${lineHeight}px`,
-                                        color: "transparent",
-                                        caretColor: "var(--editor-cursor)",
-                                        background: "transparent",
                                         whiteSpace: wordWrap ? "pre-wrap" : "pre",
                                         overflowWrap: wordWrap ? "break-word" : "normal",
                                         tabSize,
                                         overflow: "auto",
-                                        zIndex: 2,
                                     }}
                                 />
                             </div>
                         </div>
                     }
                     secondary={
-                        /* Split view secondary pane – read-only preview */
+                        /* ── Secondary pane: read-only preview ──────── */
                         <div
-                            className="flex flex-1 min-w-0 overflow-hidden relative"
+                            className="flex flex-1 flex-col min-w-0 overflow-hidden relative"
                             style={{
                                 width: "100%",
                                 height: "100%",
-                                borderLeft: "1px solid var(--editor-border, #44475a)",
+                                borderLeft: "1px solid var(--editor-border, #3c3c3c)",
+                                background: "var(--editor-background)",
                             }}
                         >
-                            <div className="relative flex-1 min-w-0 overflow-auto" style={{ padding: 10 }}>
-                                {/* Split pane header */}
-                                <div
-                                    className="sticky top-0 z-10 flex items-center justify-between px-2 py-1 mb-1 rounded"
-                                    style={{
-                                        background: "var(--editor-popup-bg, #282a36)",
-                                        borderBottom: "1px solid var(--editor-border, #44475a)",
-                                        fontSize: 11,
-                                        color: "var(--editor-muted, #6272a4)",
-                                    }}
+                            <div className="editor-split-header">
+                                <span>{fileName} (read-only)</span>
+                                <button
+                                    onClick={() => storeApi.getState().setSplitView(false)}
+                                    title="Close split view"
                                 >
-                                    <span>{fileName} (read-only preview)</span>
-                                    <button
-                                        onClick={() => storeApi.getState().setSplitView(false)}
-                                        style={{
-                                            background: "transparent",
-                                            border: "none",
-                                            color: "var(--editor-muted)",
-                                            cursor: "pointer",
-                                            fontSize: 13,
-                                            padding: "0 4px",
-                                        }}
-                                        title="Close split view"
-                                    >
-                                        ✕
-                                    </button>
-                                </div>
+                                    ✕
+                                </button>
+                            </div>
+                            <div className="relative flex-1 min-w-0 overflow-auto" style={{ padding: `${CANVAS_PAD}px 16px` }}>
                                 <pre
                                     style={{
                                         margin: 0,
@@ -650,32 +632,17 @@ function EditorInner(props: FileEditorProps) {
             )}
 
             {/* Status Bar */}
-            <div className="flex items-center">
-                <div className="flex-1">
+            <div className="editor-statusbar">
+                <div className="flex-1 flex items-center min-w-0">
                     <StatusBar language={language} />
                 </div>
-                {/* Terminal toggle in status bar */}
                 {hasTerminal && (
                     <button
+                        className={`editor-statusbar__btn${terminalOpen ? " editor-statusbar__btn--active" : ""}`}
                         onClick={terminalToggle}
                         title="Toggle Terminal (Ctrl+`)"
-                        className="flex items-center gap-1 px-2 transition-colors"
-                        style={{
-                            height: 24,
-                            border: "none",
-                            cursor: "pointer",
-                            background: terminalOpen ? "var(--editor-popup-hover-bg)" : "transparent",
-                            color: terminalOpen ? "var(--editor-accent)" : "var(--editor-muted)",
-                            fontSize: 11,
-                        }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.background = "var(--editor-popup-hover-bg)";
-                        }}
-                        onMouseLeave={(e) => {
-                            if (!terminalOpen) e.currentTarget.style.background = "transparent";
-                        }}
                     >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <polyline points="4 17 10 11 4 5" />
                             <line x1="12" y1="19" x2="20" y2="19" />
                         </svg>

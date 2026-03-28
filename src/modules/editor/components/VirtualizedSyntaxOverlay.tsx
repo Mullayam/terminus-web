@@ -1,19 +1,16 @@
 /**
  * @module editor/components/VirtualizedSyntaxOverlay
  *
- * Virtualized syntax-highlighted overlay that only parses and renders
- * lines visible in the current viewport. For a 50,000-line file this
- * means highlighting ~100 lines instead of 50,000.
+ * Virtualized syntax-highlighted overlay. Renders only visible lines through
+ * Prism with bracket colorization, an active-line highlight band, and caching
+ * to skip re-highlighting on identical scrolls.
  *
- * Layout strategy:
- *   - Outer <pre> has overflow:hidden and is scroll-synced via ref
- *   - A top spacer div pushes highlighted content to the correct offset
- *   - A bottom spacer ensures the total height matches the textarea
- *   - Only the visible slice of content is fed to Prism
- *
- * GPU Acceleration:
- *   - Uses `contain: layout style paint` for browser optimizations
- *   - Uses `will-change: contents` on the highlighted region
+ * z-order within the canvas:
+ *   <pre>  (z:2, pointer-events:none)
+ *     ├── active-line highlight (z:1, background band)
+ *     ├── top spacer
+ *     ├── <code> highlighted HTML (z:2)
+ *     └── bottom spacer
  */
 import { useMemo, memo, useRef } from "react";
 import { useEditorStore, useEditorRefs } from "../state/context";
@@ -21,11 +18,11 @@ import { highlightCode } from "../core/syntax";
 import { colorizeBrackets, shouldColorizeBrackets } from "../core/bracket-colorizer";
 import { useViewport } from "../hooks/useViewport";
 
-/** Cache for highlighted line ranges to avoid re-highlighting on small scrolls */
-interface HighlightCache {
-    key: string;
-    html: string;
-}
+/** Must match textarea padding */
+const CANVAS_PAD = 4;
+const CODE_PAD_X = 16;
+
+interface HighlightCache { key: string; html: string; }
 
 export const VirtualizedSyntaxOverlay = memo(function VirtualizedSyntaxOverlay() {
     const content = useEditorStore((s) => s.content);
@@ -34,10 +31,10 @@ export const VirtualizedSyntaxOverlay = memo(function VirtualizedSyntaxOverlay()
     const fontSize = useEditorStore((s) => s.fontSize);
     const lineHeight = useEditorStore((s) => s.lineHeight);
     const tabSize = useEditorStore((s) => s.tabSize);
+    const cursorLine = useEditorStore((s) => s.cursorLine);
     const { highlightRef } = useEditorRefs();
     const viewport = useViewport();
 
-    // Cache the last highlight result to avoid re-highlighting when content hasn't changed
     const cacheRef = useRef<HighlightCache>({ key: "", html: "" });
 
     const { html, topPadding, bottomPadding } = useMemo(() => {
@@ -47,8 +44,6 @@ export const VirtualizedSyntaxOverlay = memo(function VirtualizedSyntaxOverlay()
         const end = Math.min(totalLines, viewport.endLine);
 
         const visibleContent = lines.slice(start, end).join("\n");
-
-        // Check cache — skip highlighting if the visible content is the same
         const cacheKey = `${start}:${end}:${prismLang}:${visibleContent.length}`;
         let highlighted: string;
 
@@ -64,15 +59,20 @@ export const VirtualizedSyntaxOverlay = memo(function VirtualizedSyntaxOverlay()
 
         return {
             html: highlighted,
-            topPadding: start * lineHeight + 10, // 10px = editor top padding
-            bottomPadding: Math.max(0, (totalLines - end) * lineHeight + 10),
+            topPadding: start * lineHeight + CANVAS_PAD,
+            bottomPadding: Math.max(0, (totalLines - end) * lineHeight + CANVAS_PAD),
         };
     }, [content, prismLang, viewport.startLine, viewport.endLine, lineHeight]);
+
+    // Active line highlight (only when cursor is in viewport)
+    const showActiveLine =
+        cursorLine >= viewport.startLine + 1 && cursorLine <= viewport.endLine;
+    const activeLineTop = (cursorLine - 1) * lineHeight + CANVAS_PAD;
 
     return (
         <pre
             ref={highlightRef}
-            className="editor-highlight-overlay absolute inset-0 m-0 overflow-hidden"
+            className="editor-highlight-overlay"
             style={{
                 padding: 0,
                 fontSize,
@@ -84,26 +84,35 @@ export const VirtualizedSyntaxOverlay = memo(function VirtualizedSyntaxOverlay()
                 overflowWrap: wordWrap ? "break-word" : "normal",
                 tabSize,
                 color: "var(--editor-foreground)",
-                contain: "layout style paint",
             }}
             aria-hidden
         >
-            {/* Top spacer — pushes content to correct vertical position */}
+            {/* Active line: subtle background band */}
+            {showActiveLine && (
+                <div
+                    className="editor-active-line"
+                    style={{ top: activeLineTop, height: lineHeight }}
+                />
+            )}
+
+            {/* Top spacer for virtualization */}
             <div style={{ height: topPadding, pointerEvents: "none" }} />
 
-            {/* Highlighted visible content */}
+            {/* Highlighted code block */}
             <code
                 dangerouslySetInnerHTML={{ __html: html + "\n" }}
                 style={{
                     fontFamily: "inherit",
                     display: "block",
-                    paddingLeft: 10,
-                    paddingRight: 10,
+                    paddingLeft: CODE_PAD_X,
+                    paddingRight: CODE_PAD_X,
                     willChange: "contents",
+                    position: "relative",
+                    zIndex: 2,
                 }}
             />
 
-            {/* Bottom spacer — ensures full virtual height for scroll sync */}
+            {/* Bottom spacer */}
             <div style={{ height: bottomPadding, pointerEvents: "none" }} />
         </pre>
     );

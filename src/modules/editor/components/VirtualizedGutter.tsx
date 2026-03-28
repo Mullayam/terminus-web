@@ -1,20 +1,15 @@
 /**
  * @module editor/components/VirtualizedGutter
  *
- * Virtualized line-number gutter that only renders line numbers visible
- * in the current viewport (plus a buffer). Uses the same scroll-sync
- * mechanism as the original gutter but with drastically fewer DOM nodes.
- *
- * For a 50,000-line file, this reduces DOM nodes from 50,000 to ~100.
- *
- * Layout strategy:
- *   - Outer container has overflow:hidden and is scroll-synced via ref
- *   - Inner container has the full virtual height (totalLines * lineHeight)
- *   - Visible line numbers are absolutely positioned at their correct offset
+ * VS Code-style virtualized line-number gutter.
+ * Only visible lines are rendered. Active line gets highlighted number + background band.
  */
 import { memo, useMemo } from "react";
 import { useEditorStore, useEditorRefs } from "../state/context";
 import { useViewport } from "../hooks/useViewport";
+
+/** Top/bottom padding — matches the code canvas CANVAS_PAD */
+const PAD = 4;
 
 export const VirtualizedGutter = memo(function VirtualizedGutter() {
     const lineCount = useEditorStore((s) => s.lineCount);
@@ -24,69 +19,74 @@ export const VirtualizedGutter = memo(function VirtualizedGutter() {
     const { gutterRef } = useEditorRefs();
     const viewport = useViewport();
 
-    const gutterWidth = Math.max(String(lineCount).length * (fontSize * 0.65) + 20, 40);
+    const digitCount = Math.max(String(lineCount).length, 2);
+    // left pad (14) + digits + right pad (10) + fold col (16)
+    const gutterWidth = digitCount * (fontSize * 0.6) + 40;
 
-    // Total scrollable height: lines + top/bottom padding
-    const totalHeight = lineCount * lineHeight + 20;
+    const totalHeight = lineCount * lineHeight + PAD * 2;
 
-    // Build only the visible line numbers
     const visibleLines = useMemo(() => {
         const start = viewport.startLine;
         const end = Math.min(viewport.endLine, lineCount);
         const items: number[] = [];
-        for (let i = start; i < end; i++) {
-            items.push(i);
-        }
+        for (let i = start; i < end; i++) items.push(i);
         return items;
     }, [viewport.startLine, viewport.endLine, lineCount]);
 
-    // Y offset for the first rendered line
-    const topOffset = viewport.startLine * lineHeight + 10; // 10px = paddingTop
+    const topOffset = viewport.startLine * lineHeight + PAD;
+
+    // Is cursor in viewport?
+    const showActiveBg =
+        cursorLine >= viewport.startLine + 1 && cursorLine <= viewport.endLine;
 
     return (
         <div
             ref={gutterRef}
-            className="shrink-0 overflow-hidden select-none pointer-events-none"
-            style={{
-                width: gutterWidth,
-                background: "var(--editor-gutter-bg)",
-                borderRight: "1px solid var(--editor-border)",
-                contain: "strict",
-            }}
+            className="editor-gutter"
+            style={{ width: gutterWidth }}
             aria-hidden
         >
-            {/* Full-height virtual container for scroll sync */}
             <div style={{ height: totalHeight, position: "relative" }}>
-                {/* Positioned block containing only visible lines */}
+                {/* Active-line background band */}
+                {showActiveBg && (
+                    <div
+                        className="editor-gutter__active-bg"
+                        style={{
+                            top: (cursorLine - 1) * lineHeight + PAD,
+                            height: lineHeight,
+                        }}
+                    />
+                )}
+
+                {/* Visible line numbers */}
                 <div
                     style={{
                         position: "absolute",
                         top: topOffset,
                         left: 0,
-                        right: 0,
+                        right: 16, // fold column space
                         willChange: "transform",
                     }}
                 >
-                    {visibleLines.map((i) => (
-                        <div
-                            key={i}
-                            style={{
-                                height: lineHeight,
-                                lineHeight: `${lineHeight}px`,
-                                fontSize: fontSize - 1,
-                                paddingRight: 8,
-                                paddingLeft: 8,
-                                textAlign: "right",
-                                fontFamily: "var(--editor-font-family)",
-                                color:
-                                    i + 1 === cursorLine
-                                        ? "var(--editor-gutter-active-fg)"
-                                        : "var(--editor-gutter-fg)",
-                            }}
-                        >
-                            {i + 1}
-                        </div>
-                    ))}
+                    {visibleLines.map((i) => {
+                        const lineNum = i + 1;
+                        const isActive = lineNum === cursorLine;
+                        return (
+                            <div
+                                key={i}
+                                className={`editor-gutter__line${isActive ? " editor-gutter__line--active" : ""}`}
+                                style={{
+                                    height: lineHeight,
+                                    lineHeight: `${lineHeight}px`,
+                                    fontSize: fontSize - 1,
+                                    paddingRight: 10,
+                                    paddingLeft: 14,
+                                }}
+                            >
+                                {lineNum}
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
         </div>
