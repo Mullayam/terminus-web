@@ -122,8 +122,9 @@ export {
   showEditorNotification,
   NOTIFICATION_EVENTS,
   ALL_BUILTIN_PLUGINS,
+  createInlineCommandPlugin,
 } from "./plugins";
-export type { GhostTextPluginOptions, NotificationPluginOptions, BackendNotification } from "./plugins";
+export type { GhostTextPluginOptions, NotificationPluginOptions, BackendNotification, InlineCommandPluginOptions } from "./plugins";
 
 // ── Built-in Themes ─────────────────────────────────────────
 export {

@@ -28,6 +28,7 @@ import {
     detectLanguage,
     createGhostTextPlugin,
     createNotificationPlugin,
+    createInlineCommandPlugin,
     showEditorNotification,
     loadEditorSettings,
 } from "@/modules/monaco-editor";
@@ -438,13 +439,18 @@ export default function FileEditorMonacoPage() {
         () => createNotificationPlugin({ socket: treeSocket ?? undefined }),
         [treeSocket],
     );
+    const inlineCommandPlugin = useMemo(
+        () => createInlineCommandPlugin({ endpoint: __config.API_URL }),
+        [],
+    );
     const plugins = useMemo(
         () => [
             ...ALL_BUILTIN_PLUGINS,
             ...(aiProvider === "ghost-text" ? [ghostTextPlugin] : []),
             notificationPlugin,
+            inlineCommandPlugin,
         ],
-        [ghostTextPlugin, notificationPlugin, aiProvider],
+        [ghostTextPlugin, notificationPlugin, inlineCommandPlugin, aiProvider],
     );
 
     // Handle AI provider change from settings panel

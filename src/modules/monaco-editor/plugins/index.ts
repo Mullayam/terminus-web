@@ -16,6 +16,8 @@ export { createGhostTextPlugin } from "./ghost-text-plugin";
 export type { GhostTextPluginOptions } from "./ghost-text-plugin";
 export { createNotificationPlugin, setNotificationsHandle, getNotificationsHandle, showEditorNotification, NOTIFICATION_EVENTS } from "./notification-plugin";
 export type { NotificationPluginOptions, BackendNotification, BackendNotificationUpdate } from "./notification-plugin";
+export { createInlineCommandPlugin } from "./inline-command-plugin";
+export type { InlineCommandPluginOptions } from "./inline-command-plugin";
 
 // Convenience array of all built-in plugins
 import { saveStatePlugin } from "./save-state-plugin";
