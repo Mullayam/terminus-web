@@ -62,7 +62,7 @@ export default function FileEditorModulePage() {
     const [params] = useSearchParams();
     const navigate = useNavigate();
 
-    const sessionId = params.get("tabId") ?? "";
+    const sessionId = params.get("sessionId") ?? params.get("tabId") ?? "";
     const remotePath = params.get("path") ?? "";
     const fileName = remotePath.split("/").pop() || "Untitled";
 

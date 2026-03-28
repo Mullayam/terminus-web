@@ -13,6 +13,8 @@ const SFTP = lazy(() => import("@/pages/sftp"));
 
 
 const FileEditorMonacoPage = lazy(() => import("@/pages/sftp/components/FileEditorMonacoPage"));
+const FileEditorModulePage = lazy(() => import("@/pages/sftp/components/FileEditorModulePage"));
+const FileEditorApiPage = lazy(() => import("@/pages/sftp/components/FileEditorApiPage"));
 const MediaPreviewPage = lazy(() => import("@/pages/sftp/components/MediaPreviewPage"));
 
 const TerminalComponent = lazy(() => import("@/pages/shared-terminal"));
@@ -84,7 +86,14 @@ export const router = createBrowserRouter([
                 path: "sftp/editor",
                 element: withSuspense(<FileEditorMonacoPage />),
             },
-
+            {
+                path: "sftp/api-editor",
+                element: withSuspense(<FileEditorApiPage />),
+            },
+            {
+                path: "sftp/module-editor",
+                element: withSuspense(<FileEditorModulePage />),
+            },
             {
                 path: "sftp/preview",
                 element: withSuspense(<MediaPreviewPage />),
