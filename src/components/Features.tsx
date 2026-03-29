@@ -131,6 +131,8 @@ const features: FeatureCard[] = [
       { text: "Command Palette, minimap, & sticky scroll" },
       { text: "Snippets for Go, JavaScript, Python, TypeScript" },
       { text: "Auto-save with debounce & embedded terminal" },
+      { text: "View Panel System — custom React tabs in the editor" },
+      { text: "NPM Package Manager — update, install & manage deps visually" },
     ],
     cta: { label: "Open Editor", href: "/ssh/connect" },
   },

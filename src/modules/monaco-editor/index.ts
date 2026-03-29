@@ -391,3 +391,23 @@ export {
   getAllKnownLanguages,
 } from "./extensions";
 export type { GitHubEntry, GitHubFileContent } from "./extensions";
+
+// ── View Panel System ───────────────────────────────────────
+export {
+  useViewPanelStore,
+  ViewPanelTabBar,
+  ViewPanelContent,
+  registerViewPanel,
+  unregisterViewPanel,
+  openViewPanel,
+  closeViewPanel,
+  closeAllViewPanels,
+  getRegisteredViewPanels,
+  npmManagerViewPlugin,
+  NpmManagerPanel,
+} from "./view-panel";
+export type {
+  ViewPanelDescriptor,
+  ViewPanelProps,
+  ViewPanelTab,
+} from "./view-panel";

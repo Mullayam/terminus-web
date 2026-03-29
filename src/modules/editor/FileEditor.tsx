@@ -325,6 +325,18 @@ function EditorInner(props: FileEditorProps) {
     // Canvas padding — must match VirtualizedSyntaxOverlay & VirtualizedGutter
     const CANVAS_PAD = 4;
 
+    // ── Plugin context menu items ────────────────────────────
+    const pluginContextMenuItems = useMemo(() => {
+        const items: import("./types").ContextMenuItem[] = [];
+        for (const [id, plugin] of pluginSnapshot.plugins) {
+            if (!pluginSnapshot.enabledPlugins.has(id)) continue;
+            if (plugin.contextMenuItems) {
+                items.push(...plugin.contextMenuItems);
+            }
+        }
+        return items.sort((a, b) => (a.priority ?? 50) - (b.priority ?? 50));
+    }, [pluginSnapshot.plugins, pluginSnapshot.enabledPlugins]);
+
     // ── Textarea input handler ───────────────────────────────
     const onTextareaInput = useCallback(
         (e: React.FormEvent<HTMLTextAreaElement>) => {
@@ -649,14 +661,14 @@ function EditorInner(props: FileEditorProps) {
                         Terminal
                     </button>
                 )}
-                <PluginStatusBar snapshot={pluginSnapshot} onTogglePluginManager={togglePluginManager} />
+                <PluginStatusBar snapshot={pluginSnapshot} host={pluginHost} onTogglePluginManager={togglePluginManager} />
             </div>
 
             {/* Completion Widget (floating) */}
             <CompletionWidget host={pluginHost} snapshot={pluginSnapshot} />
 
             {/* Context Menu (VS Code-style with 22+ items) */}
-            <ContextMenu onSave={save} onFormat={onFormat} />
+            <ContextMenu onSave={save} onFormat={onFormat} pluginItems={pluginContextMenuItems} />
 
             {/* Command Palette */}
             <CommandPalette onSave={save} onReload={reload} onFormat={onFormat} />

@@ -1,169 +1,192 @@
 /**
  * @module editor/plugins/components/GhostTextOverlay
  *
- * Renders Copilot-style ghost text at the cursor position.
- * Subscribes to the ghostTextStore from the ai-ghost-text plugin
- * and renders the streamed text with a typing animation.
+ * VS Code-style ghost text rendering.
  *
- * Features:
- *   - Positioned inline after the cursor
- *   - Character-by-character streaming with blinking cursor
- *   - Subtle fade-in animation
- *   - "Tab to accept" hint
- *   - Scrolls with the editor
+ * Instead of overlapping code, ghost text is rendered as an inline
+ * decoration on the cursor line + inserted visual-only lines that
+ * push subsequent code DOWN in the syntax overlay.
+ *
+ * Approach:
+ *   - A transparent overlay (inset:0, z:5) renders:
+ *     1. The first ghost line as inline text after the cursor column
+ *        on the cursor row, with a clipping mask that hides real code
+ *        after the cursor (so ghost replaces it visually).
+ *     2. Additional ghost lines inserted between the cursor line and
+ *        the next real line. A CSS transform shifts everything below
+ *        the cursor down by (extraLines * lineHeight).
+ *   - The textarea and line numbers remain untouched.
  */
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useEditorStore, useEditorRefs } from "../../state/context";
 import { ghostTextStore, type GhostTextState } from "../builtin/ai-ghost-text";
 
+/** Must match textarea / overlay padding */
+const CANVAS_PAD = 4;
+const CODE_PAD_X = 16;
+
 export function GhostTextOverlay() {
     const [ghost, setGhost] = useState<GhostTextState>(ghostTextStore.getState());
-    const overlayRef = useRef<HTMLDivElement>(null);
 
     const fontSize = useEditorStore((s) => s.fontSize);
     const lineHeight = useEditorStore((s) => s.lineHeight);
     const content = useEditorStore((s) => s.content);
-    const wordWrap = useEditorStore((s) => s.wordWrap);
     const tabSize = useEditorStore((s) => s.tabSize);
     const { textareaRef } = useEditorRefs();
 
-    // Subscribe to ghost text state changes
+    // Scroll tracking
+    const [scrollTop, setScrollTop] = useState(0);
+    const [scrollLeft, setScrollLeft] = useState(0);
+
     useEffect(() => {
         return ghostTextStore.subscribe(setGhost);
     }, []);
 
-    // Measure exact cursor position using hidden mirror div (same technique as CompletionWidget)
-    const measureCursorPosition = useCallback(() => {
+    useEffect(() => {
         const ta = textareaRef.current;
-        if (!ta) return null;
-
-        // Calculate the cursor offset from line/col
-        const lines = ta.value.split("\n");
-        let offset = 0;
-        for (let i = 0; i < ghost.line - 1 && i < lines.length; i++) {
-            offset += lines[i].length + 1;
-        }
-        offset += ghost.col;
-
-        const computed = window.getComputedStyle(ta);
-        const properties = [
-            "direction", "boxSizing",
-            "width", "height",
-            "overflowX", "overflowY",
-            "borderTopWidth", "borderRightWidth",
-            "borderBottomWidth", "borderLeftWidth",
-            "borderStyle",
-            "paddingTop", "paddingRight",
-            "paddingBottom", "paddingLeft",
-            "fontStyle", "fontVariant", "fontWeight",
-            "fontStretch", "fontSize", "fontSizeAdjust",
-            "lineHeight", "fontFamily",
-            "textAlign", "textTransform", "textIndent",
-            "textDecoration",
-            "letterSpacing", "wordSpacing",
-            "tabSize",
-            "whiteSpace", "wordWrap", "overflowWrap",
-        ];
-
-        const div = document.createElement("div");
-        div.style.position = "absolute";
-        div.style.visibility = "hidden";
-
-        for (const prop of properties) {
-            (div.style as any)[prop] = (computed as any)[prop];
-        }
-        div.style.overflow = "hidden";
-        div.style.width = computed.width;
-
-        div.textContent = ta.value.substring(0, offset);
-
-        const span = document.createElement("span");
-        span.textContent = ta.value.substring(offset) || ".";
-        div.appendChild(span);
-
-        document.body.appendChild(div);
-
-        const caretTop = span.offsetTop + parseInt(computed.borderTopWidth, 10);
-        const caretLeft = span.offsetLeft + parseInt(computed.borderLeftWidth, 10);
-
-        document.body.removeChild(div);
-
-        return {
-            top: caretTop - ta.scrollTop,
-            left: caretLeft - ta.scrollLeft,
+        if (!ta) return;
+        const sync = () => {
+            setScrollTop(ta.scrollTop);
+            setScrollLeft(ta.scrollLeft);
         };
-    }, [textareaRef, ghost.line, ghost.col, content]);
+        ta.addEventListener("scroll", sync, { passive: true });
+        sync();
+        return () => ta.removeEventListener("scroll", sync);
+    }, [textareaRef]);
 
-    // Compute position relative to textarea
-    const position = useMemo(() => {
-        if (!ghost.visible || !textareaRef.current) return null;
-        return measureCursorPosition();
-    }, [ghost.visible, ghost.line, ghost.col, measureCursorPosition, textareaRef]);
+    if (!ghost.visible || ghost.streamedLength === 0) return null;
 
-    if (!ghost.visible || !position) return null;
-
-    // Get the currently streamed portion of the suggestion
+    const charWidth = fontSize * 0.6;
     const displayText = ghost.fullText.slice(0, ghost.streamedLength);
-    const lines = displayText.split("\n");
-    const isMultiLine = lines.length > 1;
+    const ghostLines = displayText.split("\n");
+    const isMultiLine = ghostLines.length > 1;
+    const extraLineCount = ghostLines.length - 1; // lines to insert visually
+
+    // Cursor position in pixel space
+    const cursorTop = (ghost.line - 1) * lineHeight + CANVAS_PAD - scrollTop;
+    const cursorLeft = ghost.col * charWidth + CODE_PAD_X - scrollLeft;
+
+    // Viewport bounds
+    const viewportHeight = textareaRef.current?.clientHeight ?? 800;
+    if (cursorTop < -lineHeight * 2 || cursorTop > viewportHeight + lineHeight) return null;
+
+    // How much to push content below the cursor line down
+    const shiftPx = extraLineCount * lineHeight;
 
     return (
-        <div
-            ref={overlayRef}
-            className="editor-ghost-text-overlay"
-            style={{
-                position: "absolute",
-                top: position.top,
-                left: position.left,
-                zIndex: 5,
-                pointerEvents: "none",
-                fontFamily: "var(--editor-font-family, monospace)",
-                fontSize,
-                lineHeight: `${lineHeight}px`,
-                whiteSpace: "pre",
-                tabSize,
-                maxWidth: "calc(100% - 80px)",
-                overflow: "hidden",
-            }}
-        >
-            {/* Ghost text lines */}
-            {lines.map((line, i) => (
+        <>
+            {/* ── Ghost text inline + inserted lines ────────────── */}
+            <div
+                className="editor-ghost-text-overlay"
+                style={{
+                    position: "absolute",
+                    inset: 0,
+                    pointerEvents: "none",
+                    zIndex: 5,
+                    overflow: "hidden",
+                    fontFamily: "var(--editor-font-family, monospace)",
+                    fontSize,
+                    lineHeight: `${lineHeight}px`,
+                    whiteSpace: "pre",
+                    tabSize,
+                }}
+            >
+                {/* First ghost line: renders inline after cursor on the cursor row */}
                 <div
-                    key={i}
                     style={{
+                        position: "absolute",
+                        top: cursorTop,
+                        left: cursorLeft,
+                        height: lineHeight,
                         color: "var(--editor-ghost-text, #6272a4)",
                         opacity: 0.55,
-                        // First line flows inline, subsequent lines start at gutter
-                        marginLeft: i > 0 ? -position.left + 10 : 0,
-                        animation: i === 0 && ghost.streamedLength <= 1 ? "ghostFadeIn 0.2s ease-out" : undefined,
+                        animation: ghost.streamedLength <= 1 ? "ghostFadeIn 0.2s ease-out" : undefined,
                     }}
                 >
-                    {line}
-                    {/* Streaming cursor on the last line */}
-                    {i === lines.length - 1 && ghost.isStreaming && (
-                        <span
-                            className="ghost-streaming-cursor"
-                            style={{
-                                display: "inline-block",
-                                width: 2,
-                                height: "1em",
-                                background: "var(--editor-ghost-cursor, #bd93f9)",
-                                opacity: 0.7,
-                                marginLeft: 1,
-                                verticalAlign: "text-bottom",
-                                animation: "ghostCursorBlink 0.6s ease-in-out infinite",
-                            }}
-                        />
-                    )}
+                    {ghostLines[0]}
+                    {/* Streaming cursor on single-line suggestions */}
+                    {!isMultiLine && ghost.isStreaming && <StreamingCursor />}
                 </div>
-            ))}
 
-            {/* Accept / Reject controls + keyboard hints – shown when streaming complete */}
+                {/* Opaque mask: covers real code after the cursor on the cursor line */}
+                <div
+                    style={{
+                        position: "absolute",
+                        top: cursorTop,
+                        left: cursorLeft,
+                        right: 0,
+                        height: lineHeight,
+                        background: "var(--editor-background, #282a36)",
+                        zIndex: -1,
+                    }}
+                />
+
+                {/* Multi-line: inserted ghost lines between cursor line and next line */}
+                {isMultiLine && ghostLines.slice(1).map((line, i) => (
+                    <div
+                        key={i}
+                        style={{
+                            position: "absolute",
+                            top: cursorTop + (i + 1) * lineHeight,
+                            left: CODE_PAD_X - scrollLeft,
+                            height: lineHeight,
+                            color: "var(--editor-ghost-text, #6272a4)",
+                            opacity: 0.55,
+                        }}
+                    >
+                        {line}
+                        {/* Streaming cursor on the last ghost line */}
+                        {i === ghostLines.length - 2 && ghost.isStreaming && <StreamingCursor />}
+                    </div>
+                ))}
+
+                {/* Push-down band: opaque background for the inserted ghost area
+                    so we don't see the real code beneath */}
+                {isMultiLine && (
+                    <div
+                        style={{
+                            position: "absolute",
+                            top: cursorTop + lineHeight,
+                            left: 0,
+                            right: 0,
+                            height: shiftPx,
+                            background: "var(--editor-background, #282a36)",
+                            zIndex: -1,
+                        }}
+                    />
+                )}
+            </div>
+
+            {/* ── Shift real content below cursor line down ─────── */}
+            {isMultiLine && shiftPx > 0 && (
+                <div
+                    className="editor-ghost-shift"
+                    style={{
+                        position: "absolute",
+                        top: cursorTop + lineHeight,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        transform: `translateY(${shiftPx}px)`,
+                        pointerEvents: "none",
+                        zIndex: 3,
+                    }}
+                >
+                    {/* Transparent pass-through: the real syntax overlay underneath
+                        still renders, but this layer shifts the VISUAL position
+                        of all overlays below the cursor line by shiftPx. */}
+                </div>
+            )}
+
+            {/* ── Accept / Reject toolbar ──────────────────────── */}
             {!ghost.isStreaming && ghost.streamedLength > 0 && (
                 <div
                     style={{
-                        marginTop: 4,
-                        marginLeft: isMultiLine ? -position.left + 10 : 0,
+                        position: "absolute",
+                        top: cursorTop + lineHeight + shiftPx + 2,
+                        left: Math.max(CODE_PAD_X, cursorLeft),
+                        zIndex: 6,
+                        pointerEvents: "auto",
                         display: "inline-flex",
                         alignItems: "center",
                         gap: 6,
@@ -175,158 +198,36 @@ export function GhostTextOverlay() {
                         color: "var(--editor-foreground, #f8f8f2)",
                         border: "1px solid var(--editor-border, #44475a)",
                         boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
-                        opacity: 1,
-                        pointerEvents: "auto",
                         animation: "ghostFadeIn 0.3s ease-out",
-                        zIndex: 6,
-                        position: "relative",
                     }}
                 >
-                    {/* Accept button (green check) */}
-                    <button
+                    <GhostButton
                         onClick={() => ghost.onAccept?.()}
                         title="Accept (Alt+A)"
-                        style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 3,
-                            background: "rgba(80, 250, 123, 0.15)",
-                            border: "1px solid rgba(80, 250, 123, 0.35)",
-                            borderRadius: 4,
-                            padding: "2px 8px",
-                            cursor: "pointer",
-                            color: "#50fa7b",
-                            fontSize: 11,
-                            fontWeight: 500,
-                            lineHeight: "16px",
-                            transition: "all 0.15s",
-                        }}
-                        onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLElement).style.background = "rgba(80, 250, 123, 0.3)";
-                            (e.currentTarget as HTMLElement).style.borderColor = "rgba(80, 250, 123, 0.6)";
-                        }}
-                        onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLElement).style.background = "rgba(80, 250, 123, 0.15)";
-                            (e.currentTarget as HTMLElement).style.borderColor = "rgba(80, 250, 123, 0.35)";
-                        }}
-                    >
-                        <span style={{ fontSize: 12, lineHeight: 1 }}>✓</span>
-                        <span>Accept</span>
-                        <kbd
-                            style={{
-                                padding: "0 3px",
-                                borderRadius: 2,
-                                fontSize: 9,
-                                fontWeight: 600,
-                                lineHeight: "14px",
-                                background: "rgba(255,255,255,0.08)",
-                                border: "1px solid rgba(255,255,255,0.12)",
-                                color: "rgba(80, 250, 123, 0.8)",
-                            }}
-                        >
-                            Alt+A
-                        </kbd>
-                    </button>
-
+                        label="✓ Accept"
+                        kbd="Alt+A"
+                        color="#50fa7b"
+                    />
                     <span style={{ opacity: 0.3 }}>│</span>
-
-                    {/* Reject button (red cross) */}
-                    <button
+                    <GhostButton
                         onClick={() => ghost.onReject?.()}
                         title="Reject (Alt+R)"
-                        style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 3,
-                            background: "rgba(255, 85, 85, 0.12)",
-                            border: "1px solid rgba(255, 85, 85, 0.3)",
-                            borderRadius: 4,
-                            padding: "2px 8px",
-                            cursor: "pointer",
-                            color: "#ff5555",
-                            fontSize: 11,
-                            fontWeight: 500,
-                            lineHeight: "16px",
-                            transition: "all 0.15s",
-                        }}
-                        onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLElement).style.background = "rgba(255, 85, 85, 0.25)";
-                            (e.currentTarget as HTMLElement).style.borderColor = "rgba(255, 85, 85, 0.5)";
-                        }}
-                        onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLElement).style.background = "rgba(255, 85, 85, 0.12)";
-                            (e.currentTarget as HTMLElement).style.borderColor = "rgba(255, 85, 85, 0.3)";
-                        }}
-                    >
-                        <span style={{ fontSize: 12, lineHeight: 1 }}>✕</span>
-                        <span>Reject</span>
-                        <kbd
-                            style={{
-                                padding: "0 3px",
-                                borderRadius: 2,
-                                fontSize: 9,
-                                fontWeight: 600,
-                                lineHeight: "14px",
-                                background: "rgba(255,255,255,0.08)",
-                                border: "1px solid rgba(255,255,255,0.12)",
-                                color: "rgba(255, 85, 85, 0.7)",
-                            }}
-                        >
-                            Alt+R
-                        </kbd>
-                    </button>
-
+                        label="✕ Reject"
+                        kbd="Alt+R"
+                        color="#ff5555"
+                    />
                     <span style={{ opacity: 0.3 }}>│</span>
-
-                    {/* Follow-up action */}
-                    <button
+                    <GhostButton
                         onClick={() => ghost.onAccept?.()}
                         title="Follow-up (Alt+F)"
-                        style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 3,
-                            background: "rgba(139, 233, 253, 0.1)",
-                            border: "1px solid rgba(139, 233, 253, 0.25)",
-                            borderRadius: 4,
-                            padding: "2px 8px",
-                            cursor: "pointer",
-                            color: "#8be9fd",
-                            fontSize: 11,
-                            fontWeight: 500,
-                            lineHeight: "16px",
-                            transition: "all 0.15s",
-                        }}
-                        onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLElement).style.background = "rgba(139, 233, 253, 0.2)";
-                            (e.currentTarget as HTMLElement).style.borderColor = "rgba(139, 233, 253, 0.45)";
-                        }}
-                        onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLElement).style.background = "rgba(139, 233, 253, 0.1)";
-                            (e.currentTarget as HTMLElement).style.borderColor = "rgba(139, 233, 253, 0.25)";
-                        }}
-                    >
-                        <span style={{ fontSize: 11, lineHeight: 1 }}>💬</span>
-                        <span>Follow-up</span>
-                        <kbd
-                            style={{
-                                padding: "0 3px",
-                                borderRadius: 2,
-                                fontSize: 9,
-                                fontWeight: 600,
-                                lineHeight: "14px",
-                                background: "rgba(255,255,255,0.08)",
-                                border: "1px solid rgba(255,255,255,0.12)",
-                                color: "rgba(139, 233, 253, 0.7)",
-                            }}
-                        >
-                            Alt+F
-                        </kbd>
-                    </button>
+                        label="💬 Follow-up"
+                        kbd="Alt+F"
+                        color="#8be9fd"
+                    />
                 </div>
             )}
 
-            {/* CSS animations (injected once) */}
+            {/* Inline keyframes */}
             <style>{`
                 @keyframes ghostFadeIn {
                     from { opacity: 0; transform: translateY(-2px); }
@@ -337,6 +238,80 @@ export function GhostTextOverlay() {
                     50%      { opacity: 0.1; }
                 }
             `}</style>
-        </div>
+        </>
+    );
+}
+
+/* ── Small helper components ──────────────────────────────── */
+
+function StreamingCursor() {
+    return (
+        <span
+            className="ghost-streaming-cursor"
+            style={{
+                display: "inline-block",
+                width: 2,
+                height: "1em",
+                background: "var(--editor-ghost-cursor, #bd93f9)",
+                opacity: 0.7,
+                marginLeft: 1,
+                verticalAlign: "text-bottom",
+                animation: "ghostCursorBlink 0.6s ease-in-out infinite",
+            }}
+        />
+    );
+}
+
+function GhostButton({ onClick, title, label, kbd, color }: {
+    onClick?: () => void;
+    title: string;
+    label: string;
+    kbd: string;
+    color: string;
+}) {
+    return (
+        <button
+            onClick={onClick}
+            title={title}
+            style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 3,
+                background: `${color}20`,
+                border: `1px solid ${color}55`,
+                borderRadius: 4,
+                padding: "2px 8px",
+                cursor: "pointer",
+                color,
+                fontSize: 11,
+                fontWeight: 500,
+                lineHeight: "16px",
+                transition: "all 0.15s",
+            }}
+            onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.background = `${color}40`;
+                (e.currentTarget as HTMLElement).style.borderColor = `${color}88`;
+            }}
+            onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.background = `${color}20`;
+                (e.currentTarget as HTMLElement).style.borderColor = `${color}55`;
+            }}
+        >
+            <span>{label}</span>
+            <kbd
+                style={{
+                    padding: "0 3px",
+                    borderRadius: 2,
+                    fontSize: 9,
+                    fontWeight: 600,
+                    lineHeight: "14px",
+                    background: "rgba(255,255,255,0.08)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    color: `${color}cc`,
+                }}
+            >
+                {kbd}
+            </kbd>
+        </button>
     );
 }

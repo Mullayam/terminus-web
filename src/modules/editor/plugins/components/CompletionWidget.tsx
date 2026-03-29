@@ -216,8 +216,8 @@ export function CompletionWidget({ host, snapshot }: CompletionWidgetProps) {
         }
         if (left < 8) left = 8;
 
-        // Position the widget at the measured cursor coordinates        
-        setPosition({ top: measured.top - 55, left: measured.left - 250 });
+        // Position the widget at the clamped cursor coordinates
+        setPosition({ top, left });
 
         setItems(limited);
         setSelectedIndex(0);
@@ -342,16 +342,17 @@ export function CompletionWidget({ host, snapshot }: CompletionWidgetProps) {
                 top: position.top,
                 left: position.left,
                 zIndex: 10000,
-                minWidth: 280,
-                maxWidth: 480,
+                minWidth: 300,
+                maxWidth: 500,
                 maxHeight: 260,
                 overflow: "auto",
-                borderRadius: 6,
-                boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
-                border: "1px solid var(--editor-border, #44475a)",
-                background: "var(--editor-popup-bg, #282a36)",
+                borderRadius: 4,
+                boxShadow: "0 2px 12px rgba(0,0,0,0.35), 0 0 0 1px var(--editor-border, #3c3c3c)",
+                border: "1px solid var(--editor-border, #3c3c3c)",
+                background: "var(--editor-popup-bg, #252526)",
                 fontFamily: "var(--editor-font-family, monospace)",
-                fontSize: 12,
+                fontSize: 13,
+                padding: "2px 0",
             }}
             ref={listRef}
         >
@@ -362,26 +363,26 @@ export function CompletionWidget({ host, snapshot }: CompletionWidgetProps) {
                     style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: 8,
-                        padding: "4px 10px",
+                        gap: 6,
+                        padding: "3px 8px",
                         cursor: "pointer",
-                        background: i === selectedIndex ? "var(--editor-popup-hover-bg, #44475a)" : "transparent",
-                        color: "var(--editor-foreground, #f8f8f2)",
-                        borderBottom: i < items.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                        background: i === selectedIndex ? "var(--editor-popup-hover-bg, rgba(4, 57, 94, 0.7))" : "transparent",
+                        color: i === selectedIndex ? "var(--editor-foreground, #fff)" : "var(--editor-foreground, #ccc)",
+                        borderLeft: i === selectedIndex ? "2px solid var(--editor-accent, #007acc)" : "2px solid transparent",
                     }}
                 >
                     <span
                         style={{
-                            width: 18,
-                            height: 18,
+                            width: 20,
+                            height: 20,
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
                             fontSize: 11,
-                            fontWeight: 700,
+                            fontWeight: 600,
                             borderRadius: 3,
                             flexShrink: 0,
-                            background: `${KIND_COLORS[item.kind]}22`,
+                            background: `${KIND_COLORS[item.kind]}1a`,
                             color: KIND_COLORS[item.kind],
                         }}
                     >
@@ -391,7 +392,7 @@ export function CompletionWidget({ host, snapshot }: CompletionWidgetProps) {
                         {item.label}
                     </span>
                     {item.detail && (
-                        <span style={{ fontSize: 10, color: "var(--editor-muted, #6272a4)", flexShrink: 0 }}>
+                        <span style={{ fontSize: 11, color: "var(--editor-muted, #858585)", flexShrink: 0 }}>
                             {item.detail}
                         </span>
                     )}

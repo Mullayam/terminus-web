@@ -63,6 +63,8 @@
 - **Auto-save with debounce** — save changes automatically
 - **Language snippets** — Go, JavaScript, Python, TypeScript
 - **Diff viewer** and **embedded terminal panel**
+- **View Panel System** — extensible tab-based panels inside the editor (like VS Code webviews)
+- **NPM Package Manager** — visual table of all dependencies with installed vs latest version, update type badges (MAJOR/MINOR/PATCH), one-click update & uninstall, "Update All", npm registry search & install, and scripts runner (Ctrl+Shift+N)
 
 ### 🤖 AI Assistance
 - **Ghost-text AI completions** — inline predictions powered by context engine
@@ -129,7 +131,7 @@ src/
 │   │   ├── components/  #    UI components (badges, overlays, sidebar, admin panel)
 │   │   └── page/        #    CollabTerminalPage (assembled page)
 │   ├── editor/          # Code editor module
-│   └── monaco-editor/   # Monaco integration
+│   └── monaco-editor/   # Monaco integration + view-panel system + NPM manager
 ├── pages/               # Route pages (SSH, SFTP, shared terminal)
 ├── routes/              # Route definitions
 └── store/               # Global Zustand stores

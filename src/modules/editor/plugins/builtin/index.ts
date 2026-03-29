@@ -140,6 +140,7 @@ export { createScopeHighlighterPlugin } from "./scope-highlighter";
 export { createDateFormatterPlugin } from "./date-formatter";
 export { createOpenLinksPlugin } from "./open-links";
 export { createCommandPalettePlugin } from "./command-palette";
+export { createNpmManagerPlugin } from "./npm-manager";
 
 // ── Convenience: create all built-in plugins at once ─────────
 
@@ -276,6 +277,7 @@ import { createScopeHighlighterPlugin } from "./scope-highlighter";
 import { createDateFormatterPlugin } from "./date-formatter";
 import { createOpenLinksPlugin } from "./open-links";
 import { createCommandPalettePlugin } from "./command-palette";
+import { createNpmManagerPlugin } from "./npm-manager";
 
 import type { ExtendedEditorPlugin } from "../types";
 
@@ -297,7 +299,6 @@ export function createAllBuiltinPlugins(): ExtendedEditorPlugin[] {
         createInlineAnnotationsPlugin(),
         createAiSuitePlugin(),
         createDiffViewerPlugin(),
-        createFileMetadataPlugin(),
         createAutoDetectIndentPlugin(),
         createFocusModePlugin(),
         createAiGhostTextPlugin(),
@@ -336,11 +337,13 @@ export function createAllBuiltinPlugins(): ExtendedEditorPlugin[] {
         createRelativeLineNumbersPlugin(),
         createHighlightCurrentLinePlugin(),
         createMinimapHighlightsPlugin(),
-        createWordCountPlugin(),
         createSmoothCaretPlugin(),
         createWhitespaceVisualizerPlugin(),
         createStickyScrollPlugin(),
         createZenModePlugin(),
+
+        // NOTE: encoding-indicator, file-metadata, file-size-indicator,
+        // word-count, and diff-stats removed — redundant with status bar.
 
         // Language (14)
         createEmmetPlugin(),
@@ -385,7 +388,6 @@ export function createAllBuiltinPlugins(): ExtendedEditorPlugin[] {
 
         // Tools / AI / Git (13)
         createClipboardHistoryPlugin(),
-        createFileSizeIndicatorPlugin(),
         createFormatOnSavePlugin(),
         createGitChangeIndicatorsPlugin(),
         createMergeConflictHighlighterPlugin(),
@@ -395,7 +397,6 @@ export function createAllBuiltinPlugins(): ExtendedEditorPlugin[] {
         createEditorConfigPlugin(),
         createSelectionInfoPlugin(),
         createKeyboardShortcutsHelperPlugin(),
-        createEncodingIndicatorPlugin(),
         createAutoSavePlugin(),
 
         // Additional utility (22)
@@ -405,11 +406,9 @@ export function createAllBuiltinPlugins(): ExtendedEditorPlugin[] {
         createPairProgrammingPlugin(),
         createCodeMetricsPlugin(),
         createQuickFixPlugin(),
-        createLineEndingConverterPlugin(),
         createColumnSelectPlugin(),
         createLinkedEditingPlugin(),
         createParameterHintsPlugin(),
-        createDiffStatsPlugin(),
         createMacroRecorderPlugin(),
         createTemplateLiteralsPlugin(),
         createSurroundWithPlugin(),
@@ -421,5 +420,8 @@ export function createAllBuiltinPlugins(): ExtendedEditorPlugin[] {
         createDateFormatterPlugin(),
         createOpenLinksPlugin(),
         createCommandPalettePlugin(),
+
+        // NPM Package Manager
+        createNpmManagerPlugin(),
     ];
 }

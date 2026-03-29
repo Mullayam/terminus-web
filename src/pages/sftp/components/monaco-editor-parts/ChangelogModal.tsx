@@ -3,7 +3,7 @@
  * Styled to match the editor theme (uses --editor-* CSS vars with fallbacks).
  */
 import React, { useCallback, useEffect } from "react";
-import { X, Sparkles, Code2, Braces, FileSearch, Palette, Puzzle, Camera } from "lucide-react";
+import { X, Sparkles, Code2, Braces, FileSearch, Palette, Puzzle, Camera, Package } from "lucide-react";
 
 /* ────────────────────────────────────────────────────────── */
 /*  Changelog data                                            */
@@ -88,6 +88,22 @@ const CHANGELOG: ChangelogEntry[] = [
       "Search, enable/disable toggle with localStorage persistence",
       "Plugin count badge on sidebar icon",
       "Notification on editor load showing plugin count",
+    ],
+  },
+  {
+    icon: <Package className="w-4 h-4" />,
+    title: "View Panel System & NPM Package Manager",
+    items: [
+      "Extensible View Panel API — register React components as editor tabs",
+      "NPM Package Manager panel with table layout (Ctrl+Shift+N)",
+      "Installed vs latest version comparison with auto-fetch from npm registry",
+      "Color-coded update type badges — MAJOR (red), MINOR (yellow), PATCH (green)",
+      "One-click Update per package & bulk Update All button",
+      "Uninstall packages & open npm links directly",
+      "Search & install new packages from npm registry (dep / devDep)",
+      "Scripts tab — view & copy all npm scripts",
+      "Collapsible dependency groups (prod / dev / peer)",
+      "Filter, Show All toggle, and package count footer",
     ],
   },
 ];

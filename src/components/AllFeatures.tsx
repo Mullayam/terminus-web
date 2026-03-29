@@ -91,6 +91,8 @@ const featureGroups: FeatureGroup[] = [
             { label: "Code folding & sticky scroll" },
             { label: "Diff viewer" },
             { label: "Embedded terminal panel" },
+            { label: "View Panel System (extensible editor tabs)" },
+            { label: "NPM Package Manager (Ctrl+Shift+N)" },
         ],
     },
     {

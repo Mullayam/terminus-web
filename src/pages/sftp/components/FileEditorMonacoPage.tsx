@@ -32,6 +32,10 @@ import {
     showEditorNotification,
     loadEditorSettings,
     EditorTerminalPanel,
+    useViewPanelStore,
+    ViewPanelTabBar,
+    ViewPanelContent,
+    npmManagerViewPlugin,
 } from "@/modules/monaco-editor";
 import type { MonacoEditorInstance, AICompletionProvider } from "@/modules/monaco-editor";
 import { monacoThemeIdToXterm } from "@/modules/monaco-editor/lib/monacoThemeToXterm";
@@ -468,6 +472,7 @@ export default function FileEditorMonacoPage() {
             ...(aiProvider === "ghost-text" ? [ghostTextPlugin] : []),
             notificationPlugin,
             inlineCommandPlugin,
+            npmManagerViewPlugin,
         ],
         [ghostTextPlugin, notificationPlugin, inlineCommandPlugin, aiProvider],
     );
@@ -746,6 +751,56 @@ export default function FileEditorMonacoPage() {
         if (activeTabId) splitTabToNewGroup(activeTabId);
     }, [activeTabId, splitTabToNewGroup]);
 
+    /* ── View panel store ──────────────────────────────────── */
+    const vpOpenTabs = useViewPanelStore((s) => s.openTabs);
+    const vpActiveTabId = useViewPanelStore((s) => s.activeViewTabId);
+    const vpSetActive = useViewPanelStore((s) => s.setActiveViewTab);
+    const vpClosePanel = useViewPanelStore((s) => s.closePanel);
+    // Read registry only when needed (avoid Map reference causing re-renders)
+    const vpGetPanel = useViewPanelStore((s) => s.getPanel);
+    const vpRegistryRef = useRef(useViewPanelStore.getState().registry);
+    useEffect(() => {
+        return useViewPanelStore.subscribe((s) => { vpRegistryRef.current = s.registry; });
+    }, []);
+
+    /** When a view panel tab is activated, clear editor active tab selection */
+    const handleViewPanelActivate = useCallback((tabId: string) => {
+        vpSetActive(tabId);
+    }, [vpSetActive]);
+
+    /** When an editor tab is clicked, clear view panel selection */
+    const handleEditorTabSwitch = useCallback((groupId: string, tabId: string) => {
+        vpSetActive(null);
+        switchTab(groupId, tabId);
+    }, [switchTab, vpSetActive]);
+
+    /** Whether a view panel is currently the active visible content */
+    const isViewPanelActive = vpActiveTabId !== null && vpOpenTabs.some((t) => t.tabId === vpActiveTabId);
+
+    /** The active view panel tab (if any) */
+    const activeViewTab = isViewPanelActive
+        ? vpOpenTabs.find((t) => t.tabId === vpActiveTabId)
+        : null;
+    const activeViewDescriptor = activeViewTab
+        ? vpGetPanel(activeViewTab.panelId)
+        : null;
+
+    /** Content change handler for view panels that modify editor content */
+    const handleViewPanelContentChange = useCallback((content: string) => {
+        if (activeTabId && editorRef.current) {
+            editorRef.current.setValue(content);
+            contentRef.current = content;
+            tabContentRefs.current[activeTabId] = content;
+            setModified(true);
+            if (activeTabId) {
+                setTabs((prev) => ({
+                    ...prev,
+                    [activeTabId]: { ...prev[activeTabId], modified: true },
+                }));
+            }
+        }
+    }, [activeTabId]);
+
     /* ── Error state ────────────────────────────────────────── */
     if (error && initialContent === null) {
         return (
@@ -837,33 +892,60 @@ export default function FileEditorMonacoPage() {
                                                 {gi > 0 && <ResizableHandle withHandle className="hover:bg-blue-500/40 transition-colors" style={{ background: "var(--editor-border, #3c3c3c)" }} />}
                                                 <ResizablePanel minSize={20} className="h-full">
                                                     <div className="flex flex-col h-full">
-                                                        {/* Tab bar (memoized) */}
+                                                        {/* Tab bar: editor tabs */}
                                                         <EditorTabBar
                                                             tabIds={group.tabIds}
                                                             tabs={tabs}
-                                                            activeTabId={group.activeTabId}
+                                                            activeTabId={isViewPanelActive ? null : group.activeTabId}
                                                             pinnedTabId={initialTabId}
                                                             groupId={group.id}
-                                                            onSwitch={switchTab}
+                                                            onSwitch={handleEditorTabSwitch}
                                                             onClose={closeTab}
                                                             onCloseToLeft={closeTabsToLeft}
                                                             onCloseToRight={closeTabsToRight}
                                                             onCloseAll={closeAllTabs}
                                                             onCloseSaved={closeSavedTabs}
                                                             onSplitRight={splitTabToNewGroup}
-                                                        />
-                                                        {/* Editor for active tab */}
+                                                        >
+                                                            {/* View panel tabs rendered alongside editor tabs */}
+                                                            <ViewPanelTabBar
+                                                                tabs={vpOpenTabs}
+                                                                registry={vpRegistryRef.current}
+                                                                activeViewTabId={vpActiveTabId}
+                                                                activeEditorTabId={isViewPanelActive ? null : group.activeTabId}
+                                                                onActivate={handleViewPanelActivate}
+                                                                onClose={vpClosePanel}
+                                                            />
+                                                        </EditorTabBar>
+                                                        {/* Content: view panel or editor */}
                                                         <div className="flex-1 overflow-hidden" onClick={() => setActiveGroupId(group.id)}>
-                                                            {groupActiveTab?.loading ? (
-                                                                <div className="flex items-center justify-center h-full" style={{ background: "var(--editor-bg, #1e1e1e)" }}>
-                                                                    <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
+                                                            {/* View panel content (shown when a view panel tab is active) */}
+                                                            {isViewPanelActive && activeViewTab && activeViewDescriptor && (
+                                                                <div className="h-full w-full">
+                                                                    <ViewPanelContent
+                                                                        tab={activeViewTab}
+                                                                        descriptor={activeViewDescriptor}
+                                                                        filePath={editorFilePath}
+                                                                        fileContent={editorContent}
+                                                                        onContentChange={handleViewPanelContentChange}
+                                                                        onClose={() => vpClosePanel(activeViewTab.tabId)}
+                                                                        onOpenFile={(path) => openFileInTab(path)}
+                                                                        onNotify={(msg, type) => showEditorNotification(msg, type as any, { source: "View Panel", timeout: 3000 })}
+                                                                    />
                                                                 </div>
-                                                            ) : groupActiveTab?.error ? (
-                                                                <div className="flex items-center justify-center h-full" style={{ background: "var(--editor-bg, #1e1e1e)" }}>
-                                                                    <p className="text-sm text-red-400">{groupActiveTab.error}</p>
-                                                                </div>
-                                                            ) : (
-                                                                <MonacoEditor
+                                                            )}
+                                                            {/* Editor: always mounted, hidden when view panel is active */}
+                                                            <div className="h-full w-full" style={{ display: isViewPanelActive ? "none" : undefined }}>
+                                                                {groupActiveTab?.loading ? (
+                                                                    <div className="flex items-center justify-center h-full" style={{ background: "var(--editor-bg, #1e1e1e)" }}>
+                                                                        <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
+                                                                    </div>
+                                                                ) : groupActiveTab?.error ? (
+                                                                    <div className="flex items-center justify-center h-full" style={{ background: "var(--editor-bg, #1e1e1e)" }}>
+                                                                        <p className="text-sm text-red-400">{groupActiveTab.error}</p>
+                                                                    </div>
+                                                                ) : (
+                                                                    <MonacoEditor
                                                                     key={group.activeTabId}
                                                                     defaultValue={editorContent}
                                                                     filePath={editorFilePath || editorFileName}
@@ -932,6 +1014,7 @@ export default function FileEditorMonacoPage() {
                                                                     }}
                                                                 />
                                                             )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </ResizablePanel>

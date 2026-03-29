@@ -1,10 +1,11 @@
 /**
  * @module editor/plugins/components/CodeLensOverlay
  *
- * Renders CodeLens items above their target lines.
- * Positioned absolutely within the editor body, scrolls with content.
+ * Renders VS Code-style CodeLens items. Each lens group appears as
+ * a subtle row of clickable links positioned at the very top of its
+ * target line (flush with the line, no negative offset).
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useEditorStore, useEditorRefs } from "../../state/context";
 import type { CodeLensItem } from "../types";
 
@@ -12,13 +13,14 @@ interface CodeLensOverlayProps {
     codeLenses: CodeLensItem[];
 }
 
+/** Must match textarea padding */
+const CANVAS_PAD = 4;
+const CODE_PAD_X = 16;
+
 export function CodeLensOverlay({ codeLenses }: CodeLensOverlayProps) {
     const lineHeight = useEditorStore((s) => s.lineHeight);
-    const fontSize = useEditorStore((s) => s.fontSize);
-    const wordWrap = useEditorStore((s) => s.wordWrap);
     const { textareaRef } = useEditorRefs();
 
-    // Track scroll position reactively so the overlay re-renders on scroll
     const [scrollTop, setScrollTop] = useState(0);
 
     useEffect(() => {
@@ -26,12 +28,13 @@ export function CodeLensOverlay({ codeLenses }: CodeLensOverlayProps) {
         if (!ta) return;
         const handleScroll = () => setScrollTop(ta.scrollTop);
         ta.addEventListener("scroll", handleScroll, { passive: true });
-        // Sync initial value
         setScrollTop(ta.scrollTop);
         return () => ta.removeEventListener("scroll", handleScroll);
     }, [textareaRef]);
 
     if (codeLenses.length === 0) return null;
+
+    const viewportHeight = textareaRef.current?.clientHeight ?? 1000;
 
     // Group lenses by line
     const byLine = new Map<number, CodeLensItem[]>();
@@ -49,13 +52,14 @@ export function CodeLensOverlay({ codeLenses }: CodeLensOverlayProps) {
                 left: 0,
                 right: 0,
                 pointerEvents: "none",
-                zIndex: 3,
+                zIndex: 5,
                 overflow: "hidden",
             }}
         >
             {Array.from(byLine.entries()).map(([line, lenses]) => {
-                const top = (line - 1) * lineHeight + 10 - scrollTop - 14; // Position above the line
-                if (top < -20 || top > (textareaRef.current?.clientHeight ?? 1000)) return null;
+                // Position flush at the top of the target line
+                const top = (line - 1) * lineHeight + CANVAS_PAD - scrollTop;
+                if (top < -lineHeight || top > viewportHeight) return null;
 
                 return (
                     <div
@@ -63,12 +67,12 @@ export function CodeLensOverlay({ codeLenses }: CodeLensOverlayProps) {
                         style={{
                             position: "absolute",
                             top,
-                            left: 60,
+                            left: CODE_PAD_X,
                             display: "flex",
-                            gap: 12,
+                            gap: 10,
                             pointerEvents: "auto",
-                            height: 14,
-                            lineHeight: "14px",
+                            height: lineHeight,
+                            alignItems: "center",
                         }}
                     >
                         {lenses.map((lens) => (
@@ -76,19 +80,19 @@ export function CodeLensOverlay({ codeLenses }: CodeLensOverlayProps) {
                                 key={lens.id}
                                 onClick={lens.onClick}
                                 title={lens.tooltip}
+                                className="editor-codelens-btn"
                                 style={{
                                     background: "transparent",
                                     border: "none",
                                     padding: 0,
-                                    color: "var(--editor-muted, #6272a4)",
+                                    color: "var(--editor-codelens-fg, var(--editor-muted, #6272a4))",
                                     fontSize: 10,
                                     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
                                     cursor: "pointer",
-                                    opacity: 0.7,
+                                    opacity: 0,
                                     transition: "opacity 0.15s",
+                                    lineHeight: 1,
                                 }}
-                                onMouseEnter={(e) => { (e.target as HTMLElement).style.opacity = "1"; }}
-                                onMouseLeave={(e) => { (e.target as HTMLElement).style.opacity = "0.7"; }}
                             >
                                 {lens.title}
                             </button>

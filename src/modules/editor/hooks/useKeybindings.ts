@@ -8,6 +8,7 @@ import { useEffect, useCallback } from "react";
 import { useEditorStore, useEditorStoreApi, useEditorRefs } from "../state/context";
 import { useEditor } from "./useEditor";
 import { useTerminalPanelStore } from "../terminal/store";
+import { ghostTextStore } from "../plugins/builtin/ai-ghost-text";
 
 interface KeybindingCfg {
     onSave: () => void;
@@ -66,6 +67,9 @@ export function useKeybindings(cfg: KeybindingCfg) {
 
             /* ── Tab indent ────────────────────────── */
             if (key === "tab" && !ctrl && !alt) {
+                // If ghost text is visible, let it propagate to textarea handler
+                // where pluginHost.handleKeyEvent will accept the ghost text
+                if (ghostTextStore.getState().visible) return;
                 const ta = textareaRef.current;
                 if (ta && document.activeElement === ta) {
                     eat();

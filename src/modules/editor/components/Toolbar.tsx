@@ -4,7 +4,7 @@
  */
 import { memo, useCallback } from "react";
 import {
-    Search, Replace, ArrowDown01, RotateCcw, WrapText, Palette,
+    Search, Replace, ArrowDown01, RotateCcw, WrapText,
     Map, ZoomIn, ZoomOut, BookLock, Info, Save, Undo2, Redo2,
     AlignLeft, Keyboard, Terminal, SquareTerminal,
 } from "lucide-react";
@@ -49,11 +49,7 @@ export const Toolbar = memo(function Toolbar(props: {
     const showMinimap = useEditorStore((s) => s.showMinimap);
     const showFind = useEditorStore((s) => s.showFind);
     const showGoToLine = useEditorStore((s) => s.showGoToLine);
-    const showThemeSelector = useEditorStore((s) => s.showThemeSelector);
     const showShortcuts = useEditorStore((s) => s.showShortcuts);
-    const toggleThemeSelectorFn = useEditorStore((s) =>
-        s.showThemeSelector ? s.closeThemeSelector : s.openThemeSelector
-    );
     const canUndo = useEditorStore((s) => s.undoStack.length > 0);
     const canRedo = useEditorStore((s) => s.redoStack.length > 0);
 
@@ -81,13 +77,7 @@ export const Toolbar = memo(function Toolbar(props: {
     const sz = "w-3.5 h-3.5";
 
     return (
-        <div
-            className="flex items-center gap-1 px-3 py-1.5 select-none shrink-0"
-            style={{
-                background: "var(--editor-toolbar-bg)",
-                borderBottom: "1px solid var(--editor-border)",
-            }}
-        >
+        <div className="editor-toolbar">
             {/* File info */}
             <FileIcon fileName={props.fileName} />
             <span
@@ -129,7 +119,6 @@ export const Toolbar = memo(function Toolbar(props: {
 
             {/* View toggles */}
             <TB icon={<WrapText className={sz} />} title="Word wrap (Alt+Z)" onClick={toggleWordWrap} active={wordWrap} />
-            <TB icon={<Palette className={sz} />} title="Theme" onClick={toggleThemeSelectorFn} active={showThemeSelector} />
             <TB icon={<Map className={sz} />} title="Minimap (Ctrl+M)" onClick={toggleMinimap} active={showMinimap} />
             <TB icon={<ZoomIn className={sz} />} title="Zoom in (Ctrl+=)" onClick={zoomIn} />
             <TB icon={<ZoomOut className={sz} />} title="Zoom out (Ctrl+-)" onClick={zoomOut} />

@@ -49,7 +49,7 @@ export function useViewport(): ViewportInfo {
 
         const scrollTop = ta.scrollTop;
         const clientHeight = ta.clientHeight;
-        const padding = 10; // matches editor padding-top
+        const padding = 4; // matches CANVAS_PAD
 
         const rawStart = Math.floor(Math.max(0, scrollTop - padding) / lineHeight);
         const rawEnd = Math.ceil((scrollTop + clientHeight - padding) / lineHeight) + 1;

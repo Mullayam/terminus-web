@@ -40,6 +40,8 @@ interface EditorTabBarProps {
     onCloseAll?: () => void;
     onCloseSaved?: () => void;
     onSplitRight?: (tabId: string) => void;
+    /** Extra content rendered at the end of the tab bar (e.g. view panel tabs) */
+    children?: React.ReactNode;
 }
 
 /* ── Shared styles ───────────────────────────────────────── */
@@ -76,6 +78,7 @@ function EditorTabBarInner({
     onCloseAll,
     onCloseSaved,
     onSplitRight,
+    children,
 }: EditorTabBarProps) {
     return (
         <div
@@ -202,6 +205,7 @@ function EditorTabBarInner({
                     </ContextMenu>
                 );
             })}
+            {children}
         </div>
     );
 }

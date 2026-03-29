@@ -128,12 +128,19 @@
 .editor-gutter {
     position: relative;
     flex-shrink: 0;
-    overflow: hidden;
+    overflow: auto;
     user-select: none;
     pointer-events: none;
     background: var(--editor-gutter-bg, var(--editor-background));
-    contain: strict;
+    contain: style;
     z-index: 1;
+    /* Hide scrollbar — scroll position is driven by textarea sync */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.editor-gutter::-webkit-scrollbar {
+    display: none;
 }
 
 .editor-gutter__line {
@@ -186,7 +193,15 @@
     pointer-events: none;
     user-select: none;
     z-index: 2;
-    contain: layout style paint;
+    overflow: auto;
+    contain: style;
+    /* Hide scrollbar — scroll position is driven by textarea sync */
+    scrollbar-width: none;           /* Firefox */
+    -ms-overflow-style: none;        /* IE / Edge */
+}
+
+.editor-highlight-overlay::-webkit-scrollbar {
+    display: none;                   /* Chrome / Safari */
 }
 
 .editor-highlight-overlay code {
@@ -279,6 +294,39 @@
     color: var(--editor-whitespace, var(--editor-muted, #555));
     opacity: 0.3;
     font-size: inherit;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Plugin Overlays — VS Code-style visibility
+   ═══════════════════════════════════════════════════════════ */
+
+/* Fold chevrons: hidden by default, reveal on gutter/canvas hover */
+.editor-fold-chevron {
+    opacity: 0;
+}
+.editor-canvas:hover .editor-fold-chevron,
+.editor-fold-chevron:hover {
+    opacity: 0.6;
+}
+.editor-fold-chevron:hover {
+    opacity: 1 !important;
+}
+
+/* CodeLens buttons: hidden by default, reveal on line hover */
+.editor-codelens-btn {
+    opacity: 0 !important;
+}
+.editor-canvas:hover .editor-codelens-btn {
+    opacity: 0.55 !important;
+}
+.editor-codelens-btn:hover {
+    opacity: 1 !important;
+    text-decoration: underline;
+}
+
+/* Diagnostics tooltip — show on group hover */
+.diag-item-group:hover .diag-tooltip {
+    opacity: 1 !important;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -597,4 +645,98 @@
 .editor-split-header button:hover {
     background: var(--editor-popup-hover-bg);
     color: var(--editor-foreground);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Completion Widget — VS Code-style autocomplete popup
+   ═══════════════════════════════════════════════════════════ */
+
+.editor-completion-widget::-webkit-scrollbar {
+    width: 6px;
+}
+
+.editor-completion-widget::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.editor-completion-widget::-webkit-scrollbar-thumb {
+    background: var(--editor-scrollbar-thumb, rgba(121, 121, 121, 0.4));
+    border-radius: 3px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Context Menu — VS Code-style right-click menu
+   ═══════════════════════════════════════════════════════════ */
+
+.editor-ctx-menu {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.editor-ctx-menu button:focus-visible {
+    outline: 1px solid var(--editor-accent, #007acc);
+    outline-offset: -1px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CodeLens — clickable labels above functions/classes
+   ═══════════════════════════════════════════════════════════ */
+
+.editor-codelens-overlay button {
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: var(--editor-codelens-fg, var(--editor-muted, #858585));
+    font-size: 11px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    cursor: pointer;
+    opacity: 0.75;
+    transition: opacity 0.12s, color 0.12s;
+}
+
+.editor-codelens-overlay button:hover {
+    opacity: 1;
+    color: var(--editor-accent, #007acc);
+    text-decoration: underline;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Plugin Panels — side/bottom panels
+   ═══════════════════════════════════════════════════════════ */
+
+.editor-plugin-panels {
+    animation: plugin-panel-slide-in 120ms ease-out;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Plugin Manager — slide-in panel
+   ═══════════════════════════════════════════════════════════ */
+
+.plugin-manager-panel input:focus {
+    border-color: var(--editor-accent, #007acc) !important;
+    box-shadow: 0 0 0 1px var(--editor-accent, #007acc);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Ghost Text — AI inline suggestions
+   ═══════════════════════════════════════════════════════════ */
+
+.editor-ghost-text-overlay {
+    transition: opacity 0.15s ease;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Loading / Error States
+   ═══════════════════════════════════════════════════════════ */
+
+.editor-root .editor-loading-spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--editor-accent, #007acc);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: editor-spin 0.6s linear infinite;
+}
+
+@keyframes editor-spin {
+    to { transform: rotate(360deg); }
 }

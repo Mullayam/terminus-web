@@ -5,21 +5,32 @@
  * - Diagnostic counts (errors, warnings)
  * - Active plugin count (clickable → opens plugin manager)
  * - Panel count
+ * - Status-bar annotations (code-metrics, npm-manager)
  */
 import type { PluginHostState } from "../types";
+import type { PluginHost } from "../PluginHost";
 
 interface PluginStatusBarProps {
     snapshot: PluginHostState;
+    host?: PluginHost;
     /** Called when the user clicks the plugin count — opens plugin manager */
     onTogglePluginManager?: () => void;
 }
 
-export function PluginStatusBar({ snapshot, onTogglePluginManager }: PluginStatusBarProps) {
+export function PluginStatusBar({ snapshot, host, onTogglePluginManager }: PluginStatusBarProps) {
     const errorCount = snapshot.diagnostics.filter((d) => d.severity === "error").length;
     const warningCount = snapshot.diagnostics.filter((d) => d.severity === "warning").length;
     const infoCount = snapshot.diagnostics.filter((d) => d.severity === "info" || d.severity === "hint").length;
     const pluginCount = snapshot.enabledPlugins.size;
     const panelCount = snapshot.openPanels.size;
+
+    // Collect status-bar annotations (hidden in canvas via display:none)
+    const metricsAnnotation = snapshot.inlineAnnotations.find(
+        (a) => a.id === "code-metrics:summary",
+    );
+    const npmAnnotation = snapshot.inlineAnnotations.find(
+        (a) => a.id === "npm-manager:status",
+    );
 
     return (
         <div
@@ -73,6 +84,20 @@ export function PluginStatusBar({ snapshot, onTogglePluginManager }: PluginStatu
             {panelCount > 0 && (
                 <span title={`${panelCount} panel${panelCount !== 1 ? "s" : ""} open`}>
                     ▪ {panelCount}
+                </span>
+            )}
+            {metricsAnnotation && (
+                <span title="Code metrics" style={{ opacity: 0.7 }}>
+                    {metricsAnnotation.text}
+                </span>
+            )}
+            {npmAnnotation && (
+                <span
+                    title="NPM packages — click to toggle panel"
+                    style={{ opacity: 0.7, cursor: "pointer" }}
+                    onClick={() => host?.togglePanel?.("npm-manager:panel")}
+                >
+                    {npmAnnotation.text}
                 </span>
             )}
         </div>

@@ -61,15 +61,15 @@ export function DiagnosticsOverlay({ diagnostics }: DiagnosticsOverlayProps) {
                 right: 0,
                 bottom: 0,
                 pointerEvents: "none",
-                zIndex: 4,
+                zIndex: 5,
                 overflow: "hidden",
             }}
         >
             {diagnostics.map((diag) => {
-                const top = (diag.line - 1) * lineHeight + 10 - scrollTop;
+                const top = (diag.line - 1) * lineHeight + 4 - scrollTop;
                 if (top < -lineHeight || top > viewportHeight + lineHeight) return null;
 
-                const left = diag.startCol * charWidth + 10;
+                const left = diag.startCol * charWidth + 16;
                 const width = Math.max((diag.endCol - diag.startCol) * charWidth, charWidth);
                 const color = SEVERITY_COLORS[diag.severity];
 

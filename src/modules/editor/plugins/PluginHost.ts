@@ -6,9 +6,17 @@
  *
  * This is a pure TypeScript class – no React dependency.
  * The React integration is done via usePluginHost hook.
+ *
+ * Design:
+ *   - Immutable state snapshots: every mutation creates new collection
+ *     references so useSyncExternalStore can detect changes by reference.
+ *   - Batched emit: multiple mutations inside a batch() produce a single
+ *     notification to React, avoiding cascading re-renders.
+ *   - Ownership tracking: decorations/lenses/etc. are prefixed with
+ *     pluginId: and cleaned up automatically on disable.
  */
 import type { StoreApi } from "zustand";
-import type { EditorStoreType, EditorTheme, FormatterDefinition, KeyBinding, ContextMenuItem } from "../types";
+import type { EditorStoreType, FormatterDefinition, KeyBinding, ContextMenuItem } from "../types";
 import type {
     ExtendedEditorPlugin,
     ExtendedPluginAPI,
@@ -29,6 +37,23 @@ import { KeybindingManager } from "./KeybindingManager";
 
 type Listener = () => void;
 
+function createEmptyState(): PluginHostState {
+    return {
+        plugins: new Map(),
+        enabledPlugins: new Set(),
+        inlineDecorations: [],
+        gutterDecorations: [],
+        codeLenses: [],
+        inlineAnnotations: [],
+        diagnostics: [],
+        foldingRanges: [],
+        panels: new Map(),
+        openPanels: new Set(),
+        completionProviders: new Map(),
+        commands: new Map(),
+    };
+}
+
 export class PluginHost {
     private store: StoreApi<EditorStoreType>;
     private textareaRef: React.MutableRefObject<HTMLTextAreaElement | null>;
@@ -39,7 +64,7 @@ export class PluginHost {
     private saveListeners: Set<Listener> = new Set();
     private languageListeners: Set<(lang: string) => void> = new Set();
     private disposables: Map<string, Array<() => void>> = new Map();
-    /** Keybinding manager — handles conflict resolution and user overrides */
+    private apiCache: Map<string, ExtendedPluginAPI> = new Map();
     readonly keybindingManager = new KeybindingManager();
 
     constructor(
@@ -48,20 +73,7 @@ export class PluginHost {
     ) {
         this.store = store;
         this.textareaRef = textareaRef;
-        this.state = {
-            plugins: new Map(),
-            enabledPlugins: new Set(),
-            inlineDecorations: [],
-            gutterDecorations: [],
-            codeLenses: [],
-            inlineAnnotations: [],
-            diagnostics: [],
-            foldingRanges: [],
-            panels: new Map(),
-            openPanels: new Set(),
-            completionProviders: new Map(),
-            commands: new Map(),
-        };
+        this.state = createEmptyState();
     }
 
     // ── State snapshot (for React) ───────────────────────────
@@ -75,7 +87,6 @@ export class PluginHost {
         return () => this.listeners.delete(listener);
     }
 
-    /** When > 0, emit() is deferred until the batch ends */
     private batchDepth = 0;
     private batchDirty = false;
 
@@ -84,12 +95,10 @@ export class PluginHost {
             this.batchDirty = true;
             return;
         }
-        // Create a new state reference so React detects the change
         this.state = { ...this.state };
-        this.listeners.forEach((l) => l());
+        for (const l of this.listeners) l();
     }
 
-    /** Run fn with emit batching — only one emission at the end */
     private batch(fn: () => void): void {
         this.batchDepth++;
         try {
@@ -106,12 +115,8 @@ export class PluginHost {
     // ── Plugin registration ──────────────────────────────────
 
     register(plugin: ExtendedEditorPlugin): void {
-        if (this.state.plugins.has(plugin.id)) {
-            console.warn(`[PluginHost] Plugin "${plugin.id}" is already registered.`);
-            return;
-        }
+        if (this.state.plugins.has(plugin.id)) return;
 
-        // Validate plugin structure
         const validation = validatePlugin(plugin);
         if (!validation.valid) {
             const errors = validation.issues.filter((i) => i.level === "error");
@@ -121,22 +126,35 @@ export class PluginHost {
             );
             return;
         }
-        // Log warnings
-        for (const issue of validation.issues.filter((i) => i.level === "warning")) {
-            console.warn(`[PluginHost] ⚠ ${plugin.id}: ${issue.field} — ${issue.message}`);
-        }
 
+        this.state.plugins = new Map(this.state.plugins);
         this.state.plugins.set(plugin.id, plugin);
+
         if (plugin.defaultEnabled !== false) {
             this.enable(plugin.id);
         }
         this.emit();
     }
 
+    registerAll(plugins: ExtendedEditorPlugin[]): void {
+        this.batch(() => {
+            for (const plugin of plugins) this.register(plugin);
+        });
+    }
+
     unregister(pluginId: string): void {
+        if (!this.state.plugins.has(pluginId)) return;
         this.disable(pluginId);
+        this.state.plugins = new Map(this.state.plugins);
         this.state.plugins.delete(pluginId);
+        this.apiCache.delete(pluginId);
         this.emit();
+    }
+
+    unregisterAll(ids: Iterable<string>): void {
+        this.batch(() => {
+            for (const id of ids) this.unregister(id);
+        });
     }
 
     enable(pluginId: string): void {
@@ -144,27 +162,22 @@ export class PluginHost {
         if (!plugin || this.state.enabledPlugins.has(pluginId)) return;
 
         this.batch(() => {
+            this.state.enabledPlugins = new Set(this.state.enabledPlugins);
             this.state.enabledPlugins.add(pluginId);
-            const api = this.createAPI(pluginId);
+            const api = this.getAPI(pluginId);
 
-            // Run legacy onInit / onMount
             try { plugin.onInit?.(api); } catch (e) { console.error(`[Plugin:${pluginId}] onInit error:`, e); }
             try { plugin.onMount?.(api); } catch (e) { console.error(`[Plugin:${pluginId}] onMount error:`, e); }
 
-            // Run extended onActivate
             const activateResult = plugin.onActivate?.(api);
             if (activateResult instanceof Promise) {
                 activateResult.catch((e) => console.error(`[Plugin:${pluginId}] onActivate error:`, e));
             }
 
-            // Register static contributions
-            plugin.keybindings?.forEach((kb) => api.registerKeybinding(kb));
-            plugin.contextMenuItems?.forEach((item) => api.addContextMenuItem(item));
             plugin.formatters?.forEach((f) => api.registerFormatter(f));
             plugin.panels?.forEach((p) => this.registerPanel(p));
             plugin.completionProviders?.forEach((cp) => this.registerCompletionProvider(cp));
 
-            // Register keybindings with the KeybindingManager
             if (plugin.keybindings?.length) {
                 this.keybindingManager.registerPluginBindings(pluginId, plugin.keybindings);
             }
@@ -176,26 +189,23 @@ export class PluginHost {
 
         this.batch(() => {
             const plugin = this.state.plugins.get(pluginId);
-            const api = this.createAPI(pluginId);
+            const api = this.getAPI(pluginId);
 
             try { plugin?.onDeactivate?.(api); } catch (e) { console.error(`[Plugin:${pluginId}] onDeactivate error:`, e); }
             try { plugin?.onUnmount?.(); } catch (e) { console.error(`[Plugin:${pluginId}] onUnmount error:`, e); }
 
-            // Clean up disposables
-            this.disposables.get(pluginId)?.forEach((d) => d());
+            this.disposables.get(pluginId)?.forEach((d) => { try { d(); } catch { /* ignore */ } });
             this.disposables.delete(pluginId);
 
-            // Remove contributions owned by this plugin
             this.clearInlineDecorations(pluginId);
             this.clearGutterDecorations(pluginId);
             this.clearCodeLenses(pluginId);
             this.clearInlineAnnotations(pluginId);
             this.clearDiagnostics(pluginId);
             this.clearFoldingRanges(pluginId);
-
-            // Unregister keybindings
             this.keybindingManager.unregisterPluginBindings(pluginId);
 
+            this.state.enabledPlugins = new Set(this.state.enabledPlugins);
             this.state.enabledPlugins.delete(pluginId);
         });
     }
@@ -211,40 +221,40 @@ export class PluginHost {
     // ── Event dispatching ────────────────────────────────────
 
     dispatchContentChange(content: string): void {
-        this.contentListeners.forEach((l) => l(content));
+        for (const l of this.contentListeners) l(content);
         for (const [id, plugin] of this.state.plugins) {
             if (this.state.enabledPlugins.has(id) && plugin.onContentChange) {
-                try { plugin.onContentChange(content, this.createAPI(id)); }
+                try { plugin.onContentChange(content, this.getAPI(id)); }
                 catch (e) { console.error(`[Plugin:${id}] onContentChange error:`, e); }
             }
         }
     }
 
     dispatchSelectionChange(selection: { start: number; end: number; text: string }): void {
-        this.selectionListeners.forEach((l) => l(selection));
+        for (const l of this.selectionListeners) l(selection);
         for (const [id, plugin] of this.state.plugins) {
             if (this.state.enabledPlugins.has(id) && plugin.onSelectionChange) {
-                try { plugin.onSelectionChange(selection, this.createAPI(id)); }
+                try { plugin.onSelectionChange(selection, this.getAPI(id)); }
                 catch (e) { console.error(`[Plugin:${id}] onSelectionChange error:`, e); }
             }
         }
     }
 
     dispatchSave(): void {
-        this.saveListeners.forEach((l) => l());
+        for (const l of this.saveListeners) l();
         for (const [id, plugin] of this.state.plugins) {
             if (this.state.enabledPlugins.has(id) && plugin.onSave) {
-                try { plugin.onSave(this.createAPI(id)); }
+                try { plugin.onSave(this.getAPI(id)); }
                 catch (e) { console.error(`[Plugin:${id}] onSave error:`, e); }
             }
         }
     }
 
     dispatchLanguageChange(language: string): void {
-        this.languageListeners.forEach((l) => l(language));
+        for (const l of this.languageListeners) l(language);
         for (const [id, plugin] of this.state.plugins) {
             if (this.state.enabledPlugins.has(id) && plugin.onLanguageChange) {
-                try { plugin.onLanguageChange(language, this.createAPI(id)); }
+                try { plugin.onLanguageChange(language, this.getAPI(id)); }
                 catch (e) { console.error(`[Plugin:${id}] onLanguageChange error:`, e); }
             }
         }
@@ -252,21 +262,16 @@ export class PluginHost {
 
     // ── Keybinding dispatch ────────────────────────────────
 
-    /**
-     * Try to handle a key event via registered plugin keybindings.
-     * @returns `true` if a handler consumed the event (called preventDefault).
-     */
     handleKeyEvent(e: KeyboardEvent, context: "editor" | "find" | "always" = "editor"): boolean {
         const handler = this.keybindingManager.getHandler(e, context);
         if (handler) {
             handler(e);
-            // Only consider consumed if the handler called preventDefault()
             return e.defaultPrevented;
         }
         return false;
     }
 
-    // ── Decoration management ────────────────────────────────
+    // ── Decoration management (always produce new arrays) ────
 
     private addInlineDecorations(decorations: InlineDecoration[]): void {
         this.state.inlineDecorations = [...this.state.inlineDecorations, ...decorations];
@@ -280,10 +285,12 @@ export class PluginHost {
     }
 
     private clearInlineDecorations(ownerId: string): void {
-        this.state.inlineDecorations = this.state.inlineDecorations.filter(
-            (d) => !d.id.startsWith(`${ownerId}:`),
-        );
-        this.emit();
+        const prefix = ownerId + ":";
+        const next = this.state.inlineDecorations.filter((d) => !d.id.startsWith(prefix));
+        if (next.length !== this.state.inlineDecorations.length) {
+            this.state.inlineDecorations = next;
+            this.emit();
+        }
     }
 
     private addGutterDecorations(decorations: GutterDecoration[]): void {
@@ -298,26 +305,28 @@ export class PluginHost {
     }
 
     private clearGutterDecorations(ownerId: string): void {
-        this.state.gutterDecorations = this.state.gutterDecorations.filter(
-            (d) => !d.id.startsWith(`${ownerId}:`),
-        );
-        this.emit();
+        const prefix = ownerId + ":";
+        const next = this.state.gutterDecorations.filter((d) => !d.id.startsWith(prefix));
+        if (next.length !== this.state.gutterDecorations.length) {
+            this.state.gutterDecorations = next;
+            this.emit();
+        }
     }
 
     private setCodeLenses(lenses: CodeLensItem[]): void {
-        // Replace all lenses – the caller is responsible for including its own
-        const otherLenses = this.state.codeLenses.filter(
-            (l) => !lenses.some((nl) => nl.id === l.id),
-        );
-        this.state.codeLenses = [...otherLenses, ...lenses];
+        const ids = new Set(lenses.map((l) => l.id));
+        const others = this.state.codeLenses.filter((l) => !ids.has(l.id));
+        this.state.codeLenses = [...others, ...lenses];
         this.emit();
     }
 
     private clearCodeLenses(ownerId: string): void {
-        this.state.codeLenses = this.state.codeLenses.filter(
-            (l) => !l.id.startsWith(`${ownerId}:`),
-        );
-        this.emit();
+        const prefix = ownerId + ":";
+        const next = this.state.codeLenses.filter((l) => !l.id.startsWith(prefix));
+        if (next.length !== this.state.codeLenses.length) {
+            this.state.codeLenses = next;
+            this.emit();
+        }
     }
 
     private setInlineAnnotations(annotations: InlineAnnotation[]): void {
@@ -328,10 +337,12 @@ export class PluginHost {
     }
 
     private clearInlineAnnotations(ownerId: string): void {
-        this.state.inlineAnnotations = this.state.inlineAnnotations.filter(
-            (a) => !a.id.startsWith(`${ownerId}:`),
-        );
-        this.emit();
+        const prefix = ownerId + ":";
+        const next = this.state.inlineAnnotations.filter((a) => !a.id.startsWith(prefix));
+        if (next.length !== this.state.inlineAnnotations.length) {
+            this.state.inlineAnnotations = next;
+            this.emit();
+        }
     }
 
     private setDiagnostics(diagnostics: Diagnostic[]): void {
@@ -342,13 +353,13 @@ export class PluginHost {
     }
 
     private clearDiagnostics(ownerId: string): void {
-        this.state.diagnostics = this.state.diagnostics.filter(
-            (d) => !d.id.startsWith(`${ownerId}:`),
-        );
-        this.emit();
+        const prefix = ownerId + ":";
+        const next = this.state.diagnostics.filter((d) => !d.id.startsWith(prefix));
+        if (next.length !== this.state.diagnostics.length) {
+            this.state.diagnostics = next;
+            this.emit();
+        }
     }
-
-    // ── Folding ranges ───────────────────────────────────────
 
     private setFoldingRanges(ranges: FoldingRange[]): void {
         const ids = new Set(ranges.map((r) => r.id));
@@ -358,31 +369,36 @@ export class PluginHost {
     }
 
     private clearFoldingRanges(ownerId: string): void {
-        this.state.foldingRanges = this.state.foldingRanges.filter(
-            (r) => !r.id.startsWith(`${ownerId}:`),
-        );
-        this.emit();
+        const prefix = ownerId + ":";
+        const next = this.state.foldingRanges.filter((r) => !r.id.startsWith(prefix));
+        if (next.length !== this.state.foldingRanges.length) {
+            this.state.foldingRanges = next;
+            this.emit();
+        }
     }
 
     // ── Panel management ─────────────────────────────────────
 
     private registerPanel(panel: PanelDescriptor): void {
+        this.state.panels = new Map(this.state.panels);
         this.state.panels.set(panel.id, panel);
         this.emit();
     }
 
     private unregisterPanel(id: string): void {
+        if (!this.state.panels.has(id)) return;
+        this.state.panels = new Map(this.state.panels);
         this.state.panels.delete(id);
+        this.state.openPanels = new Set(this.state.openPanels);
         this.state.openPanels.delete(id);
         this.emit();
     }
 
-    private togglePanel(id: string): void {
+    togglePanel(id: string): void {
+        this.state.openPanels = new Set(this.state.openPanels);
         if (this.state.openPanels.has(id)) {
-            this.state.openPanels = new Set(this.state.openPanels);
             this.state.openPanels.delete(id);
         } else {
-            this.state.openPanels = new Set(this.state.openPanels);
             this.state.openPanels.add(id);
         }
         this.emit();
@@ -391,11 +407,14 @@ export class PluginHost {
     // ── Completion provider management ───────────────────────
 
     private registerCompletionProvider(provider: CompletionProvider): void {
+        this.state.completionProviders = new Map(this.state.completionProviders);
         this.state.completionProviders.set(provider.id, provider);
         this.emit();
     }
 
     private unregisterCompletionProvider(id: string): void {
+        if (!this.state.completionProviders.has(id)) return;
+        this.state.completionProviders = new Map(this.state.completionProviders);
         this.state.completionProviders.delete(id);
         this.emit();
     }
@@ -403,6 +422,7 @@ export class PluginHost {
     // ── Command management ───────────────────────────────────
 
     private registerCommand(id: string, handler: (...args: unknown[]) => void): void {
+        this.state.commands = new Map(this.state.commands);
         this.state.commands.set(id, handler);
     }
 
@@ -412,7 +432,16 @@ export class PluginHost {
         else console.warn(`[PluginHost] Command "${id}" not found.`);
     }
 
-    // ── API Factory ──────────────────────────────────────────
+    // ── API Factory (cached per plugin) ──────────────────────
+
+    getAPI(pluginId: string): ExtendedPluginAPI {
+        let api = this.apiCache.get(pluginId);
+        if (!api) {
+            api = this.createAPI(pluginId);
+            this.apiCache.set(pluginId, api);
+        }
+        return api;
+    }
 
     createAPI(pluginId: string): ExtendedPluginAPI {
         const host = this;
@@ -427,7 +456,6 @@ export class PluginHost {
         };
 
         return {
-            // ── Base EditorPluginAPI ─────────────────────────
             getContent: () => store.getState().content,
             setContent: (content: string) => store.getState().pushChange(content),
             getSelection: () => {
@@ -466,7 +494,6 @@ export class PluginHost {
             },
             setTheme: (themeId: string) => store.getState().setThemeId(themeId),
             showToast: (title: string, description?: string, type?: "default" | "success" | "error") => {
-                // Use the store's error field for simple toasts, or console
                 if (type === "error") {
                     store.getState().setError(description ?? title);
                 } else {
@@ -477,19 +504,18 @@ export class PluginHost {
                 FormatterRegistry.register(definition);
                 addDisposable(() => FormatterRegistry.unregister(definition.name));
             },
-            registerKeybinding: (_binding: KeyBinding) => {
-                // Keybindings are handled externally; store them for reference
-                // The usePluginHost hook reads them from plugin.keybindings
+            registerKeybinding: (binding: KeyBinding) => {
+                host.keybindingManager.registerPluginBindings(pluginId, [binding]);
+                addDisposable(() => host.keybindingManager.unregisterPluginBindings(pluginId));
             },
             addContextMenuItem: (_item: ContextMenuItem) => {
-                // Context menu items gathered from activated plugins at render time
+                // Context menu items gathered at render time from plugin.contextMenuItems
             },
             getFileInfo: () => {
                 const s = store.getState();
                 return { fileName: s.fileName, filePath: s.filePath, language: s.language };
             },
 
-            // ── Extended API ─────────────────────────────────
             addInlineDecorations: (decs) => host.addInlineDecorations(decs),
             removeInlineDecorations: (ids) => host.removeInlineDecorations(ids),
             clearInlineDecorations: (ownerId) => host.clearInlineDecorations(ownerId),
@@ -554,7 +580,11 @@ export class PluginHost {
 
             registerCommand: (id, handler) => {
                 host.registerCommand(`${pluginId}:${id}`, handler);
-                addDisposable(() => host.state.commands.delete(`${pluginId}:${id}`));
+                addDisposable(() => {
+                    const cmds = new Map(host.state.commands);
+                    cmds.delete(`${pluginId}:${id}`);
+                    host.state.commands = cmds;
+                });
             },
             executeCommand: (id, ...args) => host.executeCommand(id, ...args),
 
@@ -587,12 +617,13 @@ export class PluginHost {
         for (const id of this.state.enabledPlugins) {
             this.disable(id);
         }
-        this.state.plugins.clear();
+        this.state = createEmptyState();
         this.listeners.clear();
         this.contentListeners.clear();
         this.selectionListeners.clear();
         this.saveListeners.clear();
         this.languageListeners.clear();
+        this.apiCache.clear();
         this.keybindingManager.destroy();
     }
 }

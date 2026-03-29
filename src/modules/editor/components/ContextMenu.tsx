@@ -20,9 +20,10 @@ import type { ContextMenuItem } from "../types";
 interface ContextMenuProps {
     onSave: () => void;
     onFormat?: () => void;
+    pluginItems?: ContextMenuItem[];
 }
 
-export const ContextMenu = memo(function ContextMenu({ onSave, onFormat }: ContextMenuProps) {
+export const ContextMenu = memo(function ContextMenu({ onSave, onFormat, pluginItems }: ContextMenuProps) {
     const ctxMenu = useEditorStore((s) => s.ctxMenu);
     const setCtxMenu = useEditorStore((s) => s.setCtxMenu);
     const readOnly = useEditorStore((s) => s.readOnly);
@@ -276,21 +277,25 @@ export const ContextMenu = memo(function ContextMenu({ onSave, onFormat }: Conte
             action: onSave,
             disabled: !modified || readOnly,
         },
+        // Plugin-contributed items
+        ...(pluginItems ?? []),
     ];
 
     return (
         <div
             ref={ctxMenuRef}
-            className="editor-ctx-menu editor-animate-in absolute z-50 p-1.5 rounded-lg shadow-2xl shadow-black/50"
+            className="editor-ctx-menu editor-animate-in absolute z-50"
             style={{
                 left: ctxMenu.x,
                 top: ctxMenu.y,
-                minWidth: 220,
-                background: "var(--editor-popup-bg)",
-                border: "1px solid var(--editor-border)",
+                minWidth: 240,
+                padding: "4px 0",
+                borderRadius: 4,
+                background: "var(--editor-popup-bg, #252526)",
+                border: "1px solid var(--editor-border, #3c3c3c)",
+                boxShadow: "0 2px 12px rgba(0,0,0,0.35)",
                 maxHeight: "min(70vh, 500px)",
                 overflowY: "auto",
-                backdropFilter: "blur(12px)",
             }}
             onPointerDown={(e) => e.stopPropagation()}
         >
@@ -299,18 +304,21 @@ export const ContextMenu = memo(function ContextMenu({ onSave, onFormat }: Conte
                     <button
                         disabled={item.disabled}
                         onClick={() => ctxAction(item.action)}
-                        className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[13px] transition-colors"
+                        className="w-full flex items-center gap-2 text-[13px]"
                         style={{
+                            padding: "4px 24px 4px 8px",
                             color: item.disabled
                                 ? "var(--editor-muted)"
                                 : "var(--editor-foreground)",
                             cursor: item.disabled ? "default" : "pointer",
                             background: "transparent",
                             border: "none",
+                            borderRadius: 0,
+                            transition: "background 0.06s",
                         }}
                         onMouseEnter={(e) => {
                             if (!item.disabled)
-                                e.currentTarget.style.background = "var(--editor-popup-hover-bg)";
+                                e.currentTarget.style.background = "var(--editor-popup-hover-bg, rgba(4, 57, 94, 0.5))";
                         }}
                         onMouseLeave={(e) => {
                             e.currentTarget.style.background = "transparent";
@@ -319,7 +327,7 @@ export const ContextMenu = memo(function ContextMenu({ onSave, onFormat }: Conte
                         {item.icon && (
                             <span
                                 className="w-4 h-4 flex items-center justify-center shrink-0"
-                                style={{ color: item.disabled ? "var(--editor-muted)" : "var(--editor-accent)" }}
+                                style={{ color: item.disabled ? "var(--editor-muted)" : "var(--editor-muted)" }}
                             >
                                 {item.icon}
                             </span>
@@ -327,8 +335,8 @@ export const ContextMenu = memo(function ContextMenu({ onSave, onFormat }: Conte
                         <span className="flex-1 text-left">{item.label}</span>
                         {item.shortcut && (
                             <span
-                                className="text-[11px] ml-auto pl-3 tracking-wide"
-                                style={{ color: "var(--editor-muted)" }}
+                                className="text-[11px] ml-auto pl-6"
+                                style={{ color: "var(--editor-muted)", opacity: 0.7 }}
                             >
                                 {item.shortcut}
                             </span>
@@ -336,8 +344,8 @@ export const ContextMenu = memo(function ContextMenu({ onSave, onFormat }: Conte
                     </button>
                     {item.separator && (
                         <div
-                            className="my-1 h-px"
-                            style={{ background: "var(--editor-border)", opacity: 0.5 }}
+                            className="my-1 h-px mx-2"
+                            style={{ background: "var(--editor-border)", opacity: 0.4 }}
                         />
                     )}
                 </div>

@@ -88,12 +88,15 @@ function update(api: ExtendedPluginAPI) {
     const content = api.getContent();
     const m = calculateMetrics(content);
 
+    // Display as an inline annotation positioned after line 1.
+    // PluginStatusBar picks up annotations with id prefix "code-metrics:"
+    // to render them in the status bar instead of the canvas.
     const annotations: InlineAnnotation[] = [
         {
             id: "code-metrics:summary",
             line: 1,
-            text: `  ⚡ CC:${m.cyclomaticComplexity} fn:${m.functions} cls:${m.classes} nest:${m.maxNesting}`,
-            style: { opacity: 0.35, fontSize: "10px" },
+            text: `⚡ CC:${m.cyclomaticComplexity} fn:${m.functions} cls:${m.classes} nest:${m.maxNesting}`,
+            style: { display: "none" },
         },
     ];
 

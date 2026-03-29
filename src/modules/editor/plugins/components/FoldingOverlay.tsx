@@ -14,6 +14,11 @@ import { useState, useEffect, useCallback, useMemo, memo } from "react";
 import { useEditorStore, useEditorRefs } from "../../state/context";
 import type { FoldingRange } from "../types";
 
+/** Must match textarea padding */
+const CANVAS_PAD = 4;
+const CODE_PAD_X = 16;
+const AFTER_GAP = 8;
+
 interface FoldingOverlayProps {
     foldingRanges: FoldingRange[];
 }
@@ -34,7 +39,9 @@ const KIND_COLORS: Record<string, string> = {
 export const FoldingOverlay = memo(function FoldingOverlay({ foldingRanges }: FoldingOverlayProps) {
     const lineHeight = useEditorStore((s) => s.lineHeight);
     const fontSize = useEditorStore((s) => s.fontSize);
+    const content = useEditorStore((s) => s.content);
     const { textareaRef } = useEditorRefs();
+    const charWidth = fontSize * 0.6;
 
     // Track which ranges are collapsed
     const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
@@ -90,7 +97,7 @@ export const FoldingOverlay = memo(function FoldingOverlay({ foldingRanges }: Fo
 
     return (
         <>
-            {/* Fold chevrons — positioned in the gutter margin area */}
+            {/* Fold chevrons — hidden by default, shown on editor hover via CSS */}
             <div
                 className="editor-folding-chevrons"
                 style={{
@@ -99,12 +106,12 @@ export const FoldingOverlay = memo(function FoldingOverlay({ foldingRanges }: Fo
                     left: 0,
                     right: 0,
                     pointerEvents: "none",
-                    zIndex: 4,
+                    zIndex: 5,
                     overflow: "hidden",
                 }}
             >
                 {foldingRanges.map((range) => {
-                    const top = (range.startLine - 1) * lineHeight + 10 - scrollTop;
+                    const top = (range.startLine - 1) * lineHeight + CANVAS_PAD - scrollTop;
                     if (top < -lineHeight || top > containerHeight) return null;
 
                     const isCollapsed = collapsedIds.has(range.id);
@@ -113,6 +120,7 @@ export const FoldingOverlay = memo(function FoldingOverlay({ foldingRanges }: Fo
                     return (
                         <div
                             key={range.id}
+                            className="editor-fold-chevron"
                             style={{
                                 position: "absolute",
                                 top,
@@ -125,13 +133,10 @@ export const FoldingOverlay = memo(function FoldingOverlay({ foldingRanges }: Fo
                                 pointerEvents: "auto",
                                 cursor: "pointer",
                                 userSelect: "none",
-                                opacity: 0.6,
                                 transition: "opacity 0.15s, transform 0.15s",
                             }}
                             title={`${isCollapsed ? "Expand" : "Collapse"} ${range.kind} (lines ${range.startLine}–${range.endLine})`}
                             onClick={() => toggleFold(range.id)}
-                            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
-                            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.6"; }}
                         >
                             <span
                                 style={{
@@ -150,7 +155,7 @@ export const FoldingOverlay = memo(function FoldingOverlay({ foldingRanges }: Fo
                 })}
             </div>
 
-            {/* Collapsed placeholder badges on the fold line */}
+            {/* Collapsed placeholder badges — positioned after line text end */}
             <div
                 className="editor-folding-badges"
                 style={{
@@ -159,18 +164,24 @@ export const FoldingOverlay = memo(function FoldingOverlay({ foldingRanges }: Fo
                     left: 0,
                     right: 0,
                     pointerEvents: "none",
-                    zIndex: 4,
+                    zIndex: 5,
                     overflow: "hidden",
                 }}
             >
                 {foldingRanges
                     .filter((r) => collapsedIds.has(r.id))
                     .map((range) => {
-                        const top = (range.startLine - 1) * lineHeight + 10 - scrollTop;
+                        const top = (range.startLine - 1) * lineHeight + CANVAS_PAD - scrollTop;
                         if (top < -lineHeight || top > containerHeight) return null;
 
                         const hiddenCount = range.endLine - range.startLine;
                         const summary = range.collapsedText ?? `… ${hiddenCount} lines`;
+
+                        // Position after the fold line's text
+                        const lines = content.split("\n");
+                        const lineIdx = range.startLine - 1;
+                        const lineLen = lineIdx < lines.length ? lines[lineIdx].length : 0;
+                        const leftPos = lineLen * charWidth + CODE_PAD_X + AFTER_GAP;
 
                         return (
                             <div
@@ -178,7 +189,7 @@ export const FoldingOverlay = memo(function FoldingOverlay({ foldingRanges }: Fo
                                 style={{
                                     position: "absolute",
                                     top: top + 1,
-                                    right: 12,
+                                    left: leftPos,
                                     height: lineHeight - 2,
                                     display: "flex",
                                     alignItems: "center",
@@ -241,7 +252,7 @@ export const FoldingOverlay = memo(function FoldingOverlay({ foldingRanges }: Fo
                         spans.push({ start: spanStart, end: spanEnd });
 
                         return spans.map((span) => {
-                            const top = (span.start - 1) * lineHeight + 10 - scrollTop;
+                            const top = (span.start - 1) * lineHeight + CANVAS_PAD - scrollTop;
                             const height = (span.end - span.start + 1) * lineHeight;
                             if (top + height < 0 || top > containerHeight) return null;
 
