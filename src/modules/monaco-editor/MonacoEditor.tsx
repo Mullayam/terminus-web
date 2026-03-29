@@ -1540,6 +1540,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
                   <Editor
                     height="100%"
                     width="100%"
+                    path={filePath || undefined}
                     language={resolvedLanguage}
                     theme={customTheme ?? theme}
                     value={value}
@@ -1562,6 +1563,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
                 <Editor
                   height="100%"
                   width="100%"
+                  path={filePath || undefined}
                   language={resolvedLanguage}
                   theme={customTheme ?? theme}
                   value={value}
