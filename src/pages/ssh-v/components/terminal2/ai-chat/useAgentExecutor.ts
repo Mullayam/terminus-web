@@ -98,6 +98,26 @@ export function useAgentExecutor(sessionId: string) {
   const setAgentStatus = useAIChatStore((s) => s.setAgentStatus);
   const clearAgentStatus = useAIChatStore((s) => s.clearAgentStatus);
 
+  /** Update any lingering spinning agent messages so accordion icons stop */
+  const finalizeSpinningMessages = useCallback(
+    (aborted: boolean) => {
+      const state = useAIChatStore.getState();
+      const session = state.sessions[sessionId];
+      if (!session) return;
+      const { updateAgentMessage } = state;
+      const msgs = session.messages;
+      const finalAction = aborted ? 'stopped' : 'success';
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        const m = msgs[i];
+        if (m.role !== 'agent') break;
+        if (m.agentAction === 'executing' || m.agentAction === 'waiting' || m.agentAction === 'replanning') {
+          updateAgentMessage(sessionId, m.id, m.content, { agentAction: finalAction as any });
+        }
+      }
+    },
+    [sessionId],
+  );
+
   /** Wait for terminal output to settle after command execution.
    *  Waits up to OUTPUT_MAX_WAIT_MS; if still producing output, sends Ctrl+C. */
   const waitForOutput = useCallback(
@@ -301,13 +321,14 @@ export function useAgentExecutor(sessionId: string) {
         if (status?.running) {
           setAgentStatus(sessionId, { ...status, running: false });
         }
+        finalizeSpinningMessages(abortRef.current);
       }
 
       if (abortRef.current) {
         postAgent('Agent stopped by user.', 'stopped', { step });
       }
     },
-    [sessionId, executeCommand, waitForOutput, sendMessage, setAgentStatus],
+    [sessionId, executeCommand, waitForOutput, sendMessage, setAgentStatus, finalizeSpinningMessages],
   );
 
   /**
@@ -484,13 +505,14 @@ export function useAgentExecutor(sessionId: string) {
         if (status?.running) {
           setAgentStatus(sessionId, { ...status, running: false });
         }
+        finalizeSpinningMessages(abortRef.current);
       }
 
       if (abortRef.current) {
         postAgent('Agent stopped by user.', 'stopped', { step });
       }
     },
-    [sessionId, executeCommand, waitForOutput, sendMessage, setAgentStatus],
+    [sessionId, executeCommand, waitForOutput, sendMessage, setAgentStatus, finalizeSpinningMessages],
   );
 
   const stopAgent = useCallback(() => {
