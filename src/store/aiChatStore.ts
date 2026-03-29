@@ -1,12 +1,37 @@
 import { create } from 'zustand';
 import { __config } from '@/lib/config';
 
+export interface AgentStatus {
+  /** Whether the agentic loop is currently running */
+  running: boolean;
+  /** Current step/attempt number */
+  step: number;
+  /** Max retries allowed */
+  maxSteps: number;
+  /** Description of current action */
+  action: string;
+  /** Whether the last command succeeded */
+  lastResult?: 'success' | 'error' | 'running';
+}
+
+export type AgentAction = 'executing' | 'waiting' | 'success' | 'error' | 'replanning' | 'blocked' | 'stopped' | 'info';
+
 export interface AIChatMessage {
   id: number;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'agent';
   content: string;
   /** Commands extracted from the assistant response for quick actions */
   commands?: string[];
+  /** Agent step metadata (only for role === 'agent') */
+  agentAction?: AgentAction;
+  /** Step number in the agent loop */
+  agentStep?: number;
+  /** Max steps for the loop */
+  agentMaxSteps?: number;
+  /** The command being executed */
+  agentCommand?: string;
+  /** Terminal output captured */
+  agentOutput?: string;
 }
 
 interface AIChatSession {
@@ -43,6 +68,10 @@ interface AIChatState {
   selectedModel: Record<string, AIModelOption>;
   /** AI-generated ghost command to display in xterm, keyed by sessionId */
   ghostCommand: Record<string, string>;
+  /** Whether auto-execute is enabled for each session (session-scoped) */
+  autoExecute: Record<string, boolean>;
+  /** Agentic loop status per session */
+  agentStatus: Record<string, AgentStatus>;
   /** Providers fetched from the API */
   providers: AIProvider[];
   /** Whether providers are being fetched */
@@ -63,8 +92,13 @@ interface AIChatState {
   updateAssistantMessage: (sessionId: string, msgId: number, content: string) => void;
   appendAssistantContent: (sessionId: string, msgId: number, delta: string) => void;
   setMessageCommands: (sessionId: string, msgId: number, commands: string[]) => void;
+  addAgentMessage: (sessionId: string, content: string, meta?: Partial<Pick<AIChatMessage, 'agentAction' | 'agentStep' | 'agentMaxSteps' | 'agentCommand' | 'agentOutput'>>) => number;
+  updateAgentMessage: (sessionId: string, msgId: number, content: string, meta?: Partial<Pick<AIChatMessage, 'agentAction' | 'agentStep' | 'agentMaxSteps' | 'agentCommand' | 'agentOutput'>>) => void;
   setGhostCommand: (sessionId: string, command: string) => void;
   clearGhostCommand: (sessionId: string) => void;
+  setAutoExecute: (sessionId: string, enabled: boolean) => void;
+  setAgentStatus: (sessionId: string, status: AgentStatus) => void;
+  clearAgentStatus: (sessionId: string) => void;
   clearSession: (sessionId: string) => void;
   removeSession: (sessionId: string) => void;
 }
@@ -81,6 +115,8 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
   terminalContent: {},
   selectedModel: {},
   ghostCommand: {},
+  autoExecute: {},
+  agentStatus: {},
   providers: [],
   providersFetching: false,
   providersFetched: false,
@@ -206,6 +242,38 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
       };
     }),
 
+  addAgentMessage: (sessionId, content, meta) => {
+    const session = getOrCreateSession(get().sessions, sessionId);
+    const id = session.nextMsgId;
+    set((s) => ({
+      sessions: {
+        ...s.sessions,
+        [sessionId]: {
+          messages: [...session.messages, { id, role: 'agent', content, ...meta }],
+          nextMsgId: id + 1,
+        },
+      },
+    }));
+    return id;
+  },
+
+  updateAgentMessage: (sessionId, msgId, content, meta) =>
+    set((s) => {
+      const session = s.sessions[sessionId];
+      if (!session) return {};
+      return {
+        sessions: {
+          ...s.sessions,
+          [sessionId]: {
+            ...session,
+            messages: session.messages.map((m) =>
+              m.id === msgId ? { ...m, content, ...meta } : m,
+            ),
+          },
+        },
+      };
+    }),
+
   setGhostCommand: (sessionId, command) =>
     set((s) => ({ ghostCommand: { ...s.ghostCommand, [sessionId]: command } })),
 
@@ -213,6 +281,18 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
     set((s) => {
       const { [sessionId]: _, ...rest } = s.ghostCommand;
       return { ghostCommand: rest };
+    }),
+
+  setAutoExecute: (sessionId, enabled) =>
+    set((s) => ({ autoExecute: { ...s.autoExecute, [sessionId]: enabled } })),
+
+  setAgentStatus: (sessionId, status) =>
+    set((s) => ({ agentStatus: { ...s.agentStatus, [sessionId]: status } })),
+
+  clearAgentStatus: (sessionId) =>
+    set((s) => {
+      const { [sessionId]: _, ...rest } = s.agentStatus;
+      return { agentStatus: rest };
     }),
 
   clearSession: (sessionId) =>
@@ -230,7 +310,9 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
       const { [sessionId]: ___, ...selectionRest } = s.terminalSelection;
       const { [sessionId]: ____, ...modelRest } = s.selectedModel;
       const { [sessionId]: _____, ...ghostRest } = s.ghostCommand;
-      return { sessions: rest, loading: loadingRest, terminalSelection: selectionRest, selectedModel: modelRest, ghostCommand: ghostRest };
+      const { [sessionId]: ______, ...autoExecRest } = s.autoExecute;
+      const { [sessionId]: _______, ...agentRest } = s.agentStatus;
+      return { sessions: rest, loading: loadingRest, terminalSelection: selectionRest, selectedModel: modelRest, ghostCommand: ghostRest, autoExecute: autoExecRest, agentStatus: agentRest };
     }),
 }));
 

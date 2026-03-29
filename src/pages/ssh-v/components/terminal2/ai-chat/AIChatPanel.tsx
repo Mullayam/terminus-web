@@ -8,16 +8,21 @@ import {
   ClipboardPaste,
   RefreshCw,
   Send,
+  Shield,
+  ShieldCheck,
+  ShieldOff,
   Sparkles,
+  Square,
   StopCircle,
   Trash2,
   X,
   ChevronsUpDown,
 } from 'lucide-react';
 import { useSessionTheme } from '@/hooks/useSessionTheme';
-import { useAIChatStore, type AIChatMessage, getModelOptions, getDefaultModel } from '@/store/aiChatStore';
+import { useAIChatStore, type AIChatMessage, type AgentStatus, type AgentAction, getModelOptions, getDefaultModel } from '@/store/aiChatStore';
 import { useSSHStore } from '@/store/sshStore';
 import { useAIChat, extractCommands } from './useAIChat';
+import { useAgentExecutor, requestNotificationPermission } from './useAgentExecutor';
 import { SocketEventConstants } from '@/lib/sockets/event-constants';
 
 interface AIChatPanelProps {
@@ -170,6 +175,126 @@ function MessageBubble({
 }
 
 // ────────────────────────────────────────────────────
+// Agent status bubble (inline in chat)
+// ────────────────────────────────────────────────────
+const AGENT_ICONS: Record<AgentAction, { icon: typeof Play; color: string; spin?: boolean }> = {
+  executing: { icon: Loader2, color: 'cyan', spin: true },
+  waiting: { icon: Loader2, color: 'yellow', spin: true },
+  success: { icon: ShieldCheck, color: 'green' },
+  error: { icon: ShieldOff, color: 'red' },
+  replanning: { icon: RefreshCw, color: 'yellow', spin: true },
+  blocked: { icon: ShieldOff, color: 'red' },
+  stopped: { icon: Square, color: 'foreground' },
+  info: { icon: Shield, color: 'cyan' },
+};
+
+function AgentBubble({
+  msg,
+  colors,
+}: {
+  msg: AIChatMessage;
+  colors: Record<string, string>;
+}) {
+  const action = msg.agentAction ?? 'info';
+  const iconDef = AGENT_ICONS[action] ?? AGENT_ICONS.info;
+  const IconComp = iconDef.icon;
+  const iconColor = colors[iconDef.color] ?? `${colors.foreground}80`;
+  const isRunning = action === 'executing' || action === 'waiting' || action === 'replanning';
+  const [outputExpanded, setOutputExpanded] = useState(false);
+
+  return (
+    <div className="flex justify-start group">
+      <div
+        className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-1 mr-2"
+        style={{ backgroundColor: `${iconColor}20` }}
+      >
+        <IconComp
+          size={12}
+          style={{ color: iconColor }}
+          className={iconDef.spin ? 'animate-spin' : ''}
+        />
+      </div>
+      <div
+        className="max-w-[88%] rounded-lg overflow-hidden text-xs leading-relaxed"
+        style={{
+          backgroundColor: `${iconColor}08`,
+          border: `1px solid ${iconColor}20`,
+        }}
+      >
+        {/* Header row */}
+        <div
+          className="flex items-center gap-2 px-3 py-1.5"
+          style={{ color: iconColor }}
+        >
+          <span className="font-medium text-[10px] uppercase tracking-wide">
+            Agent{msg.agentStep ? ` · Step ${msg.agentStep}/${msg.agentMaxSteps ?? '?'}` : ''}
+          </span>
+          {isRunning && <Loader2 size={10} className="animate-spin" />}
+        </div>
+
+        {/* Content */}
+        <div
+          className="px-3 pb-2"
+          style={{ color: `${colors.foreground}cc` }}
+        >
+          <p className="text-[11px]">{msg.content}</p>
+        </div>
+
+        {/* Command being executed */}
+        {msg.agentCommand && (
+          <div
+            className="mx-2 mb-2 rounded overflow-hidden"
+            style={{ backgroundColor: `${colors.foreground}06`, border: `1px solid ${colors.foreground}10` }}
+          >
+            <div
+              className="px-2.5 py-1 text-[9px] font-medium"
+              style={{ color: `${colors.foreground}50`, backgroundColor: `${colors.foreground}05` }}
+            >
+              {action === 'executing' ? '▶ Running' : '$ Command'}
+            </div>
+            <pre
+              className="px-2.5 py-1.5 text-[10px] font-mono overflow-x-auto"
+              style={{ color: colors.green ?? colors.foreground }}
+            >
+              {msg.agentCommand}
+            </pre>
+          </div>
+        )}
+
+        {/* Terminal output (collapsible) */}
+        {msg.agentOutput && (
+          <div className="mx-2 mb-2">
+            <button
+              onClick={() => setOutputExpanded((v) => !v)}
+              className="flex items-center gap-1 text-[9px] px-2 py-0.5 rounded transition-colors hover:bg-white/5"
+              style={{ color: `${colors.foreground}60` }}
+            >
+              <ChevronDown
+                size={10}
+                className={`transition-transform ${outputExpanded ? 'rotate-0' : '-rotate-90'}`}
+              />
+              Terminal output ({msg.agentOutput.length} chars)
+            </button>
+            {outputExpanded && (
+              <pre
+                className="mt-1 px-2.5 py-1.5 rounded text-[10px] font-mono overflow-x-auto max-h-40 overflow-y-auto"
+                style={{
+                  backgroundColor: `${colors.foreground}06`,
+                  color: `${colors.foreground}90`,
+                  border: `1px solid ${colors.foreground}10`,
+                }}
+              >
+                {msg.agentOutput}
+              </pre>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────
 // Main AI Chat Panel
 // ────────────────────────────────────────────────────
 const EMPTY_MESSAGES: AIChatMessage[] = [];
@@ -196,6 +321,20 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
     (s) => s.selectedModel[sessionId] ?? defaultModel,
   );
   const setSelectedModel = useAIChatStore((s) => s.setSelectedModel);
+
+  // Auto-execute state
+  const autoExecute = useAIChatStore((s) => !!s.autoExecute[sessionId]);
+  const setAutoExecute = useAIChatStore((s) => s.setAutoExecute);
+  const agentStatus = useAIChatStore((s) => s.agentStatus[sessionId] as AgentStatus | undefined);
+  const { runAgentLoop, stopAgent } = useAgentExecutor(sessionId);
+
+  const handleToggleAutoExecute = useCallback(() => {
+    const next = !autoExecute;
+    setAutoExecute(sessionId, next);
+    if (next) {
+      requestNotificationPermission();
+    }
+  }, [autoExecute, sessionId, setAutoExecute]);
 
   // Fetch providers on mount
   useEffect(() => {
@@ -247,13 +386,40 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
 
   const handleSend = useCallback(() => {
     const trimmed = input.trim();
-    if (!trimmed || loading) return;
+    if (!trimmed) return;
+    // Allow sending while agent runs — AI chat handles sequencing.
+    // Only block if AI is actively streaming a response right now.
+    if (loading && !agentStatus?.running) return;
     const sel = selection || undefined;
     setInput('');
     // Clear selection after using it
     if (sel) setTerminalSelection(sessionId, '');
     sendMessage(trimmed, sel);
-  }, [input, loading, selection, sessionId, sendMessage, setTerminalSelection]);
+  }, [input, loading, selection, sessionId, sendMessage, setTerminalSelection, agentStatus?.running]);
+
+  // Auto-execute: when loading finishes and autoExecute is ON,
+  // extract commands from the last assistant message and run them
+  const prevLoadingRef = useRef(loading);
+  useEffect(() => {
+    const wasLoading = prevLoadingRef.current;
+    prevLoadingRef.current = loading;
+
+    // Trigger only when loading transitions from true → false
+    if (!wasLoading || loading) return;
+    if (!autoExecute) return;
+    if (agentStatus?.running) return;
+
+    const state = useAIChatStore.getState();
+    const session = state.sessions[sessionId];
+    if (!session) return;
+    const lastMsg = session.messages[session.messages.length - 1];
+    if (!lastMsg || lastMsg.role !== 'assistant') return;
+
+    const cmds = extractCommands(lastMsg.content);
+    if (cmds.length > 0) {
+      runAgentLoop(cmds);
+    }
+  }, [loading, autoExecute, sessionId, agentStatus?.running, runAgentLoop]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -271,7 +437,7 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
     <div
       className="fixed right-0 top-14 bottom-12 z-30 flex flex-col transition-all duration-300 ease-out animate-in slide-in-from-right themed-scrollbar"
       style={{
-        width: '400px',
+        width: '460px',
         backgroundColor: colors.background,
         borderLeftWidth: 1,
         borderLeftColor: `${colors.foreground}15`,
@@ -383,6 +549,26 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
         </div>
 
         <div className="flex items-center gap-1">
+          {/* Auto-allow toggle — like VS Code Copilot's shield button */}
+          <button
+            onClick={handleToggleAutoExecute}
+            className="p-1.5 rounded transition-colors hover:bg-white/10 relative group"
+            title={autoExecute
+              ? 'Auto-execute ON — AI will run commands automatically this session'
+              : 'Auto-execute OFF — Click to allow AI to run commands automatically'}
+          >
+            {autoExecute ? (
+              <ShieldCheck size={13} style={{ color: colors.green }} />
+            ) : (
+              <Shield size={13} style={{ color: `${colors.foreground}60` }} />
+            )}
+            {autoExecute && (
+              <span
+                className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full"
+                style={{ backgroundColor: colors.green }}
+              />
+            )}
+          </button>
           <button
             onClick={() => clearSession(sessionId)}
             className="p-1.5 rounded hover:bg-white/10 transition-colors"
@@ -399,6 +585,51 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
           </button>
         </div>
       </div>
+
+      {/* ── Auto-execute status banner ── */}
+      {autoExecute && (
+        <div
+          className="px-4 py-1.5 flex items-center gap-2 text-[10px] border-b shrink-0"
+          style={{
+            borderColor: `${colors.foreground}12`,
+            backgroundColor: agentStatus?.running
+              ? `${colors.yellow}10`
+              : `${colors.green}08`,
+            color: agentStatus?.running ? colors.yellow : colors.green,
+          }}
+        >
+          {agentStatus?.running ? (
+            <>
+              <Loader2 size={10} className="animate-spin" />
+              <span className="flex-1 truncate">
+                Agent step {agentStatus.step}/{agentStatus.maxSteps}: {agentStatus.action}
+              </span>
+              <button
+                onClick={stopAgent}
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] transition-colors hover:brightness-125"
+                style={{ backgroundColor: `${colors.red}20`, color: colors.red }}
+                title="Stop agent"
+              >
+                <Square size={8} />
+                Stop
+              </button>
+            </>
+          ) : (
+            <>
+              <ShieldCheck size={10} />
+              <span className="flex-1">Auto-execute enabled for this session</span>
+              <button
+                onClick={handleToggleAutoExecute}
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] transition-colors hover:brightness-125"
+                style={{ backgroundColor: `${colors.foreground}15`, color: `${colors.foreground}70` }}
+              >
+                <ShieldOff size={8} />
+                Disable
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* ── Messages ── */}
       <div
@@ -452,16 +683,24 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
             </div>
           </div>
         )}
-        {messages.map((msg) => (
-          <MessageBubble
-            key={msg.id}
-            msg={msg}
-            colors={colors as Record<string, string>}
-            isLoading={loading}
-            onExecute={handleExecute}
-            onPaste={handlePaste}
-          />
-        ))}
+        {messages.map((msg) =>
+          msg.role === 'agent' ? (
+            <AgentBubble
+              key={msg.id}
+              msg={msg}
+              colors={colors as Record<string, string>}
+            />
+          ) : (
+            <MessageBubble
+              key={msg.id}
+              msg={msg}
+              colors={colors as Record<string, string>}
+              isLoading={loading}
+              onExecute={handleExecute}
+              onPaste={handlePaste}
+            />
+          ),
+        )}
         {loading && messages[messages.length - 1]?.role !== 'assistant' && (
           <div className="flex items-center gap-2" style={{ color: `${colors.foreground}50` }}>
             <Loader2 size={14} className="animate-spin" />
@@ -513,10 +752,35 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
         className="px-4 py-3 border-t shrink-0"
         style={{ borderColor: `${colors.foreground}12` }}
       >
+        {/* Agent task-in-progress badge above input */}
+        {agentStatus?.running && (
+          <div
+            className="flex items-center gap-2 mb-2 px-3 py-1.5 rounded-lg text-[10px]"
+            style={{
+              backgroundColor: `${colors.yellow}10`,
+              color: colors.yellow,
+              border: `1px solid ${colors.yellow}20`,
+            }}
+          >
+            <Loader2 size={10} className="animate-spin shrink-0" />
+            <span className="flex-1 truncate">
+              Step {agentStatus.step}/{agentStatus.maxSteps}: {agentStatus.action}
+            </span>
+            <button
+              onClick={stopAgent}
+              className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] transition-colors hover:brightness-125 shrink-0"
+              style={{ backgroundColor: `${colors.red}20`, color: colors.red }}
+              title="Stop agent"
+            >
+              <Square size={8} />
+              Stop
+            </button>
+          </div>
+        )}
         <div
-          className="flex items-end gap-2 rounded-lg border px-3 py-2"
+          className="flex items-end gap-2 rounded-lg border px-3 py-2 transition-colors"
           style={{
-            borderColor: `${colors.foreground}20`,
+            borderColor: agentStatus?.running ? `${colors.yellow}40` : `${colors.foreground}20`,
             backgroundColor: `${colors.foreground}05`,
           }}
         >
@@ -525,7 +789,11 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about your terminal..."
+            placeholder={agentStatus?.running
+              ? 'Agent is working… type to send a follow-up'
+              : loading
+                ? 'AI is responding…'
+                : 'Ask about your terminal...'}
             rows={1}
             className="flex-1 bg-transparent text-xs resize-none outline-none max-h-28 min-h-[20px] themed-scrollbar"
             style={{
@@ -540,7 +808,7 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
               t.style.height = `${Math.min(t.scrollHeight, 112)}px`;
             }}
           />
-          {loading ? (
+          {loading && !agentStatus?.running ? (
             <button
               onClick={abort}
               className="p-1.5 rounded transition-colors hover:bg-white/10 shrink-0"
@@ -563,7 +831,9 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
           className="text-[9px] mt-1.5 text-center"
           style={{ color: `${colors.foreground}25` }}
         >
-          Shift+Enter for new line • {selectedModel?.label ?? 'No model'} ({selectedModel?.providerId ?? ''})
+          {agentStatus?.running
+            ? 'Agent auto-executing • You can still send messages'
+            : `Shift+Enter for new line • ${selectedModel?.label ?? 'No model'} (${selectedModel?.providerId ?? ''})`}
         </p>
       </div>
     </div>
