@@ -5,6 +5,7 @@ import { useSSHStore } from '@/store/sshStore';
 import { SocketEventConstants } from '@/lib/sockets/event-constants';
 import { useAIChat, extractCommands } from './useAIChat';
 import type { AgentAction } from '@/store/aiChatStore';
+import stripAnsi from 'strip-ansi';
 
 /** Max number of agent retry iterations per activation */
 const DEFAULT_MAX_STEPS = 25;
@@ -18,54 +19,55 @@ const OUTPUT_MAX_WAIT_MS = 30000;
 /** Additional settle time per subsequent attempt (ms) */
 const OUTPUT_SETTLE_EXTRA_MS = 500;
 
-/** The system prompt that tells AI to work step-by-step */
-const STEP_BY_STEP_PROMPT = `You are an AI agent connected to a user's SSH terminal. You can see their terminal output and execute commands.
+/** The user-level prompt for agent mode (system prompt is on backend) */
+const STEP_BY_STEP_PROMPT = `You are in AGENT MODE — you can execute commands directly on this terminal.
 
-CRITICAL RULES — READ FIRST:
-- If the user asks a QUESTION ("what's on my screen", "explain this error", "what happened") → Answer directly from the terminal context already provided. Do NOT run any commands. Just answer.
-- If the user says to RUN a specific command ("run docker ps", "execute ls -la") → Run EXACTLY that command. Nothing else before or after.
-- If the user asks to DO a task ("install nginx", "restart the app") → Run ONLY the minimum commands needed. No exploration first.
-- NEVER run exploratory/info commands (pwd, whoami, ls, hostname, uname, cat /etc/os-release) unless the user explicitly asked.
-- Do EXACTLY what the user asked. Nothing more, nothing less. No "let me check first" steps.
-
-WHEN RUNNING COMMANDS:
-- Provide EXACTLY ONE shell command per response in a \`\`\`bash code block.
-- NEVER guess or fabricate data. Use real output from previous commands.
-- After I show you command output, decide the next step based on REAL data.
-- When the task is FULLY DONE, end your response with the summary only.
-- If stuck or need user input, explain what you need.
-- If a command fails, analyze the error and provide a corrected command.
-
-FORMAT when running a command:
-**Step N: <brief description>**
-\`\`\`bash
-<single command>
-\`\`\`
-
-FORMAT when answering without commands (questions, done, blocked):
-Just provide your answer naturally. No special tokens needed.`;
+- Answer questions from terminal context without running commands.
+- For simple requests, just provide the ONE command needed.
+- For complex tasks (3+ steps), show a brief plan checklist first, then execute step by step.
+- ONE command per response in a \`\`\`bash code block.
+- After each command I'll show you the real output — use it for the next step.
+- When done, give a brief summary.`;
 
 /** Dangerous command patterns that should never be auto-executed */
 const DANGEROUS_PATTERNS = [
-  /\brm\s+-rf\s+\/(?:\s|$)/i,
-  /\bmkfs\b/i,
-  /\bdd\s+if=/i,
-  /:(){ :\|:& };:/,           // fork bomb
-  /\b>\s*\/dev\/sd/i,
+  /\brm\s+-rf\s+\/(?:\s|$)/i,       // rm -rf /
+  /\brm\s+-rf\s+\/\w+/i,            // rm -rf /home, /var, etc.
+  /\brm\s+-rf\s+~\//i,              // rm -rf ~/
+  /\brm\s+-rf\s+\.\s*$/i,           // rm -rf .
+  /\bmkfs\b/i,                       // format filesystem
+  /\bdd\s+if=/i,                     // raw disk write
+  /:(){ :\|:& };:/,                  // fork bomb
+  /\b>\s*\/dev\/sd/i,                // overwrite disk device
   /\bshutdown\b/i,
   /\breboot\b/i,
   /\bhalt\b/i,
-  /\binit\s+0\b/i,
+  /\binit\s+[06]\b/i,               // init 0 (halt) or init 6 (reboot)
+  /\bsystemctl\s+(poweroff|reboot|halt)\b/i,
+  /\bchmod\s+-R\s+777\s+\//i,       // chmod -R 777 /
+  /\bchown\s+-R\s+.*\s+\/(?:\s|$)/i, // chown -R ... /
+  /\b>\s*\/etc\/passwd\b/i,          // overwrite passwd
+  /\b>\s*\/etc\/shadow\b/i,          // overwrite shadow
+  /\biptables\s+-F\b/i,             // flush all firewall rules
+  /\bnft\s+flush\s+ruleset\b/i,     // flush nftables
+  /\bkill\s+-9\s+-1\b/i,            // kill all processes
+  /\bkillall\s+-9\b/i,              // kill all by name -9
+  /\bwget\s+.*\|\s*sh\b/i,          // pipe remote script to shell
+  /\bcurl\s+.*\|\s*sh\b/i,          // pipe remote script to shell
+  /\bcurl\s+.*\|\s*bash\b/i,        // pipe remote script to bash
+  /\bwget\s+.*\|\s*bash\b/i,        // pipe remote script to bash
+  /\b>\s*\/dev\/null\s+2>&1\s*&$/i, // backgrounded redirect (hiding output)
+  /\bcat\s+\/dev\/urandom\s*>/i,    // write random data
+  /\btruncate\s+.*\/dev\//i,        // truncate device
+  /\bfdisk\b/i,                      // partition editor
+  /\bparted\b/i,                     // partition editor
+  /\blvremove\b/i,                   // remove logical volume
+  /\bvgremove\b/i,                   // remove volume group
+  /\bpvremove\b/i,                   // remove physical volume
 ];
 
 function isDangerous(cmd: string): boolean {
   return DANGEROUS_PATTERNS.some((p) => p.test(cmd));
-}
-
-/** Strip ANSI escape sequences */
-function stripAnsi(str: string): string {
-  // eslint-disable-next-line no-control-regex
-  return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '');
 }
 
 /** Send a browser notification (if permitted and page is hidden) */
@@ -515,18 +517,72 @@ function detectError(output: string): boolean {
     'error -',
     'fatal:',
     'failed',
+    'failure',
     'command not found',
     'no such file or directory',
     'permission denied',
+    'access denied',
     'segmentation fault',
+    'segfault',
     'syntax error',
+    'unexpected token',
     'traceback (most recent call last)',
     'exception:',
+    'raise ',
     'panic:',
     'cannot ',
     'unable to',
     'not found',
     'errno',
+    'enoent',
+    'eacces',
+    'econnrefused',
+    'eaddrinuse',
+    'etimeout',
+    'timeout',
+    'timed out',
+    'connection refused',
+    'connection reset',
+    'broken pipe',
+    'no space left on device',
+    'disk quota exceeded',
+    'out of memory',
+    'oom',
+    'killed',
+    'core dumped',
+    'abort',
+    'denied',
+    'unauthorized',
+    'forbidden',
+    'invalid',
+    'malformed',
+    'unrecognized',
+    'unknown command',
+    'unknown option',
+    'missing operand',
+    'is not recognized',
+    'bad substitution',
+    'no route to host',
+    'network unreachable',
+    'name resolution',
+    'resolve host',
+    'could not resolve',
+    'exited with code',
+    'exit code',
+    'exit status',
+    'non-zero',
+    'dependency',
+    'unmet dependencies',
+    'conflict',
+    'already in use',
+    'locked',
+    'deadlock',
+    'refused',
+    'rejected',
+    'is not installed',
+    'not installed',
+    'no such',
+    'does not exist',
   ];
   return errorPatterns.some((p) => lower.includes(p));
 }

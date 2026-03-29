@@ -2,12 +2,7 @@ import { useCallback, useRef } from 'react';
 import { useAIChatStore, getDefaultModel } from '@/store/aiChatStore';
 import { useTerminalStore } from '@/store/terminalStore';
 import { __config } from '@/lib/config';
-
-/** Strip ANSI escape sequences */
-function stripAnsi(str: string): string {
-  // eslint-disable-next-line no-control-regex
-  return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '');
-}
+import stripAnsi from 'strip-ansi';
 
 /** Extract code-fenced commands from AI response */
 export function extractCommands(text: string): string[] {
