@@ -18,6 +18,7 @@ import {
   X,
   ChevronsUpDown,
 } from 'lucide-react';
+import stripAnsi from 'strip-ansi';
 import { useSessionTheme } from '@/hooks/useSessionTheme';
 import { useAIChatStore, type AIChatMessage, type AgentStatus, type AgentAction, getModelOptions, getDefaultModel } from '@/store/aiChatStore';
 import { useSSHStore } from '@/store/sshStore';
@@ -27,6 +28,159 @@ import { SocketEventConstants } from '@/lib/sockets/event-constants';
 
 interface AIChatPanelProps {
   sessionId: string;
+}
+
+// ────────────────────────────────────────────────────
+// Lightweight inline markdown renderer (no deps)
+// Handles: **bold**, *italic*, `code`, [links](url),
+//          headers (##), bullet/numbered lists, ---
+// ────────────────────────────────────────────────────
+function renderMarkdownLine(line: string, colors: Record<string, string>, keyBase: string) {
+  // Split by inline patterns, preserving delimiters
+  const tokens: React.ReactNode[] = [];
+  // Process inline formatting: bold, italic, inline code, links
+  const inlineRegex = /(\*\*(.+?)\*\*|\*(.+?)\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\))/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = inlineRegex.exec(line)) !== null) {
+    // Push text before this match
+    if (match.index > lastIndex) {
+      tokens.push(line.slice(lastIndex, match.index));
+    }
+    if (match[2]) {
+      // **bold**
+      tokens.push(<strong key={`${keyBase}-b-${match.index}`} style={{ color: colors.foreground, fontWeight: 600 }}>{match[2]}</strong>);
+    } else if (match[3]) {
+      // *italic*
+      tokens.push(<em key={`${keyBase}-i-${match.index}`} style={{ opacity: 0.9 }}>{match[3]}</em>);
+    } else if (match[4]) {
+      // `inline code`
+      tokens.push(
+        <code
+          key={`${keyBase}-c-${match.index}`}
+          className="px-1 py-0.5 rounded text-[10px] font-mono"
+          style={{ backgroundColor: `${colors.foreground}12`, color: colors.cyan }}
+        >
+          {match[4]}
+        </code>,
+      );
+    } else if (match[5] && match[6]) {
+      // [text](url)
+      tokens.push(
+        <a
+          key={`${keyBase}-a-${match.index}`}
+          href={match[6]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:brightness-125"
+          style={{ color: colors.blue }}
+        >
+          {match[5]}
+        </a>,
+      );
+    }
+    lastIndex = match.index + match[0].length;
+  }
+  // Remaining text
+  if (lastIndex < line.length) {
+    tokens.push(line.slice(lastIndex));
+  }
+  return tokens.length > 0 ? tokens : [line];
+}
+
+function renderMarkdownBlock(text: string, colors: Record<string, string>, keyPrefix: string) {
+  const lines = text.split('\n');
+  const elements: React.ReactNode[] = [];
+  let listBuffer: { type: 'ul' | 'ol'; items: React.ReactNode[] } | null = null;
+
+  const flushList = () => {
+    if (!listBuffer) return;
+    const Tag = listBuffer.type === 'ol' ? 'ol' : 'ul';
+    elements.push(
+      <Tag
+        key={`${keyPrefix}-list-${elements.length}`}
+        className={`text-[11px] leading-relaxed pl-4 my-1 ${listBuffer.type === 'ol' ? 'list-decimal' : 'list-disc'}`}
+        style={{ color: `${colors.foreground}cc` }}
+      >
+        {listBuffer.items.map((item, li) => (
+          <li key={li} className="py-0.5">{item}</li>
+        ))}
+      </Tag>,
+    );
+    listBuffer = null;
+  };
+
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
+    const trimmed = line.trim();
+
+    // Horizontal rule
+    if (/^-{3,}$/.test(trimmed) || /^\*{3,}$/.test(trimmed)) {
+      flushList();
+      elements.push(
+        <hr key={`${keyPrefix}-hr-${li}`} className="my-2 border-t" style={{ borderColor: `${colors.foreground}15` }} />,
+      );
+      continue;
+    }
+
+    // Headers (h1–h4)
+    const headerMatch = trimmed.match(/^(#{1,4})\s+(.+)$/);
+    if (headerMatch) {
+      flushList();
+      const level = headerMatch[1].length;
+      const sizes = ['text-sm font-bold', 'text-xs font-bold', 'text-xs font-semibold', 'text-[11px] font-semibold'];
+      elements.push(
+        <div
+          key={`${keyPrefix}-h-${li}`}
+          className={`${sizes[level - 1] ?? sizes[3]} mt-2 mb-1`}
+          style={{ color: colors.foreground }}
+        >
+          {renderMarkdownLine(headerMatch[2], colors, `${keyPrefix}-h-${li}`)}
+        </div>,
+      );
+      continue;
+    }
+
+    // Unordered list item (- or *)
+    const ulMatch = trimmed.match(/^[-*]\s+(.+)$/);
+    if (ulMatch) {
+      if (!listBuffer || listBuffer.type !== 'ul') {
+        flushList();
+        listBuffer = { type: 'ul', items: [] };
+      }
+      listBuffer.items.push(renderMarkdownLine(ulMatch[1], colors, `${keyPrefix}-ul-${li}`));
+      continue;
+    }
+
+    // Ordered list item (1. 2. etc)
+    const olMatch = trimmed.match(/^\d+\.\s+(.+)$/);
+    if (olMatch) {
+      if (!listBuffer || listBuffer.type !== 'ol') {
+        flushList();
+        listBuffer = { type: 'ol', items: [] };
+      }
+      listBuffer.items.push(renderMarkdownLine(olMatch[1], colors, `${keyPrefix}-ol-${li}`));
+      continue;
+    }
+
+    // Empty line
+    if (!trimmed) {
+      flushList();
+      elements.push(<div key={`${keyPrefix}-br-${li}`} className="h-1.5" />);
+      continue;
+    }
+
+    // Regular paragraph line
+    flushList();
+    elements.push(
+      <span key={`${keyPrefix}-p-${li}`} className="block text-[11px] leading-relaxed">
+        {renderMarkdownLine(trimmed, colors, `${keyPrefix}-p-${li}`)}
+      </span>,
+    );
+  }
+  flushList();
+  return elements;
 }
 
 // ────────────────────────────────────────────────────
@@ -112,10 +266,10 @@ function renderContent(
         </div>
       );
     }
-    // Regular text — preserve newlines
+    // Markdown text between code blocks
     return (
-      <span key={i} className="whitespace-pre-wrap">
-        {part}
+      <span key={i}>
+        {renderMarkdownBlock(part, colors, `md-${i}`)}
       </span>
     );
   });
@@ -150,7 +304,7 @@ function MessageBubble({
         </div>
       )}
       <div
-        className={`max-w-[88%] rounded-lg px-3 py-2 text-xs leading-relaxed ${
+        className={`max-w-[96%] rounded-lg px-3 py-2 text-xs leading-relaxed overflow-hidden break-words ${
           isUser ? '' : ''
         }`}
         style={
@@ -160,9 +314,9 @@ function MessageBubble({
         }
       >
         {isUser ? (
-          <span className="whitespace-pre-wrap">{msg.content}</span>
+          msg.content ? renderContent(stripAnsi(msg.content), colors, onExecute, onPaste) : null
         ) : msg.content ? (
-          renderContent(msg.content, colors, onExecute, onPaste)
+          renderContent(stripAnsi(msg.content), colors, onExecute, onPaste)
         ) : isLoading ? (
           <span className="flex items-center gap-1.5" style={{ color: `${colors.foreground}50` }}>
             <Loader2 size={12} className="animate-spin" />
@@ -175,7 +329,7 @@ function MessageBubble({
 }
 
 // ────────────────────────────────────────────────────
-// Agent status bubble (inline in chat)
+// Agent status bubble (inline in chat) — single step row
 // ────────────────────────────────────────────────────
 const AGENT_ICONS: Record<AgentAction, { icon: typeof Play; color: string; spin?: boolean }> = {
   executing: { icon: Loader2, color: 'cyan', spin: true },
@@ -188,7 +342,8 @@ const AGENT_ICONS: Record<AgentAction, { icon: typeof Play; color: string; spin?
   info: { icon: Shield, color: 'cyan' },
 };
 
-function AgentBubble({
+/** A single agent step — shown inside the accordion */
+function AgentStepRow({
   msg,
   colors,
 }: {
@@ -199,97 +354,147 @@ function AgentBubble({
   const iconDef = AGENT_ICONS[action] ?? AGENT_ICONS.info;
   const IconComp = iconDef.icon;
   const iconColor = colors[iconDef.color] ?? `${colors.foreground}80`;
-  const isRunning = action === 'executing' || action === 'waiting' || action === 'replanning';
-  const [outputExpanded, setOutputExpanded] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const hasDetail = !!(msg.agentCommand || msg.agentOutput);
 
   return (
-    <div className="flex justify-start group">
-      <div
-        className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-1 mr-2"
-        style={{ backgroundColor: `${iconColor}20` }}
+    <div className="py-1">
+      <button
+        onClick={() => hasDetail && setDetailOpen((v) => !v)}
+        className={`flex items-center gap-2 w-full text-left text-[10px] px-2 py-1 rounded transition-colors ${hasDetail ? 'hover:bg-white/5 cursor-pointer' : 'cursor-default'}`}
+        style={{ color: iconColor }}
       >
         <IconComp
-          size={12}
-          style={{ color: iconColor }}
+          size={10}
           className={iconDef.spin ? 'animate-spin' : ''}
-        />
-      </div>
-      <div
-        className="max-w-[88%] rounded-lg overflow-hidden text-xs leading-relaxed"
-        style={{
-          backgroundColor: `${iconColor}08`,
-          border: `1px solid ${iconColor}20`,
-        }}
-      >
-        {/* Header row */}
-        <div
-          className="flex items-center gap-2 px-3 py-1.5"
           style={{ color: iconColor }}
-        >
-          <span className="font-medium text-[10px] uppercase tracking-wide">
-            Agent{msg.agentStep ? ` · Step ${msg.agentStep}/${msg.agentMaxSteps ?? '?'}` : ''}
-          </span>
-          {isRunning && <Loader2 size={10} className="animate-spin" />}
-        </div>
-
-        {/* Content */}
-        <div
-          className="px-3 pb-2"
-          style={{ color: `${colors.foreground}cc` }}
-        >
-          <p className="text-[11px]">{msg.content}</p>
-        </div>
-
-        {/* Command being executed */}
-        {msg.agentCommand && (
-          <div
-            className="mx-2 mb-2 rounded overflow-hidden"
-            style={{ backgroundColor: `${colors.foreground}06`, border: `1px solid ${colors.foreground}10` }}
-          >
-            <div
-              className="px-2.5 py-1 text-[9px] font-medium"
-              style={{ color: `${colors.foreground}50`, backgroundColor: `${colors.foreground}05` }}
-            >
-              {action === 'executing' ? '▶ Running' : '$ Command'}
-            </div>
+        />
+        <span className="flex-1 truncate" style={{ color: `${colors.foreground}bb` }}>
+          {msg.agentStep ? `Step ${msg.agentStep}: ` : ''}{stripAnsi(msg.content ?? '')}
+        </span>
+        {hasDetail && (
+          <ChevronDown
+            size={10}
+            className={`shrink-0 transition-transform ${detailOpen ? 'rotate-0' : '-rotate-90'}`}
+            style={{ color: `${colors.foreground}40` }}
+          />
+        )}
+      </button>
+      {detailOpen && (
+        <div className="ml-6 mt-1 space-y-1">
+          {msg.agentCommand && (
             <pre
-              className="px-2.5 py-1.5 text-[10px] font-mono overflow-x-auto"
-              style={{ color: colors.green ?? colors.foreground }}
+              className="px-2 py-1 rounded text-[10px] font-mono overflow-x-auto"
+              style={{
+                backgroundColor: `${colors.foreground}06`,
+                color: colors.green ?? colors.foreground,
+                border: `1px solid ${colors.foreground}10`,
+              }}
             >
-              {msg.agentCommand}
+              $ {stripAnsi(msg.agentCommand)}
             </pre>
-          </div>
-        )}
-
-        {/* Terminal output (collapsible) */}
-        {msg.agentOutput && (
-          <div className="mx-2 mb-2">
-            <button
-              onClick={() => setOutputExpanded((v) => !v)}
-              className="flex items-center gap-1 text-[9px] px-2 py-0.5 rounded transition-colors hover:bg-white/5"
-              style={{ color: `${colors.foreground}60` }}
+          )}
+          {msg.agentOutput && (
+            <pre
+              className="px-2 py-1 rounded text-[10px] font-mono overflow-x-auto max-h-32 overflow-y-auto"
+              style={{
+                backgroundColor: `${colors.foreground}06`,
+                color: `${colors.foreground}80`,
+                border: `1px solid ${colors.foreground}10`,
+              }}
             >
-              <ChevronDown
-                size={10}
-                className={`transition-transform ${outputExpanded ? 'rotate-0' : '-rotate-90'}`}
-              />
-              Terminal output ({msg.agentOutput.length} chars)
-            </button>
-            {outputExpanded && (
-              <pre
-                className="mt-1 px-2.5 py-1.5 rounded text-[10px] font-mono overflow-x-auto max-h-40 overflow-y-auto"
-                style={{
-                  backgroundColor: `${colors.foreground}06`,
-                  color: `${colors.foreground}90`,
-                  border: `1px solid ${colors.foreground}10`,
-                }}
-              >
-                {msg.agentOutput}
-              </pre>
-            )}
-          </div>
+              {stripAnsi(msg.agentOutput)}
+            </pre>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Accordion that groups consecutive agent messages */
+function AgentAccordion({
+  agentMessages,
+  colors,
+}: {
+  agentMessages: AIChatMessage[];
+  colors: Record<string, string>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  if (agentMessages.length === 0) return null;
+
+  // Determine overall status from the last message
+  const last = agentMessages[agentMessages.length - 1];
+  const lastAction = last.agentAction ?? 'info';
+  const isRunning = lastAction === 'executing' || lastAction === 'waiting' || lastAction === 'replanning';
+  const isDone = lastAction === 'success';
+  const isError = lastAction === 'error' || lastAction === 'blocked';
+  const isStopped = lastAction === 'stopped';
+
+  const accentColor = isRunning
+    ? colors.cyan
+    : isDone
+      ? colors.green
+      : isError
+        ? colors.red
+        : isStopped
+          ? `${colors.foreground}60`
+          : `${colors.foreground}80`;
+
+  // Summary label
+  const totalSteps = agentMessages.filter((m) => m.agentCommand).length;
+  const maxStep = last.agentMaxSteps ?? '?';
+  const label = isRunning
+    ? `Agent working — step ${last.agentStep ?? '?'}/${maxStep}`
+    : isDone
+      ? `Agent completed — ${totalSteps} command${totalSteps !== 1 ? 's' : ''} executed`
+      : isError
+        ? `Agent stopped — error at step ${last.agentStep ?? '?'}`
+        : isStopped
+          ? 'Agent stopped by user'
+          : `Agent — ${agentMessages.length} step${agentMessages.length !== 1 ? 's' : ''}`;
+
+  return (
+    <div
+      className="rounded-lg overflow-hidden text-xs"
+      style={{
+        backgroundColor: `${accentColor}06`,
+        border: `1px solid ${accentColor}18`,
+      }}
+    >
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="flex items-center gap-2 w-full px-3 py-2 text-left transition-colors hover:bg-white/5"
+        style={{ color: accentColor }}
+      >
+        {isRunning ? (
+          <Loader2 size={12} className="animate-spin shrink-0" />
+        ) : isDone ? (
+          <ShieldCheck size={12} className="shrink-0" />
+        ) : isError ? (
+          <ShieldOff size={12} className="shrink-0" />
+        ) : isStopped ? (
+          <Square size={12} className="shrink-0" />
+        ) : (
+          <Shield size={12} className="shrink-0" />
         )}
-      </div>
+        <span className="flex-1 text-[11px] font-medium truncate">{label}</span>
+        <ChevronDown
+          size={12}
+          className={`shrink-0 transition-transform ${expanded ? 'rotate-0' : '-rotate-90'}`}
+          style={{ color: `${colors.foreground}40` }}
+        />
+      </button>
+      {expanded && (
+        <div
+          className="px-2 pb-2 border-t"
+          style={{ borderColor: `${accentColor}15` }}
+        >
+          {agentMessages.map((msg) => (
+            <AgentStepRow key={msg.id} msg={msg} colors={colors} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -326,7 +531,7 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
   const autoExecute = useAIChatStore((s) => !!s.autoExecute[sessionId]);
   const setAutoExecute = useAIChatStore((s) => s.setAutoExecute);
   const agentStatus = useAIChatStore((s) => s.agentStatus[sessionId] as AgentStatus | undefined);
-  const { runAgentLoop, stopAgent } = useAgentExecutor(sessionId);
+  const { runAgentLoop, runStepByStepLoop, stopAgent } = useAgentExecutor(sessionId);
 
   const handleToggleAutoExecute = useCallback(() => {
     const next = !autoExecute;
@@ -394,11 +599,20 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
     setInput('');
     // Clear selection after using it
     if (sel) setTerminalSelection(sessionId, '');
-    sendMessage(trimmed, sel);
-  }, [input, loading, selection, sessionId, sendMessage, setTerminalSelection, agentStatus?.running]);
 
-  // Auto-execute: when loading finishes and autoExecute is ON,
-  // extract commands from the last assistant message and run them
+    // When auto-execute is ON and agent isn't already running,
+    // use step-by-step mode so AI plans one command at a time using real output.
+    if (autoExecute && !agentStatus?.running) {
+      runStepByStepLoop(trimmed);
+    } else {
+      sendMessage(trimmed, sel);
+    }
+  }, [input, loading, selection, sessionId, sendMessage, setTerminalSelection, agentStatus?.running, autoExecute, runStepByStepLoop]);
+
+  // Auto-execute fallback: when loading finishes and autoExecute is ON,
+  // and the agent ISN'T already running (i.e. a normal AI response with commands),
+  // extract commands and run them in batch mode.
+  // This handles the case where user toggled auto-execute mid-conversation.
   const prevLoadingRef = useRef(loading);
   useEffect(() => {
     const wasLoading = prevLoadingRef.current;
@@ -409,10 +623,17 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
     if (!autoExecute) return;
     if (agentStatus?.running) return;
 
+    // Don't trigger if the last message was from the agent loop itself
+    // (step-by-step sends its own messages)
     const state = useAIChatStore.getState();
     const session = state.sessions[sessionId];
     if (!session) return;
-    const lastMsg = session.messages[session.messages.length - 1];
+    const msgs = session.messages;
+    // Check if any recent agent message exists — means step-by-step is handling it
+    const recentAgent = msgs.slice(-5).some((m) => m.role === 'agent');
+    if (recentAgent) return;
+
+    const lastMsg = msgs[msgs.length - 1];
     if (!lastMsg || lastMsg.role !== 'assistant') return;
 
     const cmds = extractCommands(lastMsg.content);
@@ -435,9 +656,9 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
 
   return (
     <div
-      className="fixed right-0 top-14 bottom-12 z-30 flex flex-col transition-all duration-300 ease-out animate-in slide-in-from-right themed-scrollbar"
+      className="fixed right-0 top-14 bottom-12 z-30 flex flex-col overflow-hidden transition-all duration-300 ease-out animate-in slide-in-from-right themed-scrollbar"
       style={{
-        width: '460px',
+        width: '500px',
         backgroundColor: colors.background,
         borderLeftWidth: 1,
         borderLeftColor: `${colors.foreground}15`,
@@ -634,7 +855,7 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
       {/* ── Messages ── */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto px-4 py-3 space-y-3"
+        className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 space-y-3"
       >
         {messages.length === 0 && (
           <div
@@ -683,24 +904,44 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
             </div>
           </div>
         )}
-        {messages.map((msg) =>
-          msg.role === 'agent' ? (
-            <AgentBubble
-              key={msg.id}
-              msg={msg}
-              colors={colors as Record<string, string>}
-            />
-          ) : (
-            <MessageBubble
-              key={msg.id}
-              msg={msg}
-              colors={colors as Record<string, string>}
-              isLoading={loading}
-              onExecute={handleExecute}
-              onPaste={handlePaste}
-            />
-          ),
-        )}
+        {(() => {
+          // Group consecutive agent messages into accordions
+          const elements: React.ReactNode[] = [];
+          let agentBuffer: AIChatMessage[] = [];
+
+          const flushAgents = () => {
+            if (agentBuffer.length > 0) {
+              elements.push(
+                <AgentAccordion
+                  key={`agent-group-${agentBuffer[0].id}`}
+                  agentMessages={agentBuffer}
+                  colors={colors as Record<string, string>}
+                />,
+              );
+              agentBuffer = [];
+            }
+          };
+
+          for (const msg of messages) {
+            if (msg.role === 'agent') {
+              agentBuffer.push(msg);
+            } else {
+              flushAgents();
+              elements.push(
+                <MessageBubble
+                  key={msg.id}
+                  msg={msg}
+                  colors={colors as Record<string, string>}
+                  isLoading={loading}
+                  onExecute={handleExecute}
+                  onPaste={handlePaste}
+                />,
+              );
+            }
+          }
+          flushAgents();
+          return elements;
+        })()}
         {loading && messages[messages.length - 1]?.role !== 'assistant' && (
           <div className="flex items-center gap-2" style={{ color: `${colors.foreground}50` }}>
             <Loader2 size={14} className="animate-spin" />
@@ -806,6 +1047,16 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
               const t = e.currentTarget;
               t.style.height = 'auto';
               t.style.height = `${Math.min(t.scrollHeight, 112)}px`;
+            }}
+            onPaste={() => {
+              // After paste content is applied, recalc height on next tick
+              requestAnimationFrame(() => {
+                const t = inputRef.current;
+                if (t) {
+                  t.style.height = 'auto';
+                  t.style.height = `${Math.min(t.scrollHeight, 112)}px`;
+                }
+              });
             }}
           />
           {loading && !agentStatus?.running ? (

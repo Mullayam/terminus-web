@@ -7,13 +7,40 @@ import { useAIChat, extractCommands } from './useAIChat';
 import type { AgentAction } from '@/store/aiChatStore';
 
 /** Max number of agent retry iterations per activation */
-const DEFAULT_MAX_STEPS = 5;
+const DEFAULT_MAX_STEPS = 10;
 
 /** How long to wait (ms) after executing a command before reading output */
 const OUTPUT_SETTLE_MS = 3000;
 
 /** Additional settle time per subsequent attempt (ms) */
 const OUTPUT_SETTLE_EXTRA_MS = 1000;
+
+/** The system prompt that tells AI to work step-by-step */
+const STEP_BY_STEP_PROMPT = `You are an AI agent connected to a user's SSH terminal. You can see their terminal output and execute commands.
+
+CRITICAL RULES — READ FIRST:
+- If the user asks a QUESTION ("what's on my screen", "explain this error", "what happened") → Answer directly from the terminal context provided. Do NOT run any commands. Respond with [TASK_COMPLETE] and your answer.
+- If the user asks to DO something ("install nginx", "restart docker", "find large files") → Execute ONLY the commands needed. No extras.
+- NEVER run exploratory commands (pwd, whoami, ls, hostname, uname) unless the user explicitly asked for them.
+- Do EXACTLY what the user asked. Nothing more, nothing less.
+
+WHEN RUNNING COMMANDS:
+- Provide EXACTLY ONE shell command per response in a \`\`\`bash code block.
+- NEVER guess or fabricate data. Use real output from previous commands.
+- After I show you command output, decide the next step based on REAL data.
+- When done, respond with "[TASK_COMPLETE]" and a brief summary.
+- If stuck or need user input, respond with "[TASK_BLOCKED]" and explain why.
+- If a command fails, analyze the error and provide a corrected command.
+
+FORMAT when running a command:
+**Step N: <brief description>**
+\`\`\`bash
+<single command>
+\`\`\`
+
+FORMAT when answering without commands:
+[TASK_COMPLETE]
+<your answer>`;
 
 /** Dangerous command patterns that should never be auto-executed */
 const DANGEROUS_PATTERNS = [
@@ -121,12 +148,9 @@ export function useAgentExecutor(sessionId: string) {
   );
 
   /**
-   * Run the agentic execution loop:
-   * 1. Gets commands from the last assistant message
-   * 2. Executes them one by one
-   * 3. Reads output, checks for errors
-   * 4. If errors found, sends output back to AI to replan
-   * 5. Repeats up to maxSteps times
+   * Run the agentic execution loop (batch mode):
+   * Gets pre-extracted commands and runs them, replanning on error.
+   * Use runStepByStepLoop() for multi-step tasks that need real output between steps.
    */
   const runAgentLoop = useCallback(
     async (commands: string[], maxSteps = DEFAULT_MAX_STEPS) => {
@@ -136,7 +160,6 @@ export function useAgentExecutor(sessionId: string) {
 
       const { addAgentMessage, updateAgentMessage } = useAIChatStore.getState();
 
-      /** Post or update an agent message in the chat */
       const postAgent = (
         content: string,
         action: AgentAction,
@@ -165,7 +188,6 @@ export function useAgentExecutor(sessionId: string) {
       let currentCommands = commands;
       let step = 1;
 
-      // Initial agent message
       postAgent(
         `Starting auto-execute — ${commands.length} command${commands.length > 1 ? 's' : ''} (max ${maxSteps} steps)`,
         'info',
@@ -180,7 +202,6 @@ export function useAgentExecutor(sessionId: string) {
             break;
           }
 
-          // Filter out dangerous commands
           const safeCommands = currentCommands.filter((cmd) => {
             if (isDangerous(cmd)) {
               postAgent(`Blocked dangerous command: \`${cmd}\``, 'blocked', { step, command: cmd });
@@ -195,30 +216,18 @@ export function useAgentExecutor(sessionId: string) {
             break;
           }
 
-          // Execute each command sequentially
           let lastOutput = '';
           for (let ci = 0; ci < safeCommands.length; ci++) {
             if (abortRef.current) break;
             const cmd = safeCommands[ci];
 
-            updateStatus({
-              step,
-              action: `Running: ${cmd.slice(0, 60)}${cmd.length > 60 ? '…' : ''}`,
-              lastResult: 'running',
-            });
+            updateStatus({ step, action: `Running: ${cmd.slice(0, 60)}${cmd.length > 60 ? '…' : ''}`, lastResult: 'running' });
 
-            // Post "executing" message in chat
-            const execMsgId = postAgent(
-              `Executing command...`,
-              'executing',
-              { step, command: cmd },
-            );
-
+            const execMsgId = postAgent('Executing command...', 'executing', { step, command: cmd });
             const prevLen = executeCommand(cmd);
             const output = await waitForOutput(prevLen, step * OUTPUT_SETTLE_EXTRA_MS);
             lastOutput = output;
 
-            // Update the message with the captured output
             updateAgentMessage(sessionId, execMsgId, output ? 'Command completed' : 'Command completed (no output)', {
               agentAction: 'waiting',
               agentStep: step,
@@ -230,70 +239,28 @@ export function useAgentExecutor(sessionId: string) {
 
           if (abortRef.current) break;
 
-          // Check if output looks like an error
           const hasError = detectError(lastOutput);
-
           if (!hasError) {
-            // Success — done
-            updateStatus({
-              step,
-              action: 'Completed successfully',
-              lastResult: 'success',
-              running: false,
-            });
-            postAgent(
-              `All commands completed successfully.`,
-              'success',
-              { step },
-            );
-            notifyIfHidden(
-              'Terminus AI Agent',
-              `Commands completed successfully (step ${step}/${maxSteps}).`,
-            );
+            updateStatus({ step, action: 'Completed successfully', lastResult: 'success', running: false });
+            postAgent('All commands completed successfully.', 'success', { step });
+            notifyIfHidden('Terminus AI Agent', `Commands completed successfully (step ${step}/${maxSteps}).`);
             break;
           }
 
-          // Error detected — replan
           if (step >= maxSteps) {
-            updateStatus({
-              step,
-              action: `Max retries reached (${maxSteps})`,
-              lastResult: 'error',
-              running: false,
-            });
-            postAgent(
-              `Max retries reached (${maxSteps}). Manual intervention needed.`,
-              'error',
-              { step, output: lastOutput.slice(0, 800) },
-            );
-            notifyIfHidden(
-              'Terminus AI Agent',
-              `Stopped after ${maxSteps} attempts. Manual intervention needed.`,
-            );
+            updateStatus({ step, action: `Max retries reached (${maxSteps})`, lastResult: 'error', running: false });
+            postAgent(`Max retries reached (${maxSteps}). Manual intervention needed.`, 'error', { step, output: lastOutput.slice(0, 800) });
+            notifyIfHidden('Terminus AI Agent', `Stopped after ${maxSteps} attempts.`);
             break;
           }
 
-          postAgent(
-            `Error detected in output — replanning (step ${step + 1}/${maxSteps})...`,
-            'replanning',
-            { step, output: lastOutput.slice(0, 800) },
-          );
+          postAgent(`Error detected — replanning (step ${step + 1}/${maxSteps})...`, 'replanning', { step, output: lastOutput.slice(0, 800) });
+          updateStatus({ step, action: 'Error detected, replanning…', lastResult: 'error' });
 
-          updateStatus({
-            step,
-            action: 'Error detected, replanning…',
-            lastResult: 'error',
-          });
-
-          // Send the error output back to AI for replanning
           step++;
-          const replanPrompt =
-            `The previous command(s) failed. Here is the terminal output:\n\`\`\`\n${lastOutput.slice(0, 2000)}\n\`\`\`\n\nPlease analyze the error and provide corrected command(s) to fix the issue. Only provide shell commands in code blocks.`;
+          const replanPrompt = `The previous command(s) failed. Here is the terminal output:\n\`\`\`\n${lastOutput.slice(0, 2000)}\n\`\`\`\n\nPlease analyze the error and provide corrected command(s) to fix the issue. Only provide shell commands in code blocks.`;
+          await sendMessage(replanPrompt, undefined, { displayContent: null });
 
-          // Wait for AI response — sendMessage is async and will add the response to the store
-          await sendMessage(replanPrompt);
-
-          // Extract commands from the latest assistant message
           const state = useAIChatStore.getState();
           const session = state.sessions[sessionId];
           if (!session) break;
@@ -302,11 +269,7 @@ export function useAgentExecutor(sessionId: string) {
 
           currentCommands = extractCommands(lastMsg.content);
           if (currentCommands.length === 0) {
-            updateStatus({
-              step,
-              action: 'AI provided no new commands',
-              running: false,
-            });
+            updateStatus({ step, action: 'AI provided no new commands', running: false });
             postAgent('AI provided no new commands to try.', 'info', { step });
             notifyIfHidden('Terminus AI Agent', 'AI could not provide a fix.');
             break;
@@ -320,7 +283,176 @@ export function useAgentExecutor(sessionId: string) {
         }
       }
 
-      // Stopped by user
+      if (abortRef.current) {
+        postAgent('Agent stopped by user.', 'stopped', { step });
+      }
+    },
+    [sessionId, executeCommand, waitForOutput, sendMessage, setAgentStatus],
+  );
+
+  /**
+   * Step-by-step agentic loop:
+   * Sends the user's task to AI with a system prompt that instructs it to
+   * return ONE command at a time. Executes each command, feeds real output
+   * back to AI, and lets AI decide the next step based on real data.
+   *
+   * Flow: user task → AI gives cmd 1 → execute → output → AI gives cmd 2 → …
+   * Ends when AI outputs [TASK_COMPLETE] or [TASK_BLOCKED], or max steps reached.
+   */
+  const runStepByStepLoop = useCallback(
+    async (userTask: string, maxSteps = DEFAULT_MAX_STEPS) => {
+      if (runningRef.current) return;
+      runningRef.current = true;
+      abortRef.current = false;
+
+      const { addAgentMessage, updateAgentMessage } = useAIChatStore.getState();
+
+      const postAgent = (
+        content: string,
+        action: AgentAction,
+        extra?: { step?: number; command?: string; output?: string },
+      ) => {
+        return addAgentMessage(sessionId, content, {
+          agentAction: action,
+          agentStep: extra?.step ?? 1,
+          agentMaxSteps: maxSteps,
+          agentCommand: extra?.command,
+          agentOutput: extra?.output,
+        });
+      };
+
+      const updateStatus = (partial: Partial<AgentStatus>) => {
+        const current = useAIChatStore.getState().agentStatus[sessionId];
+        setAgentStatus(sessionId, {
+          running: current?.running ?? true,
+          step: current?.step ?? 1,
+          maxSteps: current?.maxSteps ?? maxSteps,
+          action: current?.action ?? '',
+          ...partial,
+        });
+      };
+
+      let step = 1;
+      updateStatus({ step, action: 'Planning first step…', running: true, lastResult: 'running' });
+
+      postAgent(
+        `Starting step-by-step execution for: "${userTask.slice(0, 100)}${userTask.length > 100 ? '…' : ''}"`,
+        'info',
+        { step },
+      );
+
+      // Send initial task with step-by-step system prompt
+      // Show only the user task in chat, hide the system prompt
+      const initialPrompt = `${STEP_BY_STEP_PROMPT}\n\nUser task: ${userTask}\n\nIf this is a question about what's visible, answer from context. If this requires running commands, provide the first command.`;
+      await sendMessage(initialPrompt, undefined, { displayContent: userTask });
+
+      try {
+        while (step <= maxSteps && !abortRef.current) {
+          // Get the latest AI response
+          const state = useAIChatStore.getState();
+          const session = state.sessions[sessionId];
+          if (!session) break;
+          const lastMsg = session.messages[session.messages.length - 1];
+          if (!lastMsg || lastMsg.role !== 'assistant') break;
+
+          const responseText = lastMsg.content;
+
+          // Check for task completion signals
+          if (responseText.includes('[TASK_COMPLETE]')) {
+            updateStatus({ step, action: 'Task completed', lastResult: 'success', running: false });
+            postAgent('Task completed. See AI response above for the final report.', 'success', { step });
+            notifyIfHidden('Terminus AI Agent', 'Task completed successfully.');
+            break;
+          }
+
+          if (responseText.includes('[TASK_BLOCKED]')) {
+            updateStatus({ step, action: 'Task blocked — needs user input', lastResult: 'error', running: false });
+            postAgent('Task blocked — AI needs your input. See message above.', 'error', { step });
+            notifyIfHidden('Terminus AI Agent', 'Task blocked — needs your input.');
+            break;
+          }
+
+          // Extract commands from AI response
+          const cmds = extractCommands(responseText);
+          if (cmds.length === 0) {
+            // AI didn't provide a command — might be asking a question or giving analysis
+            updateStatus({ step, action: 'AI provided no command — waiting', running: false });
+            postAgent('AI did not provide a command. Review the response above.', 'info', { step });
+            break;
+          }
+
+          // Take only the first command (step-by-step)
+          const cmd = cmds[0];
+
+          // Safety check
+          if (isDangerous(cmd)) {
+            postAgent(`Blocked dangerous command: \`${cmd}\``, 'blocked', { step, command: cmd });
+            updateStatus({ step, action: 'Dangerous command blocked', lastResult: 'error', running: false });
+            notifyIfHidden('Terminus AI Agent', 'A dangerous command was blocked.');
+            break;
+          }
+
+          // Execute the command
+          updateStatus({ step, action: `Step ${step}: ${cmd.slice(0, 50)}${cmd.length > 50 ? '…' : ''}`, lastResult: 'running' });
+
+          const execMsgId = postAgent(
+            `Step ${step}: Executing command…`,
+            'executing',
+            { step, command: cmd },
+          );
+
+          const prevLen = executeCommand(cmd);
+          const output = await waitForOutput(prevLen, Math.min(step, 3) * OUTPUT_SETTLE_EXTRA_MS);
+
+          // Update agent bubble with captured output
+          updateAgentMessage(sessionId, execMsgId, output ? `Step ${step}: Command completed` : `Step ${step}: Command completed (no output)`, {
+            agentAction: output ? 'success' : 'waiting',
+            agentStep: step,
+            agentMaxSteps: maxSteps,
+            agentCommand: cmd,
+            agentOutput: output.slice(0, 2000) || undefined,
+          });
+
+          if (abortRef.current) break;
+
+          // Check if this is the last allowed step
+          if (step >= maxSteps) {
+            updateStatus({ step, action: `Max steps reached (${maxSteps})`, lastResult: 'error', running: false });
+            postAgent(`Max steps reached (${maxSteps}). Asking AI for summary…`, 'info', { step });
+
+            // Ask AI for final summary (hidden from chat — agent already posted status)
+            await sendMessage(
+              `We've reached the maximum number of steps (${maxSteps}). Here is the output of the last command:\n\`\`\`\n${output.slice(0, 2000)}\n\`\`\`\n\nPlease provide a summary of what was accomplished and what remains. End with [TASK_COMPLETE] if the task is done, or explain what's left.`,
+              undefined,
+              { displayContent: null },
+            );
+            notifyIfHidden('Terminus AI Agent', `Max steps reached (${maxSteps}).`);
+            break;
+          }
+
+          // Feed real output back to AI and ask for next step
+          step++;
+          updateStatus({ step, action: 'Reading output, planning next step…', lastResult: 'running' });
+
+          postAgent(
+            `Step ${step}: Sending output to AI for next step…`,
+            'replanning',
+            { step },
+          );
+
+          const nextPrompt = `Here is the real output from the command \`${cmd}\`:\n\`\`\`\n${output.slice(0, 3000)}\n\`\`\`\n\nBased on this REAL output, what is the next command to run? Remember: exactly ONE command in a bash code block. If the task is complete, respond with [TASK_COMPLETE] followed by your final summary/report.`;
+
+          // Hide internal agent prompt from chat — user sees agent bubbles instead
+          await sendMessage(nextPrompt, undefined, { displayContent: null });
+        }
+      } finally {
+        runningRef.current = false;
+        const status = useAIChatStore.getState().agentStatus[sessionId];
+        if (status?.running) {
+          setAgentStatus(sessionId, { ...status, running: false });
+        }
+      }
+
       if (abortRef.current) {
         postAgent('Agent stopped by user.', 'stopped', { step });
       }
@@ -330,13 +462,27 @@ export function useAgentExecutor(sessionId: string) {
 
   const stopAgent = useCallback(() => {
     abortRef.current = true;
-    const status = useAIChatStore.getState().agentStatus[sessionId];
+    const state = useAIChatStore.getState();
+    const status = state.agentStatus[sessionId];
     if (status) {
       setAgentStatus(sessionId, { ...status, running: false, action: 'Stopped by user' });
     }
+    // Update the last in-progress agent message so its spinner stops
+    const session = state.sessions[sessionId];
+    if (session) {
+      const { updateAgentMessage } = state;
+      const msgs = session.messages;
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        const m = msgs[i];
+        if (m.role === 'agent' && (m.agentAction === 'executing' || m.agentAction === 'waiting' || m.agentAction === 'replanning')) {
+          updateAgentMessage(sessionId, m.id, 'Stopped by user', { agentAction: 'stopped' });
+          break;
+        }
+      }
+    }
   }, [sessionId, setAgentStatus]);
 
-  return { runAgentLoop, stopAgent, requestNotificationPermission };
+  return { runAgentLoop, runStepByStepLoop, stopAgent, requestNotificationPermission };
 }
 
 /** Heuristic: does terminal output contain error indicators? */

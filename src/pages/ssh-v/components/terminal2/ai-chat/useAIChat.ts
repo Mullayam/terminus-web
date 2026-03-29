@@ -65,9 +65,12 @@ export function useAIChat(sessionId: string) {
       }
 
       // Build history array for the API
+      // Map 'agent' role to 'user' since most LLM APIs only accept user/assistant/system
       const chatHistory = history.map((msg) => ({
-        role: msg.role,
-        content: msg.content,
+        role: msg.role === 'agent' ? 'user' as const : msg.role,
+        content: msg.role === 'agent'
+          ? `[Agent status: ${msg.content}]${msg.agentCommand ? `\nCommand: ${msg.agentCommand}` : ''}${msg.agentOutput ? `\nOutput:\n${msg.agentOutput}` : ''}`
+          : msg.content,
       }));
 
       return {
@@ -83,17 +86,21 @@ export function useAIChat(sessionId: string) {
   );
 
   const sendMessage = useCallback(
-    async (userPrompt: string, selection?: string) => {
+    async (userPrompt: string, selection?: string, opts?: { displayContent?: string | null }) => {
       const trimmed = userPrompt.trim();
       if (!trimmed) return;
 
       const { addUserMessage, setLoading, addAssistantMessage, appendAssistantContent, updateAssistantMessage, setMessageCommands } =
         useAIChatStore.getState();
 
-      addUserMessage(
-        sessionId,
-        selection ? `Selected:\n\`\`\`\n${selection}\n\`\`\`\n${trimmed}` : trimmed,
-      );
+      // opts.displayContent === null  → don't add a visible user message at all (agent internal)
+      // opts.displayContent === string → show that text instead of the full prompt
+      // opts.displayContent === undefined (default) → show the full prompt
+      if (opts?.displayContent !== null) {
+        const visibleText = opts?.displayContent
+          ?? (selection ? `Selected:\n\`\`\`\n${selection}\n\`\`\`\n${trimmed}` : trimmed);
+        addUserMessage(sessionId, visibleText);
+      }
 
       setLoading(sessionId, true);
       const assistantId = addAssistantMessage(sessionId);

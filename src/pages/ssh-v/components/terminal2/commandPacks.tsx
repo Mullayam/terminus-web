@@ -98,7 +98,7 @@ export default function CommandPacks() {
                 fetchTerminalCommandsManifest(),
                 getInstalledCategories(),
             ]);
-            setCategories(manifest.context);
+            setCategories(manifest.context ?? []);
             setInstalledCats(new Set(installedList.map((c) => c.id)));
             const state: InstallState = {};
             installedList.forEach((c) => { state[c.id] = "installed"; });
@@ -216,7 +216,7 @@ export default function CommandPacks() {
         ? categories.filter(
               (c) =>
                   c.category.toLowerCase().includes(search.toLowerCase()) ||
-                  c.context.some((ctx) => ctx.toLowerCase().includes(search.toLowerCase())),
+                  (c.context ?? []).some((ctx) => ctx.toLowerCase().includes(search.toLowerCase())),
           )
         : categories;
 
