@@ -3,7 +3,7 @@
  * Memoized — only re-renders when its specific props change.
  */
 import React, { useState, useEffect } from "react";
-import { Loader2, Save, WrapText, RefreshCw, Info, Columns2, Sparkles, Bug } from "lucide-react";
+import { Loader2, Save, WrapText, RefreshCw, Info, Columns2, Sparkles, Bug, ExternalLink } from "lucide-react";
 import FileIcon from "@/components/FileIcon";
 import { ThemePicker, type ThemeId } from "./ThemePicker";
 import { ChangelogModal } from "./ChangelogModal";
@@ -133,6 +133,27 @@ function EditorToolbarInner({
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
                     </span>
                 )}
+            </button>
+
+            {/* Open in VS Code */}
+            <button
+                onClick={() => {
+                    const url = new URL(window.location.href);
+                    url.protocol = "https:";
+                    url.host = "editor.enjoys.in";
+                    url.port = "";
+                    window.open(url.toString(), "_blank");
+                }}
+                className="hidden md:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium transition-all cursor-pointer shrink-0"
+                style={{
+                    background: "var(--editor-hover-bg, #2d2d2d)",
+                    color: "var(--editor-fg, #999)",
+                    border: "1px solid var(--editor-border, #3c3c3c)",
+                }}
+                title="Open in VS Code"
+            >
+                <ExternalLink className="w-3 h-3" />
+                <span>Open in VS Code</span>
             </button>
 
             {/* Report Issue */}

@@ -68,8 +68,13 @@
 
 ### 🤖 AI Assistance
 - **Ghost-text AI completions** — inline predictions powered by context engine
-- **AI Chat** — ask questions, get code suggestions, apply directly to the editor
-- **Context-aware generation** — understands your command history and file context
+- **AI Chat** — streaming chat panel with SSE, multi-provider support, and full terminal context
+- **Inline AI command bar** (Ctrl+Shift+I) — describe what you want in natural language, get a shell command
+- **AI Agent mode** — autonomous command execution with step-by-step reasoning, collapsible accordion UI, and Markdown-rendered responses
+- **Auto-execute with safety rails** — 35+ dangerous-pattern checks (rm -rf, mkfs, DROP TABLE, …); prompts for confirmation before running risky commands
+- **Browser notifications** — get notified when the agent finishes a long-running task
+- **Diagnostics overlay** — real-time error/warning detection with AI-powered explanations and fixes
+- **Run / Paste code blocks** from AI responses directly into the terminal or editor
 
 ### 🧩 Extensions & Plugins
 - **Open VSX marketplace** integration
@@ -207,15 +212,11 @@ Contributions are welcome! Please open an issue or submit a pull request.
 
 ## **Future Enhancements**
 
--   Add more authentication options (e.g., OAuth, ).
--   Implement advanced terminal features like session recording.
--   Introduce multi-tab support for managing multiple sessions.
--   Enhance the SFTP interface with more granular controls and user analytics.
+-   Add more authentication options (e.g., OAuth, SSO).
+-   Implement session recording and playback.
+-   Language Server Protocol (LSP) integration via monaco-languageclient.
+-   Enhanced SFTP analytics and granular access controls.
 
 ----------
 
 Thank you for exploring this project! Feedback and contributions are always welcome.
-
-Todo
-https://github.com/TypeFox/monaco-languageclient/blob/main/docs/guides/getting-started.md
-https://cdn.jsdelivr.net/npm/
