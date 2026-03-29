@@ -453,13 +453,12 @@ function AgentAccordion({
 
   // Summary label
   const totalSteps = agentMessages.filter((m) => m.agentCommand).length;
-  const maxStep = last.agentMaxSteps ?? '?';
   const label = isRunning
-    ? `Agent working — step ${last.agentStep ?? '?'}/${maxStep}`
+    ? `Agent working — step ${last.agentStep ?? '?'}`
     : isDone
       ? `Agent completed — ${totalSteps} command${totalSteps !== 1 ? 's' : ''} executed`
       : isError
-        ? `Agent stopped — error at step ${last.agentStep ?? '?'}`
+        ? `Agent error at step ${last.agentStep ?? '?'}`
         : isStopped
           ? 'Agent stopped by user'
           : `Agent — ${agentMessages.length} step${agentMessages.length !== 1 ? 's' : ''}`;
@@ -833,7 +832,7 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
             <>
               <Loader2 size={10} className="animate-spin" />
               <span className="flex-1 truncate">
-                Agent step {agentStatus.step}/{agentStatus.maxSteps}: {agentStatus.action}
+                Agent step {agentStatus.step}: {agentStatus.action}
               </span>
               <button
                 onClick={stopAgent}
@@ -1015,7 +1014,7 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
           >
             <Loader2 size={10} className="animate-spin shrink-0" />
             <span className="flex-1 truncate">
-              Step {agentStatus.step}/{agentStatus.maxSteps}: {agentStatus.action}
+              Step {agentStatus.step}: {agentStatus.action}
             </span>
             <button
               onClick={stopAgent}

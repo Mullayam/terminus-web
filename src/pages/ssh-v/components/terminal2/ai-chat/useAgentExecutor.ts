@@ -353,7 +353,8 @@ export function useAgentExecutor(sessionId: string) {
       };
 
       let step = 1;
-      updateStatus({ step, action: 'Planning first step…', running: true, lastResult: 'running' });
+      let lastExecutedCmd = '';
+      updateStatus({ step, action: 'Starting…', running: true, lastResult: 'running' });
 
       postAgent(
         `Starting step-by-step execution for: "${userTask.slice(0, 100)}${userTask.length > 100 ? '…' : ''}"`,
@@ -398,14 +399,22 @@ export function useAgentExecutor(sessionId: string) {
           // Also check: if AI gave no commands and no code block, treat as complete
           const cmds = extractCommands(responseText);
           if (cmds.length === 0) {
-            // AI didn't provide a command — might be asking a question or giving analysis
-            updateStatus({ step, action: 'AI provided no command — waiting', running: false });
-            postAgent('AI did not provide a command. Review the response above.', 'info', { step });
+            // AI responded without a command — task is done or it's answering a question
+            updateStatus({ step, action: 'Task completed', lastResult: 'success', running: false });
+            postAgent('Task completed.', 'success', { step });
+            notifyIfHidden('Terminus AI Agent', 'Task completed.');
             break;
           }
 
           // Take only the first command (step-by-step)
           const cmd = cmds[0];
+
+          // Detect duplicate command (AI suggesting the same thing again)
+          if (cmd === lastExecutedCmd) {
+            updateStatus({ step, action: 'Task completed', lastResult: 'success', running: false });
+            postAgent('Task completed (same command would repeat).', 'success', { step });
+            break;
+          }
 
           // Safety check
           if (isDangerous(cmd)) {
@@ -425,6 +434,7 @@ export function useAgentExecutor(sessionId: string) {
           );
 
           const prevLen = executeCommand(cmd);
+          lastExecutedCmd = cmd;
           const output = await waitForOutput(prevLen, Math.min(step, 3) * OUTPUT_SETTLE_EXTRA_MS);
 
           // Update agent bubble with captured output
