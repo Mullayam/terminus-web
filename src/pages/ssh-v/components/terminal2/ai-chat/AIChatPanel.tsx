@@ -184,6 +184,14 @@ function renderMarkdownBlock(text: string, colors: Record<string, string>, keyPr
 }
 
 // ────────────────────────────────────────────────────
+// Strip agent control tokens from displayed text
+// ────────────────────────────────────────────────────
+const AGENT_TOKENS = /\[TASK_COMPLETE\]|\[TASK_BLOCKED\]|\[STILL_TO_DO\]/g;
+function cleanAgentTokens(text: string): string {
+  return text.replace(AGENT_TOKENS, '').trim();
+}
+
+// ────────────────────────────────────────────────────
 // Simple markdown-like renderer for code blocks
 // ────────────────────────────────────────────────────
 function renderContent(
@@ -192,6 +200,8 @@ function renderContent(
   onExecute: (cmd: string) => void,
   onPaste: (cmd: string) => void,
 ) {
+  if (!text) return null;
+  text = cleanAgentTokens(text);
   if (!text) return null;
   const parts = text.split(/(```[\s\S]*?```)/g);
 

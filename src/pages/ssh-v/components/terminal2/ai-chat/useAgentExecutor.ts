@@ -7,29 +7,33 @@ import { useAIChat, extractCommands } from './useAIChat';
 import type { AgentAction } from '@/store/aiChatStore';
 
 /** Max number of agent retry iterations per activation */
-const DEFAULT_MAX_STEPS = 10;
+const DEFAULT_MAX_STEPS = 25;
 
 /** How long to wait (ms) after executing a command before reading output */
-const OUTPUT_SETTLE_MS = 3000;
+const OUTPUT_SETTLE_MS = 15000;
+
+/** Max total wait before sending Ctrl+C (ms) */
+const OUTPUT_MAX_WAIT_MS = 30000;
 
 /** Additional settle time per subsequent attempt (ms) */
-const OUTPUT_SETTLE_EXTRA_MS = 1000;
+const OUTPUT_SETTLE_EXTRA_MS = 500;
 
 /** The system prompt that tells AI to work step-by-step */
 const STEP_BY_STEP_PROMPT = `You are an AI agent connected to a user's SSH terminal. You can see their terminal output and execute commands.
 
 CRITICAL RULES — READ FIRST:
-- If the user asks a QUESTION ("what's on my screen", "explain this error", "what happened") → Answer directly from the terminal context provided. Do NOT run any commands. Respond with [TASK_COMPLETE] and your answer.
-- If the user asks to DO something ("install nginx", "restart docker", "find large files") → Execute ONLY the commands needed. No extras.
-- NEVER run exploratory commands (pwd, whoami, ls, hostname, uname) unless the user explicitly asked for them.
-- Do EXACTLY what the user asked. Nothing more, nothing less.
+- If the user asks a QUESTION ("what's on my screen", "explain this error", "what happened") → Answer directly from the terminal context already provided. Do NOT run any commands. Just answer.
+- If the user says to RUN a specific command ("run docker ps", "execute ls -la") → Run EXACTLY that command. Nothing else before or after.
+- If the user asks to DO a task ("install nginx", "restart the app") → Run ONLY the minimum commands needed. No exploration first.
+- NEVER run exploratory/info commands (pwd, whoami, ls, hostname, uname, cat /etc/os-release) unless the user explicitly asked.
+- Do EXACTLY what the user asked. Nothing more, nothing less. No "let me check first" steps.
 
 WHEN RUNNING COMMANDS:
 - Provide EXACTLY ONE shell command per response in a \`\`\`bash code block.
 - NEVER guess or fabricate data. Use real output from previous commands.
 - After I show you command output, decide the next step based on REAL data.
-- When done, respond with "[TASK_COMPLETE]" and a brief summary.
-- If stuck or need user input, respond with "[TASK_BLOCKED]" and explain why.
+- When the task is FULLY DONE, end your response with the summary only.
+- If stuck or need user input, explain what you need.
 - If a command fails, analyze the error and provide a corrected command.
 
 FORMAT when running a command:
@@ -38,9 +42,8 @@ FORMAT when running a command:
 <single command>
 \`\`\`
 
-FORMAT when answering without commands:
-[TASK_COMPLETE]
-<your answer>`;
+FORMAT when answering without commands (questions, done, blocked):
+Just provide your answer naturally. No special tokens needed.`;
 
 /** Dangerous command patterns that should never be auto-executed */
 const DANGEROUS_PATTERNS = [
@@ -93,13 +96,17 @@ export function useAgentExecutor(sessionId: string) {
   const setAgentStatus = useAIChatStore((s) => s.setAgentStatus);
   const clearAgentStatus = useAIChatStore((s) => s.clearAgentStatus);
 
-  /** Wait for terminal output to settle after command execution */
+  /** Wait for terminal output to settle after command execution.
+   *  Waits up to OUTPUT_MAX_WAIT_MS; if still producing output, sends Ctrl+C. */
   const waitForOutput = useCallback(
     (prevLogLen: number, extraMs = 0): Promise<string> => {
       return new Promise((resolve) => {
-        const deadline = OUTPUT_SETTLE_MS + extraMs;
+        const settleTime = OUTPUT_SETTLE_MS + extraMs;
+        const hardDeadline = OUTPUT_MAX_WAIT_MS + extraMs;
         const start = Date.now();
         let lastLen = prevLogLen;
+        let lastChangeTime = start;
+        let ctrlCSent = false;
 
         const check = () => {
           if (abortRef.current) {
@@ -108,18 +115,29 @@ export function useAgentExecutor(sessionId: string) {
           }
           const logs = useTerminalStore.getState().logs[sessionId] ?? [];
           const elapsed = Date.now() - start;
+          const sinceLast = Date.now() - lastChangeTime;
 
           if (logs.length > lastLen) {
-            // New output appeared — reset settle timer
             lastLen = logs.length;
-            if (elapsed < deadline + 5000) {
-              setTimeout(check, 500);
-              return;
-            }
+            lastChangeTime = Date.now();
           }
 
-          if (elapsed >= deadline) {
-            // Grab new lines since command was sent
+          // Hard deadline: if still getting output, send Ctrl+C and collect what we have
+          if (elapsed >= hardDeadline && !ctrlCSent) {
+            ctrlCSent = true;
+            const socket = useSSHStore.getState().sessions[sessionId]?.socket;
+            if (socket) socket.emit(SocketEventConstants.SSH_EMIT_INPUT, '\x03');
+            // Wait 2s for Ctrl+C to take effect, then resolve
+            setTimeout(() => {
+              const finalLogs = useTerminalStore.getState().logs[sessionId] ?? [];
+              const newLines = finalLogs.slice(prevLogLen);
+              resolve(stripAnsi(newLines.join('')).trim());
+            }, 2000);
+            return;
+          }
+
+          // Settle: no new output for settleTime → done
+          if (sinceLast >= settleTime && elapsed >= settleTime) {
             const newLines = logs.slice(prevLogLen);
             resolve(stripAnsi(newLines.join('')).trim());
             return;
@@ -128,7 +146,7 @@ export function useAgentExecutor(sessionId: string) {
           setTimeout(check, 500);
         };
 
-        setTimeout(check, Math.min(deadline, 1500));
+        setTimeout(check, 1500);
       });
     },
     [sessionId],
@@ -343,7 +361,7 @@ export function useAgentExecutor(sessionId: string) {
 
       // Send initial task with step-by-step system prompt
       // Show only the user task in chat, hide the system prompt
-      const initialPrompt = `${STEP_BY_STEP_PROMPT}\n\nUser task: ${userTask}\n\nIf this is a question about what's visible, answer from context. If this requires running commands, provide the first command.`;
+      const initialPrompt = `${STEP_BY_STEP_PROMPT}\n\nUser task: ${userTask}\n\nIf this is a question about what's visible, answer from the terminal context already provided — no commands needed. Otherwise provide the first command.`;
       await sendMessage(initialPrompt, undefined, { displayContent: userTask });
 
       try {
@@ -358,21 +376,24 @@ export function useAgentExecutor(sessionId: string) {
           const responseText = lastMsg.content;
 
           // Check for task completion signals
-          if (responseText.includes('[TASK_COMPLETE]')) {
-            updateStatus({ step, action: 'Task completed', lastResult: 'success', running: false });
-            postAgent('Task completed. See AI response above for the final report.', 'success', { step });
-            notifyIfHidden('Terminus AI Agent', 'Task completed successfully.');
+          if (responseText.includes('[TASK_COMPLETE]') || responseText.includes('[TASK_BLOCKED]')) {
+            const isBlocked = responseText.includes('[TASK_BLOCKED]');
+            updateStatus({
+              step,
+              action: isBlocked ? 'Task blocked — needs user input' : 'Task completed',
+              lastResult: isBlocked ? 'error' : 'success',
+              running: false,
+            });
+            postAgent(
+              isBlocked ? 'Task blocked — AI needs your input.' : 'Task completed.',
+              isBlocked ? 'error' : 'success',
+              { step },
+            );
+            notifyIfHidden('Terminus AI Agent', isBlocked ? 'Task blocked.' : 'Task completed.');
             break;
           }
 
-          if (responseText.includes('[TASK_BLOCKED]')) {
-            updateStatus({ step, action: 'Task blocked — needs user input', lastResult: 'error', running: false });
-            postAgent('Task blocked — AI needs your input. See message above.', 'error', { step });
-            notifyIfHidden('Terminus AI Agent', 'Task blocked — needs your input.');
-            break;
-          }
-
-          // Extract commands from AI response
+          // Also check: if AI gave no commands and no code block, treat as complete
           const cmds = extractCommands(responseText);
           if (cmds.length === 0) {
             // AI didn't provide a command — might be asking a question or giving analysis
@@ -440,7 +461,7 @@ export function useAgentExecutor(sessionId: string) {
             { step },
           );
 
-          const nextPrompt = `Here is the real output from the command \`${cmd}\`:\n\`\`\`\n${output.slice(0, 3000)}\n\`\`\`\n\nBased on this REAL output, what is the next command to run? Remember: exactly ONE command in a bash code block. If the task is complete, respond with [TASK_COMPLETE] followed by your final summary/report.`;
+          const nextPrompt = `Here is the real output from the command \`${cmd}\`:\n\`\`\`\n${output.slice(0, 3000)}\n\`\`\`\n\nBased on this REAL output, what is the next command? ONE command in a bash code block. If the task is done, just say so with a summary (no commands needed).`;
 
           // Hide internal agent prompt from chat — user sees agent bubbles instead
           await sendMessage(nextPrompt, undefined, { displayContent: null });
