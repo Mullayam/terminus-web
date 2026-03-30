@@ -694,6 +694,7 @@ function getRefactorActions(
 import {
   SYMBOL_PATTERNS as SHARED_SYMBOL_PATTERNS,
   type SymbolPatternFamily,
+  getSymbolPatternIndex,
 } from "../symbol-patterns";
 
 /**
@@ -715,6 +716,10 @@ function getPatternIndex(): Map<string, RegExp[]> {
 }
 
 function getLanguagePatterns(lang: string): RegExp[] {
+  // Check shared index first (includes CDN-loaded patterns)
+  const shared = getSymbolPatternIndex().get(lang);
+  if (shared) return shared.patterns;
+  // Fall back to local static index
   const idx = getPatternIndex();
   return idx.get(lang) ?? idx.get("javascript") ?? [];
 }

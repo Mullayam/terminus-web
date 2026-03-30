@@ -490,7 +490,7 @@ export const SYMBOL_PATTERNS: SymbolPatternFamily[] = [
 /*  Lookup helpers                                                     */
 /* ------------------------------------------------------------------ */
 
-/** Index for O(1) language → family lookup (built lazily) */
+/** Index for O(1) language → family lookup (built lazily from static patterns) */
 let _langIndex: Map<string, SymbolPatternFamily> | null = null;
 
 function getLangIndex(): Map<string, SymbolPatternFamily> {
@@ -505,6 +505,11 @@ function getLangIndex(): Map<string, SymbolPatternFamily> {
   return _langIndex;
 }
 
+/** Expose the full pattern index (including CDN-loaded entries) */
+export function getSymbolPatternIndex(): Map<string, SymbolPatternFamily> {
+  return getLangIndex();
+}
+
 /** Blacklisted symbol names (control-flow keywords that accidentally match) */
 const KEYWORD_BLACKLIST = new Set([
   "if", "for", "while", "switch", "return", "else", "elif", "elsif",
@@ -514,9 +519,122 @@ const KEYWORD_BLACKLIST = new Set([
   "print", "println", "console", "log", "fmt", "System", "Math",
 ]);
 
+/* ------------------------------------------------------------------ */
+/*  Context Engine CDN — dynamic symbol pattern loading                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * @enjoys/context-engine provides documentSymbol regex data for 94 languages.
+ * We lazy-load patterns from the CDN for any language that lacks static patterns.
+ * Data is cached in CacheStorage for offline / instant reuse.
+ *
+ * CDN URL: https://cdn.jsdelivr.net/npm/@enjoys/context-engine@latest/data/documentSymbol/{langId}.json
+ */
+
+const DOC_SYMBOL_CDN =
+  "https://cdn.jsdelivr.net/npm/@enjoys/context-engine@latest/data/documentSymbol";
+const SYMBOL_CACHE_NAME = "terminus-doc-symbols-v1";
+
+/** SymbolKind values worth extracting (skip noisy Property/Variable/Event) */
+const RELEVANT_SYMBOL_KINDS = new Set([
+  1,  // Module
+  4,  // Class
+  5,  // Method
+  8,  // Constructor
+  9,  // Enum
+  10, // Interface
+  11, // Function
+  22, // Struct
+  25, // TypeAlias
+]);
+
+interface CDNSymbolEntry {
+  name: string;
+  pattern: string;
+  captureGroup: number;
+  kind: number;
+  type?: string;
+  detail?: string;
+}
+
+interface CDNDocumentSymbolData {
+  language: string;
+  symbolPatterns: CDNSymbolEntry[];
+}
+
+/** Track languages already attempted (loaded or failed) */
+const _cdnAttempted = new Set<string>();
+
+/**
+ * Preload symbol patterns from @enjoys/context-engine CDN for a language.
+ * Adds patterns to the shared index so `findSymbolLines()` can use them.
+ * Only loads for languages that don't already have static patterns.
+ * Safe to call multiple times — no-ops after the first call per language.
+ */
+export async function preloadCDNSymbolPatterns(langId: string): Promise<void> {
+  if (_cdnAttempted.has(langId)) return;
+  _cdnAttempted.add(langId);
+
+  const idx = getLangIndex();
+  // Already have static patterns — no need for CDN
+  if (idx.has(langId)) return;
+
+  try {
+    const url = `${DOC_SYMBOL_CDN}/${langId}.json`;
+    let text: string;
+
+    if (typeof caches !== "undefined") {
+      const cache = await caches.open(SYMBOL_CACHE_NAME);
+      const cached = await cache.match(url);
+      if (cached) {
+        text = await cached.text();
+      } else {
+        const resp = await fetch(url);
+        if (!resp.ok) return;
+        await cache.put(url, resp.clone());
+        text = await resp.text();
+      }
+    } else {
+      const resp = await fetch(url);
+      if (!resp.ok) return;
+      text = await resp.text();
+    }
+
+    const data: CDNDocumentSymbolData = JSON.parse(text);
+    const patterns: RegExp[] = [];
+
+    for (const entry of data.symbolPatterns) {
+      if (!RELEVANT_SYMBOL_KINDS.has(entry.kind)) continue;
+      try {
+        patterns.push(new RegExp(entry.pattern));
+      } catch {
+        /* skip invalid regex */
+      }
+    }
+
+    if (patterns.length > 0) {
+      idx.set(langId, { langs: [langId], patterns });
+    }
+  } catch {
+    /* CDN is an optional enhancement — silent fail */
+  }
+}
+
+/**
+ * Preload CDN symbol patterns for multiple languages at once.
+ */
+export function preloadCDNSymbolPatternsMany(langIds: string[]): Promise<void[]> {
+  return Promise.all(langIds.map((id) => preloadCDNSymbolPatterns(id)));
+}
+
+/* ------------------------------------------------------------------ */
+/*  Public API — symbol scanning                                       */
+/* ------------------------------------------------------------------ */
+
 /**
  * Scan source code for symbol declarations (functions, classes, etc.).
  * Returns an array of `{ line, name }` where `line` is 1-based.
+ * Uses static patterns + any CDN-preloaded patterns.
  */
 export function findSymbolLines(content: string, languageId: string): SymbolLine[] {
   const family = getLangIndex().get(languageId);
@@ -538,4 +656,16 @@ export function findSymbolLines(content: string, languageId: string): SymbolLine
   }
 
   return result;
+}
+
+/**
+ * Async variant: preloads CDN patterns (if needed), then scans.
+ * Preferred for languages that may not have static patterns.
+ */
+export async function findSymbolLinesAsync(
+  content: string,
+  languageId: string,
+): Promise<SymbolLine[]> {
+  await preloadCDNSymbolPatterns(languageId);
+  return findSymbolLines(content, languageId);
 }
