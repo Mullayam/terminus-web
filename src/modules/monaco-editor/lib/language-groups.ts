@@ -72,11 +72,17 @@ export const TAG_LANGUAGES = new Set([
   "razor",
   "twig",
   "liquid",
+  "freemarker2",
   // JSX / TSX
   "jsx",
   "tsx",
   "javascriptreact",
   "typescriptreact",
+  // React / Next.js (JSX-based frameworks)
+  "react",
+  "nextjs",
+  // Extended markup
+  "mdx",
   // Server-side with embedded HTML
   "php",
   // Markup alias used by Prism / lightweight editor
@@ -121,10 +127,14 @@ export const EMMET_MARKUP_LANGUAGES = new Set([
   "razor",
   "twig",
   "liquid",
+  "freemarker2",
   "jsx",
   "tsx",
   "javascriptreact",
   "typescriptreact",
+  "react",
+  "nextjs",
+  "mdx",
   "php",
   "markdown",
   "erb",
@@ -165,15 +175,18 @@ export const CSS_FAMILY = new Set([
 /** Languages where inline color swatches / color picker should appear */
 export const COLOR_LANGUAGES = new Set([
   // Stylesheets
-  "css", "scss", "less", "sass", "stylus",
+  "css", "scss", "less", "sass", "stylus", "tailwindcss",
   // Markup / template (often contain inline styles)
   "html", "svg", "xml", "vue", "svelte", "astro", "php",
   "angular", "handlebars", "lwc", "razor", "twig", "liquid",
+  "freemarker2", "mdx",
   // Scripting (CSS-in-JS, theme objects, etc.)
   "javascript", "typescript", "javascriptreact", "typescriptreact",
-  "jsx", "tsx",
+  "jsx", "tsx", "react", "nextjs", "shadcn",
   // Data / config (color values in themes, manifests)
   "json", "jsonc", "json5", "toml", "yaml",
+  // Languages with color literals
+  "python", "ruby", "swift", "dart", "kotlin",
 ]);
 
 /** CSS languages where named color previews apply */
@@ -214,6 +227,10 @@ export const SQL_FAMILY = new Set([
   "sql",
   "mysql",
   "pgsql",
+  "redshift",
+  "msdax",
+  "sparql",
+  "cypher",
 ]);
 
 /* ================================================================== */
@@ -234,36 +251,75 @@ export const PARAMETER_HINT_LANGUAGES = new Set([
   "kotlin",
   "csharp",
   "cpp",
+  "c",
+  "objective-c",
   "swift",
   "dart",
   "php",
   "ruby",
   "scala",
   "lua",
+  "elixir",
+  "r",
+  "perl",
+  "julia",
+  "clojure",
+  "haskell",
+  "fsharp",
+  "ocaml",
 ]);
+
+/* ================================================================== */
+/*  Context Engine languages (from @enjoys/context-engine manifest)     */
+/* ================================================================== */
+
+/**
+ * All 94 language IDs from @enjoys/context-engine v1.8.0 manifest.
+ * Each has full provider data (completion, hover, definition, etc.).
+ * @see https://cdn.jsdelivr.net/npm/@enjoys/context-engine@1.8.0/data/manifest.json
+ */
+export const CONTEXT_ENGINE_LANGUAGES = [
+  "abap", "angular", "apex", "awk", "azcli",
+  "bicep", "c", "caddy", "cameligo", "clojure",
+  "coffee", "cpp", "crontab", "csharp", "css",
+  "cypher", "dart", "docker-compose", "dockerfile", "doctest",
+  "dotenv", "ecl", "elixir", "flow9", "freemarker2",
+  "go", "graphql", "hcl", "html", "ini",
+  "java", "javascript", "json", "julia", "kotlin",
+  "less", "lexon", "liquid", "lua", "m3",
+  "makefile", "markdown", "mdx", "mips", "msdax",
+  "mysql", "nestjs", "nextjs", "nginx", "objective-c",
+  "pascal", "pascaligo", "perl", "pgsql", "php",
+  "pla", "postiats", "powerquery", "powershell", "protobuf",
+  "python", "qsharp", "r", "razor", "react",
+  "redis", "redis-cli", "redshift", "restructuredtext", "ruby",
+  "rust", "sb", "scala", "scheme", "scss",
+  "shadcn", "shell", "sol", "sparql", "sql",
+  "ssh_config", "st", "swift", "systemd", "systemverilog",
+  "tailwindcss", "tcl", "toml", "twig", "typescript",
+  "vb", "wgsl", "xml", "yaml",
+] as const;
 
 /* ================================================================== */
 /*  All supported languages (master set)                               */
 /* ================================================================== */
 
 /** Union of all language IDs the editor actively supports with tooling */
-export const ALL_LANGUAGES = new Set([
-  ...JS_FAMILY,
-  ...C_FAMILY,
-  ...CSS_FAMILY,
-  ...JSON_FAMILY,
-  ...SHELL_FAMILY,
-  ...SQL_FAMILY,
-  "python", "go", "rust", "php", "ruby", "lua", "swift",
-  "powershell",
-  "yaml", "toml", "xml", "xsl",
-  "html", "svg", "vue", "svelte", "astro", "angular",
-  "handlebars", "lwc", "razor", "twig", "liquid",
-  "markdown", "mdx", "plaintext",
-  "dart", "scala", "elixir", "erlang", "r", "perl",
-  "haskell", "fsharp", "ocaml", "clojure",
-  "julia", "zig", "solidity", "groovy", "vb", "pascal",
-  "elm", "scheme", "graphql",
-  "prisma", "protobuf", "dockerfile", "makefile",
-  "hcl", "latex", "nginx",
+export const ALL_LANGUAGES = new Set<string>([
+  ...CONTEXT_ENGINE_LANGUAGES,
+  // Extra completion-directory languages not in main array
+  "bash", "zsh",
+  // Monaco-specific aliases & variants
+  "javascriptreact", "typescriptreact", "jsx", "tsx",
+  "jsonc", "json5",
+  "shellscript", "sh", "fish",
+  "sass", "stylus",
+  "svg", "xsl", "mathml",
+  "erb", "markup",
+  // Additional languages not in manifest
+  "groovy", "fsharp", "ocaml", "haskell", "erlang",
+  "zig", "elm", "solidity",
+  "prisma", "latex",
+  "svelte", "astro", "vue", "handlebars", "lwc",
+  "plaintext",
 ]);
