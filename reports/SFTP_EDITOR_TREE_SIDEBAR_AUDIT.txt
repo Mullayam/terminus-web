@@ -1,0 +1,642 @@
+SFTP Editor File Tree Sidebar — Full Detailed Audit
+=====================================================
+Date: March 30, 2026
+Scope: ONLY the file tree sidebar inside the Monaco editor page (/ssh/sftp/editor)
+       NOT the editor, NOT the terminal, NOT the main SFTP browser page.
+
+
+=====================================================
+1. FILE MAP (all files involved)
+=====================================================
+
+Hook + State:
+  src/pages/sftp/components/monaco-editor-parts/useEditorSftpTree.ts   — Dedicated SFTP socket, tree state, file read/write
+  src/store/editorSftpStore.ts                                          — Zustand store for editor SFTP connection status
+
+Wrapper Panel:
+  src/pages/sftp/components/monaco-editor-parts/FileTreePanel.tsx       — ResizablePanel wrapper (memoized)
+
+Tree Component:
+  src/modules/monaco-editor/components/EditorFileTree.tsx               — Recursive tree renderer + all state management
+
+Context Menu + Dialogs:
+  src/modules/monaco-editor/components/file-tree/FileTreeContextMenu.tsx — VS Code-style right-click context menu
+  src/modules/monaco-editor/components/file-tree/useFileOperations.ts    — Socket-backed CRUD callbacks
+  src/modules/monaco-editor/components/file-tree/InlineTreeInput.tsx     — Inline input for rename / new file / new folder
+  src/modules/monaco-editor/components/file-tree/ConfirmDeleteDialog.tsx — Delete confirmation dialog
+  src/modules/monaco-editor/components/file-tree/MoveToDialog.tsx        — Move destination path dialog
+  src/modules/monaco-editor/components/file-tree/FileUploadDialog.tsx    — File/folder upload dialog (REST)
+  src/modules/monaco-editor/components/file-tree/index.ts               — Barrel re-exports
+
+Wire-up (parent page):
+  src/pages/sftp/components/FileEditorMonacoPage.tsx                     — Lines 221, 444, 867-875: wires hook → panel
+
+Socket Events:
+  src/lib/sockets/event-constants.ts                                     — All @@SFTP_* constants
+
+
+=====================================================
+2. COMPONENT HIERARCHY
+=====================================================
+
+FileEditorMonacoPage
+ │
+ ├── useEditorSftpTree(sessionId, initialDir, hostUser)  [hook]
+ │    ├── creates dedicated Socket.IO → /sftp namespace
+ │    ├── manages: treeFiles, treeDir, treeCollapsed
+ │    ├── exposes: connectToHost, readFileViaSocket, writeFileViaSocket
+ │    └── derives: editorSftpStatus, editorSftpError from editorSftpStore
+ │
+ ├── useFileOperations(sftpSocketRef, handleTreeRefresh)  [hook]
+ │    └── returns: FileOperations { createFile, createDir, rename, move, copy, deleteFile, deleteDir, refresh }
+ │
+ └── FileTreePanel  (React.memo)
+      │  Props: treeDir, treeFiles, treeCollapsed, onFileOpen, onNavigate,
+      │         onRefresh, sftpStatus, sftpError, onConnect, hostLabel, fileOps
+      │
+      ├── ResizablePanel (defaultSize=18%, min=12%, max=35%, collapsible to 3%)
+      │    │
+      │    ├── [collapsed] → FolderTree icon button → expand
+      │    │
+      │    └── [expanded] → EditorFileTree
+      │         │
+      │         ├── Header bar: "EXPLORER" label + Refresh button + Collapse button
+      │         │
+      │         ├── Empty states (based on sftpStatus):
+      │         │    ├── "idle"       → PlugZap icon + "Connect to SFTP" button → AlertDialog
+      │         │    ├── "connecting" → Loader2 spinner + "Connecting to SFTP…"
+      │         │    ├── "error"      → WifiOff icon + error message + "Retry" button
+      │         │    └── "connected"  → "Navigate to a directory to populate the tree"
+      │         │
+      │         ├── ScrollArea → recursive TreeItem nodes
+      │         │    │
+      │         │    └── TreeItem (per node, recursive for directories)
+      │         │         ├── [renaming] → InlineTreeInput (replaces the row)
+      │         │         ├── [normal] → FileTreeContextMenu wraps the row
+      │         │         │    └── <div role="treeitem"> with:
+      │         │         │         ├── Branch connector (└ or ├)
+      │         │         │         ├── ChevronRight (dirs only, rotates 90° when expanded)
+      │         │         │         ├── FileIcon (vscode-icons-js)
+      │         │         │         └── Name label (truncated, 12px)
+      │         │         │
+      │         │         └── [children] → grid with CSS transition (1fr ↔ 0fr)
+      │         │              ├── Vertical indent guide line (absolute, left-aligned)
+      │         │              ├── Recursive TreeItem children (sorted: dirs first, then alpha)
+      │         │              └── [newItemState matches parentDir] → InlineTreeInput
+      │         │
+      │         ├── AlertDialog — "Connect to SFTP" confirmation
+      │         ├── ConfirmDeleteDialog — delete confirmation
+      │         ├── MoveToDialog — destination path input
+      │         └── FileUploadDialog — file/folder picker → REST upload
+      │
+      └── ResizableHandle (hover → blue highlight)
+
+
+=====================================================
+3. DEDICATED SFTP SOCKET — FULL LIFECYCLE
+=====================================================
+
+The tree sidebar creates its OWN Socket.IO connection, completely separate from
+the main SFTP browser page's socket. This is deliberate: tree navigation never
+causes the editor to re-render.
+
+--- Creation (on mount) ---
+
+  File: useEditorSftpTree.ts, line ~68
+
+  1. const editorSessionId = nanoid()     // unique ID per editor page instance
+  2. const s = io(`${API_URL}/sftp`, {
+       query: { sessionId: editorSessionId },
+       autoConnect: true,
+       forceNew: true,         // do NOT reuse existing socket
+       multiplex: false,       // force separate transport
+     })
+  3. Socket listeners registered:
+       @@SFTP_READY       → setEditorSftpReady(true), store status="connected"
+       @@SFTP_EMIT_ERROR  → store status="error" with message
+       "reconnect"        → re-emit @@SFTP_CONNECT with cached credentials
+
+  NOTE: Socket connects to the /sftp namespace immediately BUT the SFTP session
+  is NOT started. The tree shows an empty "Connect to SFTP" state.
+
+--- Connection (user-initiated) ---
+
+  File: useEditorSftpTree.ts, line ~110 (connectToHost)
+
+  1. User clicks "Connect to SFTP" button in EditorFileTree empty state
+  2. AlertDialog confirmation: "You are about to open an SFTP session to {host}"
+  3. User clicks "Yes, Connect" → onConnect() → connectToHost()
+  4. Store updated: status="connecting"
+  5. Credential lookup:
+       const allHosts = await idb.getAllItems("hosts")
+       const match = allHosts.find(h => h.host === hostUser)
+     Where hostUser = URL search param `user` (e.g., ?user=192.168.1.1)
+  6. If no match found → store status="error", error="No saved credentials found"
+  7. If match found:
+       creds = { host, username, password, authMethod, ?privateKeyText, ?port }
+       credsRef.current = creds   // cached for reconnect
+  8. Wait for socket transport to be connected:
+       if (!s.connected) await new Promise(resolve => { s.once("connect", resolve); setTimeout(resolve, 10_000); })
+  9. Emit: socket.emit("@@SFTP_CONNECT", JSON.stringify(creds))
+  10. Server responds "@@SFTP_READY" → editorSftpReady=true, store status="connected"
+  11. First directory listing fetched automatically (see section 5)
+
+--- Reconnection (automatic) ---
+
+  File: useEditorSftpTree.ts, line ~88
+
+  On socket.io "reconnect" event:
+  1. setEditorSftpReady(false)
+  2. If credsRef.current exists:
+       store status="connecting"
+       socket.emit("@@SFTP_CONNECT", JSON.stringify(credsRef.current))
+  3. Server responds "@@SFTP_READY" → flow continues as normal
+
+--- Cleanup (on unmount) ---
+
+  File: useEditorSftpTree.ts, line ~98
+
+  1. Remove all listeners
+  2. socket.disconnect()
+  3. sftpSocketRef.current = null
+  4. editorSftpStore.removeSession(editorSessionId)
+
+
+=====================================================
+4. ZUSTAND STORE (editorSftpStore)
+=====================================================
+
+File: src/store/editorSftpStore.ts
+
+Completely separate from the main sftpStore. Uses editorSessionId as key.
+
+  Type: EditorSftpStatus = "idle" | "connecting" | "connected" | "error"
+
+  Interface: EditorSftpSession {
+    editorSessionId: string
+    host: string
+    username: string
+    status: EditorSftpStatus
+    error?: string
+  }
+
+  Actions:
+    upsertSession(id, patch)  — Create or patch a session entry
+    removeSession(id)         — Delete session entry
+    getSession(id)            — Read session by ID
+
+  State shape: { sessions: Record<string, EditorSftpSession> }
+
+  Usage in useEditorSftpTree:
+    - upsertSession called on: connecting, connected, error, re-connect
+    - removeSession called on: cleanup (unmount)
+    - Derived selectors:
+        editorSftpStatus = store.sessions[editorSessionId]?.status ?? "idle"
+        editorSftpError  = store.sessions[editorSessionId]?.error
+
+
+=====================================================
+5. HOW THE TREE IS POPULATED
+=====================================================
+
+--- Initial Listing ---
+
+  File: useEditorSftpTree.ts, line ~170
+
+  useEffect fires when socket && editorSftpReady:
+    socket.emit("@@SFTP_GET_FILE", { dirPath: treeDir })
+
+  treeDir was initialized from URL param (the file's parent directory).
+
+--- Directory Change ---
+
+  File: useEditorSftpTree.ts, line ~175
+
+  useEffect fires when treeDir changes (and socket is ready):
+    socket.emit("@@SFTP_GET_FILE", { dirPath: treeDir })
+
+--- Receiving File Lists ---
+
+  File: useEditorSftpTree.ts, line ~181
+
+  socket.on("@@SFTP_FILES_LIST", (data) => {
+    files = JSON.parse(data.files)   // or data.files if already array
+    setTreeFiles(files)
+    if (data.currentDir) setTreeDir(data.currentDir)
+  })
+
+  Each file object in the array has shape:
+    { name: string, type: "d"|"-"|..., ...other stat fields }
+
+--- Building the Tree (merge into tree data structure) ---
+
+  File: EditorFileTree.tsx, line ~479
+
+  useEffect on [currentDir, files]:
+  1. Dedup check: skip if same files reference already merged
+  2. Clone the root tree node (immutable update)
+  3. ensurePath(newRoot, currentDir) — creates intermediate directory nodes
+  4. For each file in the listing:
+     - Skip ".", ".."
+     - Add new child OR update type of existing child
+     - Remove children no longer in directory listing (stale cleanup)
+  5. Mark dirNode.isLoaded = true
+  6. Auto-expand path from root to currentDir:
+       for each segment → add to expandedPaths Set
+
+--- Tree Node Data Structure ---
+
+  interface FileTreeNode {
+    name: string                          // e.g. "index.ts"
+    fullPath: string                      // e.g. "/home/user/project/index.ts"
+    type: string                          // "d" = directory, "-" = file
+    children: Map<string, FileTreeNode>   // child nodes keyed by name
+    isLoaded: boolean                     // whether children have been fetched
+  }
+
+--- Sorting ---
+
+  Directories appear first, then alphabetical by name.
+  Hidden files (dot-prefix) filtered by showHiddenFiles prop (default: false).
+
+
+=====================================================
+6. HOW FILES ARE OPENED (tree click → editor tab)
+=====================================================
+
+Step-by-step flow when user clicks a FILE in the tree:
+
+  1. Click on TreeItem row
+       → TreeItem.handleClick() at EditorFileTree.tsx line ~193
+       → node.type !== "d" → calls onFileOpen(node.fullPath, node.name)
+
+  2. onFileOpen prop wired to handleTreeFileOpen
+       → FileEditorMonacoPage.tsx line ~444
+       → handleTreeFileOpen(fullPath, _name) { openFileInTab(fullPath) }
+
+  3. openFileInTab at FileEditorMonacoPage.tsx line ~248:
+       a. Build name from fullPath.split("/").pop()
+       b. Check if already open: search all tabs by filePath
+          → If found: focus that tab (update splitGroups activeTabId) → return
+       c. Create new EditorTab:
+            { id: newTabId(), filePath, fileName, content: null, loading: true }
+       d. Add tab ID to active split group's tabIds array
+       e. Set as active tab in the group
+       f. Fetch content via SFTP socket:
+            readFileViaSocket(fullPath)
+              .then(content => { tab.content = content, tab.loading = false })
+              .catch(e => { tab.error = e.message, tab.loading = false })
+
+Step-by-step flow when user clicks a DIRECTORY in the tree:
+
+  1. Click on TreeItem row
+       → TreeItem.handleClick() at EditorFileTree.tsx line ~191
+       → node.type === "d" → calls onToggle(node.fullPath) + onNavigate(node.fullPath)
+
+  2. onToggle → handleToggle at EditorFileTree.tsx line ~568:
+       Toggle path in expandedPaths Set + call onNavigate
+
+  3. onNavigate → handleTreeNavigate at useEditorSftpTree.ts line ~212:
+       setTreeDir(path) → triggers useEffect → socket.emit("@@SFTP_GET_FILE", { dirPath })
+
+  4. Chevron click (separate from row click):
+       → handleChevronClick: e.stopPropagation() + onToggle(node.fullPath)
+       (Directory expand/collapse WITHOUT navigating = no re-fetch unless not loaded)
+
+
+=====================================================
+7. FILE READ VIA SOCKET (readFileViaSocket)
+=====================================================
+
+File: useEditorSftpTree.ts, line ~227
+
+  readFileViaSocket(remotePath: string): Promise<string>
+
+  1. Check socket exists and is connected → reject if not
+  2. Register one-time listeners:
+       "@@SFTP_EDIT_FILE_REQUEST_RESPONSE" → resolve(data)
+       "@@SFTP_EMIT_ERROR" → reject(Error(msg))
+  3. Set 30-second timeout → reject("File read timed out")
+  4. Emit: socket.emit("@@SFTP_EDIT_FILE_REQUEST", { path: remotePath })
+  5. On response: clearTimeout, remove both listeners, resolve with file content string
+
+  Used by:
+    - openFileInTab → fetch content for new tabs
+    - fetchContent → load initial file from URL params
+
+  Fallback (when socket not ready):
+    ApiCore.fetchFileContent(sessionId, filePath) → POST /api/file/read
+
+
+=====================================================
+8. FILE WRITE VIA SOCKET (writeFileViaSocket)
+=====================================================
+
+File: useEditorSftpTree.ts, line ~265
+
+  writeFileViaSocket(remotePath: string, content: string): Promise<void>
+
+  1. Check socket exists and is connected → reject if not
+  2. Register one-time listeners:
+       "@@SFTP_EDIT_FILE_DONE" → resolve()
+       "@@SFTP_EMIT_ERROR" → reject(Error(msg))
+  3. Set 30-second timeout → reject("File save timed out")
+  4. Emit: socket.emit("@@SFTP_EDIT_FILE_DONE", { path: remotePath, content })
+  5. On response: clearTimeout, remove both listeners, resolve
+
+  Used by:
+    - handleSave (Ctrl+S) in FileEditorMonacoPage
+
+  Fallback (when socket not ready):
+    ApiCore.saveFileContent(sessionId, filePath, content) → POST /api/file/write
+
+
+=====================================================
+9. FILE OPERATIONS (useFileOperations hook)
+=====================================================
+
+File: src/modules/monaco-editor/components/file-tree/useFileOperations.ts
+
+Takes socketRef + optional onRefresh callback. Returns stable callbacks.
+
+  Operation      Socket Event Emitted            Payload                                  Auto-Refresh
+  ---------      --------------------            -------                                  ------------
+  createFile     @@SFTP_CREATE_FILE              { filePath: dirPath/name }               parentDir, 300ms delay
+  createDir      @@SFTP_CREATE_DIR               { folderPath: dirPath/name }             parentDir, 300ms delay
+  rename         @@SFTP_RENAME_FILE              { oldPath, newPath: parentDir/newName }  parentDir, 300ms delay
+  move           @@SFTP_MOVE_FILE                { oldPath, newPath }                     srcDir + destDir, 300ms delay
+  copy           @@SFTP_COPY_FILE                { currentPath, destinationPath }         destDir, 300ms delay
+  deleteFile     @@SFTP_DELETE_FILE              { path: filePath }                       parentDir, 300ms delay
+  deleteDir      @@SFTP_DELETE_DIR               { path: dirPath }                        parentDir, 300ms delay
+  refresh        @@SFTP_GET_FILE                 { dirPath }                              (this IS the refresh)
+
+  NOTE: All operations use setTimeout(refreshDir, 300) to give the server time
+  to complete before re-fetching the directory listing.
+
+
+=====================================================
+10. CONTEXT MENU (right-click actions)
+=====================================================
+
+File: src/modules/monaco-editor/components/file-tree/FileTreeContextMenu.tsx
+
+Uses Radix ContextMenu primitives. Wraps each TreeItem row.
+Styled via CSS custom properties (--editor-sidebar-bg, --editor-border, --editor-fg).
+
+  Menu Items (varies by file vs directory):
+
+  For FILES:
+    ┌──────────────────────┬──────────────┬──────────────────────────────────────┐
+    │ Item                 │ Shortcut     │ Handler                              │
+    ├──────────────────────┼──────────────┼──────────────────────────────────────┤
+    │ Open                 │              │ contextActions.onOpen(node)           │
+    │ ───separator───      │              │                                      │
+    │ Cut                  │ Ctrl+X       │ setClipboard({ node, mode: "cut" })  │
+    │ Copy                 │ Ctrl+C       │ setClipboard({ node, mode: "copy" }) │
+    │ ───separator───      │              │                                      │
+    │ Copy Path            │ Shift+Alt+C  │ navigator.clipboard.writeText(path)  │
+    │ ───separator───      │              │                                      │
+    │ Rename               │ F2           │ setRenamingPath(node.fullPath)        │
+    │ Move to…             │              │ setMoveTarget(node)                   │
+    │ Delete               │ Del          │ setDeleteTarget(node)                 │
+    └──────────────────────┴──────────────┴──────────────────────────────────────┘
+
+  For DIRECTORIES:
+    ┌──────────────────────┬──────────────┬──────────────────────────────────────┐
+    │ Item                 │ Shortcut     │ Handler                              │
+    ├──────────────────────┼──────────────┼──────────────────────────────────────┤
+    │ New File             │              │ setNewItemState({ parentDir, "file"}) │
+    │ New Folder           │              │ setNewItemState({ parentDir, "folder"})│
+    │ ───separator───      │              │                                      │
+    │ Cut                  │ Ctrl+X       │ setClipboard({ node, mode: "cut" })  │
+    │ Copy                 │ Ctrl+C       │ setClipboard({ node, mode: "copy" }) │
+    │ Paste                │ Ctrl+V       │ copy or move from clipboard          │
+    │ ───separator───      │              │                                      │
+    │ Copy Path            │ Shift+Alt+C  │ navigator.clipboard.writeText(path)  │
+    │ ───separator───      │              │                                      │
+    │ Rename               │ F2           │ setRenamingPath(node.fullPath)        │
+    │ Move to…             │              │                                      │
+    │ Delete               │ Del          │ setDeleteTarget(node)                 │
+    │ ───separator───      │              │                                      │
+    │ Upload File          │              │ setUploadState({ dir, "file" })      │
+    │ Upload Folder        │              │ setUploadState({ dir, "folder" })    │
+    └──────────────────────┴──────────────┴──────────────────────────────────────┘
+
+  Clipboard model (in-memory, NOT browser clipboard):
+    interface ClipboardEntry { node: FileTreeNode; mode: "cut" | "copy" }
+    - Cut → fileOps.move(src, dest) on Paste
+    - Copy → fileOps.copy(src, dest) on Paste
+    - Clipboard cleared after paste
+
+
+=====================================================
+11. INLINE ACTIONS (InlineTreeInput)
+=====================================================
+
+File: src/modules/monaco-editor/components/file-tree/InlineTreeInput.tsx
+
+Replaces the tree row with a text input for:
+  - New File: appears below parent dir node, empty input
+  - New Folder: appears below parent dir node, empty input
+  - Rename: appears in place of node, pre-filled with current name
+
+Behavior:
+  - Auto-focus on mount
+  - For rename: selects filename portion (before last dot), not extension
+  - Enter → submit (calls fileOps.createFile/createDir/rename)
+  - Escape → cancel
+  - Blur → submit (treats it as Enter)
+  - e.stopPropagation() on all key events (tree doesn't intercept)
+
+Styled with CSS variables for editor theme consistency.
+
+
+=====================================================
+12. DIALOG SUB-COMPONENTS
+=====================================================
+
+--- ConfirmDeleteDialog ---
+File: .../file-tree/ConfirmDeleteDialog.tsx
+
+  - AlertDialog (Radix) with editor theme styling
+  - Shows: "Are you sure you want to permanently delete {name}?"
+  - Directory variant adds: "This will remove the folder and all its contents."
+  - Cancel / Delete (red) buttons
+  - On confirm → fileOps.deleteFile or fileOps.deleteDir
+
+--- MoveToDialog ---
+File: .../file-tree/MoveToDialog.tsx
+
+  - Dialog (Radix) with text input for destination directory path
+  - Pre-filled with current parent directory
+  - Input auto-selects on open
+  - Enter in input → submit
+  - Constructs full destination: destDir/name
+  - Skips if destination === source
+  - On confirm → fileOps.move(oldPath, newPath)
+
+--- FileUploadDialog ---
+File: .../file-tree/FileUploadDialog.tsx
+
+  - Dialog with hidden <input type="file"> (file mode) or webkitdirectory (folder mode)
+  - Click-to-browse zone (dashed border)
+  - Shows selected file list (max 20 displayed + "…and N more")
+  - Upload via REST: ApiCore.uploadFile(files, targetDir) → POST /api/upload
+  - Status states: idle → uploading → success/error
+  - Auto-closes 800ms after success
+  - On complete → fileOps.refresh(targetDir)
+
+
+=====================================================
+13. ALL SOCKET EVENTS USED BY THE TREE
+=====================================================
+
+  Event                              Direction        Used Where                              Purpose
+  -----                              ---------        ----------                              -------
+  @@SFTP_CONNECT                     Client→Server    useEditorSftpTree.connectToHost          Initiate SFTP session with creds
+  @@SFTP_READY                       Server→Client    useEditorSftpTree (listener)             Session established, tree can fetch
+  @@SFTP_EMIT_ERROR                  Server→Client    useEditorSftpTree (listener)             Error notifications
+  @@SFTP_GET_FILE                    Client→Server    useEditorSftpTree (navigate/refresh)     Request directory listing
+                                                      useFileOperations.refresh                 Refresh after mutation
+  @@SFTP_FILES_LIST                  Server→Client    useEditorSftpTree (listener)             Receive directory listing
+  @@SFTP_EDIT_FILE_REQUEST           Client→Server    useEditorSftpTree.readFileViaSocket      Request file content
+  @@SFTP_EDIT_FILE_REQUEST_RESPONSE  Server→Client    useEditorSftpTree.readFileViaSocket      Receive file content
+  @@SFTP_EDIT_FILE_DONE              Bidirectional    useEditorSftpTree.writeFileViaSocket     Save file content; server echoes to confirm
+  @@SFTP_CREATE_FILE                 Client→Server    useFileOperations.createFile              Create empty file
+  @@SFTP_CREATE_DIR                  Client→Server    useFileOperations.createDir               Create directory
+  @@SFTP_RENAME_FILE                 Client→Server    useFileOperations.rename                  Rename file/dir
+  @@SFTP_MOVE_FILE                   Client→Server    useFileOperations.move                    Move file/dir
+  @@SFTP_COPY_FILE                   Client→Server    useFileOperations.copy                    Copy file/dir
+  @@SFTP_DELETE_FILE                 Client→Server    useFileOperations.deleteFile              Delete file
+  @@SFTP_DELETE_DIR                  Client→Server    useFileOperations.deleteDir               Delete directory
+  "reconnect"                        Transport        useEditorSftpTree (listener)              Auto-reconnect with cached creds
+
+
+=====================================================
+14. REST API ENDPOINTS USED BY THE TREE
+=====================================================
+
+  Endpoint              Method   Used Where                              Purpose
+  --------              ------   ----------                              -------
+  /api/file/read        POST     FileEditorMonacoPage.fetchContent       Fallback file read (when socket not ready)
+  /api/file/write       POST     FileEditorMonacoPage.handleSave         Fallback file save (when socket not ready)
+  /api/upload           POST     FileUploadDialog.handleUpload           File/folder upload (always REST, multipart)
+
+
+=====================================================
+15. TREE STATE MANAGEMENT
+=====================================================
+
+  State Variable      Type                              Managed In              Triggers
+  --------------      ----                              ----------              --------
+  treeFiles           any[]                             useEditorSftpTree       @@SFTP_FILES_LIST handler
+  treeDir             string                            useEditorSftpTree       handleTreeNavigate / file list response
+  treeCollapsed       boolean                           useEditorSftpTree       ResizablePanel collapse/expand
+  root                FileTreeNode                      EditorFileTree          useEffect on [currentDir, files]
+  expandedPaths       Set<string>                       EditorFileTree          handleToggle / auto-expand on navigate
+  clipboard           ClipboardEntry | null             EditorFileTree          Cut/Copy/Paste context menu actions
+  renamingPath        string | null                     EditorFileTree          Rename context menu action
+  newItemState        { parentDir, type } | null        EditorFileTree          New File/Folder context menu action
+  deleteTarget        FileTreeNode | null               EditorFileTree          Delete context menu action
+  moveTarget          FileTreeNode | null               EditorFileTree          Move context menu action
+  uploadState         { dir, mode } | null              EditorFileTree          Upload File/Folder context menu action
+  showConnectDialog   boolean                           EditorFileTree          Connect button click
+
+
+=====================================================
+16. RELATIONSHIP TO MAIN SFTP BROWSER SESSION
+=====================================================
+
+  Main SFTP Browser                                    Editor File Tree
+  (src/pages/sftp/)                                    (useEditorSftpTree)
+  ─────────────────                                    ──────────────────
+  Socket: parent page's /sftp socket                   Socket: NEW /sftp socket (forceNew=true)
+  Session ID: from useSFTPStore                        Session ID: nanoid() (editorSessionId)
+  Store: useSFTPStore (sftpStore.ts)                   Store: useEditorSftpStore (editorSftpStore.ts)
+  Credentials: entered by user in SSHConnectionForm    Credentials: looked up from IndexedDB by host
+  Connection: automatic after form submit              Connection: manual (user clicks "Connect")
+  Shared with: FileList, SftpFileTree, FilePane        Shared with: nothing (editor page only)
+
+  The editor page receives the original sessionId from URL params. If that session
+  disconnects (user closes the SFTP tab), the editor page silently swaps the URL
+  sessionId to the currently active one via history.replaceState (no React re-render).
+  The tree's own socket is unaffected by this — it's fully independent.
+
+  WHY separate socket? The tree constantly emits @@SFTP_GET_FILE on every directory
+  click. If it shared the main socket, every file listing response would also hit
+  the main SFTP page's listeners, causing unnecessary re-renders. The dedicated
+  socket isolates the tree's I/O completely.
+
+
+=====================================================
+17. DRAG-AND-DROP
+=====================================================
+
+  NOT implemented on the tree sidebar.
+  
+  No onDragStart, onDragOver, onDrop handlers anywhere in EditorFileTree or TreeItem.
+  File upload is handled via the FileUploadDialog (context menu → file picker).
+
+
+=====================================================
+18. KEYBOARD SHORTCUTS
+=====================================================
+
+  NOT implemented at the tree level.
+
+  The context menu shows shortcut hints (Ctrl+X, Ctrl+C, Ctrl+V, F2, Del,
+  Shift+Alt+C) but these are display-only — there are no corresponding
+  addEventListener("keydown") handlers on the tree container.
+
+  Only InlineTreeInput handles keyboard: Enter (submit), Escape (cancel).
+
+
+=====================================================
+19. ERROR HANDLING
+=====================================================
+
+  Socket-level errors:
+    @@SFTP_EMIT_ERROR → store.status = "error", store.error = message
+    EditorFileTree shows WifiOff icon + error text + Retry button
+
+  File read timeout:
+    readFileViaSocket has 30-second timeout → rejects with "File read timed out"
+    openFileInTab catches → sets tab.error, tab.loading=false
+
+  File write timeout:
+    writeFileViaSocket has 30-second timeout → rejects with "File save timed out"
+    handleSave catches → shows error notification
+
+  Credential lookup failure:
+    idb.getAllItems("hosts") fails → store.status = "error"
+    No matching host → store.error = 'No saved credentials found for host "X"'
+
+  Socket transport disconnect/reconnect:
+    Handled automatically via "reconnect" event + credsRef cache
+    Re-emits @@SFTP_CONNECT → server sends @@SFTP_READY → tree continues
+
+
+=====================================================
+20. SUMMARY
+=====================================================
+
+The SFTP editor file tree sidebar is a self-contained subsystem:
+
+  - Own Socket.IO connection (/sftp namespace, forceNew)
+  - Own Zustand store (editorSftpStore, separate from main sftpStore)
+  - Own session ID (nanoid, not the URL sessionId)
+  - Own credential lookup (IndexedDB, not the main connection form)
+  - Own reconnection logic (cached creds, auto re-emit on transport reconnect)
+
+Communication is 100% direct socket emissions — no event bus, no pub/sub, no
+CustomEvent. File mutations use useFileOperations hook which wraps socket.emit
+calls with a 300ms delayed refresh.
+
+The tree supports 13 context menu actions via Radix ContextMenu, with inline
+inputs for rename/create and dialogs for delete/move/upload. Upload is the
+only operation using REST API; everything else goes through Socket.IO.
+
+Tree data is a recursive Map<string, FileTreeNode> structure built by merging
+flat file listings from @@SFTP_FILES_LIST into the tree on each directory
+navigation. Stale children are pruned, paths auto-expand from root to current
+directory.

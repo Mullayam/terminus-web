@@ -1,0 +1,547 @@
+SFTP Editor File Tree — Plug-and-Play File System Audit
+=========================================================
+Date: March 30, 2026
+Scope: How to introduce a new file system backend (REST API, fs.node, watcher, etc.)
+       into the editor's file tree sidebar without rewriting the tree UI.
+
+
+=========================================================
+1. CURRENT COUPLING POINTS (what's hardwired to SFTP sockets)
+=========================================================
+
+There are exactly 5 places where the tree is coupled to SFTP socket.io:
+
+  #   What                        Where                                          Hardwired To
+  --  ----                        -----                                          ------------
+  C1  Tree listing (readdir)      useEditorSftpTree.ts L170-195                  socket.emit(@@SFTP_GET_FILE) + socket.on(@@SFTP_FILES_LIST)
+  C2  File read (open in tab)     useEditorSftpTree.ts L227-260 readFileViaSocket socket.emit(@@SFTP_EDIT_FILE_REQUEST) + .on(@@SFTP_EDIT_FILE_REQUEST_RESPONSE)
+  C3  File write (save)           useEditorSftpTree.ts L265-305 writeFileViaSocket socket.emit(@@SFTP_EDIT_FILE_DONE) + .on(@@SFTP_EDIT_FILE_DONE)
+  C4  File CRUD (context menu)    useFileOperations.ts L40-141                   socketRef.current.emit(CREATE_FILE, CREATE_DIR, RENAME, MOVE, COPY, DELETE_FILE, DELETE_DIR)
+  C5  Connection lifecycle        useEditorSftpTree.ts L64-158                   io(/sftp), SFTP_CONNECT, SFTP_READY, IndexedDB creds, editorSftpStore
+
+Everything downstream is ALREADY decoupled:
+  - EditorFileTree.tsx — accepts props: files[], currentDir, onFileOpen, onNavigate, onRefresh, fileOps
+  - FileTreePanel.tsx — pure pass-through wrapper
+  - FileTreeContextMenu.tsx — calls actions from ContextMenuActions (no socket knowledge)
+  - InlineTreeInput, ConfirmDeleteDialog, MoveToDialog — purely presentational
+  - FileUploadDialog — uses REST ApiCore.uploadFile (its own coupling, separate)
+
+The tree UI components have ZERO socket imports. All socket coupling lives in
+two hooks: useEditorSftpTree + useFileOperations.
+
+
+=========================================================
+2. EXISTING ABSTRACTION PATTERN (from @/modules/monaco-editor)
+=========================================================
+
+The Monaco editor module already uses a **Plugin System** with a Strategy/Observer
+pattern defined in src/modules/monaco-editor/types.ts:
+
+  interface MonacoPlugin {
+    id: string;
+    name: string;
+    version: string;
+    dependencies?: string[];
+    priority?: number;
+    defaultEnabled?: boolean;
+
+    onBeforeMount?(monaco): void | Promise<void>;
+    onMount?(context: PluginContext): void | Promise<void>;
+    onLanguageChange?(language, context): void;
+    onContentChange?(content, context): void;
+    onConfigChange?(config, context): void;
+    onDispose?(): void;
+  }
+
+  interface PluginContext {
+    monaco, editor, addDisposable, getContent, setContent,
+    getLanguage, setLanguage, getFilePath, insertTextAtCursor,
+    notify, addKeybinding, addAction,
+    registerCompletionProvider, registerHoverProvider,
+    registerDefinitionProvider, registerDocumentSymbolProvider,
+    emit, on, ...  (30+ methods)
+  }
+
+The MonacoPlugin system is how ALL editor features are added (completion, hover,
+diagnostics, themes, formatting, ghost text, etc.) — over 39 built-in plugins.
+
+The FileSystemProvider follows the same strategy:
+  - Define an interface (like MonacoPlugin)
+  - Provide concrete implementations (like each plugin)
+  - Wire via hook/registry (like useMonacoPlugins + PluginRegistry)
+
+The key difference: MonacoPlugin deals with EDITOR behavior (providers, keybindings).
+FileSystemProvider deals with FILE I/O (readdir, read, write, CRUD).
+They operate at different layers but use the same architecture.
+
+
+=========================================================
+3. PROPOSED INTERFACE: FileSystemProvider
+=========================================================
+
+A single interface that abstracts all 5 coupling points:
+
+  interface FileSystemProvider {
+    /** Unique identifier for this provider type */
+    readonly type: string;    // "sftp" | "api" | "local" | "s3" | ...
+
+    // ── Connection ──────────────────────────────────────
+    /** Initialize / connect the provider. Returns cleanup function. */
+    connect(): Promise<void>;
+    disconnect(): void;
+    /** Observable status */
+    readonly status: "idle" | "connecting" | "connected" | "error";
+    readonly error?: string;
+    /** Subscribe to status changes */
+    onStatusChange(cb: (status, error?) => void): () => void;
+
+    // ── Directory listing ───────────────────────────────
+    /** List directory contents */
+    readdir(dirPath: string): Promise<FileEntry[]>;
+    /** Subscribe to real-time directory changes (watcher) — optional */
+    watchDir?(dirPath: string, cb: (entries: FileEntry[]) => void): () => void;
+
+    // ── File read/write ─────────────────────────────────
+    /** Read file content as string */
+    readFile(filePath: string): Promise<string>;
+    /** Write file content */
+    writeFile(filePath: string, content: string): Promise<void>;
+
+    // ── CRUD mutations ──────────────────────────────────
+    createFile(dirPath: string, name: string): Promise<void>;
+    createDir(dirPath: string, name: string): Promise<void>;
+    rename(oldPath: string, newName: string): Promise<void>;
+    move(oldPath: string, newPath: string): Promise<void>;
+    copy(sourcePath: string, destPath: string): Promise<void>;
+    deleteFile(filePath: string): Promise<void>;
+    deleteDir(dirPath: string): Promise<void>;
+
+    // ── Upload (optional) ───────────────────────────────
+    upload?(files: File[], targetDir: string): Promise<void>;
+  }
+
+  interface FileEntry {
+    name: string;
+    type: "d" | "-" | string;      // directory, file, or other
+    size?: number;
+    modifyTime?: number;
+    rights?: { user: string; group: string; other: string };
+  }
+
+
+=========================================================
+4. CONCRETE PROVIDER EXAMPLES
+=========================================================
+
+--- A. SftpFileSystemProvider (current behavior, extracted) ---
+
+  class SftpFileSystemProvider implements FileSystemProvider {
+    type = "sftp";
+    private socket: Socket;
+    private sessionId: string;
+
+    connect() {
+      // Create socket.io → /sftp, look up creds from IDB, emit @@SFTP_CONNECT
+      // Listen @@SFTP_READY → status = "connected"
+    }
+    readdir(dirPath) {
+      // emit @@SFTP_GET_FILE → listen @@SFTP_FILES_LIST → return entries
+    }
+    readFile(filePath) {
+      // emit @@SFTP_EDIT_FILE_REQUEST → listen RESPONSE → return content
+    }
+    writeFile(filePath, content) {
+      // emit @@SFTP_EDIT_FILE_DONE → listen echo → resolve
+    }
+    createFile(dirPath, name) {
+      // emit @@SFTP_CREATE_FILE { filePath: dirPath/name }
+    }
+    // ... all other CRUD via socket.emit
+  }
+
+
+--- B. ApiFileSystemProvider (REST API backend) ---
+
+  class ApiFileSystemProvider implements FileSystemProvider {
+    type = "api";
+    constructor(private baseUrl: string, private token?: string) {}
+
+    connect() {
+      // Validate token / ping health endpoint → status = "connected"
+    }
+    readdir(dirPath) {
+      // GET /api/fs/readdir?path=dirPath → return FileEntry[]
+    }
+    readFile(filePath) {
+      // GET /api/fs/read?path=filePath → return content string
+    }
+    writeFile(filePath, content) {
+      // PUT /api/fs/write { path, content }
+    }
+    createFile(dirPath, name) {
+      // POST /api/fs/create { path: dirPath/name, type: "file" }
+    }
+    upload(files, targetDir) {
+      // POST /api/fs/upload (multipart)
+    }
+    // ... all CRUD as REST calls
+  }
+
+
+--- C. LocalFsProvider (Node.js fs via Electron / server proxy) ---
+
+  class LocalFsProvider implements FileSystemProvider {
+    type = "local";
+
+    connect() {
+      // validate access to root path → status = "connected"
+    }
+    readdir(dirPath) {
+      // fs.readdir(dirPath, { withFileTypes: true }) → map to FileEntry[]
+    }
+    readFile(filePath) {
+      // fs.readFile(filePath, "utf-8")
+    }
+    writeFile(filePath, content) {
+      // fs.writeFile(filePath, content, "utf-8")
+    }
+    watchDir(dirPath, cb) {
+      // fs.watch(dirPath) or chokidar.watch(dirPath)
+      // on change → readdir() → cb(entries)
+      // return unsubscribe
+    }
+    // ... all CRUD via fs.mkdir, fs.rename, fs.cp, fs.rm
+  }
+
+
+--- D. WatcherProvider (wraps any provider + adds file watching) ---
+
+  class WatcherProvider implements FileSystemProvider {
+    constructor(
+      private inner: FileSystemProvider,
+      private watchSocket: Socket,      // or WebSocket / SSE / polling
+    ) {}
+
+    // Delegate all methods to inner provider
+    readdir(d) { return this.inner.readdir(d); }
+    readFile(f) { return this.inner.readFile(f); }
+
+    // Add real-time watching
+    watchDir(dirPath, cb) {
+      this.watchSocket.emit("watch", { dirPath });
+      const handler = (data) => { if (data.dir === dirPath) cb(data.entries); };
+      this.watchSocket.on("fs:changed", handler);
+      return () => {
+        this.watchSocket.off("fs:changed", handler);
+        this.watchSocket.emit("unwatch", { dirPath });
+      };
+    }
+  }
+
+
+=========================================================
+5. WHAT CHANGES — FILE BY FILE
+=========================================================
+
+  Status: N = new file, M = modified, D = can be deleted later
+
+  ┌──────────────────────────────────────────────────────────────────────┬───┬──────────────────────────────────────────────────────────────┐
+  │ File                                                                │ S │ Change Description                                           │
+  ├──────────────────────────────────────────────────────────────────────┼───┼──────────────────────────────────────────────────────────────┤
+  │ src/modules/monaco-editor/types/file-system.ts                      │ N │ FileSystemProvider + FileEntry interfaces                     │
+  │ src/modules/monaco-editor/providers/sftp-fs-provider.ts             │ N │ SftpFileSystemProvider (extract from useEditorSftpTree)       │
+  │ src/modules/monaco-editor/providers/api-fs-provider.ts              │ N │ ApiFileSystemProvider (REST-based)                            │
+  │ src/modules/monaco-editor/providers/local-fs-provider.ts            │ N │ LocalFsProvider (optional, for Electron/server proxy)         │
+  │ src/modules/monaco-editor/providers/index.ts                        │ N │ Barrel exports                                               │
+  │                                                                     │   │                                                              │
+  │ src/modules/monaco-editor/hooks/useFileSystemTree.ts                │ N │ Generic hook replacing useEditorSftpTree; takes provider      │
+  │                                                                     │   │ param instead of hardcoded socket.io calls                    │
+  │                                                                     │   │                                                              │
+  │ src/modules/monaco-editor/components/file-tree/useFileOperations.ts │ M │ Accept FileSystemProvider instead of socketRef                │
+  │                                                                     │   │ (or keep as-is if provider is always passed from parent)      │
+  │                                                                     │   │                                                              │
+  │ src/modules/monaco-editor/components/EditorFileTree.tsx             │ - │ NO CHANGE (already decoupled via props)                       │
+  │ src/modules/monaco-editor/components/file-tree/*                    │ - │ NO CHANGE (all purely presentational)                         │
+  │                                                                     │   │                                                              │
+  │ src/pages/sftp/components/monaco-editor-parts/useEditorSftpTree.ts  │ M │ Becomes thin adapter: creates SftpFileSystemProvider,         │
+  │                                                                     │   │ delegates to useFileSystemTree(provider)                      │
+  │ src/pages/sftp/components/monaco-editor-parts/FileTreePanel.tsx     │ - │ NO CHANGE (already takes props)                               │
+  │                                                                     │   │                                                              │
+  │ src/pages/sftp/components/FileEditorMonacoPage.tsx                  │ M │ Minor: pass provider from factory based on route / config     │
+  │ src/store/editorSftpStore.ts                                        │ M │ Rename to editorFsStore.ts (generalize status tracking)       │
+  └──────────────────────────────────────────────────────────────────────┴───┴──────────────────────────────────────────────────────────────┘
+
+  Total: 5 new files, 4 modified, 0 deleted.
+  All existing tree UI components: ZERO changes.
+
+
+=========================================================
+6. HOOK TRANSFORMATION: useEditorSftpTree → useFileSystemTree
+=========================================================
+
+Current (SFTP-coupled):
+
+  function useEditorSftpTree({ sessionId, initialDir, hostUser }) {
+    const socket = io(`${API_URL}/sftp`, { ... });       // ← hardcoded
+    socket.emit(SFTP_GET_FILE, { dirPath });              // ← hardcoded
+    socket.on(SFTP_FILES_LIST, (data) => { ... });        // ← hardcoded
+    const readFileViaSocket = (path) => { ... };          // ← hardcoded
+    const writeFileViaSocket = (path, content) => { ... }; // ← hardcoded
+    return { treeFiles, treeDir, readFileViaSocket, writeFileViaSocket, ... };
+  }
+
+Proposed (provider-based):
+
+  function useFileSystemTree({ provider, initialDir }) {
+    // Connection lifecycle
+    useEffect(() => {
+      provider.connect();
+      const unsub = provider.onStatusChange((s, e) => { setStatus(s); setError(e); });
+      return () => { unsub(); provider.disconnect(); };
+    }, [provider]);
+
+    // Directory listing
+    const navigate = async (dirPath) => {
+      const entries = await provider.readdir(dirPath);    // ← generic
+      setTreeFiles(entries);
+      setTreeDir(dirPath);
+    };
+
+    // Optional watcher integration
+    useEffect(() => {
+      if (!provider.watchDir) return;
+      const unsub = provider.watchDir(treeDir, (entries) => {
+        setTreeFiles(entries);                             // live update!
+      });
+      return unsub;
+    }, [provider, treeDir]);
+
+    // File read/write
+    const readFile = (path) => provider.readFile(path);    // ← generic
+    const writeFile = (path, c) => provider.writeFile(path, c);
+
+    return { treeFiles, treeDir, readFile, writeFile, status, error, navigate, ... };
+  }
+
+Then useEditorSftpTree becomes a thin wrapper:
+
+  function useEditorSftpTree({ sessionId, initialDir, hostUser }) {
+    const provider = useMemo(
+      () => new SftpFileSystemProvider({ sessionId, hostUser }),
+      [sessionId, hostUser],
+    );
+    return useFileSystemTree({ provider, initialDir });
+  }
+
+
+=========================================================
+7. useFileOperations TRANSFORMATION
+=========================================================
+
+Current:
+
+  function useFileOperations(
+    socketRef: RefObject<Socket | null>,
+    onRefresh?: (dir: string) => void,
+  ): FileOperations {
+    const emit = (event, payload) => socketRef.current?.emit(event, payload);
+    return {
+      createFile: (dir, name) => { emit(SFTP_CREATE_FILE, { filePath: dir/name }); ... },
+      rename: (old, newName) => { emit(SFTP_RENAME_FILE, { oldPath, newPath }); ... },
+      // all methods hardcoded to socket.emit
+    };
+  }
+
+Option A — Replace with provider:
+
+  function useFileOperations(
+    provider: FileSystemProvider | null,
+    onRefresh?: (dir: string) => void,
+  ): FileOperations {
+    return {
+      createFile: async (dir, name) => {
+        await provider?.createFile(dir, name);
+        setTimeout(() => { provider?.readdir(dir).then(...); onRefresh?.(dir); }, 300);
+      },
+      rename: async (old, newName) => {
+        await provider?.rename(old, newName);
+        ...
+      },
+    };
+  }
+
+Option B — Keep FileOperations as-is, build from provider in parent:
+
+  // In FileEditorMonacoPage.tsx
+  const fileOps = useMemo<FileOperations>(() => ({
+    createFile: (d, n) => provider.createFile(d, n).then(() => provider.readdir(d)),
+    rename:     (o, n) => provider.rename(o, n).then(() => provider.readdir(parentOf(o))),
+    deleteFile: (f)    => provider.deleteFile(f).then(() => provider.readdir(parentOf(f))),
+    // ...
+    refresh:    (d)    => provider.readdir(d).then(setTreeFiles),
+  }), [provider]);
+
+
+=========================================================
+8. WATCHER INTEGRATION POINTS
+=========================================================
+
+If the new backend supports file watching (e.g. chokidar, fs.watch, WebSocket push):
+
+  1. Provider implements watchDir():
+       watchDir(dirPath, cb: (entries: FileEntry[]) => void): () => void
+
+  2. useFileSystemTree subscribes when connected:
+       useEffect(() => {
+         if (!provider.watchDir || status !== "connected") return;
+         return provider.watchDir(treeDir, (entries) => setTreeFiles(entries));
+       }, [provider, treeDir, status]);
+
+  3. This REPLACES the 300ms setTimeout hack in useFileOperations:
+     Instead of "mutate then delay then refresh", the watcher automatically
+     pushes the new listing after any change.
+
+  4. Tree UI: NO CHANGE needed. treeFiles state updates → tree re-renders.
+
+  5. For editor tabs (dirty indicator):
+     Provider can optionally expose:
+       watchFile?(filePath, cb: (event: "change" | "delete") => void): () => void
+     The editor page can show "file changed on disk" warning.
+
+Transport options for watchers:
+  - Socket.IO: server emits "fs:changed" events (already have socket infra)
+  - Server-Sent Events (SSE): lighter weight, unidirectional
+  - WebSocket: raw WS connection for file change events
+  - Polling: fallback — poll readdir every N seconds
+
+
+=========================================================
+9. FACTORY / REGISTRY PATTERN
+=========================================================
+
+For plug-and-play switching between backends:
+
+  // src/modules/monaco-editor/providers/registry.ts
+
+  type ProviderFactory = (config: any) => FileSystemProvider;
+
+  const registry = new Map<string, ProviderFactory>();
+
+  function registerProvider(type: string, factory: ProviderFactory) {
+    registry.set(type, factory);
+  }
+
+  function createProvider(type: string, config: any): FileSystemProvider {
+    const factory = registry.get(type);
+    if (!factory) throw new Error(`Unknown FS provider: ${type}`);
+    return factory(config);
+  }
+
+  // Built-in registrations
+  registerProvider("sftp", (cfg) => new SftpFileSystemProvider(cfg));
+  registerProvider("api",  (cfg) => new ApiFileSystemProvider(cfg));
+  registerProvider("local",(cfg) => new LocalFsProvider(cfg));
+
+Usage in page:
+
+  // From route params or config
+  const providerType = searchParams.get("fs") || "sftp";
+  const provider = createProvider(providerType, { sessionId, hostUser });
+
+  // Route examples:
+  //   /ssh/sftp/editor?fs=sftp&user=192.168.1.1&path=/home/user/file.ts
+  //   /editor?fs=api&endpoint=https://api.example.com&path=/project/file.ts
+  //   /editor?fs=local&root=/Users/mulayam/project&path=src/index.ts
+
+
+=========================================================
+10. MIGRATION PATH (incremental, no big bang)
+=========================================================
+
+  Phase 1 — Define interfaces (no behavior change)
+    a. Create FileSystemProvider + FileEntry interfaces
+    b. Create SftpFileSystemProvider that wraps current socket logic
+    c. All tests still pass, nothing changes at runtime
+
+  Phase 2 — Create useFileSystemTree generic hook
+    a. Extract the generic parts from useEditorSftpTree
+    b. useEditorSftpTree becomes: create SftpProvider → delegate to useFileSystemTree
+    c. Still SFTP-only, but now using the abstraction
+
+  Phase 3 — Refactor useFileOperations
+    a. Accept FileSystemProvider instead of socketRef
+    b. Calls provider.createFile instead of socket.emit
+    c. OR use Option B (build FileOperations from provider in parent)
+
+  Phase 4 — Add new provider (e.g. ApiFileSystemProvider)
+    a. Implement the interface against your REST API
+    b. Wire up in FileEditorMonacoPage via factory
+    c. Tree UI works identically — zero changes
+
+  Phase 5 — Add watcher support (optional)
+    a. Add watchDir to your provider
+    b. useFileSystemTree picks it up automatically
+    c. Remove 300ms setTimeout hacks
+    d. Tree updates in real-time
+
+
+=========================================================
+11. WHAT DOESN'T NEED TO CHANGE (already decoupled)
+=========================================================
+
+  Component                          Reason
+  ---------                          ------
+  EditorFileTree.tsx                  Only sees: files[], currentDir, fileOps, callbacks
+  FileTreeContextMenu.tsx            Only sees: ContextMenuActions callbacks
+  InlineTreeInput.tsx                Purely presentational (input → submit name)
+  ConfirmDeleteDialog.tsx            Purely presentational (confirm → onConfirm callback)
+  MoveToDialog.tsx                   Purely presentational (input path → onConfirm)
+  FileTreePanel.tsx                  Pure pass-through wrapper with ResizablePanel
+  EditorTabBar.tsx                   Only knows about EditorTab[], no file system
+  TreeItem (inside EditorFileTree)   Recursive renderer, only knows FileTreeNode shape
+
+  These 8 components / sub-components require ZERO modification.
+  The entire UI layer is already provider-agnostic.
+
+
+=========================================================
+12. UPLOAD SPECIAL CASE
+=========================================================
+
+FileUploadDialog currently calls ApiCore.uploadFile (REST POST multipart).
+This is a separate coupling from the socket.
+
+Options:
+  a. Add upload() to FileSystemProvider — each provider implements its own
+     upload mechanism (SFTP provider uses REST as today, API provider uses
+     its own endpoint, local provider uses fs.writeFile).
+  b. Keep FileUploadDialog as-is for SFTP, override via prop for other providers.
+  c. Make upload handler a prop on EditorFileTree → parent decides transport.
+
+Recommendation: Option (a) — cleanest, provider owns all I/O.
+
+
+=========================================================
+13. SUMMARY
+=========================================================
+
+Current state:
+  - Tree UI: fully decoupled (props + callbacks)
+  - Tree data: tightly coupled to SFTP socket.io in 2 hooks
+
+To make plug-and-play:
+  - 1 new interface (FileSystemProvider) — ~50 lines
+  - 1 new generic hook (useFileSystemTree) — ~120 lines
+  - 1 concrete provider per backend (SftpFS, ApiFS, LocalFS) — ~100-150 lines each
+  - 1 optional registry for factory pattern — ~30 lines
+  - 4 existing files modified (thin wrappers / signature changes)
+  - 0 UI components changed
+
+The EditorFileTree and all its sub-components are already ready.
+The only work is extracting the I/O layer from 2 hooks into a provider interface.
+
+After extraction, adding a new file system is:
+  1. Implement FileSystemProvider (~100 lines)
+  2. Register it in the factory
+  3. Pass ?fs=yourType in the URL
+  4. Done — tree, context menu, tabs, save all work automatically

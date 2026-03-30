@@ -1,0 +1,284 @@
+SFTP Left Sidebar File List — Event/Action Flow Audit
+======================================================
+Date: March 30, 2026
+Codebase: terminus-web
+
+
+======================================================
+Component Hierarchy
+======================================================
+
+SFTP (page)                          src/pages/sftp/index.tsx
+ |-- SFTPTabBar                      .../components/SFTPTabBar.tsx
+ +-- SFTPTabClient                   .../components/SFTPTabClient.tsx
+      |-- SSHConnectionForm          (pre-connect)
+      +-- SFTPContext.Provider       (post-connect, provides socket + tabId)
+           +-- FilePane              .../components/FilePane.tsx
+                |-- ResizablePanelGroup
+                |    |-- SftpFileTree     .../components/SftpFileTree.tsx  <-- LEFT SIDEBAR
+                |    |    +-- TreeItem    (recursive, per node)
+                |    |         +-- ContextModal (right-click context menu)
+                |    |              +-- Dialog children: FileEditor, NewFolderDialog,
+                |    |                   DeleteFolderDialog, StatsInfoCard, FilePermissions
+                |    +-- FileList         .../components/FileList.tsx      <-- RIGHT TABLE
+                |         +-- ContextModal (per table cell, right-click)
+                |              +-- Dialog children: same as above
+                |-- DownloadProgress
+                +-- EnhancedFileUploadPopup
+
+
+======================================================
+Action Handling Pattern
+======================================================
+
+Primary: Direct socket emissions + Zustand store for state.
+
+  Mechanism              Usage
+  ---------              -----
+  Socket.io emissions    ALL CRUD operations (create, rename, move, copy, delete, list, edit)
+  Zustand store          Per-tab session state (currentDir, remoteFiles, loading, connection)
+  React Context          Provides socket, isConnected, tabId from SFTPTabClient down
+  Props (callbacks)      FilePane constructs TreeContextActions, passes to SftpFileTree
+  REST API (ApiCore)     Upload (POST multipart), Download (POST blob), File read/write
+  Event bus / CustomEvent  **NOT USED.** No EventEmitter, no custom events, no pub/sub.
+                           Only standard DOM addEventListener("keydown") for keyboard shortcuts.
+
+
+======================================================
+Socket Event Constants (SFTP)
+======================================================
+
+Defined at: src/lib/sockets/event-constants.ts (lines 38-73)
+
+  Constant                          Wire Value                       Direction
+  --------                          ----------                       ---------
+  SFTP_CONNECT                      @@SFTP_CONNECT                   Client -> Server
+  SFTP_READY                        @@SFTP_READY                     Server -> Client
+  SFTP_GET_FILE                     @@SFTP_GET_FILE                  Client -> Server (list dir)
+  SFTP_FILES_LIST                   @@SFTP_FILES_LIST                Server -> Client (dir listing)
+  SFTP_CREATE_FILE                  @@SFTP_CREATE_FILE               Client -> Server
+  SFTP_CREATE_DIR                   @@SFTP_CREATE_DIR                Client -> Server
+  SFTP_RENAME_FILE                  @@SFTP_RENAME_FILE               Client -> Server
+  SFTP_MOVE_FILE                    @@SFTP_MOVE_FILE                 Client -> Server
+  SFTP_COPY_FILE                    @@SFTP_COPY_FILE                 Client -> Server
+  SFTP_DELETE_FILE                  @@SFTP_DELETE_FILE               Client -> Server
+  SFTP_DELETE_DIR                   @@SFTP_DELETE_DIR                Client -> Server
+  SFTP_FILE_STATS                   @@SFTP_FILE_STATS                Bidirectional
+  SFTP_EDIT_FILE_REQUEST            @@SFTP_EDIT_FILE_REQUEST         Client -> Server
+  SFTP_EDIT_FILE_REQUEST_RESPONSE   @@SFTP_EDIT_FILE_REQUEST_RESPONSE  Server -> Client
+  SFTP_EDIT_FILE_DONE               @@SFTP_EDIT_FILE_DONE            Client -> Server (save)
+  SFTP_GET_DIR_TREE                 @@SFTP_GET_DIR_TREE              Client -> Server
+  SFTP_DIR_TREE                     @@SFTP_DIR_TREE                  Server -> Client
+  FILE_UPLOADED                     @@FILE_UPLOADED                  Server -> Client
+  DOWNLOAD_PROGRESS                 @@DOWNLOAD_PROGRESS              Server -> Client
+
+
+======================================================
+Per-Action Flow (Click -> Execution)
+======================================================
+
+
+--- Open Directory (click in tree sidebar) ---
+
+  1. User clicks directory node in SftpFileTree
+     -> TreeItem.handleClick() at SftpFileTree.tsx (line ~251)
+  2. Calls onToggle(node.fullPath) + onNavigate(node.fullPath)
+  3. onNavigate wired to FilePane.handleSetCurrentDir(dirPath) at FilePane.tsx (line ~518)
+  4. handleSetCurrentDir -> SFTPTabClient.handleSetCurrentDir(path) at SFTPTabClient.tsx (line ~65)
+  5. Emits socket.emit(@@SFTP_GET_FILE, { dirPath }) + stores dir in localStorage
+  6. Server responds @@SFTP_FILES_LIST
+     -> useSftpSocket.onFilesList at useSftpSocket.ts (line ~154)
+  7. Patches Zustand store: remoteFiles, currentDir, homeDir
+  8. SftpFileTree re-renders via useEffect watching [currentDir, files]
+
+
+--- Open/Edit File (inline editor via context menu) ---
+
+  1. Right-click file -> "Edit" -> ContextModal renders FileEditor in dialog
+  2. FileEditor on mount: socket.emit(@@SFTP_EDIT_FILE_REQUEST, { path })
+     at FileEditor.tsx (line ~95)
+  3. Server responds @@SFTP_EDIT_FILE_REQUEST_RESPONSE -> populates textarea
+  4. User edits -> Save -> socket.emit(@@SFTP_EDIT_FILE_DONE, { path, content })
+     at FileEditor.tsx (line ~143)
+
+
+--- Open/Edit File (Monaco editor, new tab) ---
+
+  1. Right-click -> "Edit with Editor"
+     -> treeContextActions.onEditWithEditor at FilePane.tsx (line ~201)
+  2. Calls window.open(/ssh/sftp/editor?path=...&tabId=...&user=..., "_blank")
+  3. Opens FileEditorMonacoPage which reads file via REST ApiCore.fetchFileContent()
+
+
+--- Preview ---
+
+  1. Right-click -> "Preview"
+     -> treeContextActions.onPreview at FilePane.tsx (line ~207)
+  2. window.open(/ssh/sftp/preview?path=...&tabId=..., "_blank")
+
+
+--- Create File ---
+
+  1. Tree context menu: Right-click -> "New File" -> NewFolderDialog (type="file")
+  2. User enters name -> handleTreeCreateFileOrDir(parentDir/name, "file")
+     at FilePane.tsx (line ~134)
+  3. Emits socket.emit(@@SFTP_CREATE_FILE, { filePath })
+     then socket.emit(@@SFTP_GET_FILE, { dirPath }) for refresh
+
+  OR via toolbar button:
+  4. New File icon -> NewFolderDialog -> handleToolbarCreate(name, "file")
+     at FilePane.tsx (line ~111)
+  5. Same socket emissions
+
+
+--- Create Folder ---
+
+  Same as Create File but emits @@SFTP_CREATE_DIR with { folderPath }
+
+
+--- Rename ---
+
+  1. Right-click -> "Rename" -> NewFolderDialog (type="rename")
+  2. handleTreeCreateFileOrDir(fullPath, "rename", newName)
+     at FilePane.tsx (line ~126)
+  3. Emits socket.emit(@@SFTP_RENAME_FILE, { oldPath, newPath: parentDir/newName })
+  4. Then @@SFTP_GET_FILE to refresh listing
+
+
+--- Move ---
+
+  1. Right-click -> "Move" -> NewFolderDialog (type="move") with PathPicker
+  2. handleTreeCreateFileOrDir(fullPath, "move", destPath)
+     at FilePane.tsx (line ~131)
+  3. Emits socket.emit(@@SFTP_MOVE_FILE, { oldPath, newPath })
+
+
+--- Copy ---
+
+  1. Right-click -> "Copy" -> NewFolderDialog (type="copy") with PathPicker
+  2. handleTreeCreateFileOrDir(fullPath, "copy", destPath)
+     at FilePane.tsx (line ~135)
+  3. Emits socket.emit(@@SFTP_COPY_FILE, { currentPath, destinationPath })
+
+
+--- Delete ---
+
+  1. Right-click -> "Delete" -> DeleteFolderDialog confirmation
+  2. On confirm: treeContextActions.onDelete(node)
+     or handleContextClickAction("delete", data) at FileList.tsx (line ~702)
+  3. If directory: socket.emit(@@SFTP_DELETE_DIR, { path })
+     If file:      socket.emit(@@SFTP_DELETE_FILE, { path })
+  4. Then @@SFTP_GET_FILE to refresh
+
+
+--- Download ---
+
+  1. Right-click -> "Download"
+     -> treeContextActions.onDownload(node) at FilePane.tsx (line ~221)
+  2. Calls ApiCore.download({ remotePath, type, name, sessionId })
+     REST POST to /api/download
+  3. Response blob -> <a> element with download attribute -> browser download
+  4. Progress tracked via @@DOWNLOAD_PROGRESS socket events in useSftpSocket
+
+
+--- Upload ---
+
+  1. Drag & drop: FilePane.handleDrop at FilePane.tsx (line ~392) -> startUpload(file)
+  2. Or upload dialog: toolbar "Upload" -> EnhancedFileUploadPopup -> startUpload
+  3. startUpload calls ApiCore.uploadFile(file, path)
+     REST POST multipart to /api/upload
+  4. Server sends @@FILE_UPLOADED on completion
+     -> useSftpSocket.onFileUploaded at useSftpSocket.ts (line ~147)
+     shows toast and re-fetches directory
+  5. Progress tracked via @@FILE_UPLOADED_PROGRESS / @@STARTING / @@COMPRESSING
+
+
+--- Refresh ---
+
+  1. Right-click -> "Refresh"
+     -> treeContextActions.onRefresh() at FilePane.tsx (line ~213)
+  2. Emits socket.emit(@@SFTP_GET_FILE, { dirPath: path })
+
+
+--- Properties ---
+
+  1. Right-click -> "Properties"
+     -> socket.emit(@@SFTP_FILE_STATS, { path }) at FilePane.tsx (line ~241)
+  2. Server responds @@SFTP_FILE_STATS
+     -> handler at FilePane.tsx (line ~158) sets treeStats
+  3. StatsInfoCard displays the result
+
+
+--- Check Permissions ---
+
+  1. Right-click -> "Check Permissions"
+     -> renders FilePermissions component inline with node's rights data
+
+
+======================================================
+Context Menu Implementation
+======================================================
+
+Two independent but identical patterns:
+
+  Location              Component      Trigger
+  --------              ---------      -------
+  Left sidebar tree     SftpFileTree   Wraps each tree item in ContextModal
+                        -> TreeItem    at SftpFileTree.tsx (line ~335)
+  Right file table      FileList       Wraps each TableCell in ContextModal
+                                       at FileList.tsx (line ~785)
+
+ContextModal (src/components/ui/context-modal.tsx):
+  - Radix ContextMenu + Radix Dialog
+  - Right-click shows ContextMenuContent with action items
+  - Items with "content" open a Dialog overlay (edit, rename, delete confirm)
+  - Items with only "action" execute immediately (download, refresh, preview)
+  - useContextModalClose() hook lets child dialogs close modal after action
+
+
+======================================================
+Zustand Store (useSFTPStore)
+======================================================
+
+Defined at: src/store/sftpStore.ts
+
+  Action                Purpose
+  ------                -------
+  addTab(tab)           Add SFTP tab, set as active
+  removeTab(tabId)      Remove tab, destroy socket, clean localStorage
+  setActiveTab(tabId)   Switch active tab
+  addSession(session)   Init session for a tab
+  updateSession(tabId, patch)  Patch session fields (currentDir, remoteFiles, loading)
+  removeSession(tabId)  Remove session data
+
+  NOTE: Store does NOT contain file operation actions (no deleteFile, renameFile).
+  All CRUD is handled via direct socket emissions from FilePane/FileList.
+
+
+======================================================
+Key Observations
+======================================================
+
+1. No event bus / pub-sub
+   All communication is direct socket.emit + store.patch.
+   No EventEmitter, no CustomEvent, no window.dispatchEvent for file actions.
+
+2. Dual context menus (duplicated logic)
+   Tree sidebar and table both construct identical context menu items independently.
+   FilePane.treeContextActions and FileList's inline contextItems are separate code
+   doing the same thing.
+
+3. Socket is the command bus
+   Every file operation is a socket emission. The backend does actual SFTP work
+   and responds with success/error event or updated file list.
+
+4. REST API for binary operations
+   Upload and download use HTTP endpoints (/api/upload, /api/download), not sockets.
+
+5. Keyboard shortcuts are mostly no-ops
+   Defined in FileList.tsx (lines 603-623) but most are commented out
+   (handleContextClickAction call is commented).
+
+6. File open = new browser tab
+   "Edit with Editor" and "Preview" use window.open() to open new browser tabs.
+   The Monaco editor page is a completely separate route, not an in-page panel.

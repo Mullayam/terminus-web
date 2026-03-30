@@ -1,0 +1,587 @@
+Monaco Editor API Audit — Unused APIs & Integration Opportunities
+=================================================================
+Date: March 30, 2026
+Codebase: terminus-web
+
+Priority Ranking
+----------------
+1. createDiffEditor        — Replace hand-rolled diff-viewer, biggest code reduction + UX gain
+2. registerEditorOpener    — Makes "Go to Definition" actually work across SFTP tabs
+3. createWebWorker         — Fix ESLint/Prettier main-thread blocking
+4. colorizeModelLine       — Eliminate Prism dependency in 4 places
+5. createMultiFileDiffEditor — New feature, multi-file change review
+
+
+=================================================================
+1. editor.registerEditorOpener (openCodeEditor)
+=================================================================
+API: editor.registerEditorOpener(opener: ICodeEditorOpener)
+  openCodeEditor(source: ICodeEditor, resource: Uri, selectionOrPosition?: IRange | IPosition): boolean | Promise<boolean>
+
+Gap: Ctrl+click "Go to Definition" across files does nothing in the multi-tab SFTP editor.
+
+Integration Points:
+  - src/pages/sftp/components/FileEditorMonacoPage.tsx
+    After editor onMount: intercept cross-file navigation, call openFileInTab(resource.path)
+    and position cursor. Bridges the 94-language definition providers with the existing tab system.
+
+  - src/modules/monaco-editor/MonacoEditor.tsx
+    Expose onOpenExternalFile prop so any host page can handle file navigation.
+
+  - src/modules/monaco-editor/core/plugin-context.ts
+    Add registerEditorOpener to PluginContext so plugins can intercept navigation.
+
+
+=================================================================
+2. editor.colorizeModelLine
+=================================================================
+API: editor.colorizeModelLine(model: ITextModel, lineNumber: number, tabSize?: number): string
+  Returns HTML string with syntax-highlighted tokens for a single line.
+
+Gap: Prism.js is used in 4+ places for syntax highlighting outside the editor.
+  This API gives Monaco-consistent tokenization (same theme/grammar).
+
+Integration Points:
+  - src/modules/monaco-editor/chat/components/ChatMessage.tsx
+    Replace basic code block highlighting in AI chat with Monaco tokenization.
+
+  - src/pages/sftp/components/MediaPreviewPage.tsx
+    Replace Prism.highlight() in text file previews.
+
+  - src/modules/editor/plugins/builtin/diff-viewer.ts
+    Colorize each diff line with syntax awareness instead of plain text.
+
+  - src/pages/sftp/components/FileEditorApiPage.tsx
+    Replace Prism.highlight() in legacy editor.
+
+
+=================================================================
+3. editor.createMultiFileDiffEditor
+=================================================================
+API: editor.createMultiFileDiffEditor(domElement: HTMLElement, override?: IEditorOverrideServices): any
+
+Gap: No multi-file change review exists despite having multi-tab editing
+  with originalContent tracking per tab.
+
+Integration Points:
+  - src/pages/sftp/components/FileEditorMonacoPage.tsx
+    "Review All Changes" button — show diffs of all modified tabs in one widget.
+    The tabs state already tracks originalContent vs content + modified flag.
+
+  - src/modules/monaco-editor/chat/components/DiffPreview.tsx
+    When AI suggests multi-file edits, show them in one consolidated diff view
+    instead of multiple single-file diffs.
+
+  - New "Changes" panel in src/modules/monaco-editor/view-panel/panels/
+    VS Code-style Source Control panel showing all pending changes.
+
+
+=================================================================
+4. editor.createDiffEditor
+=================================================================
+API: editor.createDiffEditor(domElement: HTMLElement, options?, override?): IStandaloneDiffEditor
+
+Gap: diff-viewer.ts implements a hand-rolled Myers diff with custom CSS.
+  No word-level highlighting, no minimap, no synchronized scrolling.
+
+Integration Points:
+  - src/modules/editor/plugins/builtin/diff-viewer.ts  [HIGHEST IMPACT]
+    Replace the entire 200-line custom diff UI with a proper createDiffEditor.
+    Gets word-level diffs, inline decorations, minimap, scrollbar sync for free.
+
+  - src/pages/sftp/components/FileEditorMonacoPage.tsx
+    "Compare with saved" overlay — diff current content vs originalContent.
+
+  - src/pages/sftp/components/FileList.tsx
+    Open .diff/.patch files in a diff editor instead of regular editor.
+
+Note: MonacoDiffEditor.tsx already wraps @monaco-editor/react DiffEditor
+  (which uses createDiffEditor internally), but the custom editor module
+  (src/modules/editor/) does not use it at all.
+
+
+=================================================================
+5. editor.createWebWorker
+=================================================================
+API: editor.createWebWorker<T>(opts: IInternalWebWorkerOptions): MonacoWebWorker<T>
+  Creates a Monaco-managed web worker with:
+    - Type-safe proxy via getProxy()
+    - Automatic model syncing (getMirrorModels() in worker)
+    - Lifecycle management tied to editor
+
+Gap: 3 workers use raw postMessage instead of Monaco's auto-proxying + model syncing.
+
+Integration Points:
+  - src/modules/monaco-editor/plugins/code-quality/eslint-lint-plugin.ts
+    Replace new EslintWorker() — gets type-safe proxy, automatic getMirrorModels()
+    for content access, lifecycle tied to editor instance.
+
+  - src/modules/monaco-editor/plugins/code-quality/prettier-service.ts
+    Move formatting off the main thread. Currently blocks UI on large files.
+
+  - src/modules/monaco-editor/lib/remote-providers/index.ts
+    Offload completion/hover lookups for 94 languages to a worker with mirror models.
+
+  - src/modules/editor/workers/lint.worker.ts
+    Port structural linter from raw postMessage to Monaco proxy.
+
+
+=================================================================
+Current Worker Setup (for reference)
+=================================================================
+  - src/modules/monaco-editor/workers/index.ts
+    Configures MonacoEnvironment.getWorker with 5 Vite-imported workers:
+    editor, JSON, CSS, HTML, TypeScript
+
+  - src/modules/monaco-editor/plugins/code-quality/eslint.worker.ts
+    Standalone Web Worker via Vite ?worker import
+
+  - src/modules/editor/workers/lint.worker.ts
+    Standalone worker for bracket matching, trailing whitespace
+
+
+=================================================================
+Existing Diff Components (for reference)
+=================================================================
+  - src/modules/monaco-editor/MonacoDiffEditor.tsx
+    Wraps @monaco-editor/react DiffEditor (single file pair)
+
+  - src/modules/monaco-editor/chat/components/DiffPreview.tsx
+    AI suggestion diffs using MonacoDiffEditor
+
+  - src/modules/editor/plugins/builtin/diff-viewer.ts
+    Hand-rolled InlineDiffView and SideBySideDiffView with custom CSS
+
+  - src/modules/monaco-editor/plugins/git-diff-gutter-plugin.ts
+    Add/modify/delete indicators per-line in gutter
+
+
+=================================================================
+Syntax Highlighting Outside Editor (Prism usage)
+=================================================================
+  - src/pages/sftp/components/MediaPreviewPage.tsx  (Prism.highlight)
+  - src/pages/sftp/components/FileEditorApiPage.tsx  (Prism.highlight)
+  - src/modules/editor/core/syntax.ts  (Prism wrapper for custom editor overlay)
+  - Prism CSS themes in src/pages/sftp/components/
+    prism-atom-dark.css, prism-vsc-dark-plus.css, etc.
+
+
+=================================================================
+=================================================================
+  PROVIDER REGISTRATION AUDIT
+  (Definition, Reference, DocumentSymbol, WorkspaceSymbol)
+=================================================================
+=================================================================
+
+
+=================================================================
+1. registerDefinitionProvider (Go to Definition / F12)
+=================================================================
+
+Registrations (4 total):
+  A. LSP Bridge
+     File: src/modules/monaco-editor/lib/lsp/providers.ts (line 137)
+     Delegates to LSP server via client.definition()
+     Cross-file: YES (LSP returns URIs in any file)
+
+  B. Remote-Providers (CDN/JSON)
+     File: src/modules/monaco-editor/lib/remote-providers/adapters.ts (line 282)
+     Static word->location lookup from JSON data
+     Cross-file: Potentially (JsonLocation.uri can point anywhere, falls back to model.uri)
+
+  C. Context Engine (IndexedDB)
+     File: src/modules/monaco-editor/lib/contextEngineProviders.ts (line 106)
+     Loads from IndexedDB, delegates to converter
+     Cross-file: NO — DefinitionEntry lacks uri/range, converter returns null
+     Note: Only the bonus hover (signature info) actually works
+
+  D. Plugin System
+     File: src/modules/monaco-editor/core/plugin-context.ts (lines 174-179)
+     Wraps monaco.languages.registerDefinitionProvider for plugins
+
+Gaps:
+  - Context Engine definitions are BROKEN for navigation (no uri/range in DefinitionEntry)
+  - No cross-file symbol index built from open editor models
+  - No fallback when LSP isn't connected (remote-provider JSON rarely has pre-baked locations)
+
+
+=================================================================
+2. registerReferenceProvider (Find All References)
+=================================================================
+
+Registrations (4 total):
+  A. LSP Bridge
+     File: src/modules/monaco-editor/lib/lsp/providers.ts (line 181)
+     Delegates to LSP client.references()
+     Cross-file: YES
+
+  B. Remote-Providers (CDN/JSON)
+     File: src/modules/monaco-editor/lib/remote-providers/adapters.ts (line 543)
+     Static word->locations lookup
+     Cross-file: Potentially (via JsonLocation.uri)
+
+  C. Context Engine (IndexedDB)
+     File: src/modules/monaco-editor/lib/contextEngineProviders.ts (line 143)
+     Runs regex patterns against model.getValue()
+     Has fallback: model.findMatches() on word boundary
+     Cross-file: NO — searches active model only
+
+  D. Plugin System
+     File: src/modules/monaco-editor/core/plugin-context.ts (lines 214-219)
+
+Gaps:
+  - No cross-file references without LSP
+  - No workspace-wide reference scan across open models or SFTP-fetched files
+  - CodeLens reference count (builtin-providers.ts line 744) is also single-file only
+
+
+=================================================================
+3. registerDocumentSymbolProvider (Outline / Breadcrumbs)
+=================================================================
+
+Registrations (4 total):
+  A. LSP Bridge
+     File: src/modules/monaco-editor/lib/lsp/providers.ts (line 208)
+     Delegates to client.documentSymbol()
+
+  B. Remote-Providers (CDN/JSON)
+     File: src/modules/monaco-editor/lib/remote-providers/adapters.ts (line 425)
+     Regex-per-line pattern matching from JSON
+
+  C. Context Engine (IndexedDB)
+     File: src/modules/monaco-editor/lib/contextEngineProviders.ts (line 161)
+     Runs patterns with gm flag on full model text
+
+  D. Plugin System
+     File: src/modules/monaco-editor/core/plugin-context.ts (lines 234-239)
+
+  All are single-file (by API design: provideDocumentSymbols(model))
+
+Symbol Pattern Storage (2 layers, NOT shared with DocumentSymbolProvider):
+  1. Static patterns: src/modules/monaco-editor/lib/symbol-patterns.ts (lines 35-488)
+     SYMBOL_PATTERNS array, ~25 language families, lazy Map index via getLangIndex()
+     Used by: CodeLens (buildCodeLenses), AI context extraction (findSymbolLines)
+
+  2. CDN-loaded dynamic patterns: symbol-patterns.ts (lines 561-619)
+     Fetches @enjoys/context-engine documentSymbol/{langId}.json
+     Cached in CacheStorage (terminus-doc-symbols-v1)
+     Injected into getLangIndex() map
+
+  NOTE: CodeLens/AI patterns are SEPARATE from DocumentSymbolProvider registrations.
+  They are not shared — two different systems scanning symbols independently.
+
+Breadcrumb/Outline UI:
+  - breadcrumbs.ts (src/modules/editor/plugins/builtin/breadcrumbs.ts)
+    Own scope detection via brace/indent tracking, INDEPENDENT of DocumentSymbolProvider
+  - Monaco's built-in Outline/breadcrumbs are driven by DocumentSymbolProvider automatically
+  - PathBreadcrumb.tsx (src/pages/sftp/components/) — SFTP file path only, not code symbols
+
+Gaps:
+  - Breadcrumbs plugin duplicates work (own scope detection vs DocumentSymbolProvider)
+  - No symbol caching across edits (re-runs all regex every call)
+  - Remote-providers (line-by-line) and context-engine (full-text gm) use inconsistent approaches
+
+
+=================================================================
+4. registerWorkspaceSymbolProvider (Go to Symbol in Workspace)
+=================================================================
+
+Registrations: NONE — Zero registrations in the entire codebase.
+
+  - Cmd+T / "Go to Symbol in Workspace" is completely unimplemented
+  - No workspace-wide symbol index exists
+  - findSymbolLines() can scan a single file but is never aggregated across files
+  - PluginContext interface does NOT expose registerWorkspaceSymbolProvider
+  - Remote-providers types.ts lists 26 provider types but NOT workspaceSymbol
+
+
+=================================================================
+Supporting Infrastructure
+=================================================================
+
+Symbol Storage / Caching:
+  - Static pattern index (symbol-patterns.ts): Lazy Map, per-language RegExp[]
+  - CacheStorage (CDN cache): terminus-doc-symbols-v1, caches JSON for offline
+  - IndexedDB (context-engine): terminus-context-languages Dexie DB, per provider type
+  - NO runtime symbol index aggregating symbols found across open files
+
+File Content Access:
+  - SFTP fetch: src/lib/api.ts ApiCore.fetchFileContent(sessionId, remotePath)
+  - Monaco models: model.getValue() for focused editor (in-memory only)
+  - GitHub: src/modules/monaco-editor/extensions/githubApi.ts fetchFileContent()
+
+editorSftpStore:
+  - src/store/editorSftpStore.ts tracks CONNECTION STATE ONLY (host, username, status)
+  - Does NOT track open files, file contents, or file paths
+  - Open tabs tracked in ViewPanelStore (src/modules/monaco-editor/view-panel/store.ts)
+    as openTabs: ViewPanelTab[] — tab metadata only (tabId, panelId, props), not file content
+
+
+=================================================================
+Gap Summary
+=================================================================
+
+  HIGH:
+  - No WorkspaceSymbolProvider — Cmd+T completely missing
+  - No cross-file symbol index — all providers work on single model only
+
+  MEDIUM:
+  - Context-engine definitions can't navigate (no uri/range in DefinitionEntry)
+  - Single-file references without LSP (context-engine falls back to word search)
+  - PluginContext lacks registerWorkspaceSymbolProvider
+
+  LOW:
+  - Breadcrumbs duplicates DocumentSymbol logic
+  - No symbol result caching between edits
+  - CodeLens and DocumentSymbolProvider use separate pattern systems
+
+
+=================================================================
+=================================================================
+  IMPLEMENTATION PLAN — Exact File Changes Required
+=================================================================
+=================================================================
+
+
+=================================================================
+Recommended Implementation Order
+=================================================================
+
+  Order | Gap | Complexity | Rationale
+  ------|-----|------------|----------
+    1   | Gap 3: Fix DefinitionEntry      | S | Independent, immediate UX (Go to Definition works)
+    2   | Gap 4: Cross-file references    | S | Independent, quick win with getModels() loop
+    3   | Gap 6: Pattern sharing          | L | Foundational, unifies 3 pattern systems
+    4   | Gap 2: Cross-file symbol index  | M | Depends on clean patterns from Gap 6
+    5   | Gap 1: WorkspaceSymbolProvider  | M | Depends on Gap 2 index
+    6   | Gap 5: Breadcrumbs cleanup      | M | Lowest priority, benefits from Gap 6
+
+
+=================================================================
+Dependencies
+=================================================================
+
+  Gap 6 (pattern sharing) ---- enables cleaner ----> Gap 1+2 (workspace symbols)
+  Gap 2 (cross-file index) --- required by -------> Gap 1 (WorkspaceSymbolProvider)
+  Gap 2 (cross-file index) --- enables -----------> Gap 4 (cross-file references)
+  Gap 3 (DefinitionEntry) ---- independent
+  Gap 5 (Breadcrumbs) -------- benefits from -----> Gap 6 (shared patterns)
+
+
+=================================================================
+New Files to Create
+=================================================================
+
+  1. src/modules/monaco-editor/lib/workspace-symbol-index.ts
+     Purpose: Cross-file symbol index + WorkspaceSymbolProvider
+     Used by: Gaps 1 + 2
+     Class: WorkspaceSymbolIndex
+       - Map<Uri, SymbolLine[]> auto-refreshed on model changes
+       - Listens to onDidCreateModel / onDidChangeModelContent / disposal
+       - Exposes query(filter: string): WorkspaceSymbol[]
+
+  2. src/modules/monaco-editor/lib/symbol-scanner.ts (optional)
+     Purpose: Shared scanDocumentSymbols() utility
+     Used by: Gap 6
+     Function: scanDocumentSymbols(model, patterns: NormalizedSymbolPattern[]): DocumentSymbol[]
+
+
+=================================================================
+Gap 3: Fix DefinitionEntry uri/range (Complexity: S)
+=================================================================
+
+  Files to modify:
+
+  1. src/modules/monaco-editor/lib/lsp/interfaces/definition.ts
+     Change: Add optional fields to DefinitionEntry interface
+       + uri?: string
+       + range?: { startLineNumber: number; startColumn: number;
+                   endLineNumber: number; endColumn: number }
+
+  2. src/modules/monaco-editor/lib/contextEngineConverters.ts (lines 207-215)
+     Change: Update toDefinitionProvider fallback logic
+       Current: returns null for entries without uri/range
+       New: search current model for the symbol name preceded by
+            function|class|def|const etc using model.findMatches()
+            to find the definition line — gives same-file jump-to-def
+       Also fix: toDeclarationProvider and toTypeDefinitionProvider
+                 (lines ~270-283, same null fallback)
+
+  3. src/modules/monaco-editor/lib/contextEngineProviders.ts (lines 100-120)
+     Change: None needed — already passes monaco ref
+
+
+=================================================================
+Gap 4: Cross-file references (Complexity: S)
+=================================================================
+
+  Files to modify:
+
+  1. src/modules/monaco-editor/lib/contextEngineConverters.ts (lines 351-402)
+     Change: Modify toReferenceProvider fallback branch (line 365)
+       Current: model.findMatches() on current model only
+       New: iterate all models:
+         for (const m of monaco.editor.getModels()) {
+           const matches = m.findMatches(wordPattern, ...);
+           // push locations with m.uri for each match
+         }
+
+  2. src/modules/monaco-editor/lib/contextEngineProviders.ts
+     Change: Ensure monaco ref is passed to toReferenceProvider
+       Signature already has monaco — just verify usage
+
+  3. src/modules/monaco-editor/lib/lsp/builtin-providers.ts (line 748)
+     Change: Update countWordOccurrences() used by CodeLens reference count
+       Current: counts in single model.getValue()
+       New: optionally scan all models for accurate cross-file count
+
+
+=================================================================
+Gap 6: Pattern sharing (Complexity: L)
+=================================================================
+
+  Three independent pattern systems currently exist:
+    A. symbol-patterns.ts: SymbolPatternFamily { langs, patterns: RegExp[] }
+       capture group #1 always = name
+    B. remote-providers adapters.ts: DocumentSymbolPattern { pattern, kind, detail }
+       first capture group = name
+    C. context-engine converters.ts: SymbolPattern { pattern, captureGroup, kind, type }
+       explicit captureGroup field
+
+  Files to modify:
+
+  1. src/modules/monaco-editor/lib/symbol-patterns.ts
+     Change: Add NormalizedSymbolPattern type
+       { pattern: RegExp, kind: SymbolKind, captureGroup: number, detail?: string }
+     Add adapter functions to convert each source format to normalized
+
+  2. NEW: src/modules/monaco-editor/lib/symbol-scanner.ts
+     Change: Create shared utility
+       scanDocumentSymbols(model, patterns: NormalizedSymbolPattern[]): DocumentSymbol[]
+       Called by all three systems
+
+  3. src/modules/monaco-editor/lib/lsp/builtin-providers.ts (lines 706-727)
+     Change: Refactor getLanguagePatterns() and buildCodeLenses()
+       Use normalized patterns, emit correct SymbolKind info
+
+  4. src/modules/monaco-editor/lib/remote-providers/adapters.ts (line 420)
+     Change: Refactor createDocumentSymbolProvider
+       Replace inline regex loop with shared scanDocumentSymbols()
+
+  5. src/modules/monaco-editor/lib/contextEngineConverters.ts (line 432)
+     Change: Refactor toDocumentSymbolProvider
+       Replace inline gm matching with shared scanDocumentSymbols()
+
+
+=================================================================
+Gap 2: Cross-file symbol index (Complexity: M)
+=================================================================
+
+  Files to modify:
+
+  1. NEW: src/modules/monaco-editor/lib/workspace-symbol-index.ts
+     Create WorkspaceSymbolIndex class:
+       - Constructor takes monaco ref
+       - Maintains Map<string, SymbolLine[]> keyed by model URI
+       - Listens to:
+           monaco.editor.onDidCreateModel  -> scan new model
+           model.onDidChangeContent         -> debounced re-scan
+           onWillDisposeModel               -> remove from index
+       - Uses findSymbolLines() or findSymbolLinesAsync() per model
+       - Exposes:
+           query(filter: string): WorkspaceSymbol[]  (fuzzy match)
+           getSymbolsForUri(uri: string): SymbolLine[]
+           dispose(): void
+
+  2. src/modules/monaco-editor/lib/lsp/builtin-providers.ts (line 950)
+     Change: In registerBuiltinProviders(), create WorkspaceSymbolIndex
+       Initialize the index, wire it to lifecycle
+
+  3. src/modules/monaco-editor/lib/symbol-patterns.ts
+     Change: None needed — already exports findSymbolLines/getSymbolPatternIndex
+
+
+=================================================================
+Gap 1: WorkspaceSymbolProvider (Complexity: M)
+=================================================================
+
+  Files to modify:
+
+  1. src/modules/monaco-editor/types.ts (~line 150)
+     Change: Add to PluginContext interface
+       + registerWorkspaceSymbolProvider(
+           provider: monacoNs.languages.WorkspaceSymbolProvider
+         ): void
+
+  2. src/modules/monaco-editor/core/plugin-context.ts (~line 240)
+     Change: Add implementation
+       registerWorkspaceSymbolProvider(provider) {
+         disposables.push(
+           monaco.languages.registerWorkspaceSymbolProvider(provider)
+         );
+       }
+
+  3. src/modules/monaco-editor/lib/workspace-symbol-index.ts
+     Change: Add provider factory method
+       createWorkspaceSymbolProvider(index: WorkspaceSymbolIndex):
+         WorkspaceSymbolProvider
+       Implementation:
+         provideWorkspaceSymbols(query) {
+           return index.query(query).map(sym => ({
+             name: sym.name,
+             kind: SymbolKind.Function,
+             location: { uri, range }
+           }));
+         }
+
+  4. src/modules/monaco-editor/lib/lsp/builtin-providers.ts
+     Change: Register the provider in registerBuiltinProviders()
+       monaco.languages.registerWorkspaceSymbolProvider(
+         createWorkspaceSymbolProvider(symbolIndex)
+       );
+
+
+=================================================================
+Gap 5: Breadcrumbs cleanup (Complexity: M)
+=================================================================
+
+  Files to modify:
+
+  1. src/modules/editor/plugins/builtin/breadcrumbs.ts
+     Change: Replace detectScopes() implementation
+       Current: hand-rolled regex for JS/Python brace/indent tracking
+       New: Option A — import findSymbolLines() from symbol-patterns.ts
+            directly (simpler, works for all 40+ languages)
+            Option B — call monaco.languages.getDocumentSymbolProviders()
+            (requires bridging editor module -> Monaco API)
+
+     Issue: breadcrumbs.ts uses ExtendedEditorPlugin API (editor module),
+            NOT Monaco PluginContext. Bridging is needed.
+            Simplest approach: import findSymbolLines from
+            @/modules/monaco-editor/lib/symbol-patterns directly
+            (already works via path alias)
+
+  2. Same file: Update onActivate / onContentChange handlers
+     Change: Call findSymbolLines(content, languageId) and convert
+       SymbolLine[] -> Scope[] shape used by getBreadcrumbs()
+
+
+=================================================================
+Total File Impact Summary
+=================================================================
+
+  New files:              2
+  Files modified:         10 (across 6 gaps)
+  Interfaces changed:     2 (DefinitionEntry, PluginContext)
+  Store changes:          0 (no store modifications needed)
+
+  Files modified breakdown:
+    src/modules/monaco-editor/types.ts                                  (Gap 1)
+    src/modules/monaco-editor/core/plugin-context.ts                    (Gap 1)
+    src/modules/monaco-editor/lib/lsp/builtin-providers.ts              (Gaps 1,2,4,6)
+    src/modules/monaco-editor/lib/lsp/interfaces/definition.ts          (Gap 3)
+    src/modules/monaco-editor/lib/contextEngineConverters.ts            (Gaps 3,4,6)
+    src/modules/monaco-editor/lib/contextEngineProviders.ts             (Gap 3,4)
+    src/modules/monaco-editor/lib/symbol-patterns.ts                    (Gap 6)
+    src/modules/monaco-editor/lib/remote-providers/adapters.ts          (Gap 6)
+    src/modules/editor/plugins/builtin/breadcrumbs.ts                   (Gap 5)
