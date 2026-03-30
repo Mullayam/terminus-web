@@ -6,7 +6,7 @@
  */
 import type { ExtendedEditorPlugin, CompletionProvider, CompletionItem, CompletionContext } from "../types";
 
-const TS_LANGUAGES = new Set(["typescript", "tsx"]);
+import { TS_FAMILY as TS_LANGUAGES } from "@/modules/monaco-editor/lib/language-groups";
 
 const COMMON_TYPES: Record<string, string> = {
     "useState": "import { useState } from 'react';",

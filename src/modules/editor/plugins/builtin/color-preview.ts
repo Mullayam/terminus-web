@@ -6,12 +6,9 @@
  */
 import type { ExtendedEditorPlugin, ExtendedPluginAPI, InlineDecoration } from "../types";
 
-const COLOR_REGEX = /#(?:[0-9a-fA-F]{3,4}){1,2}\b|rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+(?:\s*,\s*[\d.]+)?\s*\)|hsla?\(\s*\d+\s*,\s*\d+%\s*,\s*\d+%(?:\s*,\s*[\d.]+)?\s*\)/g;
+import { COLOR_LANGUAGES } from "@/modules/monaco-editor/lib/language-groups";
 
-const COLOR_LANGUAGES = new Set([
-    "css", "scss", "less", "html", "svg", "javascript", "typescript",
-    "jsx", "tsx", "vue", "svelte", "astro", "php",
-]);
+const COLOR_REGEX = /#(?:[0-9a-fA-F]{3,4}){1,2}\b|rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+(?:\s*,\s*[\d.]+)?\s*\)|hsla?\(\s*\d+\s*,\s*\d+%\s*,\s*\d+%(?:\s*,\s*[\d.]+)?\s*\)/g;
 
 function normalizeLanguage(lang: string): string {
     const map: Record<string, string> = {

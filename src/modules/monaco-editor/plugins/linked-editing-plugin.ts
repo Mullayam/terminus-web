@@ -8,7 +8,7 @@
 
 import type { MonacoPlugin, PluginContext } from "../types";
 
-const LINKED_LANGS = ["html", "xml", "svg", "vue", "svelte", "jsx", "tsx", "typescriptreact", "javascriptreact"];
+import { TAG_LANGUAGES } from "../lib/language-groups";
 
 export const linkedEditingPlugin: MonacoPlugin = {
   id: "builtin-linked-editing",
@@ -17,7 +17,7 @@ export const linkedEditingPlugin: MonacoPlugin = {
   description: "Auto-rename matching HTML/JSX open and close tags",
 
   onMount(ctx: PluginContext) {
-    ctx.registerLinkedEditingRangeProvider(LINKED_LANGS, {
+    ctx.registerLinkedEditingRangeProvider([...TAG_LANGUAGES], {
       provideLinkedEditingRanges(model, position) {
         const line = model.getLineContent(position.lineNumber);
         const text = model.getValue();

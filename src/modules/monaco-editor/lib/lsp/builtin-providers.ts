@@ -30,23 +30,12 @@ type IMarkerData = monacoNs.editor.IMarkerData;
    Shared helpers
    ════════════════════════════════════════════════════════════ */
 
-/** Languages where these providers are most useful */
-const JS_FAMILY = new Set([
-  "javascript", "typescript", "javascriptreact", "typescriptreact",
-]);
-const C_FAMILY = new Set(["c", "cpp", "csharp", "java", "kotlin"]);
-const ALL_LANGUAGES = new Set([
-  ...JS_FAMILY, ...C_FAMILY,
-  "python", "go", "rust", "php", "ruby", "lua", "swift",
-  "shell", "shellscript", "bash", "powershell",
-  "sql", "mysql", "pgsql",
-  "yaml", "json", "jsonc", "toml", "xml",
-  "html", "css", "scss", "less",
-  "markdown", "plaintext",
-  "dart", "scala", "elixir", "r", "perl",
-]);
-
-function isJSFamily(lang: string): boolean { return JS_FAMILY.has(lang); }
+import {
+  JS_FAMILY,
+  C_FAMILY,
+  ALL_LANGUAGES,
+  isJSFamily,
+} from "../language-groups";
 
 /** Count how many times `word` appears as a whole word in `text` */
 function countWordOccurrences(text: string, word: string): number {

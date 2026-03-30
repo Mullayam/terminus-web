@@ -46,7 +46,7 @@ const NAMED_COLORS: Record<string, string> = {
     yellowgreen: "#9acd32",
 };
 
-const CSS_LANGUAGES = new Set(["css", "scss", "less", "html", "svg", "vue", "svelte"]);
+import { CSS_COLOR_LANGUAGES as CSS_LANGUAGES } from "@/modules/monaco-editor/lib/language-groups";
 
 function findNamedColors(content: string): Array<{ name: string; hex: string; line: number; col: number; endCol: number }> {
     const results: Array<{ name: string; hex: string; line: number; col: number; endCol: number }> = [];

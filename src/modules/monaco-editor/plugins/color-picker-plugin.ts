@@ -64,12 +64,7 @@ function hslToRGB(h: number, s: number, l: number): [number, number, number] {
 }
 
 /** Languages that typically contain CSS colors */
-const COLOR_LANGS = [
-  "css", "scss", "sass", "less", "stylus",
-  "html", "svelte", "vue", "jsx", "tsx",
-  "javascript", "typescript", "json", "jsonc",
-  "xml", "svg", "toml", "yaml",
-];
+import { COLOR_LANGUAGES as COLOR_LANGS } from "../lib/language-groups";
 
 export const colorPickerPlugin: MonacoPlugin = {
   id: "builtin-color-picker",
@@ -138,7 +133,7 @@ export const colorPickerPlugin: MonacoPlugin = {
     };
 
     /* Register DocumentColorProvider for the built-in Monaco color picker */
-    ctx.registerColorProvider(COLOR_LANGS, {
+    ctx.registerColorProvider([...COLOR_LANGS], {
       provideDocumentColors(model) {
         const text = model.getValue();
         const colors: import("monaco-editor").languages.IColorInformation[] = [];

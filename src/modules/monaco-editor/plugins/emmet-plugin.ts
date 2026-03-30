@@ -7,7 +7,7 @@
 
 import type { MonacoPlugin, PluginContext } from "../types";
 
-const EMMET_LANGS = ["html", "css", "scss", "less", "jsx", "tsx", "vue", "svelte", "xml", "svg"];
+import { EMMET_LANGUAGES, EMMET_STYLE_LANGUAGES } from "../lib/language-groups";
 
 /**
  * Minimal Emmet-like expansion engine.
@@ -218,7 +218,7 @@ export const emmetPlugin: MonacoPlugin = {
 
   onMount(ctx: PluginContext) {
     /* Register as completion provider for trigger on Tab */
-    ctx.registerCompletionProvider(EMMET_LANGS, {
+    ctx.registerCompletionProvider([...EMMET_LANGUAGES], {
       triggerCharacters: [">", "+", "*", ".", "#", "]", "}"],
 
       provideCompletionItems(model, position) {

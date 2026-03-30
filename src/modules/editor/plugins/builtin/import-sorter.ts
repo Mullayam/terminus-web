@@ -5,9 +5,7 @@
  */
 import type { ExtendedEditorPlugin } from "../types";
 
-const JS_LANGUAGES = new Set([
-    "javascript", "typescript", "jsx", "tsx",
-]);
+import { JS_FAMILY as JS_LANGUAGES } from "@/modules/monaco-editor/lib/language-groups";
 
 function normalizeLanguage(lang: string): string {
     const map: Record<string, string> = {

@@ -7,6 +7,7 @@
  */
 
 import type { MonacoPlugin, PluginContext } from "../types";
+import { PARAMETER_HINT_LANGUAGES } from "../lib/language-groups";
 
 const COMMON_SIGNATURES: Record<string, { label: string; params: string[]; doc?: string }[]> = {
   // JavaScript/TypeScript builtins
@@ -49,7 +50,7 @@ const COMMON_SIGNATURES: Record<string, { label: string; params: string[]; doc?:
   join: [{ label: "join(separator?: string): string", params: ["separator?: string"] }],
 };
 
-const HINT_LANGS = ["javascript", "typescript", "typescriptreact", "javascriptreact"];
+const HINT_LANGS = [...PARAMETER_HINT_LANGUAGES];
 
 export const parameterHintsPlugin: MonacoPlugin = {
   id: "builtin-parameter-hints",

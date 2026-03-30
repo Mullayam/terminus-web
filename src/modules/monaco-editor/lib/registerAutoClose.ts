@@ -9,27 +9,9 @@
 
 import type * as monacoNs from "monaco-editor";
 
+import { AUTO_CLOSE_TAG_LANGUAGES, VOID_ELEMENTS } from "./language-groups";
+
 type Monaco = typeof monacoNs;
-
-/** Languages where auto-close tags should be active */
-const AUTO_CLOSE_LANGUAGES = [
-  "html",
-  "javascript",
-  "typescript",
-  "javascriptreact",
-  "typescriptreact",
-  "xml",
-  "svg",
-  "vue",
-  "svelte",
-  "astro",
-];
-
-/** Void / self-closing HTML elements that should NOT get a closing tag */
-const VOID_ELEMENTS = new Set([
-  "area", "base", "br", "col", "embed", "hr", "img", "input",
-  "link", "meta", "param", "source", "track", "wbr",
-]);
 
 /**
  * Register auto-close tag functionality for HTML/JSX languages.
@@ -61,7 +43,7 @@ export function registerAutoClose(
       if (!model) continue;
 
       const langId = model.getLanguageId();
-      if (!AUTO_CLOSE_LANGUAGES.includes(langId)) continue;
+      if (!AUTO_CLOSE_TAG_LANGUAGES.has(langId)) continue;
 
       const position = editor.getPosition();
       if (!position) continue;
@@ -112,7 +94,7 @@ export function registerAutoClose(
 
   // Also handle slash after < for auto-completing closing tags
   // When user types </ we suggest the matching unclosed tag
-  for (const langId of AUTO_CLOSE_LANGUAGES) {
+  for (const langId of AUTO_CLOSE_TAG_LANGUAGES) {
     const providerDisposable = monaco.languages.registerCompletionItemProvider(langId, {
       triggerCharacters: ["/"],
       provideCompletionItems(model, position) {

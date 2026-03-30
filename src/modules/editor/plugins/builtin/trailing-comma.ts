@@ -5,7 +5,10 @@
  */
 import type { ExtendedEditorPlugin, ExtendedPluginAPI, Diagnostic } from "../types";
 
-const JS_LANGUAGES = new Set(["javascript", "typescript", "jsx", "tsx", "json"]);
+import { JS_FAMILY } from "@/modules/monaco-editor/lib/language-groups";
+import { JSON_FAMILY } from "@/modules/monaco-editor/lib/language-groups";
+
+const JS_LANGUAGES = new Set([...JS_FAMILY, ...JSON_FAMILY]);
 
 function checkTrailingCommas(content: string): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];

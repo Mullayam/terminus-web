@@ -5,15 +5,7 @@
  */
 import type { ExtendedEditorPlugin } from "../types";
 
-const TAG_LANGUAGES = new Set([
-    "html", "xml", "svg", "jsx", "tsx", "vue",
-    "markup", "php", "astro", "svelte",
-]);
-
-const VOID_ELEMENTS = new Set([
-    "area", "base", "br", "col", "embed", "hr", "img", "input",
-    "link", "meta", "param", "source", "track", "wbr",
-]);
+import { TAG_LANGUAGES, VOID_ELEMENTS } from "@/modules/monaco-editor/lib/language-groups";
 
 function normalizeLanguage(lang: string): string {
     const map: Record<string, string> = {
