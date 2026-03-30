@@ -10,8 +10,8 @@
 import React, { useState, useEffect } from "react";
 import type * as monacoNs from "monaco-editor";
 import { Terminal, Bell, Loader2, Check, AlertCircle } from "lucide-react";
-import { getEnabledExtensions } from "../lib/extensionStorage";
-import type { ExtStatusBarItem } from "../lib/extensionStorage";
+import { getEnabledExtensions } from "../lib/extensions/extensionStorage";
+import type { ExtStatusBarItem } from "../lib/extensions/extensionStorage";
 import { useExtensionStatusStore } from "../extensions/extensionStatusStore";
 
 type Monaco = typeof monacoNs;

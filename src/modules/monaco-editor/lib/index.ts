@@ -2,15 +2,36 @@
  * @module monaco-editor/lib
  *
  * Internal barrel for Monaco utility libraries.
- * These provide themes, snippets, auto-close, copilot, LSP,
- * and the Open VSX extension system.
+ *
+ * Organised into categorised subdirectories:
+ *
+ *   ai/           – AI completions (endpoint, IDB cache)
+ *   context-engine/ – Context-engine Monaco provider registration
+ *   editor/       – Editor feature registrations (auto-close, copilot)
+ *   extensions/   – Open VSX extension system (search, install, storage)
+ *   filesystem/   – Pluggable file-system provider abstraction
+ *   hover/        – Custom hover providers
+ *   language/     – Language config, groups, symbol patterns
+ *   lsp/          – LSP client, built-in providers, converters
+ *   providers/    – Remote JSON → Monaco provider adapters
+ *   snippets/     – Snippet loading
+ *   themes/       – Custom theme loading, xterm conversion
  */
 
-export { loadCustomTheme, preloadThemes, isThemeLoaded } from "./loadCustomTheme";
-export { loadSnippets, unloadSnippets, preloadSnippets } from "./loadSnippets";
-export { registerAutoClose } from "./registerAutoClose";
-export { registerCopilot, detectTechnologies, type CopilotOptions } from "./registerCopilot";
-export { configureLanguageDefaults } from "./configureLanguageDefaults";
+// ── Themes ──────────────────────────────────────────────────
+export { loadCustomTheme, preloadThemes, isThemeLoaded } from "./themes/loadCustomTheme";
+
+// ── Snippets ────────────────────────────────────────────────
+export { loadSnippets, unloadSnippets, preloadSnippets } from "./snippets/loadSnippets";
+
+// ── Editor Features ─────────────────────────────────────────
+export { registerAutoClose } from "./editor/registerAutoClose";
+export { registerCopilot, detectTechnologies, type CopilotOptions } from "./editor/registerCopilot";
+
+// ── Language ────────────────────────────────────────────────
+export { configureLanguageDefaults } from "./language/configureLanguageDefaults";
+
+// ── LSP ─────────────────────────────────────────────────────
 export {
   connectLanguageServer,
   buildLSPWebSocketUrl,
@@ -18,17 +39,17 @@ export {
   LSP_LANGUAGES,
   type LSPConnectionOptions,
   type LSPConnection,
-} from "./connectLanguageServer";
+} from "./lsp/connectLanguageServer";
 
-// Open VSX extension system
-export { searchExtensions, getExtension, getExtensionVersion, downloadVSIX } from "./openVSX";
-export type { OpenVSXExtension, OpenVSXSearchResult } from "./openVSX";
-export { extractVSIX } from "./extractVSIX";
+// ── Extensions (Open VSX) ───────────────────────────────────
+export { searchExtensions, getExtension, getExtensionVersion, downloadVSIX } from "./extensions/openVSX";
+export type { OpenVSXExtension, OpenVSXSearchResult } from "./extensions/openVSX";
+export { extractVSIX } from "./extensions/extractVSIX";
 export type {
   VSIXContents, ExtTheme, ExtGrammar, ExtSnippet, ExtLanguage,
   ExtCommand, ExtKeybinding, ExtConfiguration, ExtConfigurationProperty,
   ExtColor, ExtIcon, ExtJsonValidation,
-} from "./extractVSIX";
+} from "./extensions/extractVSIX";
 export {
   saveExtension,
   uninstallExtension,
@@ -48,13 +69,13 @@ export {
   getAllJsonValidation,
   clearAllExtensions,
   toggleExtension,
-} from "./extensionStorage";
+} from "./extensions/extensionStorage";
 export type {
   InstalledExtension, StoredTheme, StoredGrammar, StoredSnippet,
   StoredCommand, StoredKeybinding, StoredConfiguration, StoredColor,
   StoredIcon, StoredJsonValidation,
   ExtStatusBarItem, ExtMenuContribution, ExtViewContainer, ExtView,
-} from "./extensionStorage";
+} from "./extensions/extensionStorage";
 export {
   installExtensionFromOpenVSX,
   installExtensionFromVSIX,
@@ -73,10 +94,10 @@ export {
   registerExtensionTheme,
   registerExtensionGrammar,
   getAvailableExtensionThemes,
-} from "./extensionLoader";
-export type { InstallProgress } from "./extensionLoader";
+} from "./extensions/extensionLoader";
+export type { InstallProgress } from "./extensions/extensionLoader";
 
-// AI Completions (dynamic endpoint, IDB-cached, fetch-on-mount)
+// ── AI Completions ──────────────────────────────────────────
 export {
   registerAICompletions,
   resolveKind,
@@ -85,30 +106,29 @@ export {
   type AICompletionResponse,
   type AICompletionRegistration,
   type CustomContextMenuItem,
-} from "./aiCompletions";
+} from "./ai/aiCompletions";
 
-// Custom Hover Providers (user-defined word → Markdown per language)
+// ── Custom Hover Providers ──────────────────────────────────
 export {
   registerCustomHoverProviders,
   parseHovers,
   getGoHoverDemoJson,
   type CustomHoverEntry,
-} from "./hoverProvider";
+} from "./hover/hoverProvider";
 
-// Context Engine Providers (completions, hover, definitions from IndexedDB)
+// ── Context Engine Providers ────────────────────────────────
 export {
   registerContextEngineProviders,
   registerContextEngineForLanguage,
   disposeContextEngineProviders,
-} from "./contextEngineProviders";
+} from "./context-engine/contextEngineProviders";
 
-// Remote Providers (fetch manifest + JSON data from a BASE_URL → register Monaco providers)
+// ── Remote Providers ────────────────────────────────────────
 export {
   registerRemoteProviders,
   registerProviderFromData,
   fetchManifest,
   disposeAllRemoteProviders,
-  // Individual adapter functions (manual mode)
   createCompletionProvider,
   createDefinitionProvider,
   createHoverProvider,
@@ -135,7 +155,7 @@ export {
   createSelectionRangeProvider,
   createSemanticTokensProvider,
   createRangeSemanticTokensProvider,
-} from "./remote-providers";
+} from "./providers";
 export type {
   RemoteProviderManifest,
   RemoteProviderConfig,
@@ -188,9 +208,9 @@ export type {
   JsonLocation,
   JsonMarkdownString,
   JsonCommand,
-} from "./remote-providers";
+} from "./providers";
 
-// File System Provider abstraction (plug-and-play backends)
+// ── File System Provider ────────────────────────────────────
 export type {
   FileSystemProvider,
   FileEntry,
@@ -199,9 +219,9 @@ export type {
   FileOperationHandlers,
   ReaddirOptions,
   IgnoreConfig,
-} from "./file-system-types";
-export { DEFAULT_IGNORED_NAMES } from "./file-system-types";
-export { SftpFileSystemProvider } from "./sftp-fs-provider";
+} from "./filesystem/file-system-types";
+export { DEFAULT_IGNORED_NAMES } from "./filesystem/file-system-types";
+export { SftpFileSystemProvider } from "./filesystem/sftp-fs-provider";
 export {
   registerFsProvider,
   unregisterFsProvider,
@@ -209,14 +229,14 @@ export {
   hasFsProvider,
   listFsProviders,
   type FsProviderFactory,
-} from "./fsProviderRegistry";
-export { useFileSystemTree, type UseFileSystemTreeOptions } from "./useFileSystemTree";
+} from "./filesystem/fsProviderRegistry";
+export { useFileSystemTree, type UseFileSystemTreeOptions } from "./filesystem/useFileSystemTree";
 export {
   createSftpHandlers,
   createApiHandlers,
   composeHandlers,
   type SftpHandlerOptions,
   type ApiHandlerOptions,
-} from "./fs-handler-factories";
-export { DirCache, type DirCacheOptions } from "./DirCache";
-export { filterEntries, paginateEntries } from "./filterEntries";
+} from "./filesystem/fs-handler-factories";
+export { DirCache, type DirCacheOptions } from "./filesystem/DirCache";
+export { filterEntries, paginateEntries } from "./filesystem/filterEntries";

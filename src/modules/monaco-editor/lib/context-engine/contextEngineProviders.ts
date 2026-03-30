@@ -40,7 +40,7 @@ import type {
     SemanticTokensData,
     RangeSemanticTokensData,
     InlineCompletionsData,
-} from "./lsp/interfaces";
+} from "../lsp/interfaces";
 import {
     toCompletionProvider,
     toHoverProvider,

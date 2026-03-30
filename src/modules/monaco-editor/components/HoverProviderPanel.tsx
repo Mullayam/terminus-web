@@ -17,8 +17,8 @@ import {
   Copy,
   Download,
 } from "lucide-react";
-import type { CustomHoverEntry } from "../lib/hoverProvider";
-import { parseHovers, getGoHoverDemoJson } from "../lib/hoverProvider";
+import type { CustomHoverEntry } from "../lib/hover/hoverProvider";
+import { parseHovers, getGoHoverDemoJson } from "../lib/hover/hoverProvider";
 
 /* ── Props ─────────────────────────────────────────────────── */
 

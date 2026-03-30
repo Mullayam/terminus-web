@@ -1,0 +1,299 @@
+Monaco Editor Module — Directory Structure Report
+===================================================
+Date: March 30, 2026
+Scope: Reorganization of src/modules/monaco-editor/ into categorized subdirectories
+
+
+===================================================
+1. OVERVIEW
+===================================================
+
+The monaco-editor module was reorganized from a flat lib/ directory into
+categorized subdirectories. All imports across the codebase have been updated.
+The barrel export (lib/index.ts) and module root (index.ts) remain the primary
+public API — consumers don't need to know about internal subdirectory paths.
+
+
+===================================================
+2. DIRECTORY STRUCTURE
+===================================================
+
+src/modules/monaco-editor/
+├── MonacoEditor.tsx           # Main editor component
+├── MonacoDiffEditor.tsx       # Diff editor component
+├── index.ts                   # Module barrel (public API)
+├── types.ts                   # Shared TypeScript types
+├── README.md                  # Module documentation
+├── flow.md                    # Flow documentation
+│
+├── core/                      # Plugin system core
+│   ├── event-bus.ts           # Event bus for inter-plugin communication
+│   ├── language-registry.ts   # Language registration
+│   ├── plugin-context.ts      # Plugin context builder
+│   ├── plugin-registry.ts     # Global plugin registry
+│   ├── theme-registry.ts      # Theme registration + widget colors
+│   └── index.ts
+│
+├── hooks/                     # React hooks
+│   ├── useMonacoEditor.ts     # Core editor hook
+│   ├── useMonacoPlugins.ts    # Plugin lifecycle hook
+│   └── index.ts
+│
+├── utils/                     # Utility functions
+│   ├── create-plugin.ts       # Plugin factory helper
+│   ├── language-detect.ts     # Language detection from filename
+│   ├── convert-language-config.ts  # VSCode → Monaco lang config
+│   └── index.ts
+│
+├── plugins/                   # Built-in plugins (40+)
+│   ├── index.ts               # Plugin barrel
+│   ├── code-quality/          # ESLint + Prettier sub-module
+│   └── *.ts                   # Individual plugin files
+│
+├── themes/                    # Theme catalog
+│   ├── index.ts
+│   ├── monaco-themes-catalog.ts
+│   └── monaco-themes.d.ts
+│
+├── languages/                 # Language definitions
+│   ├── dotenv.ts
+│   └── filename-patterns.ts
+│
+├── components/                # UI components
+│   ├── EditorFileTree.tsx      # File explorer (virtualized, react-window v2)
+│   ├── ContextEnginePanel.tsx  # Context engine language/command installer
+│   ├── ExtensionPanel.tsx      # Open VSX extension browser
+│   ├── ExtensionDetailPage.tsx # Extension detail view
+│   ├── ExtensionStatusBar.tsx  # Status bar items from extensions
+│   ├── ThemeSidebar.tsx        # Theme selector sidebar
+│   ├── HoverProviderPanel.tsx  # Custom hover provider config
+│   ├── EditorRightSidebar.tsx  # Right sidebar shell
+│   ├── EditorSettingsPanel.tsx # Editor settings UI
+│   ├── EditorTerminalPanel.tsx # Embedded terminal panel
+│   ├── EditorNotifications.tsx # Notification toasts
+│   ├── CustomContextMenuPanel.tsx  # Custom context menu config
+│   ├── AICompletionsPanel.tsx  # AI completions config
+│   ├── PluginManagerPanel.tsx  # Plugin enable/disable UI
+│   ├── VsixDropZone.tsx        # Drag-and-drop VSIX installer
+│   └── file-tree/             # File tree sub-components
+│       ├── useFileOperations.ts    # CRUD operations hook (3 overloads)
+│       ├── FileTreeContextMenu.tsx # Right-click context menu
+│       ├── InlineTreeInput.tsx     # Inline rename/create input
+│       ├── ConfirmDeleteDialog.tsx # Delete confirmation
+│       ├── MoveToDialog.tsx        # Move-to dialog
+│       ├── FileUploadDialog.tsx    # File upload dialog
+│       └── index.ts
+│
+├── extensions/                # VSCode extension runtime
+│   ├── manager.ts             # Extension lifecycle manager
+│   ├── monacoRegistrar.ts     # Monaco registration bridge
+│   ├── extensionStatusStore.ts # Extension status Zustand store
+│   ├── cache.ts               # Extension asset cache
+│   ├── idb.ts                 # IndexedDB for extension data
+│   ├── workerBridge.ts        # Web worker communication
+│   ├── extension-loader.worker.ts
+│   ├── githubApi.ts           # GitHub API for extension search
+│   ├── assetLoader.ts         # Asset loading utilities
+│   ├── cssInjector.ts         # CSS injection for ext themes
+│   ├── jsonc.ts               # JSONC parser
+│   ├── languageMap.ts         # Language ID mapping
+│   ├── packageReader.ts       # package.json reader
+│   ├── loaders/               # Individual asset loaders
+│   │   ├── cssLoader.ts
+│   │   ├── grammarLoader.ts
+│   │   ├── languageLoader.ts
+│   │   ├── semanticLoader.ts
+│   │   ├── snippetLoader.ts
+│   │   ├── themeLoader.ts
+│   │   └── index.ts
+│   └── index.ts
+│
+├── chat/                      # AI chat panel
+│   ├── api.ts                 # Chat API client
+│   ├── chatStorage.ts         # Chat history persistence
+│   ├── store.ts               # Chat Zustand store
+│   ├── types.ts               # Chat types
+│   ├── components/            # Chat UI components
+│   │   ├── ChatPanel.tsx
+│   │   ├── ChatMessage.tsx
+│   │   └── DiffPreview.tsx
+│   └── index.ts
+│
+├── view-panel/                # View panel system
+│   ├── ViewPanelContent.tsx
+│   ├── ViewPanelTabBar.tsx
+│   ├── api.ts
+│   ├── store.ts
+│   ├── types.ts
+│   ├── panels/
+│   │   ├── NpmManagerPanel.tsx
+│   │   └── npm-manager-plugin.ts
+│   └── index.ts
+│
+├── workers/                   # Web workers
+│   └── index.ts
+│
+└── lib/                       # ★ Internal libraries (REORGANIZED)
+    ├── index.ts               # Barrel re-export for all lib modules
+    │
+    ├── ai/                    # AI completions
+    │   └── aiCompletions.ts   # AI completion provider registration
+    │
+    ├── context-engine/        # Monaco-specific context engine registration
+    │   ├── index.ts           # Context engine barrel
+    │   ├── contextEngineConverters.ts  # IndexedDB data → Monaco provider adapters
+    │   └── contextEngineProviders.ts   # Registration orchestrator
+    │
+    ├── editor/                # Editor feature registrations
+    │   ├── registerAutoClose.ts  # Auto-close HTML/XML tags
+    │   └── registerCopilot.ts    # AI copilot integration
+    │
+    ├── extensions/            # Open VSX extension system
+    │   ├── openVSX.ts         # Open VSX API client (search, download)
+    │   ├── extractVSIX.ts     # VSIX package extractor
+    │   ├── extensionStorage.ts # IDB persistence (themes, grammars, snippets)
+    │   └── extensionLoader.ts  # Install/uninstall orchestrator
+    │
+    ├── filesystem/            # ★ Pluggable file system provider
+    │   ├── index.ts           # Filesystem barrel
+    │   ├── file-system-types.ts   # Core interfaces (FileSystemProvider, FileEntry, etc.)
+    │   ├── sftp-fs-provider.ts    # SFTP socket.io implementation
+    │   ├── fsProviderRegistry.ts  # Provider factory registry
+    │   ├── fs-handler-factories.ts # Composable handler factories
+    │   ├── useFileSystemTree.ts   # Generic tree hook (cache + pagination + ignore)
+    │   ├── DirCache.ts            # LRU + TTL directory listing cache
+    │   └── filterEntries.ts       # Smart ignore + pagination utilities
+    │
+    ├── hover/                 # Custom hover providers
+    │   └── hoverProvider.ts   # User-defined word → Markdown hovers
+    │
+    ├── language/              # Language configuration
+    │   ├── configureLanguageDefaults.ts  # Built-in IntelliSense defaults
+    │   ├── language-groups.ts  # Language family constants (JS_FAMILY, TAG_LANGUAGES, etc.)
+    │   ├── monacoLanguageMap.ts # Monaco language ID mappings
+    │   └── symbol-patterns.ts  # Symbol extraction patterns
+    │
+    ├── lsp/                   # Language Server Protocol
+    │   ├── connectLanguageServer.ts  # WebSocket LSP client
+    │   ├── client.ts          # LSP message handling
+    │   ├── providers.ts       # LSP → Monaco provider bridge
+    │   ├── converters.ts      # LSP → Monaco data converters
+    │   ├── builtin-providers.ts # Built-in completion/hover providers
+    │   ├── types.ts           # LSP types
+    │   ├── interfaces/        # Per-provider-type LSP interfaces
+    │   └── index.ts
+    │
+    ├── providers/             # Remote JSON → Monaco provider adapters
+    │   ├── index.ts           # Registration orchestrator
+    │   ├── adapters.ts        # 25+ adapter functions
+    │   └── types.ts           # Remote provider manifest types
+    │
+    ├── snippets/              # Snippet management
+    │   └── loadSnippets.ts    # Load/unload Monaco snippets
+    │
+    └── themes/                # Theme management
+        ├── loadCustomTheme.ts     # Load custom themes from JSON
+        └── monacoThemeToXterm.ts  # Convert Monaco themes → xterm.js
+
+
+===================================================
+3. CONTEXT ENGINE ARCHITECTURE
+===================================================
+
+The context engine has a SHARED layer and a MONACO-SPECIFIC layer:
+
+  Shared (src/lib/context-engine/):
+    - contextEngineApi.ts    — CDN fetch, manifest loading, version tracking
+    - contextEngineStorage.ts — IndexedDB persistence (languages + commands)
+    - index.ts               — Barrel re-export
+
+    Consumers:
+    ✓ Monaco: ContextEnginePanel, contextEngineProviders, MonacoEditor
+    ✓ SSH:    Terminal.tsx, rightSidebar.tsx, commandPacks.tsx
+    ✓ Editor: EditorTerminalWithGhost.tsx
+
+  Monaco-specific (src/modules/monaco-editor/lib/context-engine/):
+    - contextEngineConverters.ts — IndexedDB data → Monaco provider adapters
+    - contextEngineProviders.ts  — Registration orchestrator (25 provider types)
+    - index.ts                   — Barrel
+
+  Decision: Shared layer stays in src/lib/ because SSH terminal and
+  editor terminal also consume it. Monaco-side stays local because it's
+  tightly coupled to monaco.languages API.
+
+
+===================================================
+4. FILE SYSTEM PROVIDER ARCHITECTURE (lib/filesystem/)
+===================================================
+
+  Interfaces:
+    FileSystemProvider extends FileOperationHandlers
+    - connect/disconnect/status/readdir (connection lifecycle)
+    - readFile/writeFile/createFile/createDir/rename/move/copy/delete (operations)
+
+  Composable handlers:
+    createSftpHandlers(socket)  — socket.io operations
+    createApiHandlers(apiUrl)   — REST API operations
+    composeHandlers(...sources) — mix-and-match per operation
+
+  Performance features:
+    - DirCache: LRU + TTL in-memory directory cache
+    - filterEntries: Smart ignore (node_modules, .git, dist, etc.)
+    - paginateEntries: Cursor + offset pagination with nextCursor
+    - useFileSystemTree: Cache-aware hook with stale-while-revalidate
+
+  UI (components/EditorFileTree.tsx):
+    - Virtualized via react-window v2 (List component)
+    - VS Code toolbar: New File, New Folder, Refresh, Collapse All, Toggle Hidden
+    - Auto-loading infinite scroll on near-bottom detection
+    - Dot files shown by default (showHiddenFiles = true)
+
+
+===================================================
+5. IMPORT PATH MIGRATION
+===================================================
+
+All consumer imports have been updated from flat lib/ paths to categorized
+subdirectory paths. Examples:
+
+  BEFORE                                          AFTER
+  ──────                                          ─────
+  @/modules/monaco-editor/lib/language-groups      @/modules/monaco-editor/lib/language/language-groups
+  @/modules/monaco-editor/lib/file-system-types    @/modules/monaco-editor/lib/filesystem/file-system-types
+  @/modules/monaco-editor/lib/monacoThemeToXterm   @/modules/monaco-editor/lib/themes/monacoThemeToXterm
+  ../lib/extensionLoader                           ../lib/extensions/extensionLoader
+  ../lib/hoverProvider                             ../lib/hover/hoverProvider
+  ../lib/contextEngineProviders                    ../lib/context-engine/contextEngineProviders
+  ./remote-providers                               ./providers
+
+The barrel (lib/index.ts) re-exports everything from the new paths,
+so consumers importing from "@/modules/monaco-editor" or "./lib" are unaffected.
+
+
+===================================================
+6. FILES AFFECTED (40+ files)
+===================================================
+
+MOVED (git mv, preserves history):
+  - 7 filesystem files → lib/filesystem/
+  - 4 extension files → lib/extensions/
+  - 2 context-engine files → lib/context-engine/
+  - 3 remote-provider files → lib/providers/
+  - 4 language files → lib/language/
+  - 2 theme files → lib/themes/
+  - 2 editor files → lib/editor/
+  - 1 snippet file → lib/snippets/
+  - 1 AI file → lib/ai/
+  - 1 hover file → lib/hover/
+  - 1 LSP file → lib/lsp/ (connectLanguageServer.ts)
+
+IMPORTS UPDATED:
+  - MonacoEditor.tsx (6 imports)
+  - 7 component files (ExtensionPanel, ThemeSidebar, etc.)
+  - 6 plugin files (color-picker, emmet, etc.)
+  - 4 external consumers (editorFsStore, useEditorSftpTree, etc.)
+  - 13 editor/plugins/builtin files (language-groups refs)
+  - 5 internal lib cross-references
+  - lib/index.ts (complete rewrite)
+
+BUILD STATUS: ✅ Zero new TypeScript errors

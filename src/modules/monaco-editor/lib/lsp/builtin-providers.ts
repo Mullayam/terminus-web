@@ -35,7 +35,7 @@ import {
   C_FAMILY,
   ALL_LANGUAGES,
   isJSFamily,
-} from "../language-groups";
+} from "../language/language-groups";
 
 /** Count how many times `word` appears as a whole word in `text` */
 function countWordOccurrences(text: string, word: string): number {
@@ -695,7 +695,7 @@ import {
   SYMBOL_PATTERNS as SHARED_SYMBOL_PATTERNS,
   type SymbolPatternFamily,
   getSymbolPatternIndex,
-} from "../symbol-patterns";
+} from "../language/symbol-patterns";
 
 /**
  * Build a language → RegExp[] index from the shared SYMBOL_PATTERNS.

@@ -7,8 +7,8 @@
  */
 
 import type { ITheme } from "@xterm/xterm";
-import { getTheme } from "../core/theme-registry";
-import type { MonacoThemeDef } from "../types";
+import { getTheme } from "../../core/theme-registry";
+import type { MonacoThemeDef } from "../../types";
 
 /* ── ANSI color defaults (used when a Monaco theme lacks color rules) ── */
 

@@ -7,7 +7,7 @@
 
 import type { MonacoPlugin, PluginContext } from "../types";
 
-import { EMMET_LANGUAGES, EMMET_STYLE_LANGUAGES } from "../lib/language-groups";
+import { EMMET_LANGUAGES, EMMET_STYLE_LANGUAGES } from "../lib/language/language-groups";
 
 /**
  * Minimal Emmet-like expansion engine.

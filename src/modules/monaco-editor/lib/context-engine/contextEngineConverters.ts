@@ -35,7 +35,7 @@ import type {
     SemanticTokensData,
     RangeSemanticTokensData,
     InlineCompletionsData,
-} from "./lsp/interfaces";
+} from "../lsp/interfaces";
 
 type Monaco = typeof monacoNs;
 

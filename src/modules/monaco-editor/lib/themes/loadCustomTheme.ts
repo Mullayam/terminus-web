@@ -19,7 +19,7 @@
  */
 
 import type * as monacoNs from "monaco-editor";
-import { ensureWidgetColors } from "../core/theme-registry";
+import { ensureWidgetColors } from "../../core/theme-registry";
 
 type Monaco = typeof monacoNs;
 

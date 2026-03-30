@@ -30,13 +30,13 @@ import {
 import {
   getAvailableExtensionThemes,
   registerExtensionTheme,
-} from "../lib/extensionLoader";
+} from "../lib/extensions/extensionLoader";
 import {
   getAllThemes as getAllExtensionThemes,
   getThemeById as getExtThemeById,
-} from "../lib/extensionStorage";
+} from "../lib/extensions/extensionStorage";
 import type { MonacoThemeDef } from "../types";
-import type { StoredTheme } from "../lib/extensionStorage";
+import type { StoredTheme } from "../lib/extensions/extensionStorage";
 import { getAllThemeDisplayInfo, loadMonacoTheme } from "../themes/monaco-themes-catalog";
 
 type Monaco = typeof monacoNs;

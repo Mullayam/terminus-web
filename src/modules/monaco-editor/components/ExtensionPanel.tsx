@@ -31,7 +31,7 @@ import {
   CloudDownload,
   RefreshCw,
 } from "lucide-react";
-import { searchExtensions, type OpenVSXExtension } from "../lib/openVSX";
+import { searchExtensions, type OpenVSXExtension } from "../lib/extensions/openVSX";
 import {
   installExtensionFromOpenVSX,
   uninstallExtensionFull,
@@ -39,8 +39,8 @@ import {
   toggleExtension,
   getAvailableExtensionThemes,
   type InstallProgress,
-} from "../lib/extensionLoader";
-import type { InstalledExtension } from "../lib/extensionStorage";
+} from "../lib/extensions/extensionLoader";
+import type { InstalledExtension } from "../lib/extensions/extensionStorage";
 import { showEditorNotification, getNotificationsHandle } from "../plugins/notification-plugin";
 
 /* ── Types ─────────────────────────────────────────────────── */

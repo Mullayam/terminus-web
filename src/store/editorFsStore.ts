@@ -8,7 +8,7 @@
  * Works with any FileSystemProvider backend (SFTP, REST API, local, etc.).
  */
 import { create } from "zustand";
-import type { FsProviderStatus } from "@/modules/monaco-editor/lib/file-system-types";
+import type { FsProviderStatus } from "@/modules/monaco-editor/lib/filesystem/file-system-types";
 
 // Re-export the canonical status type for backward compat
 export type { FsProviderStatus };

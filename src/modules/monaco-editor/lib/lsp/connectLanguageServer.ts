@@ -26,9 +26,9 @@
  */
 
 import type * as monacoNs from "monaco-editor";
-import { createLSPClient, type LSPClient, type LSPShowMessageParams, LSPMessageType } from "./lsp/client";
-import { registerLSPProviders, type LSPProviderRegistration } from "./lsp/providers";
-import { toMonacoMarkers, setMonacoRef } from "./lsp/converters";
+import { createLSPClient, type LSPClient, type LSPShowMessageParams, LSPMessageType } from "./client";
+import { registerLSPProviders, type LSPProviderRegistration } from "./providers";
+import { toMonacoMarkers, setMonacoRef } from "./converters";
 
 type Monaco = typeof monacoNs;
 

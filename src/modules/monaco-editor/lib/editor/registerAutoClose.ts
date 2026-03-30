@@ -9,7 +9,7 @@
 
 import type * as monacoNs from "monaco-editor";
 
-import { AUTO_CLOSE_TAG_LANGUAGES, VOID_ELEMENTS } from "./language-groups";
+import { AUTO_CLOSE_TAG_LANGUAGES, VOID_ELEMENTS } from "../language/language-groups";
 
 type Monaco = typeof monacoNs;
 

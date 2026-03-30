@@ -12,9 +12,9 @@
  */
 import { useMemo, useRef } from "react";
 import type { Socket } from "socket.io-client";
-import { SftpFileSystemProvider } from "@/modules/monaco-editor/lib/sftp-fs-provider";
-import { useFileSystemTree } from "@/modules/monaco-editor/lib/useFileSystemTree";
-import type { FsProviderStatus } from "@/modules/monaco-editor/lib/file-system-types";
+import { SftpFileSystemProvider } from "@/modules/monaco-editor/lib/filesystem/sftp-fs-provider";
+import { useFileSystemTree } from "@/modules/monaco-editor/lib/filesystem/useFileSystemTree";
+import type { FsProviderStatus } from "@/modules/monaco-editor/lib/filesystem/file-system-types";
 
 export interface UseEditorSftpTreeOptions {
     /** Parent tab's sessionId (used as a unique key) */

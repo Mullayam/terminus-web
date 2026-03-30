@@ -21,7 +21,7 @@ import { SocketEventConstants } from "@/lib/sockets/event-constants";
 import type {
   FileSystemProvider,
   FileOperationHandlers,
-} from "@/modules/monaco-editor/lib/file-system-types";
+} from "@/modules/monaco-editor/lib/filesystem/file-system-types";
 
 export interface FileOperations {
   createFile: (dirPath: string, name: string) => void;

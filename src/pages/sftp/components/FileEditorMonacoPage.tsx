@@ -38,7 +38,7 @@ import {
     npmManagerViewPlugin,
 } from "@/modules/monaco-editor";
 import type { MonacoEditorInstance, AICompletionProvider } from "@/modules/monaco-editor";
-import { monacoThemeIdToXterm } from "@/modules/monaco-editor/lib/monacoThemeToXterm";
+import { monacoThemeIdToXterm } from "@/modules/monaco-editor/lib/themes/monacoThemeToXterm";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import {
     AlertDialog,

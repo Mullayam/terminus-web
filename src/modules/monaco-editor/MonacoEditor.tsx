@@ -65,14 +65,14 @@ import {
   loadAllExtensions,
   registerAICompletions,
 } from "./lib";
-import { detectTechnologies } from "./lib/registerCopilot";
-import type { LSPConnection } from "./lib/connectLanguageServer";
+import { detectTechnologies } from "./lib/editor/registerCopilot";
+import type { LSPConnection } from "./lib/lsp/connectLanguageServer";
 import type { CompletionRegistration } from "monacopilot";
-import type { AICompletionRegistration } from "./lib/aiCompletions";
-import { registerCustomHoverProviders } from "./lib/hoverProvider";
+import type { AICompletionRegistration } from "./lib/ai/aiCompletions";
+import { registerCustomHoverProviders } from "./lib/hover/hoverProvider";
 import { registerBuiltinProviders } from "./lib/lsp/builtin-providers";
-import { registerContextEngineProviders } from "./lib/contextEngineProviders";
-import { monacoThemeIdToXterm } from "./lib/monacoThemeToXterm";
+import { registerContextEngineProviders } from "./lib/context-engine/contextEngineProviders";
+import { monacoThemeIdToXterm } from "./lib/themes/monacoThemeToXterm";
 
 // GitHub-based VSCode extension loader
 import {
@@ -1429,7 +1429,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
     }
 
     // 3. Re-register context-engine providers for any newly installed packs
-    import("./lib/contextEngineProviders").then(({ registerContextEngineProviders }) => {
+    import("./lib/context-engine/contextEngineProviders").then(({ registerContextEngineProviders }) => {
       registerContextEngineProviders(monaco).catch(() => {});
     });
 

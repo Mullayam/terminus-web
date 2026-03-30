@@ -6,7 +6,7 @@
  */
 import type { ExtendedEditorPlugin, ExtendedPluginAPI } from "../types";
 
-import { TAG_LANGUAGES } from "@/modules/monaco-editor/lib/language-groups";
+import { TAG_LANGUAGES } from "@/modules/monaco-editor/lib/language/language-groups";
 
 function expandEmmet(abbr: string): string | null {
     if (!abbr || abbr.length < 2) return null;
