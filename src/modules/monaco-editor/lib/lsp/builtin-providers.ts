@@ -702,95 +702,32 @@ function getRefactorActions(
    3. CODE LENS — symbol info + reference counts
    ════════════════════════════════════════════════════════════ */
 
-/** Patterns for extracting symbol declarations per language family */
-const SYMBOL_PATTERNS: Record<string, RegExp[]> = {
-  js: [
-    /^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+(\w+)/,
-    /^\s*(?:export\s+)?(?:default\s+)?class\s+(\w+)/,
-    /^\s*(?:export\s+)?(?:default\s+)?(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\(/,
-    /^\s*(?:export\s+)?interface\s+(\w+)/,
-    /^\s*(?:export\s+)?type\s+(\w+)\s*[=<]/,
-    /^\s*(?:export\s+)?enum\s+(\w+)/,
-  ],
-  python: [
-    /^\s*(?:async\s+)?def\s+(\w+)/,
-    /^\s*class\s+(\w+)/,
-  ],
-  go: [
-    /^func\s+(?:\([^)]+\)\s+)?(\w+)/,
-    /^type\s+(\w+)\s+(?:struct|interface)/,
-  ],
-  rust: [
-    /^\s*(?:pub\s+)?(?:async\s+)?fn\s+(\w+)/,
-    /^\s*(?:pub\s+)?(?:struct|enum|trait)\s+(\w+)/,
-    /^\s*impl(?:<[^>]+>)?\s+(\w+)/,
-  ],
-  cfamily: [
-    /^\s*(?:public|private|protected|static|abstract|virtual|override|\s)*(?:class|struct)\s+(\w+)/,
-    /^\s*(?:public|private|protected|static|abstract|virtual|override|\s)*[\w<>\[\]]+\s+(\w+)\s*\(/,
-  ],
-  php: [
-    /^\s*(?:public|private|protected|static|\s)*function\s+(\w+)/,
-    /^\s*(?:abstract\s+)?class\s+(\w+)/,
-  ],
-  ruby: [
-    /^\s*def\s+(\w+)/,
-    /^\s*class\s+(\w+)/,
-    /^\s*module\s+(\w+)/,
-  ],
-  lua: [
-    /^\s*(?:local\s+)?function\s+(\w+)/,
-  ],
-  swift: [
-    /^\s*(?:public|private|internal|open|fileprivate)?\s*(?:class|struct|enum|protocol|actor)\s+(\w+)/,
-    /^\s*(?:public|private|internal|open|fileprivate)?\s*(?:static\s+)?func\s+(\w+)/,
-  ],
-  shell: [
-    /^\s*(\w+)\s*\(\s*\)/,
-    /^\s*function\s+(\w+)/,
-  ],
-  sql: [
-    /^\s*CREATE\s+(?:OR\s+REPLACE\s+)?(?:FUNCTION|PROCEDURE|VIEW|TABLE|INDEX)\s+(?:\w+\.)?([\w]+)/i,
-  ],
-  dart: [
-    /^\s*(?:abstract\s+)?class\s+(\w+)/,
-    /^\s*(?:\w+\s+)?(\w+)\s*\([^)]*\)\s*(?:async\s*)?\{/,
-  ],
-  scala: [
-    /^\s*(?:abstract\s+)?(?:class|object|trait)\s+(\w+)/,
-    /^\s*def\s+(\w+)/,
-  ],
-  elixir: [
-    /^\s*def[p]?\s+(\w+)/,
-    /^\s*defmodule\s+([\w.]+)/,
-  ],
-  perl: [
-    /^\s*sub\s+(\w+)/,
-    /^\s*package\s+([\w:]+)/,
-  ],
-  r: [
-    /^\s*(\w+)\s*<-\s*function/,
-  ],
-};
+import {
+  SYMBOL_PATTERNS as SHARED_SYMBOL_PATTERNS,
+  type SymbolPatternFamily,
+} from "../symbol-patterns";
+
+/**
+ * Build a language → RegExp[] index from the shared SYMBOL_PATTERNS.
+ * Lazy-initialised once.
+ */
+let _patternIndex: Map<string, RegExp[]> | null = null;
+
+function getPatternIndex(): Map<string, RegExp[]> {
+  if (!_patternIndex) {
+    _patternIndex = new Map();
+    for (const family of SHARED_SYMBOL_PATTERNS) {
+      for (const lang of family.langs) {
+        _patternIndex.set(lang, family.patterns);
+      }
+    }
+  }
+  return _patternIndex;
+}
 
 function getLanguagePatterns(lang: string): RegExp[] {
-  if (JS_FAMILY.has(lang)) return SYMBOL_PATTERNS.js;
-  if (lang === "python") return SYMBOL_PATTERNS.python;
-  if (lang === "go") return SYMBOL_PATTERNS.go;
-  if (lang === "rust") return SYMBOL_PATTERNS.rust;
-  if (C_FAMILY.has(lang)) return SYMBOL_PATTERNS.cfamily;
-  if (lang === "php") return SYMBOL_PATTERNS.php;
-  if (lang === "ruby") return SYMBOL_PATTERNS.ruby;
-  if (lang === "lua") return SYMBOL_PATTERNS.lua;
-  if (lang === "swift") return SYMBOL_PATTERNS.swift;
-  if (lang === "dart") return SYMBOL_PATTERNS.dart;
-  if (lang === "scala") return SYMBOL_PATTERNS.scala;
-  if (lang === "elixir") return SYMBOL_PATTERNS.elixir;
-  if (lang === "perl") return SYMBOL_PATTERNS.perl;
-  if (lang === "r") return SYMBOL_PATTERNS.r;
-  if (["shell", "shellscript", "bash", "powershell"].includes(lang)) return SYMBOL_PATTERNS.shell;
-  if (["sql", "mysql", "pgsql"].includes(lang)) return SYMBOL_PATTERNS.sql;
-  return SYMBOL_PATTERNS.js; // fallback
+  const idx = getPatternIndex();
+  return idx.get(lang) ?? idx.get("javascript") ?? [];
 }
 
 function buildCodeLenses(model: ITextModel, languageId: string): CodeLens[] {
