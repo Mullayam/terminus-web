@@ -128,6 +128,67 @@ export interface FileSystemProvider extends FileOperationHandlers {
     onStatusChange(listener: FsStatusListener): () => void;
 
     // ── Directory listing ──────────────────────────────────
-    readdir(dirPath: string): Promise<FileEntry[]>;
+    readdir(dirPath: string, opts?: ReaddirOptions): Promise<FileEntry[]>;
     watchDir?(dirPath: string, cb: (entries: FileEntry[]) => void): () => void;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  READDIR OPTIONS (pagination, filtering)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Optional parameters for `readdir` / directory listing.
+ * Providers may choose to honour some or all of these
+ * (e.g. SFTP socket doesn't do server-side pagination,
+ * but the cache layer uses `limit`/`offset` client-side).
+ */
+export interface ReaddirOptions {
+    /** Maximum entries to return (pagination). `0` = unlimited. */
+    limit?: number;
+    /** Offset into the full listing (offset-based pagination). */
+    offset?: number;
+    /**
+     * Opaque cursor token for cursor-based pagination.
+     * Providers that support cursors should return a `nextCursor` in
+     * the result and accept it here for the next page.
+     */
+    cursor?: string;
+    /** If true, skip the in-memory cache and re-fetch from source. */
+    noCache?: boolean;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SMART IGNORE CONFIG
+// ═══════════════════════════════════════════════════════════════
+
+/** Default folder names to hide/skip in the tree for performance. */
+export const DEFAULT_IGNORED_NAMES: ReadonlySet<string> = new Set([
+    "node_modules",
+    ".git",
+    ".svn",
+    ".hg",
+    "dist",
+    "build",
+    ".next",
+    ".nuxt",
+    "__pycache__",
+    ".cache",
+    ".parcel-cache",
+    ".turbo",
+    "coverage",
+    ".output",
+]);
+
+/**
+ * Configuration for the smart-ignore filter.
+ * Pass this to `useFileSystemTree` to control which entries are
+ * hidden in the tree.  Hidden entries are never fetched/expanded.
+ */
+export interface IgnoreConfig {
+    /** Exact folder names to hide (matched against `entry.name`). */
+    names?: ReadonlySet<string>;
+    /** Hide dot-prefixed entries (default false). */
+    hideDotfiles?: boolean;
+    /** Disable all ignoring — show everything. */
+    disabled?: boolean;
 }

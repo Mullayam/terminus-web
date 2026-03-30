@@ -197,7 +197,10 @@ export type {
   FsProviderStatus,
   FsStatusListener,
   FileOperationHandlers,
+  ReaddirOptions,
+  IgnoreConfig,
 } from "./file-system-types";
+export { DEFAULT_IGNORED_NAMES } from "./file-system-types";
 export { SftpFileSystemProvider } from "./sftp-fs-provider";
 export {
   registerFsProvider,
@@ -215,3 +218,5 @@ export {
   type SftpHandlerOptions,
   type ApiHandlerOptions,
 } from "./fs-handler-factories";
+export { DirCache, type DirCacheOptions } from "./DirCache";
+export { filterEntries, paginateEntries } from "./filterEntries";
