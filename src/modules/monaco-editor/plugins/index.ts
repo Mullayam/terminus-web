@@ -56,6 +56,9 @@ export { commentAnchorsPlugin } from "./comment-anchors-plugin";
 export { codeScreenshotPlugin } from "./code-screenshot-plugin";
 export { toggleCommentStylePlugin } from "./toggle-comment-style-plugin";
 
+// Code Quality plugins (ESLint + Prettier via CDN)
+export { eslintLintPlugin, prettierFormatPlugin, clearCdnCache, preloadPrettier, isPrettierSupported, ESLINT_SUPPORTED_LANGUAGES, LANGUAGE_PRETTIER_MAP } from "./code-quality";
+
 // Convenience array of all built-in plugins
 import { saveStatePlugin } from "./save-state-plugin";
 import { bracketColorizerPlugin } from "./bracket-colorizer-plugin";
@@ -93,6 +96,8 @@ import { pasteAsJsonPlugin } from "./paste-as-json-plugin";
 import { commentAnchorsPlugin } from "./comment-anchors-plugin";
 import { codeScreenshotPlugin } from "./code-screenshot-plugin";
 import { toggleCommentStylePlugin } from "./toggle-comment-style-plugin";
+import { eslintLintPlugin } from "./code-quality";
+import { prettierFormatPlugin } from "./code-quality";
 
 export const ALL_BUILTIN_PLUGINS = [
   saveStatePlugin,
@@ -131,4 +136,6 @@ export const ALL_BUILTIN_PLUGINS = [
   commentAnchorsPlugin,
   codeScreenshotPlugin,
   toggleCommentStylePlugin,
+  eslintLintPlugin,
+  prettierFormatPlugin,
 ];

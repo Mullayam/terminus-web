@@ -119,6 +119,20 @@ const featureGroups: FeatureGroup[] = [
         ],
     },
     {
+        category: "Code Quality & Formatting",
+        icon: Settings,
+        color: "text-pink-400",
+        items: [
+            { label: "Prettier format-on-save & Shift+Alt+F" },
+            { label: "ESLint linting via Web Worker" },
+            { label: "40+ languages (built-in + external plugins)" },
+            { label: "Lazy CDN loading with CacheStorage" },
+            { label: "Enable/disable per tool in settings" },
+            { label: "Context menu: format, lint, toggle" },
+            { label: "Custom ESLint rules & severity filtering" },
+        ],
+    },
+    {
         category: "Security & Management",
         icon: Shield,
         color: "text-emerald-400",

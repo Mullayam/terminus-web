@@ -81,6 +81,16 @@
 - **Install from GitHub** — drag & drop `.vsix` files
 - **Theme, grammar & snippet packs** with full lifecycle management
 
+### 🧹 Code Quality & Formatting
+- **Prettier integration** — format-on-save (Ctrl+S) and Shift+Alt+F, context menu "Format Document with Prettier"
+- **ESLint integration** — real-time linting in a dedicated Web Worker, zero main-thread blocking
+- **40+ languages supported** — built-in parsers (JS, TS, JSX, TSX, JSON, HTML, Vue, CSS, SCSS, Less, Markdown, MDX, YAML, GraphQL, Angular, Handlebars) + external plugins (PHP, XML, Pug, Java, Svelte, Astro, SQL, TOML, Shell, Solidity, Kotlin, Nginx, Prisma, Rust, Elm, GLSL, Properties, Jsonata, Go Template)
+- **Lazy-loaded from CDN** — only the parser needed for the active language is fetched; parsers cached in CacheStorage
+- **User settings** — enable/disable Prettier & ESLint independently, configure print width, tab width, semicolons, quotes, trailing commas, bracket spacing, arrow parens
+- **Context menu actions** — Toggle Prettier, Toggle ESLint, Lint This File, Clear Diagnostics
+- **ESLint severity filtering** — show/hide warnings and errors separately
+- **Custom ESLint rules** — override default rules via settings
+
 ### 🔐 Security & Management
 - **Encrypted key vault** — credentials in IndexedDB, never plaintext
 - **Session resilience** — survives disconnects and reconnects
