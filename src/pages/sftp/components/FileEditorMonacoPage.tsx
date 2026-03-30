@@ -215,10 +215,11 @@ export default function FileEditorMonacoPage() {
         connectToHost,
         editorSftpStatus,
         editorSftpError,
+        provider: fsProvider,
     } = useEditorSftpTree({ sessionId, initialDir, hostUser });
 
     /* ── File operations for context menu ───────────────────── */
-    const fileOps = useFileOperations(sftpSocketRef, handleTreeRefresh ? () => handleTreeRefresh() : undefined);
+    const fileOps = useFileOperations(fsProvider, handleTreeRefresh ? () => handleTreeRefresh() : undefined);
  
     /* ── Tabs & Split state ─────────────────────────────────── */
     const initialTabId = useMemo(() => newTabId(), []);

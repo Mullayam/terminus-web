@@ -189,3 +189,29 @@ export type {
   JsonMarkdownString,
   JsonCommand,
 } from "./remote-providers";
+
+// File System Provider abstraction (plug-and-play backends)
+export type {
+  FileSystemProvider,
+  FileEntry,
+  FsProviderStatus,
+  FsStatusListener,
+  FileOperationHandlers,
+} from "./file-system-types";
+export { SftpFileSystemProvider } from "./sftp-fs-provider";
+export {
+  registerFsProvider,
+  unregisterFsProvider,
+  createFsProvider,
+  hasFsProvider,
+  listFsProviders,
+  type FsProviderFactory,
+} from "./fsProviderRegistry";
+export { useFileSystemTree, type UseFileSystemTreeOptions } from "./useFileSystemTree";
+export {
+  createSftpHandlers,
+  createApiHandlers,
+  composeHandlers,
+  type SftpHandlerOptions,
+  type ApiHandlerOptions,
+} from "./fs-handler-factories";
