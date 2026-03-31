@@ -713,9 +713,10 @@ export function EditorFileTree({
                 <button
                   onClick={() => setNewItemState({ parentDir: currentDir, type: "file" })}
                   className="p-1 rounded-md transition-colors"
-                  title="New File"
-                  style={{ color: "var(--editor-fg, #808080)", opacity: 0.6 }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "var(--editor-hover-bg, #37373d)"; }}
+                  title={sftpStatus !== "connected" ? "Connect SFTP first" : "New File"}
+                  disabled={sftpStatus !== "connected"}
+                  style={{ color: "var(--editor-fg, #808080)", opacity: sftpStatus !== "connected" ? 0.3 : 0.6, cursor: sftpStatus !== "connected" ? "not-allowed" : undefined }}
+                  onMouseEnter={(e) => { if (sftpStatus === "connected") e.currentTarget.style.background = "var(--editor-hover-bg, #37373d)"; }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                 >
                   <FilePlus className="h-3.5 w-3.5" />
@@ -726,9 +727,10 @@ export function EditorFileTree({
                 <button
                   onClick={() => setNewItemState({ parentDir: currentDir, type: "folder" })}
                   className="p-1 rounded-md transition-colors"
-                  title="New Folder"
-                  style={{ color: "var(--editor-fg, #808080)", opacity: 0.6 }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "var(--editor-hover-bg, #37373d)"; }}
+                  title={sftpStatus !== "connected" ? "Connect SFTP first" : "New Folder"}
+                  disabled={sftpStatus !== "connected"}
+                  style={{ color: "var(--editor-fg, #808080)", opacity: sftpStatus !== "connected" ? 0.3 : 0.6, cursor: sftpStatus !== "connected" ? "not-allowed" : undefined }}
+                  onMouseEnter={(e) => { if (sftpStatus === "connected") e.currentTarget.style.background = "var(--editor-hover-bg, #37373d)"; }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                 >
                   <FolderPlus className="h-3.5 w-3.5" />
@@ -739,9 +741,10 @@ export function EditorFileTree({
                 <button
                   onClick={onRefresh}
                   className="p-1 rounded-md transition-colors"
-                  title="Refresh Explorer"
-                  style={{ color: "var(--editor-fg, #808080)", opacity: 0.6 }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "var(--editor-hover-bg, #37373d)"; }}
+                  title={sftpStatus !== "connected" ? "Connect SFTP first" : "Refresh Explorer"}
+                  disabled={sftpStatus !== "connected"}
+                  style={{ color: "var(--editor-fg, #808080)", opacity: sftpStatus !== "connected" ? 0.3 : 0.6, cursor: sftpStatus !== "connected" ? "not-allowed" : undefined }}
+                  onMouseEnter={(e) => { if (sftpStatus === "connected") e.currentTarget.style.background = "var(--editor-hover-bg, #37373d)"; }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                 >
                   <RefreshCw className="h-3 w-3" />
