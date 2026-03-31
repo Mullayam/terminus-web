@@ -36,6 +36,7 @@ import {
     ViewPanelTabBar,
     ViewPanelContent,
     npmManagerViewPlugin,
+    useExtensionHost,
 } from "@/modules/monaco-editor";
 import type { MonacoEditorInstance, AICompletionProvider } from "@/modules/monaco-editor";
 import { monacoThemeIdToXterm } from "@/modules/monaco-editor/lib/themes/monacoThemeToXterm";
@@ -61,6 +62,7 @@ import {
     type EditorTab,
 } from "./monaco-editor-parts";
 import { EditorWelcomeDialog } from "@/components/EditorWelcomeDialog";
+import { EditorAnnouncementDialog } from "@/components/EditorAnnouncementDialog";
 import { MONACO_THEMES } from "./monaco-editor-parts/ThemePicker";
 import { useFileOperations } from "@/modules/monaco-editor/components/file-tree/useFileOperations";
 import { getLoadedMonacoTheme } from "@/modules/monaco-editor/themes/monaco-themes-catalog";
@@ -195,6 +197,9 @@ export default function FileEditorMonacoPage() {
 
     /* ── File-tree hook (dedicated socket — isolated state) ── */
     const initialDir = useMemo(() => {
+
+    /* ── Extension Host (custom ext-host worker) ─────────── */
+    useExtensionHost({ enabled: true });
         if (!filePath) return "/";
         const dir = filePath.replace(/\/[^/]*$/, "");
         return dir || "/";
@@ -1044,6 +1049,9 @@ export default function FileEditorMonacoPage() {
 
             {/* First-time welcome dialog */}
             <EditorWelcomeDialog />
+
+            {/* Version announcement dialog */}
+            <EditorAnnouncementDialog />
 
             {/* Shortcuts modal (memoized, conditionally rendered) */}
             {showShortcuts && <ShortcutsModal onClose={closeShortcuts} />}

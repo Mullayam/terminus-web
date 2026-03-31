@@ -103,3 +103,7 @@ export type {
     NotificationOptions,
     ShowNotificationFn,
 } from "./api";
+
+// ─── Extension Host React Hook ──────────────────────────────
+export { useExtensionHost } from "./useExtensionHost";
+export type { UseExtensionHostOptions, UseExtensionHostReturn } from "./useExtensionHost";

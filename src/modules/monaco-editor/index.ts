@@ -418,10 +418,13 @@ export {
   useDialog,
   ExtensionDialogHost,
   notificationService,
+  useExtensionHost,
 } from "./extension-host";
 export type {
   DialogAPI,
   DialogRequest,
   MessageSeverity,
   NotificationSeverity,
+  UseExtensionHostOptions,
+  UseExtensionHostReturn,
 } from "./extension-host";
