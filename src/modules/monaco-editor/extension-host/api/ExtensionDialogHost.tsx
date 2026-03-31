@@ -19,8 +19,6 @@ import {
     DialogDescription,
     DialogFooter,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
     AlertCircle,
     AlertTriangle,
@@ -98,7 +96,14 @@ export function ExtensionDialogHost() {
 
     return (
         <Dialog open onOpenChange={(open) => !open && handleClose()}>
-            <DialogContent className="sm:max-w-[480px]">
+            <DialogContent
+                className="sm:max-w-[480px] p-0 gap-0 overflow-hidden border shadow-2xl"
+                style={{
+                    background: "var(--editor-bg, #1e1e1e)",
+                    color: "var(--editor-fg, #cccccc)",
+                    borderColor: "var(--editor-border, #3c3c3c)",
+                }}
+            >
                 {current.kind === "message" && (
                     <MessageDialog
                         request={current}
@@ -159,36 +164,50 @@ function MessageDialog({
 
     return (
         <>
-            <DialogHeader>
-                <div className="flex items-center gap-3">
-                    <Icon className={cn("h-6 w-6 shrink-0", config.color)} />
-                    <DialogTitle>{config.title}</DialogTitle>
-                </div>
-                <DialogDescription className="mt-2 text-sm leading-relaxed">
-                    {request.message}
-                </DialogDescription>
-                {request.detail && (
-                    <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                        {request.detail}
-                    </p>
-                )}
-            </DialogHeader>
-            <DialogFooter className="flex-row justify-end gap-2 sm:justify-end">
+            <div className="px-5 pt-5 pb-3" style={{ borderBottom: "1px solid var(--editor-border, #3c3c3c)" }}>
+                <DialogHeader>
+                    <div className="flex items-center gap-3">
+                        <Icon className={cn("h-5 w-5 shrink-0", config.color)} />
+                        <DialogTitle className="text-sm font-semibold" style={{ color: "var(--editor-fg, #cccccc)" }}>
+                            {config.title}
+                        </DialogTitle>
+                    </div>
+                    <DialogDescription className="mt-2 text-[13px] leading-relaxed" style={{ color: "var(--editor-fg, #cccccc)", opacity: 0.85 }}>
+                        {request.message}
+                    </DialogDescription>
+                    {request.detail && (
+                        <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--editor-fg, #808080)", opacity: 0.6 }}>
+                            {request.detail}
+                        </p>
+                    )}
+                </DialogHeader>
+            </div>
+            <DialogFooter className="px-5 py-3 flex-row justify-end gap-2 sm:justify-end">
                 {request.items.length > 0 ? (
                     request.items.map((item) => (
-                        <Button
+                        <button
                             key={item}
-                            variant="outline"
-                            size="sm"
+                            className="px-3 py-1.5 text-xs font-medium rounded transition-colors"
+                            style={{
+                                background: "var(--editor-hover-bg, #37373d)",
+                                color: "var(--editor-fg, #cccccc)",
+                                border: "1px solid var(--editor-border, #3c3c3c)",
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--editor-accent, #007acc)"; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = "var(--editor-hover-bg, #37373d)"; }}
                             onClick={() => onSelect(item)}
                         >
                             {item}
-                        </Button>
+                        </button>
                     ))
                 ) : (
-                    <Button size="sm" onClick={onClose}>
+                    <button
+                        className="px-4 py-1.5 text-xs font-medium rounded transition-colors"
+                        style={{ background: "var(--editor-accent, #007acc)", color: "#fff" }}
+                        onClick={onClose}
+                    >
                         OK
-                    </Button>
+                    </button>
                 )}
             </DialogFooter>
         </>
@@ -227,32 +246,48 @@ function InputBoxDialog({
 
     return (
         <>
-            <DialogHeader>
-                <DialogTitle>
-                    {request.prompt ?? "Input"}
-                </DialogTitle>
-            </DialogHeader>
-            <div>
-                <Input
+            <div className="px-5 pt-5 pb-3" style={{ borderBottom: "1px solid var(--editor-border, #3c3c3c)" }}>
+                <DialogHeader>
+                    <DialogTitle className="text-sm font-semibold" style={{ color: "var(--editor-fg, #cccccc)" }}>
+                        {request.prompt ?? "Input"}
+                    </DialogTitle>
+                </DialogHeader>
+            </div>
+            <div className="px-5 py-4">
+                <input
                     autoFocus
                     type={request.password ? "password" : "text"}
                     placeholder={request.placeHolder}
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    className={validationError ? "border-red-500" : ""}
+                    className="w-full rounded px-3 py-1.5 text-sm outline-none transition-colors"
+                    style={{
+                        background: "var(--editor-hover-bg, #37373d)",
+                        color: "var(--editor-fg, #cccccc)",
+                        border: `1px solid ${validationError ? "#f14c4c" : "var(--editor-border, #3c3c3c)"}`,
+                    }}
                 />
                 {validationError && (
-                    <p className="mt-1 text-xs text-red-500">{validationError}</p>
+                    <p className="mt-1 text-xs" style={{ color: "#f14c4c" }}>{validationError}</p>
                 )}
             </div>
-            <DialogFooter className="flex-row justify-end gap-2 sm:justify-end">
-                <Button variant="outline" size="sm" onClick={onClose}>
+            <DialogFooter className="px-5 py-3 flex-row justify-end gap-2 sm:justify-end" style={{ borderTop: "1px solid var(--editor-border, #3c3c3c)" }}>
+                <button
+                    className="px-3 py-1.5 text-xs font-medium rounded transition-colors"
+                    style={{ background: "var(--editor-hover-bg, #37373d)", color: "var(--editor-fg, #cccccc)", border: "1px solid var(--editor-border, #3c3c3c)" }}
+                    onClick={onClose}
+                >
                     Cancel
-                </Button>
-                <Button size="sm" onClick={onSubmit} disabled={!!validationError}>
+                </button>
+                <button
+                    className="px-4 py-1.5 text-xs font-medium rounded transition-colors"
+                    style={{ background: validationError ? "#37373d" : "var(--editor-accent, #007acc)", color: "#fff", opacity: validationError ? 0.5 : 1 }}
+                    disabled={!!validationError}
+                    onClick={onSubmit}
+                >
                     OK
-                </Button>
+                </button>
             </DialogFooter>
         </>
     );
@@ -283,35 +318,40 @@ function QuickPickDialog({
 
     return (
         <>
-            <DialogHeader>
-                <DialogTitle>
-                    {request.placeHolder ?? "Select an item"}
-                </DialogTitle>
-            </DialogHeader>
+            <div className="px-5 pt-5 pb-3" style={{ borderBottom: "1px solid var(--editor-border, #3c3c3c)" }}>
+                <DialogHeader>
+                    <DialogTitle className="text-sm font-semibold" style={{ color: "var(--editor-fg, #cccccc)" }}>
+                        {request.placeHolder ?? "Select an item"}
+                    </DialogTitle>
+                </DialogHeader>
+            </div>
 
-            <Input
-                autoFocus
-                placeholder="Type to filter..."
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                onKeyDown={(e) => {
-                    if (e.key === "Escape") {
-                        e.preventDefault();
-                        onClose();
-                    }
-                }}
-            />
+            <div className="px-5 pt-3">
+                <input
+                    autoFocus
+                    placeholder="Type to filter..."
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                    className="w-full rounded px-3 py-1.5 text-sm outline-none"
+                    style={{ background: "var(--editor-hover-bg, #37373d)", color: "var(--editor-fg, #cccccc)", border: "1px solid var(--editor-border, #3c3c3c)" }}
+                    onKeyDown={(e) => {
+                        if (e.key === "Escape") {
+                            e.preventDefault();
+                            onClose();
+                        }
+                    }}
+                />
+            </div>
 
-            <div className="max-h-[300px] overflow-y-auto rounded-md border">
+            <div className="mx-5 my-3 max-h-[300px] overflow-y-auto rounded" style={{ border: "1px solid var(--editor-border, #3c3c3c)" }}>
                 {filtered.map((item) => (
                     <button
                         key={item}
                         type="button"
-                        className={cn(
-                            "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors",
-                            "hover:bg-accent hover:text-accent-foreground",
-                            selected.has(item) && "bg-accent",
-                        )}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] transition-colors"
+                        style={{ color: "var(--editor-fg, #cccccc)" }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "var(--editor-hover-bg, #37373d)"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = selected.has(item) ? "var(--editor-hover-bg, #37373d)" : "transparent"; }}
                         onClick={() => {
                             if (request.canPickMany) {
                                 onToggle(item);
@@ -322,15 +362,14 @@ function QuickPickDialog({
                     >
                         {request.canPickMany && (
                             <div
-                                className={cn(
-                                    "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border",
-                                    selected.has(item)
-                                        ? "border-primary bg-primary text-primary-foreground"
-                                        : "border-muted-foreground",
-                                )}
+                                className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm"
+                                style={{
+                                    border: `1px solid ${selected.has(item) ? "var(--editor-accent, #007acc)" : "var(--editor-border, #3c3c3c)"}`,
+                                    background: selected.has(item) ? "var(--editor-accent, #007acc)" : "transparent",
+                                }}
                             >
                                 {selected.has(item) && (
-                                    <Check className="h-3 w-3" />
+                                    <Check className="h-3 w-3" style={{ color: "#fff" }} />
                                 )}
                             </div>
                         )}
@@ -338,24 +377,29 @@ function QuickPickDialog({
                     </button>
                 ))}
                 {filtered.length === 0 && (
-                    <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+                    <div className="px-3 py-4 text-center text-[13px]" style={{ color: "var(--editor-fg, #808080)", opacity: 0.6 }}>
                         No matching items
                     </div>
                 )}
             </div>
 
             {request.canPickMany && (
-                <DialogFooter className="flex-row justify-end gap-2 sm:justify-end">
-                    <Button variant="outline" size="sm" onClick={onClose}>
+                <DialogFooter className="px-5 py-3 flex-row justify-end gap-2 sm:justify-end" style={{ borderTop: "1px solid var(--editor-border, #3c3c3c)" }}>
+                    <button
+                        className="px-3 py-1.5 text-xs font-medium rounded transition-colors"
+                        style={{ background: "var(--editor-hover-bg, #37373d)", color: "var(--editor-fg, #cccccc)", border: "1px solid var(--editor-border, #3c3c3c)" }}
+                        onClick={onClose}
+                    >
                         Cancel
-                    </Button>
-                    <Button
-                        size="sm"
+                    </button>
+                    <button
+                        className="px-4 py-1.5 text-xs font-medium rounded transition-colors"
+                        style={{ background: selected.size === 0 ? "#37373d" : "var(--editor-accent, #007acc)", color: "#fff", opacity: selected.size === 0 ? 0.5 : 1 }}
                         disabled={selected.size === 0}
                         onClick={onSubmit}
                     >
                         OK ({selected.size})
-                    </Button>
+                    </button>
                 </DialogFooter>
             )}
         </>

@@ -14,7 +14,6 @@ import {
     DialogDescription,
     DialogFooter,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ExternalLink, Github, Linkedin, Megaphone } from "lucide-react";
 
@@ -37,7 +36,7 @@ Extensions can be installed from Open VSX or by dropping a .vsix file.`,
         },
         {
             label: "LinkedIn",
-            url: "https://www.linkedin.com/in/mullayam/",
+            url: "https://www.linkedin.com/in/mullayam06/",
             icon: Linkedin,
         },
         {
@@ -84,15 +83,22 @@ export function EditorAnnouncementDialog() {
 
     return (
         <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
-            <DialogContent className="sm:max-w-[480px] p-0 gap-0 overflow-hidden border-[hsl(var(--border))] bg-[hsl(var(--background))] text-[hsl(var(--foreground))] shadow-2xl">
+            <DialogContent
+                className="sm:max-w-[480px] p-0 gap-0 overflow-hidden shadow-2xl"
+                style={{
+                    background: "var(--editor-bg, #1e1e1e)",
+                    color: "var(--editor-fg, #cccccc)",
+                    border: "1px solid var(--editor-border, #3c3c3c)",
+                }}
+            >
                 {/* Header */}
-                <div className="px-5 pt-5 pb-3 border-b border-[hsl(var(--border))]">
+                <div className="px-5 pt-5 pb-3" style={{ borderBottom: "1px solid var(--editor-border, #3c3c3c)" }}>
                     <DialogHeader className="space-y-1">
-                        <DialogTitle className="text-base font-semibold flex items-center gap-2">
-                            <Megaphone className="h-4 w-4 text-primary" />
+                        <DialogTitle className="text-base font-semibold flex items-center gap-2" style={{ color: "var(--editor-fg, #cccccc)" }}>
+                            <Megaphone className="h-4 w-4" style={{ color: "var(--editor-accent, #007acc)" }} />
                             {ANNOUNCEMENT.headline}
                         </DialogTitle>
-                        <DialogDescription className="text-xs text-muted-foreground">
+                        <DialogDescription className="text-xs" style={{ color: "var(--editor-fg, #808080)", opacity: 0.7 }}>
                             Terminus Editor — v{APP_VERSION}
                         </DialogDescription>
                     </DialogHeader>
@@ -100,7 +106,7 @@ export function EditorAnnouncementDialog() {
 
                 {/* Body */}
                 <div className="px-5 py-4 space-y-4">
-                    <p className="text-sm leading-relaxed text-muted-foreground">
+                    <p className="text-sm leading-relaxed" style={{ color: "var(--editor-fg, #cccccc)", opacity: 0.85 }}>
                         {ANNOUNCEMENT.body}
                     </p>
 
@@ -112,12 +118,14 @@ export function EditorAnnouncementDialog() {
                                 href={url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="
-                                    inline-flex items-center gap-1.5 rounded-md px-3 py-1.5
-                                    text-xs font-medium
-                                    bg-[hsl(var(--muted)/0.5)] hover:bg-[hsl(var(--muted)/0.8)]
-                                    text-[hsl(var(--foreground))] transition-colors
-                                "
+                                className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+                                style={{
+                                    background: "var(--editor-hover-bg, #37373d)",
+                                    color: "var(--editor-fg, #cccccc)",
+                                    border: "1px solid var(--editor-border, #3c3c3c)",
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--editor-accent, #007acc)"; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--editor-border, #3c3c3c)"; }}
                             >
                                 <Icon className="h-3.5 w-3.5" />
                                 {label}
@@ -127,18 +135,22 @@ export function EditorAnnouncementDialog() {
                 </div>
 
                 {/* Footer */}
-                <DialogFooter className="px-5 py-3 border-t border-[hsl(var(--border))] flex-row items-center justify-between sm:justify-between">
+                <DialogFooter className="px-5 py-3 flex-row items-center justify-between sm:justify-between" style={{ borderTop: "1px solid var(--editor-border, #3c3c3c)" }}>
                     <label className="flex items-center gap-2 cursor-pointer select-none">
                         <Checkbox
                             checked={dontShowAgain}
                             onCheckedChange={(v) => setDontShowAgain(!!v)}
                             className="h-3.5 w-3.5"
                         />
-                        <span className="text-xs text-muted-foreground">Don't show again</span>
+                        <span className="text-xs" style={{ color: "var(--editor-fg, #808080)", opacity: 0.7 }}>Don't show again</span>
                     </label>
-                    <Button size="sm" onClick={handleGotIt} className="text-xs h-7 px-4">
+                    <button
+                        onClick={handleGotIt}
+                        className="text-xs font-medium h-7 px-4 rounded transition-colors"
+                        style={{ background: "var(--editor-accent, #007acc)", color: "#fff" }}
+                    >
                         Got it!
-                    </Button>
+                    </button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

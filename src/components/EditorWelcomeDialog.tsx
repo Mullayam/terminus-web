@@ -13,7 +13,6 @@ import {
     DialogDescription,
     DialogFooter,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
     Info,
@@ -100,22 +99,21 @@ export function EditorWelcomeDialog() {
     return (
         <Dialog open={open} onOpenChange={(val) => { if (!val) handleDismiss(); else setOpen(true); }}>
             <DialogContent
-                className="
-                    sm:max-w-[520px] p-0 gap-0 overflow-hidden
-                    border-[hsl(var(--border))]
-                    bg-[hsl(var(--background))]
-                    text-[hsl(var(--foreground))]
-                    shadow-2xl
-                "
+                className="sm:max-w-[520px] p-0 gap-0 overflow-hidden shadow-2xl"
+                style={{
+                    background: "var(--editor-bg, #1e1e1e)",
+                    color: "var(--editor-fg, #cccccc)",
+                    border: "1px solid var(--editor-border, #3c3c3c)",
+                }}
             >
                 {/* ── Header ── */}
-                <div className="px-5 pt-5 pb-3 border-b border-[hsl(var(--border))]">
+                <div className="px-5 pt-5 pb-3" style={{ borderBottom: "1px solid var(--editor-border, #3c3c3c)" }}>
                     <DialogHeader className="space-y-1">
-                        <DialogTitle className="text-base font-semibold flex items-center gap-2">
-                            <Sparkles className="h-4 w-4 text-primary" />
+                        <DialogTitle className="text-base font-semibold flex items-center gap-2" style={{ color: "var(--editor-fg, #cccccc)" }}>
+                            <Sparkles className="h-4 w-4" style={{ color: "var(--editor-accent, #007acc)" }} />
                             Welcome to Terminus Editor
                         </DialogTitle>
-                        <DialogDescription className="text-xs text-muted-foreground">
+                        <DialogDescription className="text-xs" style={{ color: "var(--editor-fg, #808080)", opacity: 0.7 }}>
                             A few things to get you started
                         </DialogDescription>
                     </DialogHeader>
@@ -126,38 +124,40 @@ export function EditorWelcomeDialog() {
                     {tips.map((tip, i) => (
                         <div
                             key={i}
-                            className="
-                                group flex items-start gap-3 rounded-md p-2.5
-                                bg-[hsl(var(--muted)/0.4)]
-                                hover:bg-[hsl(var(--muted)/0.7)]
-                                transition-colors
-                            "
+                            className="group flex items-start gap-3 rounded-md p-2.5 transition-colors"
+                            style={{ background: "var(--editor-hover-bg, #2a2d2e)" }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--editor-sidebar-bg, #252526)"; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = "var(--editor-hover-bg, #2a2d2e)"; }}
                         >
                             <div className="mt-0.5">{tip.icon}</div>
                             <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium leading-tight">{tip.title}</p>
-                                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                                <p className="text-sm font-medium leading-tight" style={{ color: "var(--editor-fg, #cccccc)" }}>{tip.title}</p>
+                                <p className="text-xs mt-0.5 leading-relaxed" style={{ color: "var(--editor-fg, #808080)", opacity: 0.7 }}>
                                     {tip.description}
                                 </p>
                             </div>
-                            <ChevronRight className="h-3.5 w-3.5 mt-0.5 text-muted-foreground/40 group-hover:text-muted-foreground/70 transition-colors shrink-0" />
+                            <ChevronRight className="h-3.5 w-3.5 mt-0.5 shrink-0" style={{ color: "var(--editor-fg, #808080)", opacity: 0.3 }} />
                         </div>
                     ))}
                 </div>
 
                 {/* ── Footer ── */}
-                <DialogFooter className="px-5 py-3 border-t border-[hsl(var(--border))] flex-row items-center justify-between sm:justify-between">
+                <DialogFooter className="px-5 py-3 flex-row items-center justify-between sm:justify-between" style={{ borderTop: "1px solid var(--editor-border, #3c3c3c)" }}>
                     <label className="flex items-center gap-2 cursor-pointer select-none">
                         <Checkbox
                             checked={dontShowAgain}
                             onCheckedChange={(v) => setDontShowAgain(!!v)}
                             className="h-3.5 w-3.5"
                         />
-                        <span className="text-xs text-muted-foreground">Don't show again</span>
+                        <span className="text-xs" style={{ color: "var(--editor-fg, #808080)", opacity: 0.7 }}>Don't show again</span>
                     </label>
-                    <Button size="sm" onClick={handleGetStarted} className="text-xs h-7 px-4">
+                    <button
+                        onClick={handleGetStarted}
+                        className="text-xs font-medium h-7 px-4 rounded transition-colors"
+                        style={{ background: "var(--editor-accent, #007acc)", color: "#fff" }}
+                    >
                         Got it, let's go!
-                    </Button>
+                    </button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
