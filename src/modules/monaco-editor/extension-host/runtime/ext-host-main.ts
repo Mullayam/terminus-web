@@ -13,6 +13,8 @@ import { MenuRegistry } from "../menus/menu-registry";
 import { ActivationService } from "../activation/activation-service";
 import { ExtensionInstaller } from "../installer/extension-installer";
 import { WorkspaceBridge } from "../workspace/workspace-bridge";
+import { notificationService } from "../api/notification-service";
+import type { NotificationSeverity } from "../api/notification-service";
 import { dialogService } from "../api/dialog-service";
 import type { MessageSeverity } from "../api/dialog-service";
 import type { WorkspaceFileSystem } from "../workspace/workspace-bridge";
@@ -204,10 +206,24 @@ export class ExtensionHostMain implements Disposable {
             );
         });
 
-        // Window messages → DialogService (renders real UI)
+        // Window messages → NotificationService (VS Code-style toasts)
         this.disposables.push(
             this.rpc.onRequest(
                 "window/showMessage",
+                async (level: unknown, message: unknown, items: unknown) => {
+                    return notificationService.show(
+                        level as NotificationSeverity,
+                        message as string,
+                        (items as string[]) ?? [],
+                    );
+                },
+            ),
+        );
+
+        // Window modal dialogs → DialogService (blocking modal with action buttons)
+        this.disposables.push(
+            this.rpc.onRequest(
+                "window/showMessageDialog",
                 async (level: unknown, message: unknown, items: unknown) => {
                     return dialogService.showMessage(
                         level as MessageSeverity,

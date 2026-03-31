@@ -4,6 +4,9 @@
  * Event bus-driven dialog system for vscode.window.show*Message,
  * showInputBox, and showQuickPick calls.
  *
+ * Dialogs are MODAL (block until user responds).
+ * For non-blocking toast notifications, see notification-service.ts.
+ *
  * Flow:
  *   Extension (Worker) → RPC → Main Thread → DialogService.emit() →
  *   React UI (ExtensionDialogHost) renders dialog → user responds →
@@ -75,7 +78,7 @@ class DialogServiceImpl {
         };
     }
 
-    /** Called by ext-host-main when an extension requests a dialog. */
+    /** Show a modal message dialog with optional action buttons. */
     showMessage(
         severity: MessageSeverity,
         message: string,

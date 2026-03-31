@@ -83,7 +83,12 @@ export { WorkspaceBridge } from "./workspace";
 export type { WorkspaceFileSystem } from "./workspace";
 
 // ─── API shim ────────────────────────────────────────────────
-export { createVSCodeAPI, dialogService, ExtensionDialogHost } from "./api";
+export {
+    createVSCodeAPI,
+    dialogService,
+    notificationService,
+    ExtensionDialogHost,
+} from "./api";
 export type {
     VSCodeAPI,
     CommandsAPI,
@@ -92,4 +97,7 @@ export type {
     LanguagesAPI,
     DialogRequest,
     MessageSeverity,
+    NotificationSeverity,
+    NotificationOptions,
+    ShowNotificationFn,
 } from "./api";

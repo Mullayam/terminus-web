@@ -76,9 +76,14 @@ function createCommandsAPI(
 // ═══════════════════════════════════════════════════════════════
 
 export interface WindowAPI {
+    /** Show a notification toast (non-blocking). */
     showInformationMessage(message: string, ...items: string[]): Promise<string | undefined>;
     showWarningMessage(message: string, ...items: string[]): Promise<string | undefined>;
     showErrorMessage(message: string, ...items: string[]): Promise<string | undefined>;
+    /** Show a modal dialog (blocking until user responds). */
+    showInformationDialog(message: string, ...items: string[]): Promise<string | undefined>;
+    showWarningDialog(message: string, ...items: string[]): Promise<string | undefined>;
+    showErrorDialog(message: string, ...items: string[]): Promise<string | undefined>;
     showInputBox(options?: InputBoxOptions): Promise<string | undefined>;
     showQuickPick(items: string[], options?: QuickPickOptions): Promise<string | undefined>;
     createOutputChannel(name: string): LogOutputChannel;
@@ -98,6 +103,7 @@ export interface QuickPickOptions {
 
 function createWindowAPI(rpc: RPCChannel): WindowAPI {
     return {
+        // ── Notifications (toast overlays) ───────────────────
         showInformationMessage(message, ...items) {
             return rpc.call("window/showMessage", ["info", message, items]);
         },
@@ -106,6 +112,16 @@ function createWindowAPI(rpc: RPCChannel): WindowAPI {
         },
         showErrorMessage(message, ...items) {
             return rpc.call("window/showMessage", ["error", message, items]);
+        },
+        // ── Modal dialogs (block until user responds) ────────
+        showInformationDialog(message, ...items) {
+            return rpc.call("window/showMessageDialog", ["info", message, items]);
+        },
+        showWarningDialog(message, ...items) {
+            return rpc.call("window/showMessageDialog", ["warning", message, items]);
+        },
+        showErrorDialog(message, ...items) {
+            return rpc.call("window/showMessageDialog", ["error", message, items]);
         },
         showInputBox(options) {
             return rpc.call("window/showInputBox", [options]);

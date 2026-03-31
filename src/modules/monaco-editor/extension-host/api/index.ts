@@ -22,4 +22,10 @@ export type {
     ShowQuickPickRequest,
     MessageSeverity,
 } from "./dialog-service";
+export { notificationService } from "./notification-service";
+export type {
+    NotificationSeverity,
+    NotificationOptions,
+    ShowNotificationFn,
+} from "./notification-service";
 export { ExtensionDialogHost } from "./ExtensionDialogHost";
