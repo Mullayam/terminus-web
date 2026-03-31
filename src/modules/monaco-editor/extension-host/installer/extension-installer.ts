@@ -2,7 +2,7 @@
  * @module extension-host/installer/extension-installer
  *
  * Validates, installs, and manages extension packages.
- * Extensions are stored in IndexedDB for persistence.
+ * Storage: OPFS for files, Dexie for index/search.
  */
 
 import type {
@@ -11,80 +11,13 @@ import type {
     ExtensionManifest,
     ExtensionStatus,
 } from "../types";
-
-// ─── IDB Storage ─────────────────────────────────────────────
-
-const DB_NAME = "terminus-extensions";
-const DB_VERSION = 1;
-const STORE_MANIFESTS = "manifests";
-const STORE_FILES = "files";
-
-function openDB(): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, DB_VERSION);
-        req.onupgradeneeded = () => {
-            const db = req.result;
-            if (!db.objectStoreNames.contains(STORE_MANIFESTS)) {
-                db.createObjectStore(STORE_MANIFESTS, { keyPath: "id" });
-            }
-            if (!db.objectStoreNames.contains(STORE_FILES)) {
-                db.createObjectStore(STORE_FILES);
-            }
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-    });
-}
-
-async function idbPut(
-    store: string,
-    key: string | undefined,
-    value: unknown,
-): Promise<void> {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(store, "readwrite");
-        const s = tx.objectStore(store);
-        // If keyPath is set (manifests), key is inside value
-        if (key === undefined) {
-            s.put(value);
-        } else {
-            s.put(value, key);
-        }
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-    });
-}
-
-async function idbGet<T>(store: string, key: string): Promise<T | undefined> {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(store, "readonly");
-        const req = tx.objectStore(store).get(key);
-        req.onsuccess = () => resolve(req.result as T | undefined);
-        req.onerror = () => reject(req.error);
-    });
-}
-
-async function idbGetAll<T>(store: string): Promise<T[]> {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(store, "readonly");
-        const req = tx.objectStore(store).getAll();
-        req.onsuccess = () => resolve(req.result as T[]);
-        req.onerror = () => reject(req.error);
-    });
-}
-
-async function idbDelete(store: string, key: string): Promise<void> {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(store, "readwrite");
-        tx.objectStore(store).delete(key);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-    });
-}
+import { ExtensionOPFS } from "./opfs";
+import {
+    indexExtension,
+    indexFile,
+    removeExtensionIndex,
+    getExtensionDB,
+} from "./extension-db";
 
 // ─── Validation ──────────────────────────────────────────────
 
@@ -146,13 +79,27 @@ export class ExtensionInstaller implements Disposable {
     private installed = new Map<string, ExtensionInfo>();
     private initialized = false;
 
-    /** Load all installed extensions from IDB. */
+    readonly opfs = new ExtensionOPFS();
+
+    /** Load all installed extensions from Dexie + OPFS. */
     async init(): Promise<void> {
         if (this.initialized) return;
-        const stored = await idbGetAll<ExtensionInfo>(STORE_MANIFESTS);
-        for (const info of stored) {
-            this.installed.set(info.id, { ...info, status: "installed" });
+
+        // Initialize OPFS
+        await this.opfs.init();
+
+        // Load extension index from Dexie
+        const db = getExtensionDB();
+        const records = await db.extensions.toArray();
+        for (const rec of records) {
+            this.installed.set(rec.id, {
+                id: rec.id,
+                manifest: rec.manifest,
+                status: rec.enabled ? "installed" : "inactive",
+                installPath: `/extensions/${rec.id}`,
+            });
         }
+
         this.initialized = true;
     }
 
@@ -160,10 +107,12 @@ export class ExtensionInstaller implements Disposable {
      * Install an extension from a manifest + bundled source.
      * @param manifest Parsed package.json
      * @param source   Bundled JS source code (the `main` entry)
+     * @param extraFiles Optional additional files { path: content }
      */
     async install(
         manifest: ExtensionManifest,
         source: string,
+        extraFiles?: Record<string, string>,
     ): Promise<ExtensionInfo> {
         const validation = validateManifest(manifest);
         if (!validation.valid) {
@@ -175,33 +124,65 @@ export class ExtensionInstaller implements Disposable {
         const id = extensionId(manifest);
         const installPath = `/extensions/${id}`;
 
+        // 1. Store files in OPFS
+        await this.opfs.writeFile(
+            id,
+            "package.json",
+            JSON.stringify(manifest, null, 2),
+        );
+        await this.opfs.writeFile(id, manifest.main, source);
+
+        // Store extra files if provided
+        if (extraFiles) {
+            for (const [path, content] of Object.entries(extraFiles)) {
+                await this.opfs.writeFile(id, path, content);
+            }
+        }
+
+        // 2. Index in Dexie
+        await indexExtension(manifest);
+        await indexFile(
+            id,
+            "package.json",
+            JSON.stringify(manifest).length,
+            "application/json",
+        );
+        await indexFile(
+            id,
+            manifest.main,
+            source.length,
+            "application/javascript",
+        );
+
+        if (extraFiles) {
+            for (const [path, content] of Object.entries(extraFiles)) {
+                await indexFile(id, path, content.length);
+            }
+        }
+
+        // 3. Update in-memory
         const info: ExtensionInfo = {
             id,
             manifest,
             status: "installed",
             installPath,
         };
-
-        // Store manifest
-        await idbPut(STORE_MANIFESTS, undefined, info);
-
-        // Store source bundle
-        await idbPut(STORE_FILES, `${installPath}/${manifest.main}`, source);
-
         this.installed.set(id, info);
+
         return info;
     }
 
-    /** Uninstall an extension. */
+    /** Uninstall an extension — removes OPFS files + Dexie index. */
     async uninstall(id: string): Promise<void> {
         const info = this.installed.get(id);
         if (!info) return;
 
-        await idbDelete(STORE_MANIFESTS, id);
-        await idbDelete(
-            STORE_FILES,
-            `${info.installPath}/${info.manifest.main}`,
-        );
+        // Remove from OPFS
+        await this.opfs.removeExtension(id);
+
+        // Remove from Dexie index
+        await removeExtensionIndex(id);
+
         this.installed.delete(id);
     }
 
@@ -224,14 +205,41 @@ export class ExtensionInstaller implements Disposable {
         if (status === "active") info.activatedAt = Date.now();
     }
 
-    /** Load the extension's source code from IDB. */
+    /** Load the extension's main source code from OPFS. */
     async loadSource(id: string): Promise<string | undefined> {
         const info = this.installed.get(id);
         if (!info) return undefined;
-        return idbGet<string>(
-            STORE_FILES,
-            `${info.installPath}/${info.manifest.main}`,
-        );
+        try {
+            return await this.opfs.readFile(id, info.manifest.main);
+        } catch {
+            return undefined;
+        }
+    }
+
+    /** Read any file from an extension's OPFS directory. */
+    async readExtensionFile(
+        extId: string,
+        path: string,
+    ): Promise<string> {
+        return this.opfs.readFile(extId, path);
+    }
+
+    /** Write a file to an extension's OPFS directory. */
+    async writeExtensionFile(
+        extId: string,
+        path: string,
+        content: string,
+    ): Promise<void> {
+        await this.opfs.writeFile(extId, path, content);
+        await indexFile(extId, path, content.length);
+    }
+
+    /** List files in an extension's directory. */
+    async listExtensionFiles(
+        extId: string,
+        subPath = "",
+    ): Promise<Array<{ name: string; kind: "file" | "directory" }>> {
+        return this.opfs.readdir(extId, subPath);
     }
 
     dispose(): void {

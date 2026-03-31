@@ -64,17 +64,32 @@ export { ActivationService } from "./activation";
 // ─── Installer ───────────────────────────────────────────────
 export { ExtensionInstaller, validateManifest } from "./installer";
 export type { ValidationResult } from "./installer";
+export { ExtensionOPFS } from "./installer";
+export {
+    getExtensionDB,
+    searchExtensions,
+    listExtensions,
+    listExtensionFiles,
+} from "./installer";
+export type {
+    ExtensionRecord,
+    CommandRecord,
+    FileRecord,
+    SearchResult,
+} from "./installer";
 
 // ─── Workspace ───────────────────────────────────────────────
 export { WorkspaceBridge } from "./workspace";
 export type { WorkspaceFileSystem } from "./workspace";
 
 // ─── API shim ────────────────────────────────────────────────
-export { createVSCodeAPI } from "./api";
+export { createVSCodeAPI, dialogService, ExtensionDialogHost } from "./api";
 export type {
     VSCodeAPI,
     CommandsAPI,
     WindowAPI,
     WorkspaceAPI,
     LanguagesAPI,
+    DialogRequest,
+    MessageSeverity,
 } from "./api";

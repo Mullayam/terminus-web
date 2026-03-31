@@ -13,6 +13,8 @@ import { MenuRegistry } from "../menus/menu-registry";
 import { ActivationService } from "../activation/activation-service";
 import { ExtensionInstaller } from "../installer/extension-installer";
 import { WorkspaceBridge } from "../workspace/workspace-bridge";
+import { dialogService } from "../api/dialog-service";
+import type { MessageSeverity } from "../api/dialog-service";
 import type { WorkspaceFileSystem } from "../workspace/workspace-bridge";
 import type { Disposable, ExtensionInfo } from "../types";
 
@@ -202,25 +204,49 @@ export class ExtensionHostMain implements Disposable {
             );
         });
 
-        // Window messages
+        // Window messages → DialogService (renders real UI)
         this.disposables.push(
             this.rpc.onRequest(
                 "window/showMessage",
-                async (level: unknown, message: unknown, _items: unknown) => {
-                    const msg = message as string;
-                    // Default implementation — log to console.
-                    // The real editor will override this with toast/dialog.
-                    switch (level) {
-                        case "error":
-                            console.error(`[Extension] ${msg}`);
-                            break;
-                        case "warning":
-                            console.warn(`[Extension] ${msg}`);
-                            break;
-                        default:
-                            console.info(`[Extension] ${msg}`);
-                    }
-                    return undefined;
+                async (level: unknown, message: unknown, items: unknown) => {
+                    return dialogService.showMessage(
+                        level as MessageSeverity,
+                        message as string,
+                        (items as string[]) ?? [],
+                    );
+                },
+            ),
+        );
+
+        // Input box → DialogService
+        this.disposables.push(
+            this.rpc.onRequest(
+                "window/showInputBox",
+                async (options: unknown) => {
+                    return dialogService.showInputBox(
+                        options as {
+                            prompt?: string;
+                            value?: string;
+                            placeHolder?: string;
+                            password?: boolean;
+                        },
+                    );
+                },
+            ),
+        );
+
+        // Quick pick → DialogService
+        this.disposables.push(
+            this.rpc.onRequest(
+                "window/showQuickPick",
+                async (items: unknown, options: unknown) => {
+                    return dialogService.showQuickPick(
+                        items as string[],
+                        options as {
+                            placeHolder?: string;
+                            canPickMany?: boolean;
+                        },
+                    );
                 },
             ),
         );
