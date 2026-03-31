@@ -977,7 +977,7 @@ export default function FileEditorMonacoPage() {
                                                                     terminalOpen={terminalOpen}
                                                                     enableAutoClose
                                                                     enableLSP
-                                                                    lspBaseUrl="ws://localhost:9257"
+                                                                    lspBaseUrl="https://monaco-lsp-hub.onrender.com"
                                                                     documentUri={`file://${editorFilePath || editorFileName}`}
                                                                     pluginDebounceMs={1200}
                                                                     enableVsixDrop={isActiveGroup}
