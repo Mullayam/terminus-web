@@ -88,6 +88,7 @@ export {
     dialogService,
     notificationService,
     ExtensionDialogHost,
+    useDialog,
 } from "./api";
 export type {
     VSCodeAPI,
@@ -96,6 +97,7 @@ export type {
     WorkspaceAPI,
     LanguagesAPI,
     DialogRequest,
+    DialogAPI,
     MessageSeverity,
     NotificationSeverity,
     NotificationOptions,

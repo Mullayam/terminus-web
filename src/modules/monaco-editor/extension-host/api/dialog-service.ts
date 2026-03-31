@@ -1,18 +1,19 @@
 /**
  * @module extension-host/api/dialog-service
  *
- * Event bus-driven dialog system for vscode.window.show*Message,
- * showInputBox, and showQuickPick calls.
+ * Global dialog system — usable from ANYWHERE in the app.
  *
- * Dialogs are MODAL (block until user responds).
- * For non-blocking toast notifications, see notification-service.ts.
+ * Two categories:
+ *   1. Modal dialogs (showMessage, showInputBox, showQuickPick)
+ *   2. Convenience helpers (confirm, prompt, pick)
  *
- * Flow:
- *   Extension (Worker) → RPC → Main Thread → DialogService.emit() →
- *   React UI (ExtensionDialogHost) renders dialog → user responds →
- *   Promise resolves → RPC response → Extension gets result
+ * Works from:
+ *   - Extension host (via RPC)
+ *   - Monaco editor sidebar, status bar, header
+ *   - Any React component (via useDialog hook)
+ *   - Any imperative code (via dialogService singleton)
  *
- * This runs on the MAIN THREAD.
+ * The React UI is rendered by <ExtensionDialogHost> mounted at the app root.
  */
 
 import type { Disposable } from "../types";
@@ -26,6 +27,7 @@ export interface ShowMessageRequest {
     id: string;
     severity: MessageSeverity;
     message: string;
+    detail?: string;
     items: string[];
 }
 
@@ -36,6 +38,7 @@ export interface ShowInputBoxRequest {
     value?: string;
     placeHolder?: string;
     password?: boolean;
+    validateInput?: (value: string) => string | null;
 }
 
 export interface ShowQuickPickRequest {
@@ -78,17 +81,23 @@ class DialogServiceImpl {
         };
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  Core dialog methods (used by RPC + anywhere)
+    // ═══════════════════════════════════════════════════════════
+
     /** Show a modal message dialog with optional action buttons. */
     showMessage(
         severity: MessageSeverity,
         message: string,
         items: string[],
+        detail?: string,
     ): Promise<string | undefined> {
         return this.request<string | undefined>({
             kind: "message",
             id: this.genId(),
             severity,
             message,
+            detail,
             items,
         });
     }
@@ -98,6 +107,7 @@ class DialogServiceImpl {
         value?: string;
         placeHolder?: string;
         password?: boolean;
+        validateInput?: (value: string) => string | null;
     }): Promise<string | undefined> {
         return this.request<string | undefined>({
             kind: "inputBox",
@@ -117,6 +127,91 @@ class DialogServiceImpl {
             ...options,
         });
     }
+
+    // ═══════════════════════════════════════════════════════════
+    //  Convenience helpers (for sidebar, status bar, anywhere)
+    // ═══════════════════════════════════════════════════════════
+
+    /** Show an info dialog. */
+    info(message: string, ...items: string[]): Promise<string | undefined> {
+        return this.showMessage("info", message, items);
+    }
+
+    /** Show a warning dialog. */
+    warn(message: string, ...items: string[]): Promise<string | undefined> {
+        return this.showMessage("warning", message, items);
+    }
+
+    /** Show an error dialog. */
+    error(message: string, ...items: string[]): Promise<string | undefined> {
+        return this.showMessage("error", message, items);
+    }
+
+    /**
+     * Confirmation dialog — returns true if confirmed, false otherwise.
+     *
+     * Usage:
+     *   if (await dialogService.confirm("Delete this file?")) { ... }
+     *   if (await dialogService.confirm("Discard changes?", { severity: "warning", detail: "..." })) { ... }
+     */
+    async confirm(
+        message: string,
+        options?: {
+            severity?: MessageSeverity;
+            detail?: string;
+            confirmLabel?: string;
+            cancelLabel?: string;
+        },
+    ): Promise<boolean> {
+        const confirmLabel = options?.confirmLabel ?? "OK";
+        const cancelLabel = options?.cancelLabel ?? "Cancel";
+        const result = await this.showMessage(
+            options?.severity ?? "info",
+            message,
+            [confirmLabel, cancelLabel],
+            options?.detail,
+        );
+        return result === confirmLabel;
+    }
+
+    /**
+     * Prompt for text input — shorthand for showInputBox.
+     *
+     * Usage:
+     *   const name = await dialogService.prompt("Enter file name");
+     *   const pass = await dialogService.prompt("Enter password", { password: true });
+     */
+    prompt(
+        message: string,
+        options?: {
+            value?: string;
+            placeHolder?: string;
+            password?: boolean;
+            validateInput?: (value: string) => string | null;
+        },
+    ): Promise<string | undefined> {
+        return this.showInputBox({
+            prompt: message,
+            ...options,
+        });
+    }
+
+    /**
+     * Pick from a list — shorthand for showQuickPick.
+     *
+     * Usage:
+     *   const lang = await dialogService.pick(["JavaScript", "TypeScript"], "Select language");
+     */
+    pick(
+        items: string[],
+        placeHolder?: string,
+    ): Promise<string | undefined> {
+        return this.showQuickPick(items, { placeHolder });
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  React UI bridge
+    // ═══════════════════════════════════════════════════════════
 
     /** Called by the React UI when the user responds. */
     resolve(requestId: string, value: unknown): void {
@@ -143,7 +238,6 @@ class DialogServiceImpl {
             if (this.handler) {
                 this.handler(req);
             } else {
-                // No UI handler registered — auto-resolve with undefined (no UI available)
                 console.warn(
                     "[DialogService] No UI handler registered, auto-resolving",
                 );

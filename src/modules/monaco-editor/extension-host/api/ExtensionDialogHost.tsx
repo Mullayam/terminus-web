@@ -167,6 +167,11 @@ function MessageDialog({
                 <DialogDescription className="mt-2 text-sm leading-relaxed">
                     {request.message}
                 </DialogDescription>
+                {request.detail && (
+                    <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                        {request.detail}
+                    </p>
+                )}
             </DialogHeader>
             <DialogFooter className="flex-row justify-end gap-2 sm:justify-end">
                 {request.items.length > 0 ? (
@@ -205,8 +210,12 @@ function InputBoxDialog({
     onSubmit: () => void;
     onClose: () => void;
 }) {
+    const validationError = request.validateInput
+        ? request.validateInput(value)
+        : null;
+
     const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === "Enter") {
+        if (e.key === "Enter" && !validationError) {
             e.preventDefault();
             onSubmit();
         }
@@ -223,19 +232,25 @@ function InputBoxDialog({
                     {request.prompt ?? "Input"}
                 </DialogTitle>
             </DialogHeader>
-            <Input
-                autoFocus
-                type={request.password ? "password" : "text"}
-                placeholder={request.placeHolder}
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                onKeyDown={handleKeyDown}
-            />
+            <div>
+                <Input
+                    autoFocus
+                    type={request.password ? "password" : "text"}
+                    placeholder={request.placeHolder}
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    className={validationError ? "border-red-500" : ""}
+                />
+                {validationError && (
+                    <p className="mt-1 text-xs text-red-500">{validationError}</p>
+                )}
+            </div>
             <DialogFooter className="flex-row justify-end gap-2 sm:justify-end">
                 <Button variant="outline" size="sm" onClick={onClose}>
                     Cancel
                 </Button>
-                <Button size="sm" onClick={onSubmit}>
+                <Button size="sm" onClick={onSubmit} disabled={!!validationError}>
                     OK
                 </Button>
             </DialogFooter>

@@ -28,4 +28,6 @@ export type {
     NotificationOptions,
     ShowNotificationFn,
 } from "./notification-service";
+export { useDialog } from "./useDialog";
+export type { DialogAPI } from "./useDialog";
 export { ExtensionDialogHost } from "./ExtensionDialogHost";
