@@ -6,7 +6,7 @@
  */
 import type { ExtendedEditorPlugin } from "../types";
 
-import { TAG_LANGUAGES } from "@/modules/monaco-editor/lib/language-groups";
+import { TAG_LANGUAGES } from "@/modules/monaco-editor/lib/language/language-groups";
 
 function normalizeLanguage(lang: string): string {
     const map: Record<string, string> = {

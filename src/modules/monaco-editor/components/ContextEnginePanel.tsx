@@ -53,7 +53,7 @@ import {
     registerContextEngineForLanguage,
     disposeContextEngineProviders,
     registerContextEngineProviders,
-} from "../lib/contextEngineProviders";
+} from "../lib/context-engine/contextEngineProviders";
 import * as monaco from "monaco-editor";
 
 /* ── Types ─────────────────────────────────────────────────── */

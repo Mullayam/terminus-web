@@ -31,15 +31,15 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
-import type { OpenVSXExtension } from "../lib/openVSX";
-import type { InstalledExtension } from "../lib/extensionStorage";
+import type { OpenVSXExtension } from "../lib/extensions/openVSX";
+import type { InstalledExtension } from "../lib/extensions/extensionStorage";
 import {
   installExtensionFromOpenVSX,
   uninstallExtensionFull,
   toggleExtension,
   getAvailableExtensionThemes,
   type InstallProgress,
-} from "../lib/extensionLoader";
+} from "../lib/extensions/extensionLoader";
 
 type Monaco = typeof monacoNs;
 

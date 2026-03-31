@@ -15,7 +15,7 @@
  */
 
 import type * as monacoNs from "monaco-editor";
-import { idbGet, idbSet, STORE_ASSETS } from "../extensions/idb";
+import { idbGet, idbSet, STORE_ASSETS } from "../../extensions/idb";
 
 type Monaco = typeof monacoNs;
 
@@ -174,7 +174,7 @@ async function saveCachedItems(languageId: string, items: AICompletionItem[]): P
 
 /* ── Symbol detection for CodeLens ─────────────────────────── */
 
-import { findSymbolLines } from "./symbol-patterns";
+import { findSymbolLines } from "../language/symbol-patterns";
 
 /* ── Main registration ─────────────────────────────────────── */
 

@@ -5,7 +5,7 @@
  */
 import type { ExtendedEditorPlugin } from "../types";
 
-import { JSON_FAMILY as JSON_LANGUAGES } from "@/modules/monaco-editor/lib/language-groups";
+import { JSON_FAMILY as JSON_LANGUAGES } from "@/modules/monaco-editor/lib/language/language-groups";
 
 function normalizeLanguage(lang: string): string {
     return lang.toLowerCase().replace(/\s+/g, "");

@@ -5,8 +5,8 @@
  */
 import type { ExtendedEditorPlugin, ExtendedPluginAPI, Diagnostic } from "../types";
 
-import { JS_FAMILY } from "@/modules/monaco-editor/lib/language-groups";
-import { JSON_FAMILY } from "@/modules/monaco-editor/lib/language-groups";
+import { JS_FAMILY } from "@/modules/monaco-editor/lib/language/language-groups";
+import { JSON_FAMILY } from "@/modules/monaco-editor/lib/language/language-groups";
 
 const JS_LANGUAGES = new Set([...JS_FAMILY, ...JSON_FAMILY]);
 

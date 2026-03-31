@@ -8,6 +8,7 @@ import {
   Users,
   ArrowRight,
   Search,
+  Puzzle,
   type LucideIcon,
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -16,21 +17,17 @@ import { Link } from "react-router-dom";
 /*  Data                                                               */
 /* ------------------------------------------------------------------ */
 
-interface FeatureHighlight {
-  text: string;
-}
-
 interface FeatureCard {
   category: string;
   tagline: string;
   description: string;
   icon: LucideIcon;
   color: string;
-  gradient: string;
-  borderGlow: string;
-  highlights: FeatureHighlight[];
+  accentBg: string;
+  highlights: string[];
   cta: { label: string; href: string };
   isNew?: boolean;
+  isFeatured?: boolean;
 }
 
 const features: FeatureCard[] = [
@@ -38,143 +35,153 @@ const features: FeatureCard[] = [
     category: "SSH Terminal",
     tagline: "Your server, one click away",
     description:
-      "A full-featured web terminal powered by xterm.js with WebGL rendering. Connect to any server via SSH, open multiple tabs, split panes, and personalize with 17+ themes — all without leaving your browser.",
+      "Full-featured web terminal with WebGL rendering, multi-tab sessions, split panes, and 17+ themes. SSH into any server without leaving your browser.",
     icon: Terminal,
-    color: "text-green-400",
-    gradient: "from-green-500/20 via-green-500/5 to-transparent",
-    borderGlow: "group-hover:shadow-green-500/10",
+    color: "text-emerald-400",
+    accentBg: "bg-emerald-500/10",
     highlights: [
-      { text: "Multi-tab & split terminal sessions" },
-      { text: "Password & private-key authentication" },
-      { text: "17+ themes with per-session font & weight settings" },
-      { text: "Idle auto-reconnect & session resilience" },
-      { text: "Command palette (PM2, Nginx, Docker)" },
-      { text: "Shell history autocomplete & context-engine suggestions" },
-      { text: "VS Code-style search bar (Ctrl+F) with theme-aware styling" },
-      { text: "Bell sound notifications & dynamic tab titles" },
+      "Multi-tab & split terminal sessions",
+      "Password & private-key authentication",
+      "17+ themes with per-session customization",
+      "Idle auto-reconnect & session resilience",
+      "Command palette (PM2, Nginx, Docker)",
+      "VS Code-style search bar (Ctrl+F)",
     ],
     cta: { label: "Launch Terminal", href: "/ssh/connect" },
+    isFeatured: true,
   },
   {
-    category: "AI Assistance & Agent",
-    tagline: "Your intelligent co-pilot — now autonomous",
+    category: "AI Agent & Copilot",
+    tagline: "Autonomous intelligence across your stack",
     isNew: true,
     description:
-      "A deeply integrated AI layer across terminal, editor, and SFTP. Inline ghost-text predictions, a streaming chat panel with full terminal context, an inline command bar (Ctrl+Shift+I), and an autonomous AI Agent that can plan, execute, and verify multi-step tasks on your server — all with built-in safety rails.",
+      "An AI layer spanning terminal, editor, and SFTP. Ghost-text predictions, streaming chat, inline commands, and an autonomous agent that plans and executes multi-step tasks with safety rails.",
     icon: Sparkles,
     color: "text-amber-400",
-    gradient: "from-amber-500/20 via-amber-500/5 to-transparent",
-    borderGlow: "group-hover:shadow-amber-500/10",
+    accentBg: "bg-amber-500/10",
     highlights: [
-      { text: "AI Agent mode — autonomous step-by-step command execution" },
-      { text: "Auto-execute with 35+ dangerous-pattern safety checks" },
-      { text: "Collapsible accordion UI with live progress & Markdown output" },
-      { text: "Ghost-text autocomplete from AI, shell history & context engine" },
-      { text: "Inline AI command input (Ctrl+Shift+I) — describe & generate" },
-      { text: "AI Chat panel with SSE streaming & multi-provider support" },
-      { text: "Run / Paste code blocks from AI responses directly" },
-      { text: "Real-time diagnostics overlay — AI explains & fixes errors" },
-      { text: "Browser notifications when agent tasks complete" },
+      "AI Agent — autonomous multi-step execution",
+      "35+ dangerous-pattern safety checks",
+      "Ghost-text autocomplete from AI & history",
+      "Inline AI command bar (Ctrl+Shift+I)",
+      "SSE streaming chat with multi-provider support",
+      "Real-time diagnostics — AI explains & fixes errors",
     ],
     cta: { label: "Try AI Features", href: "/ssh/connect" },
-  },
-  {
-    category: "Collaborative Terminal",
-    tagline: "Multiplayer DevOps, built in",
-    description:
-      "Share your terminal session with a single link. Teammates join instantly with role-based permissions. Every keystroke syncs live, blocked users see a ghost-text lock overlay, and admins can kick or ban with one click.",
-    icon: Users,
-    color: "text-pink-400",
-    gradient: "from-pink-500/20 via-pink-500/5 to-transparent",
-    borderGlow: "group-hover:shadow-pink-500/10",
-    highlights: [
-      { text: "Real-time multi-user sessions via WebSocket" },
-      { text: "Share terminal with a shareable link" },
-      { text: "Role-based permissions (read / write / admin)" },
-      { text: "Live typing indicator for collaborators" },
-      { text: "Admin panel: kick, block, lock PTY" },
-      { text: "Independent theme system per session" },
-    ],
-    cta: { label: "Start Sharing", href: "/ssh/connect" },
-  },
-  {
-    category: "SFTP File Manager",
-    tagline: "Visual file management, reimagined",
-    description:
-      "Browse, upload, download, rename, chmod, and delete files on your remote servers through a visual file-tree interface. Full drag-and-drop support, context-menu actions, real-time progress tracking, and media preview.",
-    icon: FolderOpen,
-    color: "text-blue-400",
-    gradient: "from-blue-500/20 via-blue-500/5 to-transparent",
-    borderGlow: "group-hover:shadow-blue-500/10",
-    highlights: [
-      { text: "Multi-tab SFTP with breadcrumb navigation" },
-      { text: "Drag-and-drop upload with progress bars" },
-      { text: "13 context-menu actions (copy, move, chmod...)" },
-      { text: "Inline media preview (images, video, audio)" },
-      { text: "Persistent sessions & directory bookmarks" },
-      { text: "Auto-reconnect on connection drop" },
-    ],
-    cta: { label: "Manage Files", href: "/ssh/connect" },
+    isFeatured: true,
   },
   {
     category: "Code Editor",
     tagline: "A full IDE in your browser",
     description:
-      "Monaco-powered editor with IntelliSense autocomplete, 25+ color themes, multi-tab and split editing, command palette, minimap, bracket colorization, diff viewer, and AI ghost-text completions.",
+      "Monaco-powered editor with IntelliSense, 25+ themes, multi-tab split editing, LSP support, command palette, and live AI completions.",
     icon: Code2,
     color: "text-violet-400",
-    gradient: "from-violet-500/20 via-violet-500/5 to-transparent",
-    borderGlow: "group-hover:shadow-violet-500/10",
+    accentBg: "bg-violet-500/10",
     highlights: [
-      { text: "Monaco Editor with full IntelliSense" },
-      { text: "25+ themes with live preview switching" },
-      { text: "Multi-tab, split-group, & diff editing" },
-      { text: "Command Palette, minimap, & sticky scroll" },
-      { text: "Snippets for Go, JavaScript, Python, TypeScript" },
-      { text: "Auto-save with debounce & embedded terminal" },
-      { text: "View Panel System — custom React tabs in the editor" },
-      { text: "NPM Package Manager — update, install & manage deps visually" },
+      "Monaco Editor with full IntelliSense",
+      "LSP support for 40+ languages",
+      "Multi-tab, split-group & diff editing",
+      "Command palette, minimap & sticky scroll",
+      "AI ghost-text & inline completions",
+      "Embedded terminal & NPM manager",
     ],
     cta: { label: "Open Editor", href: "/ssh/connect" },
   },
   {
-    category: "Smart Terminal UX",
-    tagline: "Productivity built into every keystroke",
+    category: "SFTP File Manager",
+    tagline: "Visual file management, reimagined",
     description:
-      "An intelligent suggestion engine that learns from your shell history, command packs, and context-engine data. Ghost-text autocomplete appears as you type, a smart suggestion box surfaces relevant commands, and per-session settings let you toggle features on or off.",
+      "Browse, upload, download, rename, chmod, and manage files on remote servers with a visual tree interface, drag-and-drop, and real-time progress.",
+    icon: FolderOpen,
+    color: "text-blue-400",
+    accentBg: "bg-blue-500/10",
+    highlights: [
+      "Multi-tab SFTP with breadcrumb navigation",
+      "Drag-and-drop upload with progress bars",
+      "13 context-menu actions (copy, move, chmod…)",
+      "Inline media preview (images, video, audio)",
+      "Persistent sessions & directory bookmarks",
+      "Auto-reconnect on connection drop",
+    ],
+    cta: { label: "Manage Files", href: "/ssh/connect" },
+  },
+  {
+    category: "Real-time Collaboration",
+    tagline: "Multiplayer DevOps, built in",
+    description:
+      "Share terminal sessions with a single link. Role-based permissions, live typing indicators, and admin controls for team workflows.",
+    icon: Users,
+    color: "text-pink-400",
+    accentBg: "bg-pink-500/10",
+    highlights: [
+      "Real-time multi-user terminal sessions",
+      "Shareable links with role-based access",
+      "Live typing indicators for collaborators",
+      "Admin panel: kick, block, lock PTY",
+    ],
+    cta: { label: "Start Sharing", href: "/ssh/connect" },
+  },
+  {
+    category: "Smart Autocomplete",
+    tagline: "Learns from every keystroke",
+    description:
+      "An intelligent suggestion engine combining shell history, command packs, and context-engine data. Ghost-text appears as you type with Tab to accept.",
     icon: Search,
     color: "text-teal-400",
-    gradient: "from-teal-500/20 via-teal-500/5 to-transparent",
-    borderGlow: "group-hover:shadow-teal-500/10",
+    accentBg: "bg-teal-500/10",
     highlights: [
-      { text: "Ghost-text inline autocomplete (Tab / → to accept)" },
-      { text: "Suggestion box with keyboard navigation (↑↓ Tab Esc)" },
-      { text: "Context-engine powered command packs (auto-loaded)" },
-      { text: "Per-session toggles: autocomplete, AI suggestions, diagnostics" },
-      { text: "Mutual-exclusive sidebar & AI chat panels" },
-      { text: "Responsive layout — panels adapt to sidebar/chat state" },
+      "Ghost-text inline autocomplete (Tab / → to accept)",
+      "Suggestion box with keyboard navigation",
+      "Context-engine powered command packs",
+      "Per-session toggles for all suggestion sources",
     ],
     cta: { label: "Explore UX", href: "/ssh/connect" },
   },
   {
-    category: "Security & Extensions",
+    category: "Extensions & Marketplace",
+    tagline: "Extend everything, install anything",
+    isNew: true,
+    description:
+      "Full VS Code-style extension host with Open VSX marketplace integration. Install themes, grammars, language servers, and plugins — or drag-and-drop .vsix files.",
+    icon: Puzzle,
+    color: "text-orange-400",
+    accentBg: "bg-orange-500/10",
+    highlights: [
+      "VS Code extension host with RPC worker",
+      "Open VSX marketplace search & install",
+      "Drag-and-drop .vsix installer",
+      "Theme, grammar & snippet extensions",
+    ],
+    cta: { label: "Browse Extensions", href: "/ssh/connect" },
+  },
+  {
+    category: "Security & Infrastructure",
     tagline: "Enterprise-grade, zero compromise",
     description:
-      "End-to-end encryption, an encrypted key vault in IndexedDB, session resilience on disconnect, and a full extension marketplace. Install themes, grammars, and plugins from Open VSX or drag-and-drop .vsix files.",
+      "End-to-end encryption, encrypted key vault, session resilience, and health monitoring. Built for teams that take security seriously.",
     icon: Shield,
     color: "text-cyan-400",
-    gradient: "from-cyan-500/20 via-cyan-500/5 to-transparent",
-    borderGlow: "group-hover:shadow-cyan-500/10",
+    accentBg: "bg-cyan-500/10",
     highlights: [
-      { text: "E2E encryption on all sessions & transfers" },
-      { text: "Encrypted credential vault (browser IndexedDB)" },
-      { text: "Open VSX marketplace & GitHub VSIX installs" },
-      { text: "Drag-and-drop .vsix extension installer" },
-      { text: "Session resilience & auto-reconnect" },
-      { text: "Server status indicator & health monitoring" },
+      "E2E encryption on all sessions & transfers",
+      "Encrypted credential vault (browser IndexedDB)",
+      "Session resilience & auto-reconnect",
+      "Server health monitoring & status indicators",
     ],
     cta: { label: "Learn More", href: "#about" },
   },
+];
+
+/* ------------------------------------------------------------------ */
+/*  Stats bar                                                          */
+/* ------------------------------------------------------------------ */
+
+const stats = [
+  { value: "40+", label: "Languages" },
+  { value: "25+", label: "Editor Themes" },
+  { value: "17+", label: "Terminal Themes" },
+  { value: "100%", label: "Browser-based" },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -185,85 +192,133 @@ export const Features = () => {
   return (
     <section id="features" className="container py-24 sm:py-32">
       {/* Header */}
-      <div className="text-center space-y-4 mb-16">
+      <div className="text-center space-y-4 mb-8">
         <Badge
           variant="outline"
           className="text-xs px-4 py-1 border-primary/30 text-primary tracking-wider uppercase"
         >
-          Features
+          Platform
         </Badge>
-        <h2 className="text-3xl md:text-5xl font-bold">
-          One Platform.{" "}
-          <span className="bg-gradient-to-b from-primary/60 to-primary text-transparent bg-clip-text">
-            Every Tool You Need.
+        <h2 className="text-3xl md:text-5xl font-bold tracking-tight">
+          Everything you need.{" "}
+          <span className="bg-gradient-to-r from-primary/80 to-primary text-transparent bg-clip-text">
+            Nothing you don't.
           </span>
         </h2>
-        <p className="text-xl text-muted-foreground md:w-3/4 mx-auto lg:w-2/3">
-          SSH, SFTP, Code Editor, AI, Collaboration, Extensions — a complete
-          DevOps workspace running entirely in your browser.
+        <p className="text-lg text-muted-foreground md:w-3/4 mx-auto lg:w-2/3 leading-relaxed">
+          SSH, SFTP, Code Editor, AI Agent, Collaboration, Extensions — a
+          complete cloud DevOps workspace in your browser.
         </p>
       </div>
 
-      {/* Feature grid — 2 cols on desktop, stacked on mobile */}
-      <div className="grid md:grid-cols-2 gap-6 max-w-6xl mx-auto">
-        {features.map((feature) => {
+      {/* Stats bar */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto mb-16">
+        {stats.map((s) => (
+          <div key={s.label} className="text-center py-4 rounded-xl border border-border/40 bg-card/50">
+            <div className="text-2xl font-bold text-primary">{s.value}</div>
+            <div className="text-xs text-muted-foreground mt-1">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Featured cards (large — first 2) */}
+      <div className="grid md:grid-cols-2 gap-6 max-w-6xl mx-auto mb-6">
+        {features.filter((f) => f.isFeatured).map((feature) => {
           const Icon = feature.icon;
           return (
             <div
               key={feature.category}
-              className={`group relative rounded-2xl border border-border/50 bg-gradient-to-br ${feature.gradient} p-8 transition-all duration-300 hover:border-primary/30 hover:shadow-xl ${feature.borderGlow}`}
+              className="group relative rounded-2xl border border-border/40 bg-card/50 backdrop-blur-sm p-8 transition-all duration-300 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-0.5"
             >
-              {/* New badge */}
               {feature.isNew && (
                 <div className="absolute top-4 right-4">
-                  <Badge className="bg-primary/90 text-primary-foreground text-[10px] px-2 py-0.5">
-                    NEW
+                  <Badge className="bg-primary text-primary-foreground text-[10px] px-2.5 py-0.5 uppercase tracking-wide font-semibold">
+                    New
                   </Badge>
                 </div>
               )}
 
-              {/* Icon + Category */}
-              <div className="flex items-center gap-3 mb-4">
-                <div
-                  className={`flex items-center justify-center w-11 h-11 rounded-xl bg-background/80 border border-border/40 ${feature.color} transition-colors group-hover:bg-background`}
-                >
-                  <Icon className="w-5 h-5" />
+              <div className="flex items-center gap-3 mb-5">
+                <div className={`flex items-center justify-center w-12 h-12 rounded-xl ${feature.accentBg} ${feature.color} transition-transform group-hover:scale-110`}>
+                  <Icon className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-lg">{feature.category}</h3>
-                  <p className="text-xs text-muted-foreground/80 italic">
-                    {feature.tagline}
-                  </p>
+                  <h3 className="font-bold text-lg tracking-tight">{feature.category}</h3>
+                  <p className="text-xs text-muted-foreground">{feature.tagline}</p>
                 </div>
               </div>
 
-              {/* Description */}
-              <p className="text-sm text-muted-foreground leading-relaxed mb-5">
+              <p className="text-sm text-muted-foreground leading-relaxed mb-6">
                 {feature.description}
               </p>
 
-              {/* Highlight list */}
-              <ul className="space-y-2 mb-6">
+              <ul className="space-y-2.5 mb-6">
                 {feature.highlights.map((h, i) => (
-                  <li
-                    key={i}
-                    className="flex items-start gap-2.5 text-sm text-foreground/80"
-                  >
-                    <span
-                      className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${feature.color.replace("text-", "bg-")}`}
-                    />
-                    {h.text}
+                  <li key={i} className="flex items-start gap-2.5 text-sm text-foreground/80">
+                    <span className={`mt-[7px] w-1.5 h-1.5 rounded-full shrink-0 ${feature.color.replace("text-", "bg-")}`} />
+                    {h}
                   </li>
                 ))}
               </ul>
 
-              {/* CTA link */}
               <Link
                 to={feature.cta.href}
-                className={`inline-flex items-center gap-1.5 text-sm font-medium ${feature.color} hover:underline underline-offset-4 transition-colors`}
+                className={`inline-flex items-center gap-1.5 text-sm font-medium ${feature.color} hover:underline underline-offset-4 transition-all`}
               >
                 {feature.cta.label}
-                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+              </Link>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Standard cards grid */}
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-6xl mx-auto">
+        {features.filter((f) => !f.isFeatured).map((feature) => {
+          const Icon = feature.icon;
+          return (
+            <div
+              key={feature.category}
+              className="group relative rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-6 transition-all duration-300 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5"
+            >
+              {feature.isNew && (
+                <div className="absolute top-3 right-3">
+                  <Badge className="bg-primary text-primary-foreground text-[9px] px-2 py-0.5 uppercase tracking-wide font-semibold">
+                    New
+                  </Badge>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3 mb-4">
+                <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${feature.accentBg} ${feature.color} transition-transform group-hover:scale-110`}>
+                  <Icon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-[15px] tracking-tight">{feature.category}</h3>
+                  <p className="text-[11px] text-muted-foreground">{feature.tagline}</p>
+                </div>
+              </div>
+
+              <p className="text-[13px] text-muted-foreground leading-relaxed mb-4">
+                {feature.description}
+              </p>
+
+              <ul className="space-y-2 mb-5">
+                {feature.highlights.map((h, i) => (
+                  <li key={i} className="flex items-start gap-2 text-[13px] text-foreground/75">
+                    <span className={`mt-[6px] w-1 h-1 rounded-full shrink-0 ${feature.color.replace("text-", "bg-")}`} />
+                    {h}
+                  </li>
+                ))}
+              </ul>
+
+              <Link
+                to={feature.cta.href}
+                className={`inline-flex items-center gap-1 text-[13px] font-medium ${feature.color} hover:underline underline-offset-4 transition-all`}
+              >
+                {feature.cta.label}
+                <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </div>
           );

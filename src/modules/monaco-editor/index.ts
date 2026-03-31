@@ -411,3 +411,20 @@ export type {
   ViewPanelProps,
   ViewPanelTab,
 } from "./view-panel";
+
+// ── Extension Host (Dialogs & Notifications) ────────────────
+export {
+  dialogService,
+  useDialog,
+  ExtensionDialogHost,
+  notificationService,
+  useExtensionHost,
+} from "./extension-host";
+export type {
+  DialogAPI,
+  DialogRequest,
+  MessageSeverity,
+  NotificationSeverity,
+  UseExtensionHostOptions,
+  UseExtensionHostReturn,
+} from "./extension-host";

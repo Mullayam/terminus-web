@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { Toaster } from "./ui/toaster";
+import { ExtensionDialogHost } from "@/modules/monaco-editor/extension-host/api/ExtensionDialogHost";
 
 type Theme = "dark" | "light" | "system";
 
@@ -63,6 +64,7 @@ export function ThemeProvider({
       value={value}
     >
        <Toaster />
+      <ExtensionDialogHost />
       {children}
     </ThemeProviderContext.Provider>
   );

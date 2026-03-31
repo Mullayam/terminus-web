@@ -6,7 +6,7 @@
  */
 import type { ExtendedEditorPlugin, ExtendedPluginAPI, InlineDecoration } from "../types";
 
-import { COLOR_LANGUAGES } from "@/modules/monaco-editor/lib/language-groups";
+import { COLOR_LANGUAGES } from "@/modules/monaco-editor/lib/language/language-groups";
 
 const COLOR_REGEX = /#(?:[0-9a-fA-F]{3,4}){1,2}\b|rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+(?:\s*,\s*[\d.]+)?\s*\)|hsla?\(\s*\d+\s*,\s*\d+%\s*,\s*\d+%(?:\s*,\s*[\d.]+)?\s*\)/g;
 

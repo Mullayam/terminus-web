@@ -15,8 +15,14 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { List, type RowComponentProps } from "react-window";
 import {
   ChevronRight,
+  ChevronsDownUp,
+  Eye,
+  EyeOff,
+  FilePlus,
+  FolderPlus,
   FolderTree,
   Loader2,
   PanelLeftClose,
@@ -80,7 +86,7 @@ export interface EditorFileTreeProps {
   collapsed?: boolean;
   /** Collapsed state change */
   onCollapsedChange?: (collapsed: boolean) => void;
-  /** Whether to show dot-prefixed files */
+  /** Whether to show dot-prefixed files (default true) */
   showHiddenFiles?: boolean;
   /** Optional render custom children below the tree */
   children?: React.ReactNode;
@@ -98,6 +104,79 @@ export interface EditorFileTreeProps {
   /* ── File operations (context menu) ────────────────────── */
   /** Socket-backed file operations from useFileOperations hook */
   fileOps?: FileOperations;
+  /**
+   * Called when user scrolls near the end of the list (pagination).
+   * Hook should call `loadMoreEntries()`.
+   */
+  onLoadMore?: () => void;
+  /** Whether more entries are available (shows "Load more" / triggers auto-load). */
+  hasMore?: boolean;
+  /** Total entries in current dir (for "showing X of Y" label). */
+  totalEntries?: number;
+}
+
+/* ── Constants ───────────────────────────────────────────── */
+
+/** Height of each tree row in pixels (for react-window virtualisation). */
+const ROW_HEIGHT = 24;
+
+/* ── Flat row descriptor (used by FixedSizeList) ─────────── */
+
+interface FlatRow {
+  node: FileTreeNode;
+  depth: number;
+  isLast: boolean;
+  /** "item" = normal tree item, "new-input" = inline new file/folder input */
+  kind: "item" | "new-input";
+}
+
+/**
+ * Flatten the visible portion of the tree into a flat array for
+ * react-window.  Only expanded directories contribute children
+ * to the list — collapsed subtrees are skipped entirely, which
+ * is the core of "lazy rendering + virtualization".
+ */
+function flattenTree(
+  nodes: FileTreeNode[],
+  expandedPaths: Set<string>,
+  showHiddenFiles: boolean,
+  depth: number,
+  newItemState: { parentDir: string; type: "file" | "folder" } | null,
+): FlatRow[] {
+  const result: FlatRow[] = [];
+
+  const filtered = nodes.filter((n) => {
+    if (!showHiddenFiles && n.name.startsWith(".")) return false;
+    return true;
+  }).sort((a, b) => {
+    if (a.type === "d" && b.type !== "d") return -1;
+    if (a.type !== "d" && b.type === "d") return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  for (let i = 0; i < filtered.length; i++) {
+    const child = filtered[i];
+    const isLast = i === filtered.length - 1;
+    result.push({ node: child, depth, isLast, kind: "item" });
+
+    if (child.type === "d" && expandedPaths.has(child.fullPath)) {
+      const childArr = Array.from(child.children.values());
+      result.push(
+        ...flattenTree(childArr, expandedPaths, showHiddenFiles, depth + 1, newItemState),
+      );
+      // Inline new-item input inside this expanded directory
+      if (newItemState && newItemState.parentDir === child.fullPath) {
+        result.push({
+          node: child, // parent reference for context
+          depth: depth + 1,
+          isLast: true,
+          kind: "new-input",
+        });
+      }
+    }
+  }
+
+  return result;
 }
 
 /* ── Helpers ──────────────────────────────────────────────── */
@@ -134,36 +213,19 @@ function ensurePath(root: FileTreeNode, absPath: string): FileTreeNode {
   return cursor;
 }
 
-/* ── Recursive tree item ─────────────────────────────────── */
+/* ── Virtual row renderer (flat, for react-window v2) ───── */
 
-function TreeItem({
-  node,
-  depth,
-  currentDir,
-  expandedPaths,
-  onToggle,
-  onNavigate,
-  onFileOpen,
-  showHiddenFiles,
-  isLast,
-  contextActions,
-  hasClipboard,
-  renamingPath,
-  onRenameSubmit,
-  onRenameCancel,
-  newItemState,
-  onNewItemSubmit,
-  onNewItemCancel,
-}: {
-  node: FileTreeNode;
-  depth: number;
+/**
+ * Data passed through react-window's `rowProps` to each row.
+ * In v2 the row component receives `{ ariaAttributes, index, style, ...rowProps }`.
+ */
+interface VirtualRowData {
+  rows: FlatRow[];
   currentDir: string;
   expandedPaths: Set<string>;
   onToggle: (path: string) => void;
   onNavigate?: (path: string) => void;
   onFileOpen?: (fullPath: string, name: string) => void;
-  showHiddenFiles: boolean;
-  isLast: boolean;
   contextActions: ContextMenuActions;
   hasClipboard: boolean;
   renamingPath: string | null;
@@ -172,23 +234,69 @@ function TreeItem({
   newItemState: { parentDir: string; type: "file" | "folder" } | null;
   onNewItemSubmit: (name: string) => void;
   onNewItemCancel: () => void;
-}) {
+}
+
+function VirtualRowInner({
+  index,
+  style,
+  ...rowProps
+}: RowComponentProps<VirtualRowData>) {
+  const {
+    rows,
+    currentDir,
+    expandedPaths,
+    onToggle,
+    onNavigate,
+    onFileOpen,
+    contextActions,
+    hasClipboard,
+    renamingPath,
+    onRenameSubmit,
+    onRenameCancel,
+    newItemState,
+    onNewItemSubmit,
+    onNewItemCancel,
+  } = rowProps;
+  const row = rows[index];
+  if (!row) return null;
+
+  // ── Inline new-item input row ──────────────────────────
+  if (row.kind === "new-input" && newItemState) {
+    return (
+      <div style={style}>
+        <InlineTreeInput
+          isDirectory={newItemState.type === "folder"}
+          depth={row.depth}
+          onSubmit={onNewItemSubmit}
+          onCancel={onNewItemCancel}
+          placeholder={
+            newItemState.type === "folder" ? "Folder name…" : "File name…"
+          }
+        />
+      </div>
+    );
+  }
+
+  const { node, depth, isLast } = row;
   const isDir = node.type === "d";
   const isActive = node.fullPath === currentDir;
   const isExpanded = expandedPaths.has(node.fullPath);
-  const hasChildren = node.children.size > 0;
 
-  const sortedChildren = useMemo(() => {
-    const arr = Array.from(node.children.values()).filter((child) => {
-      if (!showHiddenFiles && child.name.startsWith(".")) return false;
-      return true;
-    });
-    return arr.sort((a, b) => {
-      if (a.type === "d" && b.type !== "d") return -1;
-      if (a.type !== "d" && b.type === "d") return 1;
-      return a.name.localeCompare(b.name);
-    });
-  }, [node.children, showHiddenFiles]);
+  // ── Inline rename input ─────────────────────────────────
+  if (renamingPath === node.fullPath) {
+    return (
+      <div style={style}>
+        <InlineTreeInput
+          defaultValue={node.name}
+          isDirectory={isDir}
+          depth={depth}
+          onSubmit={(newName) => onRenameSubmit(node.fullPath, newName)}
+          onCancel={onRenameCancel}
+          placeholder="Enter new name…"
+        />
+      </div>
+    );
+  }
 
   const handleClick = () => {
     if (isDir) {
@@ -205,134 +313,75 @@ function TreeItem({
   };
 
   return (
-    <>
-      {/* Show inline rename input when renaming this node */}
-      {renamingPath === node.fullPath ? (
-        <InlineTreeInput
-          defaultValue={node.name}
-          isDirectory={isDir}
-          depth={depth}
-          onSubmit={(newName) => onRenameSubmit(node.fullPath, newName)}
-          onCancel={onRenameCancel}
-          placeholder="Enter new name…"
-        />
-      ) : (
-        <FileTreeContextMenu
-          node={node}
-          actions={contextActions}
-          hasClipboard={hasClipboard}
-        >
-          <div
-            role="treeitem"
-            aria-expanded={isDir ? isExpanded : undefined}
-            className={cn(
-              "group flex items-center gap-1 py-[3px] pr-2 cursor-pointer text-sm select-none whitespace-nowrap",
-              "hover:bg-[var(--editor-hover-bg,#2a2d2e)] rounded-sm transition-colors duration-100",
-              isActive && "bg-[var(--editor-hover-bg,#37373d)] font-medium",
-            )}
-            style={{
-              paddingLeft: `${depth * 16 + 8}px`,
-              color: isActive ? "var(--editor-fg, white)" : undefined,
-            }}
-            onClick={handleClick}
-          >
-            {/* Branch connector */}
-            {depth > 0 && (
-              <span
-                className="absolute text-[11px] leading-none pointer-events-none select-none"
-                style={{ left: `${(depth - 1) * 16 + 14}px`, color: "var(--editor-border, #3c3c3c)" }}
-                aria-hidden
-              >
-                {isLast ? "└" : "├"}
-              </span>
-            )}
-
-            {/* Chevron */}
-            {isDir ? (
-              <ChevronRight
-                className={cn(
-                  "h-3.5 w-3.5 shrink-0 transition-transform duration-150 cursor-pointer",
-                  isExpanded && "rotate-90",
-                )}
-                style={{ color: "var(--editor-fg, #808080)", opacity: 0.6 }}
-                onClick={handleChevronClick}
-              />
-            ) : (
-              <span className="w-3.5 shrink-0" />
-            )}
-
-            {/* Icon */}
-            <FileIcon
-              name={node.name}
-              isDirectory={isDir}
-              isOpen={isDir && isExpanded}
-              size={15}
-            />
-
-            {/* Name */}
-            <span
-              className="truncate text-[12px] group-hover:opacity-100"
-              style={{ color: "var(--editor-fg, #d4d4d4)", opacity: 0.85 }}
-            >
-              {node.name}
-            </span>
-          </div>
-        </FileTreeContextMenu>
-      )}
-
-      {/* Children */}
-      {isDir && hasChildren && (
+    <div style={style}>
+      <FileTreeContextMenu
+        node={node}
+        actions={contextActions}
+        hasClipboard={hasClipboard}
+      >
         <div
-          className="grid transition-[grid-template-rows] duration-200 ease-in-out"
-          style={{ gridTemplateRows: isExpanded ? "1fr" : "0fr" }}
+          role="treeitem"
+          aria-expanded={isDir ? isExpanded : undefined}
+          className={cn(
+            "group flex items-center gap-1 pr-2 cursor-pointer text-sm select-none whitespace-nowrap",
+            "hover:bg-[var(--editor-hover-bg,#2a2d2e)] rounded-sm transition-colors duration-100",
+            isActive && "bg-[var(--editor-hover-bg,#37373d)] font-medium",
+          )}
+          style={{
+            paddingLeft: `${depth * 16 + 8}px`,
+            height: ROW_HEIGHT,
+            lineHeight: `${ROW_HEIGHT}px`,
+            color: isActive ? "var(--editor-fg, white)" : undefined,
+          }}
+          onClick={handleClick}
         >
-          <div role="group" className="relative overflow-hidden">
-            <div
-              className="absolute top-0 bottom-0 border-l hover:border-blue-500/30 transition-colors"
-              style={{ left: `${depth * 16 + 14}px`, borderColor: "var(--editor-border, #3c3c3c)" }}
+          {/* Branch connector */}
+          {depth > 0 && (
+            <span
+              className="absolute text-[11px] leading-none pointer-events-none select-none"
+              style={{ left: `${(depth - 1) * 16 + 14}px`, color: "var(--editor-border, #3c3c3c)" }}
+              aria-hidden
+            >
+              {isLast ? "└" : "├"}
+            </span>
+          )}
+
+          {/* Chevron */}
+          {isDir ? (
+            <ChevronRight
+              className={cn(
+                "h-3.5 w-3.5 shrink-0 transition-transform duration-150 cursor-pointer",
+                isExpanded && "rotate-90",
+              )}
+              style={{ color: "var(--editor-fg, #808080)", opacity: 0.6 }}
+              onClick={handleChevronClick}
             />
-            {sortedChildren.map((child, idx) => (
-              <TreeItem
-                key={child.fullPath}
-                node={child}
-                depth={depth + 1}
-                currentDir={currentDir}
-                expandedPaths={expandedPaths}
-                onToggle={onToggle}
-                onNavigate={onNavigate}
-                onFileOpen={onFileOpen}
-                showHiddenFiles={showHiddenFiles}
-                isLast={idx === sortedChildren.length - 1}
-                contextActions={contextActions}
-                hasClipboard={hasClipboard}
-                renamingPath={renamingPath}
-                onRenameSubmit={onRenameSubmit}
-                onRenameCancel={onRenameCancel}
-                newItemState={newItemState}
-                onNewItemSubmit={onNewItemSubmit}
-                onNewItemCancel={onNewItemCancel}
-              />
-            ))}
-            {/* Inline input for new file/folder inside this directory */}
-            {newItemState && newItemState.parentDir === node.fullPath && (
-              <InlineTreeInput
-                isDirectory={newItemState.type === "folder"}
-                depth={depth + 1}
-                onSubmit={onNewItemSubmit}
-                onCancel={onNewItemCancel}
-                placeholder={
-                  newItemState.type === "folder"
-                    ? "Folder name…"
-                    : "File name…"
-                }
-              />
-            )}
-          </div>
+          ) : (
+            <span className="w-3.5 shrink-0" />
+          )}
+
+          {/* Icon */}
+          <FileIcon
+            name={node.name}
+            isDirectory={isDir}
+            isOpen={isDir && isExpanded}
+            size={15}
+          />
+
+          {/* Name */}
+          <span
+            className="truncate text-[12px] group-hover:opacity-100"
+            style={{ color: "var(--editor-fg, #d4d4d4)", opacity: 0.85 }}
+          >
+            {node.name}
+          </span>
         </div>
-      )}
-    </>
+      </FileTreeContextMenu>
+    </div>
   );
 }
+
+const VirtualRow = React.memo(VirtualRowInner) as unknown as typeof VirtualRowInner;
 
 /* ── Main Component ──────────────────────────────────────── */
 
@@ -344,14 +393,19 @@ export function EditorFileTree({
   onRefresh,
   collapsed = false,
   onCollapsedChange,
-  showHiddenFiles = false,
+  showHiddenFiles: showHiddenFilesProp = true,
   children,
   sftpStatus = "idle",
   sftpError,
   onConnect,
   hostLabel,
   fileOps,
+  onLoadMore,
+  hasMore,
+  totalEntries,
 }: EditorFileTreeProps) {
+  /* ── Local toggle for hidden files ─────────────────────── */
+  const [showHiddenFiles, setShowHiddenFiles] = useState(showHiddenFilesProp);
   const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [root, setRoot] = useState<FileTreeNode>(() => ({
     name: "/",
@@ -567,17 +621,57 @@ export function EditorFileTree({
     onNavigate?.(path);
   }, [onNavigate]);
 
-  const sortedRootChildren = useMemo(() => {
-    const arr = Array.from(root.children.values()).filter((child) => {
-      if (!showHiddenFiles && child.name.startsWith(".")) return false;
-      return true;
+  /* ── Flatten tree → flat row array for react-window ────── */
+  const flatRows = useMemo(() => {
+    const rootChildren = Array.from(root.children.values());
+    const rows = flattenTree(rootChildren, expandedPaths, showHiddenFiles, 0, newItemState);
+    // Also add root-level new-item input if applicable
+    if (newItemState && newItemState.parentDir === "/") {
+      rows.push({
+        node: root,
+        depth: 0,
+        isLast: true,
+        kind: "new-input",
+      });
+    }
+    return rows;
+  }, [root, expandedPaths, showHiddenFiles, newItemState]);
+
+  /* ── react-window itemData (stable ref) ────────────────── */
+  const virtualData = useMemo<VirtualRowData>(() => ({
+    rows: flatRows,
+    currentDir,
+    expandedPaths,
+    onToggle: handleToggle,
+    onNavigate,
+    onFileOpen,
+    contextActions,
+    hasClipboard: !!clipboard,
+    renamingPath,
+    onRenameSubmit: handleRenameSubmit,
+    onRenameCancel: handleRenameCancel,
+    newItemState,
+    onNewItemSubmit: handleNewItemSubmit,
+    onNewItemCancel: handleNewItemCancel,
+  }), [
+    flatRows, currentDir, expandedPaths, handleToggle,
+    onNavigate, onFileOpen, contextActions, clipboard,
+    renamingPath, handleRenameSubmit, handleRenameCancel,
+    newItemState, handleNewItemSubmit, handleNewItemCancel,
+  ]);
+
+  /* ── Container size for List ────────────────────────────── */
+  const treeContainerRef = useRef<HTMLDivElement>(null);
+  const [listHeight, setListHeight] = useState(400);
+
+  useEffect(() => {
+    if (!treeContainerRef.current) return;
+    const ro = new ResizeObserver(([entry]) => {
+      if (entry) setListHeight(entry.contentRect.height);
     });
-    return arr.sort((a, b) => {
-      if (a.type === "d" && b.type !== "d") return -1;
-      if (a.type !== "d" && b.type === "d") return 1;
-      return a.name.localeCompare(b.name);
-    });
-  }, [root, showHiddenFiles]);
+    ro.observe(treeContainerRef.current);
+    return () => ro.disconnect();
+  }, []);
 
   return (
     <div
@@ -614,18 +708,71 @@ export function EditorFileTree({
               </span>
             </div>
             <div className="flex items-center gap-0.5">
+              {/* New File */}
+              {fileOps && (
+                <button
+                  onClick={() => setNewItemState({ parentDir: currentDir, type: "file" })}
+                  className="p-1 rounded-md transition-colors"
+                  title={sftpStatus !== "connected" ? "Connect SFTP first" : "New File"}
+                  disabled={sftpStatus !== "connected"}
+                  style={{ color: "var(--editor-fg, #808080)", opacity: sftpStatus !== "connected" ? 0.3 : 0.6, cursor: sftpStatus !== "connected" ? "not-allowed" : undefined }}
+                  onMouseEnter={(e) => { if (sftpStatus === "connected") e.currentTarget.style.background = "var(--editor-hover-bg, #37373d)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                >
+                  <FilePlus className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {/* New Folder */}
+              {fileOps && (
+                <button
+                  onClick={() => setNewItemState({ parentDir: currentDir, type: "folder" })}
+                  className="p-1 rounded-md transition-colors"
+                  title={sftpStatus !== "connected" ? "Connect SFTP first" : "New Folder"}
+                  disabled={sftpStatus !== "connected"}
+                  style={{ color: "var(--editor-fg, #808080)", opacity: sftpStatus !== "connected" ? 0.3 : 0.6, cursor: sftpStatus !== "connected" ? "not-allowed" : undefined }}
+                  onMouseEnter={(e) => { if (sftpStatus === "connected") e.currentTarget.style.background = "var(--editor-hover-bg, #37373d)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                >
+                  <FolderPlus className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {/* Refresh */}
               {onRefresh && (
                 <button
                   onClick={onRefresh}
                   className="p-1 rounded-md transition-colors"
-                  title="Refresh"
-                  style={{ color: "var(--editor-fg, #808080)", opacity: 0.6 }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "var(--editor-hover-bg, #37373d)"; }}
+                  title={sftpStatus !== "connected" ? "Connect SFTP first" : "Refresh Explorer"}
+                  disabled={sftpStatus !== "connected"}
+                  style={{ color: "var(--editor-fg, #808080)", opacity: sftpStatus !== "connected" ? 0.3 : 0.6, cursor: sftpStatus !== "connected" ? "not-allowed" : undefined }}
+                  onMouseEnter={(e) => { if (sftpStatus === "connected") e.currentTarget.style.background = "var(--editor-hover-bg, #37373d)"; }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                 >
                   <RefreshCw className="h-3 w-3" />
                 </button>
               )}
+              {/* Collapse All */}
+              <button
+                onClick={() => setExpandedPaths(new Set(["/"]))}
+                className="p-1 rounded-md transition-colors"
+                title="Collapse All"
+                style={{ color: "var(--editor-fg, #808080)", opacity: 0.6 }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--editor-hover-bg, #37373d)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+              >
+                <ChevronsDownUp className="h-3.5 w-3.5" />
+              </button>
+              {/* Toggle Hidden Files */}
+              <button
+                onClick={() => setShowHiddenFiles((prev) => !prev)}
+                className="p-1 rounded-md transition-colors"
+                title={showHiddenFiles ? "Hide Dot Files" : "Show Dot Files"}
+                style={{ color: "var(--editor-fg, #808080)", opacity: 0.6 }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--editor-hover-bg, #37373d)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+              >
+                {showHiddenFiles ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+              </button>
+              {/* Collapse Explorer Panel */}
               <button
                 onClick={() => onCollapsedChange?.(true)}
                 className="p-1 rounded-md transition-colors"
@@ -639,109 +786,98 @@ export function EditorFileTree({
             </div>
           </div>
 
-          {/* Tree */}
-          <ScrollArea className="flex-1">
-            <div role="tree" className="py-1 min-w-max">
-              {sortedRootChildren.length > 0 ? (
-                <>
-                  {sortedRootChildren.map((child, idx) => (
-                    <React.Fragment key={child.fullPath}>
-                      <TreeItem
-                        node={child}
-                        depth={0}
-                        currentDir={currentDir}
-                        expandedPaths={expandedPaths}
-                        onToggle={handleToggle}
-                        onNavigate={onNavigate}
-                        onFileOpen={onFileOpen}
-                        showHiddenFiles={showHiddenFiles}
-                        isLast={idx === sortedRootChildren.length - 1}
-                        contextActions={contextActions}
-                        hasClipboard={!!clipboard}
-                        renamingPath={renamingPath}
-                        onRenameSubmit={handleRenameSubmit}
-                        onRenameCancel={handleRenameCancel}
-                        newItemState={newItemState}
-                        onNewItemSubmit={handleNewItemSubmit}
-                        onNewItemCancel={handleNewItemCancel}
-                      />
-                    </React.Fragment>
-                  ))}
-                  {/* New item at root level when parentDir is "/" */}
-                  {newItemState && newItemState.parentDir === "/" && (
-                    <InlineTreeInput
-                      isDirectory={newItemState.type === "folder"}
-                      depth={0}
-                      onSubmit={handleNewItemSubmit}
-                      onCancel={handleNewItemCancel}
-                      placeholder={
-                        newItemState.type === "folder"
-                          ? "Folder name…"
-                          : "File name…"
-                      }
-                    />
-                  )}
-                </>
-              ) : (
-                <div className="px-3 py-6 text-center space-y-3">
-                  {sftpStatus === "connected" ? (
-                    /* Connected but no files yet — normal empty state */
-                    <p className="text-[11px]" style={{ color: "var(--editor-fg, #808080)", opacity: 0.6 }}>
-                      Navigate to a directory to populate the tree
+          {/* Tree (virtualised) */}
+          <div ref={treeContainerRef} className="flex-1 overflow-hidden" role="tree">
+            {flatRows.length > 0 ? (
+              <>
+                <List
+                  style={{ height: listHeight, width: "100%" }}
+                  rowCount={flatRows.length}
+                  rowHeight={ROW_HEIGHT}
+                  rowComponent={VirtualRow}
+                  rowProps={virtualData}
+                  overscanCount={10}
+                  onRowsRendered={(visibleRows) => {
+                    // Auto-load more when user scrolls near the bottom (pagination)
+                    if (
+                      hasMore &&
+                      onLoadMore &&
+                      visibleRows.stopIndex >= flatRows.length - 5
+                    ) {
+                      onLoadMore();
+                    }
+                  }}
+                />
+                {/* Pagination info */}
+                {hasMore && totalEntries !== undefined && totalEntries > 0 && (
+                  <div className="flex items-center justify-center py-1.5">
+                    <button
+                      onClick={onLoadMore}
+                      className="text-[10px] px-2 py-0.5 rounded bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 transition-colors"
+                    >
+                      Load more ({flatRows.length} / {totalEntries})
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="px-3 py-6 text-center space-y-3">
+                {sftpStatus === "connected" ? (
+                  /* Connected but no files yet — normal empty state */
+                  <p className="text-[11px]" style={{ color: "var(--editor-fg, #808080)", opacity: 0.6 }}>
+                    Navigate to a directory to populate the tree
+                  </p>
+                ) : sftpStatus === "connecting" ? (
+                  /* Connecting spinner */
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
+                    <p className="text-[11px]" style={{ color: "var(--editor-fg, #aaa)" }}>Connecting to SFTP…</p>
+                  </div>
+                ) : sftpStatus === "error" ? (
+                  /* Error state — allow retry */
+                  <div className="flex flex-col items-center gap-2">
+                    <WifiOff className="h-5 w-5 text-red-400" />
+                    <p className="text-[11px] text-red-400">
+                      {sftpError || "Connection failed"}
                     </p>
-                  ) : sftpStatus === "connecting" ? (
-                    /* Connecting spinner */
-                    <div className="flex flex-col items-center gap-2">
-                      <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
-                      <p className="text-[11px]" style={{ color: "var(--editor-fg, #aaa)" }}>Connecting to SFTP…</p>
+                    {onConnect && (
+                      <button
+                        onClick={() => setShowConnectDialog(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-md bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                        Retry
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  /* Idle — show connect button */
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="p-3 rounded-full bg-blue-500/10">
+                      <PlugZap className="h-6 w-6 text-blue-400" />
                     </div>
-                  ) : sftpStatus === "error" ? (
-                    /* Error state — allow retry */
-                    <div className="flex flex-col items-center gap-2">
-                      <WifiOff className="h-5 w-5 text-red-400" />
-                      <p className="text-[11px] text-red-400">
-                        {sftpError || "Connection failed"}
+                    <div className="space-y-1">
+                      <p className="text-[12px] font-medium" style={{ color: "var(--editor-fg, #ccc)" }}>
+                        SFTP Tree
                       </p>
-                      {onConnect && (
-                        <button
-                          onClick={() => setShowConnectDialog(true)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-md bg-blue-600 hover:bg-blue-700 text-white transition-colors"
-                        >
-                          <RefreshCw className="h-3 w-3" />
-                          Retry
-                        </button>
-                      )}
+                      <p className="text-[11px]" style={{ color: "var(--editor-fg, #808080)", opacity: 0.6 }}>
+                        Connect to browse remote files
+                      </p>
                     </div>
-                  ) : (
-                    /* Idle — show connect button */
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="p-3 rounded-full bg-blue-500/10">
-                        <PlugZap className="h-6 w-6 text-blue-400" />
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-[12px] font-medium" style={{ color: "var(--editor-fg, #ccc)" }}>
-                          SFTP Tree
-                        </p>
-                        <p className="text-[11px]" style={{ color: "var(--editor-fg, #808080)", opacity: 0.6 }}>
-                          Connect to browse remote files
-                        </p>
-                      </div>
-                      {onConnect && (
-                        <button
-                          onClick={() => setShowConnectDialog(true)}
-                          className="inline-flex items-center gap-1.5 px-4 py-1.5 text-[11px] font-medium rounded-md bg-blue-600 hover:bg-blue-700 text-white transition-colors"
-                        >
-                          <Wifi className="h-3 w-3" />
-                          Connect to SFTP
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
+                    {onConnect && (
+                      <button
+                        onClick={() => setShowConnectDialog(true)}
+                        className="inline-flex items-center gap-1.5 px-4 py-1.5 text-[11px] font-medium rounded-md bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                      >
+                        <Wifi className="h-3 w-3" />
+                        Connect to SFTP
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Custom children rendered below the tree */}
           {children}

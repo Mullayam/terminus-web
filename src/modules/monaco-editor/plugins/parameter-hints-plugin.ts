@@ -7,7 +7,7 @@
  */
 
 import type { MonacoPlugin, PluginContext } from "../types";
-import { PARAMETER_HINT_LANGUAGES } from "../lib/language-groups";
+import { PARAMETER_HINT_LANGUAGES } from "../lib/language/language-groups";
 
 const COMMON_SIGNATURES: Record<string, { label: string; params: string[]; doc?: string }[]> = {
   // JavaScript/TypeScript builtins

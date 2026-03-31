@@ -8,7 +8,7 @@
 
 import type { MonacoPlugin, PluginContext } from "../types";
 
-import { TAG_LANGUAGES } from "../lib/language-groups";
+import { TAG_LANGUAGES } from "../lib/language/language-groups";
 
 export const linkedEditingPlugin: MonacoPlugin = {
   id: "builtin-linked-editing",

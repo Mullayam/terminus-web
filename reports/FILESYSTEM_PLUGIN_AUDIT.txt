@@ -1,8 +1,12 @@
 SFTP Editor File Tree — Plug-and-Play File System Audit
 =========================================================
-Date: March 30, 2026
+Date: March 30, 2026  (Updated: March 30, 2026 — paths updated for directory reorg)
 Scope: How to introduce a new file system backend (REST API, fs.node, watcher, etc.)
        into the editor's file tree sidebar without rewriting the tree UI.
+
+STATUS: ✅ IMPLEMENTED — see lib/filesystem/ directory
+  All items below have been built. The filesystem provider abstraction is now
+  in src/modules/monaco-editor/lib/filesystem/.
 
 
 =========================================================

@@ -26,9 +26,9 @@
  */
 
 import type * as monacoNs from "monaco-editor";
-import { createLSPClient, type LSPClient, type LSPShowMessageParams, LSPMessageType } from "./lsp/client";
-import { registerLSPProviders, type LSPProviderRegistration } from "./lsp/providers";
-import { toMonacoMarkers, setMonacoRef } from "./lsp/converters";
+import { createLSPClient, type LSPClient, type LSPShowMessageParams, LSPMessageType } from "./client";
+import { registerLSPProviders, type LSPProviderRegistration } from "./providers";
+import { toMonacoMarkers, setMonacoRef } from "./converters";
 
 type Monaco = typeof monacoNs;
 
@@ -185,9 +185,9 @@ export function hasLSPSupport(languageId: string): boolean {
 /**
  * Build the WebSocket URL for a language server.
  *
- * Produces URLs like: `ws://localhost:3000/lsp?languageId=typescript`
+ * Produces URLs like: `wss://monaco-lsp-hub.onrender.com/lsp/typescript`
  *
- * @param baseUrl  Base URL (e.g., "ws://localhost:3000" or from config)
+ * @param baseUrl  Base URL (e.g., "https://monaco-lsp-hub.onrender.com" or from config)
  * @param langId   Monaco language ID
  * @returns Full WebSocket URL or null if language isn't supported
  */
@@ -198,8 +198,8 @@ export function buildLSPWebSocketUrl(baseUrl: string, langId: string): string | 
   // Convert http(s) to ws(s)
   const wsBase = baseUrl.replace(/^http/, "ws").replace(/\/$/, "");
 
-  // Use query parameter format: /lsp?languageId=typescript
-  return `${wsBase}/lsp?lang=${encodeURIComponent(lspInfo.wsPath)}`;
+  // Path-based format: /lsp/<wsPath>
+  return `${wsBase}/lsp/${encodeURIComponent(lspInfo.wsPath)}`;
 }
 
 /**

@@ -36,9 +36,10 @@ import {
     ViewPanelTabBar,
     ViewPanelContent,
     npmManagerViewPlugin,
+    useExtensionHost,
 } from "@/modules/monaco-editor";
 import type { MonacoEditorInstance, AICompletionProvider } from "@/modules/monaco-editor";
-import { monacoThemeIdToXterm } from "@/modules/monaco-editor/lib/monacoThemeToXterm";
+import { monacoThemeIdToXterm } from "@/modules/monaco-editor/lib/themes/monacoThemeToXterm";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import {
     AlertDialog,
@@ -61,6 +62,7 @@ import {
     type EditorTab,
 } from "./monaco-editor-parts";
 import { EditorWelcomeDialog } from "@/components/EditorWelcomeDialog";
+import { EditorAnnouncementDialog } from "@/components/EditorAnnouncementDialog";
 import { MONACO_THEMES } from "./monaco-editor-parts/ThemePicker";
 import { useFileOperations } from "@/modules/monaco-editor/components/file-tree/useFileOperations";
 import { getLoadedMonacoTheme } from "@/modules/monaco-editor/themes/monaco-themes-catalog";
@@ -193,6 +195,9 @@ export default function FileEditorMonacoPage() {
     /** Per-tab content refs keyed by tab id */
     const tabContentRefs = useRef<Record<string, string>>({});
 
+    /* ── Extension Host (custom ext-host worker) ─────────── */
+    useExtensionHost({ enabled: true });
+
     /* ── File-tree hook (dedicated socket — isolated state) ── */
     const initialDir = useMemo(() => {
         if (!filePath) return "/";
@@ -215,10 +220,11 @@ export default function FileEditorMonacoPage() {
         connectToHost,
         editorSftpStatus,
         editorSftpError,
+        provider: fsProvider,
     } = useEditorSftpTree({ sessionId, initialDir, hostUser });
 
     /* ── File operations for context menu ───────────────────── */
-    const fileOps = useFileOperations(sftpSocketRef, handleTreeRefresh ? () => handleTreeRefresh() : undefined);
+    const fileOps = useFileOperations(fsProvider, handleTreeRefresh ? () => handleTreeRefresh() : undefined);
  
     /* ── Tabs & Split state ─────────────────────────────────── */
     const initialTabId = useMemo(() => newTabId(), []);
@@ -971,7 +977,7 @@ export default function FileEditorMonacoPage() {
                                                                     terminalOpen={terminalOpen}
                                                                     enableAutoClose
                                                                     enableLSP
-                                                                    lspBaseUrl="ws://localhost:9257"
+                                                                    lspBaseUrl="https://monaco-lsp-hub.onrender.com"
                                                                     documentUri={`file://${editorFilePath || editorFileName}`}
                                                                     pluginDebounceMs={1200}
                                                                     enableVsixDrop={isActiveGroup}
@@ -1043,6 +1049,9 @@ export default function FileEditorMonacoPage() {
 
             {/* First-time welcome dialog */}
             <EditorWelcomeDialog />
+
+            {/* Version announcement dialog */}
+            <EditorAnnouncementDialog />
 
             {/* Shortcuts modal (memoized, conditionally rendered) */}
             {showShortcuts && <ShortcutsModal onClose={closeShortcuts} />}

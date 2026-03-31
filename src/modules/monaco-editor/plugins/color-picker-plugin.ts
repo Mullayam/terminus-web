@@ -64,7 +64,7 @@ function hslToRGB(h: number, s: number, l: number): [number, number, number] {
 }
 
 /** Languages that typically contain CSS colors */
-import { COLOR_LANGUAGES as COLOR_LANGS } from "../lib/language-groups";
+import { COLOR_LANGUAGES as COLOR_LANGS } from "../lib/language/language-groups";
 
 export const colorPickerPlugin: MonacoPlugin = {
   id: "builtin-color-picker",

@@ -12,7 +12,7 @@
  */
 
 import * as monacoNs from "monaco-editor";
-import type { VSCodeLanguageConfiguration } from "../lib/extractVSIX";
+import type { VSCodeLanguageConfiguration } from "../lib/extensions/extractVSIX";
 
 type MonacoLangConfig = monacoNs.languages.LanguageConfiguration;
 

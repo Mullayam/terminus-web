@@ -5,7 +5,7 @@
  */
 import type { ExtendedEditorPlugin, ExtendedPluginAPI, Diagnostic } from "../types";
 
-import { JS_FAMILY as JS_LANGUAGES } from "@/modules/monaco-editor/lib/language-groups";
+import { JS_FAMILY as JS_LANGUAGES } from "@/modules/monaco-editor/lib/language/language-groups";
 
 function detectUnusedVariables(content: string, language: string): Diagnostic[] {
     if (!JS_LANGUAGES.has(language)) return [];

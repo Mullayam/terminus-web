@@ -7,7 +7,7 @@
 import React, { useState, useCallback, useRef } from "react";
 import type * as monacoNs from "monaco-editor";
 import { Upload, Loader2, CheckCircle2, XCircle, Package } from "lucide-react";
-import { installExtensionFromVSIX, type InstallProgress } from "../lib/extensionLoader";
+import { installExtensionFromVSIX, type InstallProgress } from "../lib/extensions/extensionLoader";
 import { showEditorNotification, getNotificationsHandle } from "../plugins/notification-plugin";
 
 type Monaco = typeof monacoNs;

@@ -16,9 +16,9 @@
  */
 
 import type * as monacoNs from "monaco-editor";
-import { refreshLanguageCache } from "../utils/language-detect";
-import { convertVSCodeLanguageConfig } from "../utils/convert-language-config";
-import { ensureWidgetColors } from "../core/theme-registry";
+import { refreshLanguageCache } from "../../utils/language-detect";
+import { convertVSCodeLanguageConfig } from "../../utils/convert-language-config";
+import { ensureWidgetColors } from "../../core/theme-registry";
 
 import { getExtension, downloadVSIX, type OpenVSXExtension } from "./openVSX";
 import { extractVSIX, type VSIXContents, type ExtLanguage } from "./extractVSIX";
