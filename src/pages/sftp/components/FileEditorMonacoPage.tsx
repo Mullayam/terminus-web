@@ -195,11 +195,11 @@ export default function FileEditorMonacoPage() {
     /** Per-tab content refs keyed by tab id */
     const tabContentRefs = useRef<Record<string, string>>({});
 
-    /* ── File-tree hook (dedicated socket — isolated state) ── */
-    const initialDir = useMemo(() => {
-
     /* ── Extension Host (custom ext-host worker) ─────────── */
     useExtensionHost({ enabled: true });
+
+    /* ── File-tree hook (dedicated socket — isolated state) ── */
+    const initialDir = useMemo(() => {
         if (!filePath) return "/";
         const dir = filePath.replace(/\/[^/]*$/, "");
         return dir || "/";
