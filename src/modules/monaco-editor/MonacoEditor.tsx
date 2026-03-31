@@ -328,6 +328,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   const [pluginCount, setPluginCount] = useState(0);
   const [contextEngineCount, setContextEngineCount] = useState(0);
   const [notificationCount, setNotificationCount] = useState(0);
+  const [lspStatus, setLspStatus] = useState<"disconnected" | "connecting" | "connected" | "error">("disconnected");
 
   // Internal cursor tracking (for status bar)
   const [cursorLine, setCursorLine] = useState(1);
@@ -562,6 +563,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
         const wsUrl = buildLSPWebSocketUrl(lspBaseUrl, resolvedLanguage);
         if (wsUrl) {
           const lspName = resolvedLanguage.charAt(0).toUpperCase() + resolvedLanguage.slice(1);
+          setLspStatus("connecting");
           connectLanguageServer({
             languageId: resolvedLanguage,
             wsUrl,
@@ -570,6 +572,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
             editor,
             onConnected: () => {
               console.log(`[LSP] Connected: ${resolvedLanguage}`);
+              setLspStatus("connected");
               // Pause all builtin providers — LSP provides its own
               builtinHandle.pause();
               showEditorNotification(`Language server connected`, "info", {
@@ -579,10 +582,12 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
             },
             onDisconnected: () => {
               console.log(`[LSP] Disconnected: ${resolvedLanguage}`);
+              setLspStatus("disconnected");
               // Resume builtin providers when LSP disconnects
               builtinHandle.resume();
             },
             onError: (err) => {
+              setLspStatus("error");
               console.warn(`[LSP] Error:`, err);
               showEditorNotification(err.message || "Language server error", "error", {
                 source: `LSP: ${lspName}`,
@@ -1168,6 +1173,7 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
       const wsUrl = buildLSPWebSocketUrl(lspBaseUrl!, resolvedLanguage);
       if (wsUrl) {
         const lspName = resolvedLanguage.charAt(0).toUpperCase() + resolvedLanguage.slice(1);
+        setLspStatus("connecting");
         connectLanguageServer({
           languageId: resolvedLanguage,
           wsUrl,
@@ -1176,13 +1182,18 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
           editor,
           onConnected: () => {
             console.log(`[LSP] Connected: ${resolvedLanguage}`);
+            setLspStatus("connected");
             showEditorNotification(`Language server connected`, "info", {
               source: `LSP: ${lspName}`,
               timeout: 3000,
             });
           },
-          onDisconnected: () => console.log(`[LSP] Disconnected: ${resolvedLanguage}`),
+          onDisconnected: () => {
+            console.log(`[LSP] Disconnected: ${resolvedLanguage}`);
+            setLspStatus("disconnected");
+          },
           onError: (err) => {
+            setLspStatus("error");
             console.warn(`[LSP] Error:`, err);
             showEditorNotification(err.message || "Language server error", "error", {
               source: `LSP: ${lspName}`,
@@ -1219,6 +1230,9 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
       // Disconnect LSP
       try { lspRef.current.dispose(); } catch { /* */ }
       lspRef.current = null;
+      setLspStatus("disconnected");
+    } else if (!shouldConnect) {
+      setLspStatus("disconnected");
     }
   }, [editorSettings.enableLSP, enableLSP, lspBaseUrl, resolvedLanguage, documentUri]);
 
@@ -1661,7 +1675,29 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
           charCount={charCount}
           wordWrap={editorSettings.wordWrap}
           tabSize={editorSettings.tabSize}
-          extraItems={statusBarItems}
+          extraItems={[
+            ...statusBarItems,
+            ...(enableLSP && editorSettings.enableLSP ? [{
+              id: "lsp-status",
+              text: lspStatus === "connected"
+                ? `$(check) LSP: ${resolvedLanguage}`
+                : lspStatus === "connecting"
+                  ? `$(sync~spin) LSP: connecting…`
+                  : lspStatus === "error"
+                    ? `$(error) LSP: error`
+                    : `$(circle-slash) LSP: off`,
+              tooltip: lspStatus === "connected"
+                ? `Language server connected (${resolvedLanguage})`
+                : lspStatus === "connecting"
+                  ? "Connecting to language server…"
+                  : lspStatus === "error"
+                    ? "Language server connection failed"
+                    : "Language server disconnected",
+              alignment: "right" as const,
+              priority: 50,
+              color: lspStatus === "connected" ? "#89d185" : lspStatus === "error" ? "#f14c4c" : lspStatus === "connecting" ? "#dcdcaa" : undefined,
+            }] : []),
+          ]}
           notificationCount={notificationCount}
           onNotificationToggle={() => notificationsRef.current?.toggleCenter()}
           enableTerminal={enableTerminal || !!onTerminalToggleProp}
