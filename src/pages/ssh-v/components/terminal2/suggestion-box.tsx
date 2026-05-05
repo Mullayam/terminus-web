@@ -194,6 +194,7 @@ const AISuggestionBox: React.FC<SuggestionBoxProps> = ({ terminalHeight, setSugg
   const BOX_WIDTH = 320;
   const MAX_HEIGHT = 280;
   const GAP = 12;
+  const LINE_HEIGHT = 18;
 
   // Reset active index when suggestions or buffer changes
   useEffect(() => { setActiveIndex(-1); }, [suggestions.length, commandBuffer]);
@@ -257,7 +258,7 @@ const AISuggestionBox: React.FC<SuggestionBoxProps> = ({ terminalHeight, setSugg
   const fitsBelow = suggestionPos.top + MAX_HEIGHT + GAP < terminalHeight;
   const adjustedTop = fitsBelow
     ? suggestionPos.top + GAP
-    : suggestionPos.top - MAX_HEIGHT - GAP;
+    : suggestionPos.top - MAX_HEIGHT - GAP - LINE_HEIGHT;
 
   // Highlight matched portion in suggestion text
   const renderHighlighted = (text: string) => {

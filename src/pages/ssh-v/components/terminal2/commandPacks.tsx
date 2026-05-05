@@ -28,6 +28,7 @@ import {
     Plus,
     Flag,
     Code,
+    Eraser,
 } from "lucide-react";
 import {
     fetchTerminalCommandsManifest,
@@ -41,6 +42,7 @@ import {
     saveCommandCategory,
     removeCommandCategory,
     getInstalledCategories,
+    clearAllCommandData,
 } from "@/lib/context-engine/contextEngineStorage";
 import { useSessionTheme } from "@/hooks/useSessionTheme";
 import { useCommandStore } from "@/store";
@@ -72,7 +74,7 @@ interface FilePreview {
 
 export default function CommandPacks() {
     const { colors } = useSessionTheme();
-    const { addToAllCommands } = useCommandStore();
+    const { syncPacks, addToAllCommands } = useCommandStore();
     const {
         setInstalledPacksCount,
         checkForUpdate,
@@ -136,6 +138,8 @@ export default function CommandPacks() {
                 },
                 files,
             );
+            // Re-merge so Commands tab picks up newly installed pack
+            await syncPacks();
             setInstalledCats((s) => {
                 const n = new Set(s).add(cat.category);
                 setInstalledPacksCount(n.size);
@@ -149,10 +153,12 @@ export default function CommandPacks() {
         } catch {
             setInstallState((s) => ({ ...s, [cat.category]: "error" }));
         }
-    }, []);
+    }, [syncPacks]);
 
     const handleUninstall = useCallback(async (id: string) => {
         await removeCommandCategory(id);
+        // Re-merge so Commands tab removes uninstalled pack commands
+        await syncPacks();
         setInstalledCats((s) => {
             const n = new Set(s);
             n.delete(id);
@@ -160,7 +166,7 @@ export default function CommandPacks() {
             return n;
         });
         setInstallState((s) => { const n = { ...s }; delete n[id]; return n; });
-    }, []);
+    }, [syncPacks]);
 
     const toggleExpand = useCallback((id: string) => {
         setExpanded((s) => {
@@ -277,8 +283,20 @@ export default function CommandPacks() {
                         </span>
                     )}
                     <button
-                        onClick={loadData}
+                        onClick={async () => {
+                            await clearAllCommandData();
+                            setInstalledCats(new Set());
+                            setInstallState({});
+                            setInstalledPacksCount(0);
+                        }}
                         className="ml-auto p-1 rounded hover:opacity-80 transition-opacity"
+                        title="Purge all installed packs"
+                    >
+                        <Eraser className="w-3 h-3" style={{ color: colors.red + "cc" }} />
+                    </button>
+                    <button
+                        onClick={loadData}
+                        className="p-1 rounded hover:opacity-80 transition-opacity"
                         title="Refresh"
                     >
                         <RefreshCw className="w-3 h-3" style={{ color: colors.foreground + "80" }} />

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { create } from 'zustand'
 import { idb } from '@/lib/idb'
+import { getAllCommandData, clearAllCommandData } from '@/lib/context-engine/contextEngineStorage'
 
 const DEFAULT_COMMANDS = [
     { name: 'PM2 restart', command: 'pm2 restart' },
@@ -35,6 +36,9 @@ type CommandStore = {
     addToAllCommands: (command: CommandItem) => void
     setAllCommands: (commands: CommandItem[]) => void
     removeFromAllCommands: (command: string) => void
+    resetToDefaults: () => void
+    /** Re-merge pack commands from context-engine DB (call after install/uninstall) */
+    syncPacks: () => Promise<void>
     hydrate: () => Promise<void>
 }
 
@@ -102,15 +106,77 @@ export const useCommandStore = create<CommandStore>()((set, get) => ({
         idb.deleteItem("all_commands", command).catch(console.error)
     },
 
+    resetToDefaults: () => {
+        set({ allCommands: DEFAULT_COMMANDS })
+        const table = idb.getRawDb().all_commands
+        table.clear().then(() => table.bulkPut(DEFAULT_COMMANDS as any[])).catch(console.error)
+        clearAllCommandData().catch(console.error)
+    },
+
+    syncPacks: async () => {
+        try {
+            const stored = await idb.getAllItems("all_commands") as unknown as CommandItem[]
+            const userCommands = stored && stored.length > 0 ? stored : DEFAULT_COMMANDS
+            const packData = await getAllCommandData().catch(() => [])
+            const packCommands: CommandItem[] = []
+            for (const entry of packData) {
+                const d = entry.data as any
+                if (!d || !d.name) continue
+                const parentName = d.name
+                if (d.globalOptions) {
+                    for (const opt of d.globalOptions) {
+                        packCommands.push({ name: opt.description, command: `${parentName} ${opt.name}` })
+                    }
+                }
+                if (d.subcommands) {
+                    for (const sub of d.subcommands) {
+                        packCommands.push({ name: sub.description, command: `${parentName} ${sub.name}` })
+                    }
+                }
+            }
+            const existingSet = new Set(userCommands.map(c => c.command))
+            const newFromPacks = packCommands.filter(c => !existingSet.has(c.command))
+            set({ allCommands: [...userCommands, ...newFromPacks] })
+        } catch (e) {
+            console.error("Failed to sync pack commands:", e)
+        }
+    },
+
     hydrate: async () => {
         if (get()._hydrated) return
         try {
             const stored = await idb.getAllItems("all_commands") as unknown as CommandItem[]
+
             if (stored && stored.length > 0) {
-                set({ allCommands: stored, _hydrated: true })
+                // Merge commands from installed command packs (context-engine DB)
+                const packData = await getAllCommandData().catch(() => [])
+
+                const packCommands: CommandItem[] = []
+                for (const entry of packData) {
+                    const d = entry.data as any
+                    if (!d || !d.name) continue
+                    const parentName = d.name
+                    if (d.globalOptions) {
+                        for (const opt of d.globalOptions) {
+                            packCommands.push({ name: opt.description, command: `${parentName} ${opt.name}` })
+                        }
+                    }
+                    if (d.subcommands) {
+                        for (const sub of d.subcommands) {
+                            packCommands.push({ name: sub.description, command: `${parentName} ${sub.name}` })
+                        }
+                    }
+                }
+
+                // Deduplicate: only add pack commands not already in stored
+                const existingSet = new Set(stored.map(c => c.command))
+                const newFromPacks = packCommands.filter(c => !existingSet.has(c.command))
+                const merged = [...stored, ...newFromPacks]
+                set({ allCommands: merged, _hydrated: true })
             } else {
                 // First run: seed IDB with defaults
                 const table = idb.getRawDb().all_commands
+
                 await table.bulkPut(DEFAULT_COMMANDS as any[])
                 set({ _hydrated: true })
             }

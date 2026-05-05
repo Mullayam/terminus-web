@@ -13,7 +13,7 @@ import { useSessionTheme } from '@/hooks/useSessionTheme';
 
 
 export function CommandList() {
-  const { setCommand, allCommands, addToAllCommands, removeFromAllCommands, hydrate } = useCommandStore()
+  const { setCommand, allCommands, addToAllCommands, removeFromAllCommands, resetToDefaults, hydrate } = useCommandStore()
   const { colors } = useSessionTheme();
   const [loadingState, setLoadingState] = useState(true);
   let clickTimer: NodeJS.Timeout | null = null;
@@ -52,6 +52,7 @@ export function CommandList() {
     })
   }
   React.useEffect(() => {
+
     hydrate().finally(() => setLoadingState(false));
     return () => {
       clickTimer && clearTimeout(clickTimer);
@@ -65,19 +66,32 @@ export function CommandList() {
           placeholder="Search commands..."
           value={query}
           onChange={(e) => setQuery(e.target.value.toLowerCase())}
-          className="border-gray-700 pr-10 focus:outline-none focus:ring-0"
+          className="border-gray-700 pr-16 focus:outline-none focus:ring-0"
           style={{ backgroundColor: `${colors.foreground}10` }}
         />
 
         {/* Toggle Button Inside Input */}
-        <button
-          onClick={() => setIsEditing(!isEditing)}
-          className="absolute right-6 top-5 hover:text-white"
-          style={{ color: `${colors.foreground}80` }}
-          type="button"
-        >
-          {!isEditing && <Plus className="w-4 h-4" />}
-        </button>
+        <div className="absolute right-6 top-5 flex items-center gap-1">
+          {allCommands.length > 0 && (
+            <button
+              onClick={() => { if (confirm("Reset to default commands?")) resetToDefaults(); }}
+              className="hover:text-red-400"
+              style={{ color: `${colors.foreground}80` }}
+              type="button"
+              title="Clear all commands"
+            >
+              <Trash className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            onClick={() => setIsEditing(!isEditing)}
+            className="hover:text-white"
+            style={{ color: `${colors.foreground}80` }}
+            type="button"
+          >
+            {!isEditing && <Plus className="w-4 h-4" />}
+          </button>
+        </div>
       </div>
 
       {/* Conditional Command Add/Edit Card */}
