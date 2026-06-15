@@ -878,6 +878,7 @@ export default function FileEditorMonacoPage() {
                         sftpError={editorSftpError}
                         onConnect={connectToHost}
                         hostLabel={hostUser}
+                        sftpSessionId={sessionId}
                         fileOps={fileOps}
                     />
                     {/* Editor area with split groups */}

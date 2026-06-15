@@ -637,25 +637,12 @@ export function FileList({
     data: { remotePath: string } & SFTP_FILES_LIST,
   ) => {
     try {
-      const response = await ApiCore.download({
+      await ApiCore.downloadToDisk({
         remotePath: data.remotePath,
         type: data.type === "d" ? "dir" : "file",
         name: data.name,
+        sessionId: tabId,
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to download file");
-      }
-      // Convert the response into a Blob
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", data.name);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
     } catch (error) {
       toast({
         title: "Error",

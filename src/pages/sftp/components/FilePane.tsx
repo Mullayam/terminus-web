@@ -214,22 +214,12 @@ export function FilePane({
       },
       onDownload: async (node) => {
         try {
-          const response = await ApiCore.download({
+          await ApiCore.downloadToDisk({
             remotePath: node.fullPath,
             type: node.type === "d" ? "dir" : "file",
             name: node.name,
             sessionId: tabId,
           });
-          if (!response.ok) throw new Error("Failed to download");
-          const blob = await response.blob();
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.href = url;
-          link.setAttribute("download", node.name);
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(url);
         } catch (error: any) {
           toast({
             variant: "destructive",
@@ -391,7 +381,7 @@ export function FilePane({
 
   const startUpload = async (file: any) => {
     try {
-      const data = await ApiCore.uploadFile(file, path);
+      const data = await ApiCore.uploadFile(file, path, tabId);
       if (!data.status) {
         throw new Error(data.message);
       }
@@ -621,22 +611,12 @@ export function FilePane({
                             action: async () => {
                               try {
                                 const dirName = path.split("/").filter(Boolean).pop() || "download";
-                                const response = await ApiCore.download({
+                                await ApiCore.downloadToDisk({
                                   remotePath: path,
                                   type: "dir",
                                   name: dirName,
                                   sessionId: tabId,
                                 });
-                                if (!response.ok) throw new Error("Failed to download directory");
-                                const blob = await response.blob();
-                                const url = URL.createObjectURL(blob);
-                                const link = document.createElement("a");
-                                link.href = url;
-                                link.setAttribute("download", `${dirName}.zip`);
-                                document.body.appendChild(link);
-                                link.click();
-                                document.body.removeChild(link);
-                                URL.revokeObjectURL(url);
                               } catch (error: any) {
                                 toast({
                                   variant: "destructive",

@@ -100,6 +100,8 @@ export interface EditorFileTreeProps {
   onConnect?: () => void;
   /** The host name to display in the connect dialog */
   hostLabel?: string;
+  /** SFTP session identifier forwarded to the upload endpoint */
+  sftpSessionId?: string;
 
   /* ── File operations (context menu) ────────────────────── */
   /** Socket-backed file operations from useFileOperations hook */
@@ -399,6 +401,7 @@ export function EditorFileTree({
   sftpError,
   onConnect,
   hostLabel,
+  sftpSessionId,
   fileOps,
   onLoadMore,
   hasMore,
@@ -946,6 +949,7 @@ export function EditorFileTree({
         onOpenChange={(open) => { if (!open) setUploadState(null); }}
         mode={uploadState?.mode ?? "file"}
         targetDir={uploadState?.dir ?? "/"}
+        sessionId={sftpSessionId}
         onUploadComplete={handleUploadComplete}
       />
     </div>

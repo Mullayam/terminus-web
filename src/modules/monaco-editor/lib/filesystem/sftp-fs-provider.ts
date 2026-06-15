@@ -310,6 +310,6 @@ export class SftpFileSystemProvider implements FileSystemProvider {
         // SFTP upload uses REST (ApiCore.uploadFile) — delegate to the
         // existing API util rather than duplicating here.
         const { ApiCore } = await import("@/lib/api");
-        await ApiCore.uploadFile(files, targetDir);
+        await ApiCore.uploadFile(files, targetDir, this.opts.sessionId);
     }
 }

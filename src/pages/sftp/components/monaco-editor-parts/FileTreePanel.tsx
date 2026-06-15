@@ -23,6 +23,8 @@ interface FileTreePanelProps {
     sftpError?: string;
     onConnect?: () => void;
     hostLabel?: string;
+    /** SFTP session identifier forwarded to upload endpoint */
+    sftpSessionId?: string;
     /** File operations — forwarded to EditorFileTree for context menu */
     fileOps?: FileOperations;
 }
@@ -39,6 +41,7 @@ function FileTreePanelInner({
     sftpError,
     onConnect,
     hostLabel,
+    sftpSessionId,
     fileOps,
 }: FileTreePanelProps) {
     const panelRef = useRef<ImperativePanelHandle>(null);
@@ -85,6 +88,7 @@ function FileTreePanelInner({
                         sftpError={sftpError}
                         onConnect={onConnect}
                         hostLabel={hostLabel}
+                        sftpSessionId={sftpSessionId}
                         fileOps={fileOps}
                     />
                 )}

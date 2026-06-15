@@ -34,6 +34,8 @@ export interface FileUploadDialogProps {
   mode: "file" | "folder";
   /** Remote directory to upload into */
   targetDir: string;
+  /** SFTP session identifier required by the upload endpoint */
+  sessionId?: string;
   /** Called after successful upload so the tree can refresh */
   onUploadComplete?: (targetDir: string) => void;
 }
@@ -45,6 +47,7 @@ export const FileUploadDialog = React.memo(function FileUploadDialog({
   onOpenChange,
   mode,
   targetDir,
+  sessionId,
   onUploadComplete,
 }: FileUploadDialogProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -90,7 +93,7 @@ export const FileUploadDialog = React.memo(function FileUploadDialog({
         return extended;
       });
 
-      await ApiCore.uploadFile(annotated, targetDir);
+      await ApiCore.uploadFile(annotated, targetDir, sessionId);
       setStatus("success");
       onUploadComplete?.(targetDir);
       // Auto-close after short delay
@@ -99,7 +102,7 @@ export const FileUploadDialog = React.memo(function FileUploadDialog({
       setStatus("error");
       setError(err?.message ?? "Upload failed");
     }
-  }, [selectedFiles, targetDir, onUploadComplete, handleOpenChange]);
+  }, [selectedFiles, targetDir, sessionId, onUploadComplete, handleOpenChange]);
 
   const triggerPicker = useCallback(() => {
     inputRef.current?.click();

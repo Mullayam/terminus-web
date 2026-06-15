@@ -133,6 +133,7 @@ export default function MediaPreviewPage() {
                         remotePath,
                         type: "file",
                         name: fileName,
+                        sessionId: tabId,
                     });
 
                     if (!response.ok) {
