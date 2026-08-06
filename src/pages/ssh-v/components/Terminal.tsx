@@ -331,14 +331,16 @@ const XTerminal = memo(function XTerminal({
       fitAddon.fit();
     };
 
-    socket.on(SocketEventConstants.SSH_EMIT_DATA, (input: string) => {
+    const handleSSHData = (input: string) => {
       term.write(input);
       term.scrollToBottom();
       addLogLine(sessionId, input);
+      // Clear any pending background-activity flag while the tab is visible
+      useSSHStore.getState().clearSessionActivity(sessionId);
       // Feed output to diagnostics scanner (only if enabled)
       if (diagnosticsEnabledRef.current) diagFeed(input);
-    });
-
+    };
+    socket.on(SocketEventConstants.SSH_EMIT_DATA, handleSSHData);
     // Server sends shell history after ready
     socket.on(SocketEventConstants.SSH_EXEC_SILENT_RESULT, (history: string[]) => {
       if (!Array.isArray(history)) return;
@@ -400,7 +402,7 @@ const XTerminal = memo(function XTerminal({
 
     return () => {
       window.removeEventListener("resize", handleResize);
-      socket.off(SocketEventConstants.SSH_EMIT_DATA);
+      socket.off(SocketEventConstants.SSH_EMIT_DATA, handleSSHData);
       socket.off(SocketEventConstants.SSH_EXEC_SILENT_RESULT);
       disposeOnData.dispose();
       disposeOnResize.dispose();

@@ -4,6 +4,7 @@ import { useSSHStore } from '@/store/sshStore';
 import { v4 as uuid } from 'uuid'
 
 import StoredHosts from './components/storedHosts';
+import SessionActivityMonitor from './components/SessionActivityMonitor';
 import { useCustomEvent } from '@/hooks/use-events';
 import { HostsObject } from '..';
 import { useEffect, useState } from 'react';
@@ -84,7 +85,7 @@ export default function NewSSH() {
     }, [hosts, activeTabId])
     return (
         <div className='w-full h-full overflow-hidden'>
-
+            <SessionActivityMonitor />
             {tabs.length === 0 && <StoredHosts hosts={hosts} handleClickOnHostCard={handleClickOnHostCard} />}
             {tabs.map((tab) => (
                 tab.id === activeTabId ? <TerminalTab key={tab.id} sessionId={tab.sessionId} /> : null

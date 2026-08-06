@@ -19,6 +19,7 @@ import { useTerminalStore } from '@/store/terminalStore';
 import { useSidebarState } from '@/store/sidebarStore';
 import { useSessionTheme } from '@/hooks/useSessionTheme';
 import { useAIChatStore } from '@/store/aiChatStore';
+import { XtermTheme } from '../themes';
 import {
   Popover,
   PopoverContent,
@@ -55,6 +56,8 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
     splitTabId,
     setSplit,
     clearSplit,
+    sessionActivity,
+    sessionThemes,
   } = useSSHStore();
 
   const { removeLog } = useTerminalStore()
@@ -144,6 +147,10 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
               const tabSession = sessions[tab.sessionId];
               const isActive = tab.id === (activeTabId || "");
               const isSplit = tab.id === splitTabId && splitMode !== 'none';
+              // Background output arrived while this tab was not visible.
+              const hasActivity = !!sessionActivity[tab.sessionId] && !isActive && !isSplit;
+              const tabTheme = XtermTheme[sessionThemes[tab.sessionId] || 'custom'] || XtermTheme.custom;
+              const activityColor = (tabTheme as any).brightYellow || (tabTheme as any).yellow || '#f59e0b';
               return (
               <ContextMenu key={index} modal>
                 <ContextMenuTrigger asChild>
@@ -157,11 +164,27 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
                         ? "text-green-500 bg-[#24253a]"
                         : isSplit
                           ? "text-blue-400 bg-blue-500/10 border border-blue-500/30"
-                          : "text-gray-400 hover:text-gray-300"
+                          : hasActivity
+                            ? "hover:opacity-90"
+                            : "text-gray-400 hover:text-gray-300"
                     )}
+                    style={hasActivity ? { color: activityColor, backgroundColor: `${activityColor}1a` } : undefined}
                   >
                     {tabSession?.status === 'connected' && (
-                      <span className="size-1.5 rounded-full bg-green-500 mr-1.5 shrink-0" />
+                      hasActivity ? (
+                        <span className="relative flex size-2 mr-1.5 shrink-0">
+                          <span
+                            className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping"
+                            style={{ backgroundColor: activityColor }}
+                          />
+                          <span
+                            className="relative inline-flex rounded-full size-2"
+                            style={{ backgroundColor: activityColor }}
+                          />
+                        </span>
+                      ) : (
+                        <span className="size-1.5 rounded-full bg-green-500 mr-1.5 shrink-0" />
+                      )
                     )}
                     {tab.title}
                     {tabs.length > 1 && (
