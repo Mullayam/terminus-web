@@ -12,6 +12,8 @@ interface CollabTypingIndicatorProps {
   commandBuffer: string;
   containerRef: React.RefObject<HTMLDivElement | null>;
   placeholderHint?: string;
+  /** Hide the placeholder while a full-screen app owns the alternate screen */
+  placeholderDisabled?: boolean;
 }
 
 /**
@@ -25,6 +27,7 @@ const CollabTypingIndicator = memo(function CollabTypingIndicator({
   commandBuffer,
   containerRef,
   placeholderHint = "💡 Like this project? Press ⭐ on GitHub to support it github.com/Mullayam",
+  placeholderDisabled = false,
 }: CollabTypingIndicatorProps) {
   const [collabTyping, setCollabTyping] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -63,6 +66,7 @@ const CollabTypingIndicator = memo(function CollabTypingIndicator({
           commandBuffer={commandBuffer}
           containerRef={containerRef}
           hint={placeholderHint}
+          disabled={placeholderDisabled}
         />
       )}
       {collabTyping && <TypingOverlay text="Someone is typing…" />}
