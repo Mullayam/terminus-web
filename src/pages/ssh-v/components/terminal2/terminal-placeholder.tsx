@@ -32,6 +32,8 @@ interface TerminalPlaceholderProps {
   containerRef: React.RefObject<HTMLDivElement | null>;
   /** The hint text to display, e.g. "Press Ctrl+I to use AI" */
   hint?: string;
+  /** Force-hide the placeholder (e.g. while a full-screen app is running) */
+  disabled?: boolean;
 }
 
 /**
@@ -43,13 +45,14 @@ const TerminalPlaceholder = memo(function TerminalPlaceholder({
   commandBuffer,
   containerRef,
   hint = "💡 Like this project? Press ⭐ on GitHub to support it.",
+  disabled = false,
 }: TerminalPlaceholderProps) {
   const overlayRef = useRef<HTMLSpanElement>(null);
   const rafId = useRef(0);
   const intervalId = useRef<ReturnType<typeof setInterval> | null>(null);
   const [displayHint, setDisplayHint] = useState(hint);
 
-  const visible = commandBuffer.trim().length === 0;
+  const visible = !disabled && commandBuffer.trim().length === 0;
 
   // Show default hint for the first 3 times, then fetch a joke
   useEffect(() => {

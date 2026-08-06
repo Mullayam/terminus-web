@@ -2,7 +2,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import "@xterm/xterm/css/xterm.css";
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
-import { ChevronUp, ChevronDown, X, Search } from "lucide-react";
+import { ChevronUp, ChevronDown, X, Search, Check } from "lucide-react";
 import { Terminal } from "@xterm/xterm";
 
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -95,6 +95,8 @@ const XTerminal = memo(function XTerminal({
   const isVisibleRef = useRef(false);
   useEffect(() => { isVisibleRef.current = isVisible; }, [isVisible]);
   const [showSearch, setShowSearch] = useState(false);
+  const [showCopied, setShowCopied] = useState(false);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showInlineAI, setShowInlineAI] = useState(false);
   const showInlineAIRef = useRef(false);
   useEffect(() => { showInlineAIRef.current = showInlineAI; }, [showInlineAI]);
@@ -118,6 +120,9 @@ const XTerminal = memo(function XTerminal({
   useEffect(() => { diagnosticsEnabledRef.current = diagnosticsEnabled; }, [diagnosticsEnabled]);
   const [commandBuffer, setCommandBuffer] = useState<string>("");
   const commandBufferRef = useRef<string>("");
+  const [isAltScreen, setIsAltScreen] = useState(false);
+  const inputResyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastKeyAtRef = useRef(0);
   const command = useCommandStore((s) => s.command);
   const setCommand = useCommandStore((s) => s.setCommand);
   const addShellHistoryCommand = useCommandStore((s) => s.addShellHistoryCommand);
@@ -196,6 +201,44 @@ const XTerminal = memo(function XTerminal({
     }
 
   }
+
+  // Reads the user-typed portion of the current prompt line straight from the
+  // xterm buffer. Returns null when the cursor isn't on a recognizable prompt
+  // line (streaming output or a full-screen TUI on the alternate buffer).
+  function readCurrentInput(): string | null {
+    const term = termRef.current;
+    if (!term) return null;
+    const buf = term.buffer.active;
+    if (buf.type === 'alternate') return null;
+    const raw = buf.getLine(buf.baseY + buf.cursorY)?.translateToString(true) ?? '';
+    const stored = lastPromptPrefixRef.current;
+    let prompt = '';
+    if (stored && raw.startsWith(stored)) {
+      prompt = stored;
+    } else {
+      const match = raw.match(/^(.*?[#$>] )/);
+      if (!match) return null;
+      prompt = match[1];
+      lastPromptPrefixRef.current = prompt; // self-heal to the live prompt
+    }
+    return raw.slice(prompt.length).replace(/\s+$/, '');
+  }
+
+  // Re-derives commandBuffer from the real terminal line once the cursor
+  // settles — fixes desyncs from history recall (↑/↓), remote tab-complete,
+  // kill-line, and paste that the keystroke tracker never sees. Skipped right
+  // after a keystroke so the optimistic value isn't reverted mid-typing.
+  const scheduleInputResync = () => {
+    if (inputResyncTimerRef.current) clearTimeout(inputResyncTimerRef.current);
+    inputResyncTimerRef.current = setTimeout(() => {
+      if (Date.now() - lastKeyAtRef.current < 100) return;
+      const input = readCurrentInput();
+      if (input === null || input === commandBufferRef.current) return;
+      commandBufferRef.current = input;
+      setCommandBuffer(input);
+    }, 60);
+  };
+
   const handleKeyDown = (e: KeyboardEvent) => {
     if (e.ctrlKey && e.key === 'f') {
       e.preventDefault();
@@ -212,28 +255,33 @@ const XTerminal = memo(function XTerminal({
       setShowSearch(false);
     }
   };
+  // Copy-on-select: when a left-drag selection ends, copy it to the clipboard
+  // and clear the selection (PuTTY-style).
+  const handleMouseUp = async (e: MouseEvent) => {
+    if (e.button !== 0) return;
+    const selection = termRef.current?.getSelection()?.trim();
+    if (!selection) return;
+    try {
+      await navigator.clipboard.writeText(selection);
+    } catch (err) {
+      // clipboard write can be blocked; ignore
+    }
+    termRef.current?.clearSelection();
+    setShowCopied(true);
+    if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    copiedTimerRef.current = setTimeout(() => setShowCopied(false), 1200);
+  };
+
+  // Right-click pastes whatever is on the clipboard.
   const handleContextMenu = async (e: MouseEvent) => {
     e.preventDefault();
-
-    const selection = termRef.current?.getSelection()?.trim();
-
-    if (selection) {
-
-      await navigator.clipboard.writeText(selection);
-      termRef.current?.clearSelection();
-      termRef.current?.input(selection);
-
-    } else {
-      try {
-        const text = await navigator.clipboard.readText();
-        if (text) {
-          termRef.current?.paste(text);
-
-        }
-      } catch (err) {
-
-
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        termRef.current?.paste(text);
       }
+    } catch (err) {
+      // clipboard read can be blocked; ignore
     }
   };
 
@@ -305,6 +353,13 @@ const XTerminal = memo(function XTerminal({
         return false; // prevent xterm from sending escape sequences to shell
       }
       return true;
+    });
+
+    // Track alternate-screen switches (vim/htop/less/tmux) so the empty-line
+    // placeholder and ghost text stay hidden inside full-screen apps.
+    setIsAltScreen(term.buffer.active.type === 'alternate');
+    const disposeBufferChange = term.buffer.onBufferChange(() => {
+      setIsAltScreen(term.buffer.active.type === 'alternate');
     });
 
     if (!sessionHost) {
@@ -406,6 +461,7 @@ const XTerminal = memo(function XTerminal({
       socket.off(SocketEventConstants.SSH_EXEC_SILENT_RESULT);
       disposeOnData.dispose();
       disposeOnResize.dispose();
+      disposeBufferChange.dispose();
       term.dispose();
       termRef.current = null;
     };
@@ -517,6 +573,7 @@ const XTerminal = memo(function XTerminal({
       }
 
       if (isBackspace) {
+        lastKeyAtRef.current = Date.now();
         const updated = commandBufferRef.current.slice(0, -1);
         commandBufferRef.current = updated;
         setCommandBuffer(updated);
@@ -528,6 +585,7 @@ const XTerminal = memo(function XTerminal({
       }
 
       if (isPrintable) {
+        lastKeyAtRef.current = Date.now();
         const updated = commandBufferRef.current + key;
         commandBufferRef.current = updated;
         setCommandBuffer(updated);
@@ -538,12 +596,16 @@ const XTerminal = memo(function XTerminal({
       }
     };
 
-    const disposeOnCursorMove = termRef.current?.onCursorMove(updateSuggestionBox);
+    const disposeOnCursorMove = termRef.current?.onCursorMove(() => {
+      updateSuggestionBox();
+      scheduleInputResync();
+    });
     const disposeOnKey = termRef.current?.onKey(handleKey);
     const disposeBell = termRef.current?.onBell(() => play());
     const disposeTitle = termRef.current?.onTitleChange((title) => document.title = `Terminal: ${title}`);
     const el = terminalRef.current!;
     el.addEventListener("contextmenu", handleContextMenu);
+    el.addEventListener("mouseup", handleMouseUp);
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       disposeOnCursorMove?.dispose?.();
@@ -552,7 +614,9 @@ const XTerminal = memo(function XTerminal({
       disposeTitle?.dispose?.();
       window.removeEventListener('keydown', handleKeyDown);
       el.removeEventListener("contextmenu", handleContextMenu);
-
+      el.removeEventListener("mouseup", handleMouseUp);
+      if (inputResyncTimerRef.current) clearTimeout(inputResyncTimerRef.current);
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
     };
   }, []);
 
@@ -668,7 +732,7 @@ const XTerminal = memo(function XTerminal({
       {/* Suggestion box positioned relative to .xterm-helper-textarea */}
 
       {/* Ghost text inline autocomplete (grey overlay at cursor) */}
-      {autocomplete && (
+      {autocomplete && !isAltScreen && (
         <GhostText
           termRef={termRef}
           commandBuffer={commandBuffer}
@@ -729,6 +793,7 @@ const XTerminal = memo(function XTerminal({
         termRef={termRef}
         commandBuffer={commandBuffer}
         containerRef={terminalRef}
+        placeholderDisabled={isAltScreen}
       />
 
       {/* Diagnostics AI chat modal */}
@@ -741,6 +806,26 @@ const XTerminal = memo(function XTerminal({
           sessionId={sessionId}
         />
       )}
+
+      {/* Copy-on-select confirmation toast (center bottom) */}
+      {showCopied && (() => {
+        const t = XtermTheme[sessionTheme] || XtermTheme.default;
+        return (
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+            <div
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium shadow-lg border"
+              style={{
+                backgroundColor: `${t.background}f2`,
+                color: t.foreground,
+                borderColor: `${t.foreground}20`,
+              }}
+            >
+              <Check className="h-3.5 w-3.5" style={{ color: t.green }} />
+              Copied
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 });
