@@ -94,6 +94,29 @@ function getCursorPixelPos(term: Terminal) {
     };
 }
 
+/**
+ * Positions the ghost overlay so it soft-wraps at the terminal's right edge,
+ * matching how xterm wraps the real command. Anchored at the left of the
+ * cursor's row with the full text width; the first line is indented to the
+ * cursor. Returns false if the terminal isn't ready.
+ */
+function applyGhostLayout(el: HTMLElement, term: Terminal): boolean {
+    const core = (term as any)._core;
+    const dims = core?._renderService?.dimensions;
+    if (!dims) return false;
+    const screen = term.element?.querySelector(".xterm-screen") as HTMLElement | null;
+    const offsetX = screen?.offsetLeft ?? 0;
+    const offsetY = screen?.offsetTop ?? 0;
+    const cellWidth = dims.css.cell.width;
+    const cellHeight = dims.css.cell.height;
+    const buf = term.buffer.active;
+    el.style.transform = `translate3d(${offsetX}px,${buf.cursorY * cellHeight + offsetY}px,0)`;
+    el.style.textIndent = `${buf.cursorX * cellWidth}px`;
+    el.style.width = `${term.cols * cellWidth}px`;
+    el.style.lineHeight = `${cellHeight}px`;
+    return true;
+}
+
 /* ── Component ─────────────────────────────────────────────── */
 
 export const EditorTerminalWithGhost = memo(function EditorTerminalWithGhost(props: EditorTerminalWithGhostProps) {
@@ -379,8 +402,7 @@ export const EditorTerminalWithGhost = memo(function EditorTerminalWithGhost(pro
         if (!term || !ghost || !ghostCompletion) return;
 
         const sync = () => {
-            const pos = getCursorPixelPos(term);
-            if (pos) ghost.style.transform = `translate3d(${pos.x}px,${pos.y}px,0)`;
+            applyGhostLayout(ghost, term);
         };
 
         const raf = requestAnimationFrame(sync);
@@ -494,7 +516,8 @@ export const EditorTerminalWithGhost = memo(function EditorTerminalWithGhost(pro
                         top: 0,
                         willChange: "transform",
                         pointerEvents: "none",
-                        whiteSpace: "pre",
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-all",
                         fontFamily: term?.options.fontFamily ?? fontFamily,
                         fontSize: term?.options.fontSize ?? fontSize,
                         lineHeight: "normal",

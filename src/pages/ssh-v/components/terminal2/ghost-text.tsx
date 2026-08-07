@@ -32,23 +32,29 @@ function getGhostCompletion(
 }
 
 /**
- * Reads the cursor pixel coordinates from xterm internals.
- * Returns null if the terminal isn't ready.
+ * Positions the ghost overlay so it soft-wraps at the terminal's right edge,
+ * matching how xterm wraps the real command. The overlay is anchored at the
+ * left of the cursor's row and given the full text width; the first line is
+ * indented to start right after the cursor. Returns false if not ready.
  */
-function getCursorPixelPos(term: Terminal) {
+function applyGhostLayout(el: HTMLElement, term: Terminal): boolean {
   const core = (term as any)._core;
   const dims = core?._renderService?.dimensions;
-  if (!dims) return null;
+  if (!dims) return false;
 
   const screen = term.element?.querySelector(".xterm-screen") as HTMLElement | null;
   const offsetX = screen?.offsetLeft ?? 0;
   const offsetY = screen?.offsetTop ?? 0;
 
+  const cellWidth = dims.css.cell.width;
+  const cellHeight = dims.css.cell.height;
   const buf = term.buffer.active;
-  return {
-    x: buf.cursorX * dims.css.cell.width + offsetX,
-    y: buf.cursorY * dims.css.cell.height + offsetY,
-  };
+
+  el.style.transform = `translate3d(${offsetX}px,${buf.cursorY * cellHeight + offsetY}px,0)`;
+  el.style.textIndent = `${buf.cursorX * cellWidth}px`;
+  el.style.width = `${term.cols * cellWidth}px`;
+  el.style.lineHeight = `${cellHeight}px`;
+  return true;
 }
 
 /**
@@ -108,10 +114,7 @@ const GhostText = memo(function GhostText({
         const term = termRef.current;
         const el = overlayRef.current;
         if (term && el) {
-          const pos = getCursorPixelPos(term);
-          if (pos) {
-            el.style.transform = `translate3d(${pos.x}px,${pos.y}px,0)`;
-          }
+          applyGhostLayout(el, term);
           settledRef.current = true;
           el.style.opacity = '1';
         }
@@ -133,10 +136,7 @@ const GhostText = memo(function GhostText({
       const el = overlayRef.current;
       if (!el) return;
 
-      const pos = getCursorPixelPos(term);
-      if (!pos) return;
-
-      el.style.transform = `translate3d(${pos.x}px,${pos.y}px,0)`;
+      if (!applyGhostLayout(el, term)) return;
 
       // Clear the fallback timer — real cursor move arrived
       if (settleTimer.current) {
@@ -195,7 +195,8 @@ const GhostText = memo(function GhostText({
         whiteSpace: "pre",
         fontFamily: term?.options.fontFamily ?? "monospace",
         fontSize: term?.options.fontSize ?? 15,
-        lineHeight: "normal",
+        lineHeight: "nor-wrap",
+        wordBreak: "break-allmal",
         color: "rgba(255,255,255,0.30)",
         // Hidden until cursor settles after echo, then fades in (managed via DOM)
         opacity: 0,
