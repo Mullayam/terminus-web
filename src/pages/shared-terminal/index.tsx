@@ -35,6 +35,10 @@ const XTerminal = () => {
   const terminalRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const [permissions, setPermissions] = useState("400");
+  // Live ref so the xterm onData closure (bound once) always reads the
+  // current permission instead of the value captured at mount.
+  const permissionsRef = useRef(permissions);
+  useEffect(() => { permissionsRef.current = permissions; }, [permissions]);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const { socket } = useSockets()
   const { sessionid } = useParams();
@@ -110,7 +114,7 @@ const XTerminal = () => {
     }
 
     term.onData((input) => {
-      if (permissions === "400") {
+      if (permissionsRef.current === "400") {
         return toast({
           title: "Permission Denied",
           description: "You don't have permission to run this command",

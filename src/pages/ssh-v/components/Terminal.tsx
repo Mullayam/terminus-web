@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
 import "@xterm/xterm/css/xterm.css";
-import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, memo, type Dispatch, type SetStateAction, type RefObject } from "react";
 import { ChevronUp, ChevronDown, X, Search, Check } from "lucide-react";
 import { Terminal } from "@xterm/xterm";
 
@@ -41,6 +41,7 @@ import useAudio from "@/hooks/useAudio";
 import { XtermTheme, ThemeName } from "./themes";
 import { getAllCommandData } from "@/lib/context-engine/contextEngineStorage";
 import { useAIChatStore } from "@/store/aiChatStore";
+import { createTerminalInputStore, useTerminalInput, type TerminalInputStore, type TerminalInputSnapshot } from "./terminal2/inputStore";
 
 const SEARCH_DECORATIONS: ISearchOptions["decorations"] = {
   matchBackground: "#FFA50080",
@@ -50,6 +51,88 @@ const SEARCH_DECORATIONS: ISearchOptions["decorations"] = {
   activeMatchBorder: "#FFFFFF",
   activeMatchColorOverviewRuler: "#FF8C00",
 };
+
+/* ── Overlay bridges ─────────────────────────────
+ * These subscribe to the per-terminal input store so a keystroke re-renders
+ * only the overlay leaf, never the parent XTerminal (which owns the xterm
+ * canvas). The parent writes to the store but never subscribes to it.
+ */
+const GhostTextBridge = memo(function GhostTextBridge({
+  store,
+  termRef,
+  containerRef,
+  onAccept,
+}: {
+  store: TerminalInputStore;
+  termRef: RefObject<Terminal | null>;
+  containerRef: RefObject<HTMLDivElement | null>;
+  onAccept: (fullCommand: string) => void;
+}) {
+  const { buffer, suggestions } = useTerminalInput(store);
+  return (
+    <GhostText
+      termRef={termRef}
+      commandBuffer={buffer}
+      suggestions={suggestions}
+      onAccept={onAccept}
+      containerRef={containerRef}
+    />
+  );
+});
+
+const SuggestionBoxBridge = memo(function SuggestionBoxBridge({
+  store,
+  terminalRef,
+  setSuggestions,
+  hostKey,
+  sessionId,
+}: {
+  store: TerminalInputStore;
+  terminalRef: RefObject<HTMLDivElement | null>;
+  setSuggestions: Dispatch<SetStateAction<string[]>>;
+  hostKey: string;
+  sessionId: string;
+}) {
+  const { buffer, visible, pos, suggestions } = useTerminalInput(store);
+  return (
+    <AISuggestionBox
+      suggestionPos={pos}
+      isVisible={visible}
+      suggestions={suggestions}
+      terminalHeight={visible ? terminalRef.current?.offsetHeight || 600 : 600}
+      terminalWidth={visible ? terminalRef.current?.offsetWidth || 800 : 800}
+      setSuggestions={setSuggestions}
+      hostKey={hostKey}
+      commandBuffer={buffer}
+      sessionId={sessionId}
+    />
+  );
+});
+
+const CollabTypingBridge = memo(function CollabTypingBridge({
+  store,
+  socket,
+  termRef,
+  containerRef,
+  placeholderDisabled,
+}: {
+  store: TerminalInputStore;
+  socket: Socket;
+  termRef: RefObject<Terminal | null>;
+  containerRef: RefObject<HTMLDivElement | null>;
+  placeholderDisabled: boolean;
+}) {
+  const { buffer } = useTerminalInput(store);
+  return (
+    <CollabTypingIndicator
+      socket={socket}
+      termRef={termRef}
+      commandBuffer={buffer}
+      containerRef={containerRef}
+      placeholderDisabled={placeholderDisabled}
+    />
+  );
+});
 
 // https://github.com/xtermjs/xterm.js/blob/master/demo/client.ts
 const XTerminal = memo(function XTerminal({
@@ -91,9 +174,10 @@ const XTerminal = memo(function XTerminal({
   // Access logs/addLogLine directly — avoid subscribing to the whole store
   const addLogLine = useTerminalStore((s) => s.addLogLine);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const [isVisible, setIsVisible] = useState(false);
+  // Per-terminal input store — overlays subscribe; the parent only writes.
+  const inputStoreRef = useRef<TerminalInputStore | null>(null);
+  if (!inputStoreRef.current) inputStoreRef.current = createTerminalInputStore();
   const isVisibleRef = useRef(false);
-  useEffect(() => { isVisibleRef.current = isVisible; }, [isVisible]);
   const [showSearch, setShowSearch] = useState(false);
   const [showCopied, setShowCopied] = useState(false);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -104,7 +188,6 @@ const XTerminal = memo(function XTerminal({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchAddonRef = useRef<SearchAddon | null>(null);
   const allCommands = useCommandStore((s) => s.allCommands);
-  const [suggestionPos, setSuggestionPos] = useState({ top: 0, left: 0 });
   const [suggestions, setSuggestions] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem(`terminus-suggestions:${sessionHost ?? sessionId}`);
@@ -118,11 +201,14 @@ const XTerminal = memo(function XTerminal({
   useEffect(() => { suggestionsRef.current = suggestions; }, [suggestions]);
   const diagnosticsEnabledRef = useRef(diagnosticsEnabled);
   useEffect(() => { diagnosticsEnabledRef.current = diagnosticsEnabled; }, [diagnosticsEnabled]);
-  const [commandBuffer, setCommandBuffer] = useState<string>("");
   const commandBufferRef = useRef<string>("");
   const [isAltScreen, setIsAltScreen] = useState(false);
   const inputResyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastKeyAtRef = useRef(0);
+  // Cached xterm helper textarea — avoids re-querying + reflow on cursor move.
+  const helperTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  // Latest input-state pusher, kept in a ref so callbacks never go stale.
+  const pushInputStateRef = useRef<(opts?: { forceVisible?: boolean }) => void>(() => { });
   const command = useCommandStore((s) => s.command);
   const setCommand = useCommandStore((s) => s.setCommand);
   const addShellHistoryCommand = useCommandStore((s) => s.addShellHistoryCommand);
@@ -136,8 +222,7 @@ const XTerminal = memo(function XTerminal({
     if (remaining && termRef.current) {
       socket.emit(SocketEventConstants.SSH_EMIT_INPUT, remaining);
       commandBufferRef.current = fullCommand;
-      setCommandBuffer(fullCommand);
-      setIsVisible(false);
+      pushInputStateRef.current({ forceVisible: false });
     }
   }, [socket]);
 
@@ -151,19 +236,11 @@ const XTerminal = memo(function XTerminal({
       }
       socket.emit(SocketEventConstants.SSH_EMIT_INPUT, cmd);
       commandBufferRef.current = cmd;
-      setCommandBuffer(cmd);
-      setIsVisible(false);
+      pushInputStateRef.current({ forceVisible: false });
     }
   }, [socket]);
 
   const lastPromptPrefixRef = useRef('');
-
-  const filteredSuggestions = useMemo(() => {
-    const all = [...suggestions, ...ghostSourcesRef.current];
-    if (commandBuffer === "") return all;
-    return all.filter((command) => command.includes(commandBuffer));
-  }, [commandBuffer, suggestions, ghostSourcesVersion])
-
 
   const handleSearchNext = () => {
     const query = searchInputRef.current?.value || '';
@@ -235,7 +312,7 @@ const XTerminal = memo(function XTerminal({
       const input = readCurrentInput();
       if (input === null || input === commandBufferRef.current) return;
       commandBufferRef.current = input;
-      setCommandBuffer(input);
+      pushInputStateRef.current();
     }, 60);
   };
 
@@ -285,22 +362,52 @@ const XTerminal = memo(function XTerminal({
     }
   };
 
-  const updateSuggestionBox = () => {
-    const textarea = terminalRef.current?.querySelector(
-      ".xterm-helper-textarea"
-    ) as HTMLTextAreaElement | null;
-    const terminalRect = terminalRef.current?.getBoundingClientRect();
-
-    if (textarea && terminalRect) {
-      const left = parseFloat(textarea.style.left);
-      const top = parseFloat(textarea.style.top);
-
-      setSuggestionPos({
-        left: left,
-        top: top + 20,
-      });
+  // Reads the suggestion-box anchor from the xterm helper textarea. The
+  // textarea is cached so we don't re-query the DOM or force a layout reflow
+  // (getBoundingClientRect) on every cursor move.
+  const readSuggestionPos = (): { top: number; left: number } | null => {
+    let textarea = helperTextareaRef.current;
+    if (!textarea || !textarea.isConnected) {
+      textarea = terminalRef.current?.querySelector(
+        ".xterm-helper-textarea"
+      ) as HTMLTextAreaElement | null;
+      helperTextareaRef.current = textarea;
     }
+    if (!textarea) return null;
+    return {
+      left: parseFloat(textarea.style.left),
+      top: parseFloat(textarea.style.top) + 20,
+    };
   };
+
+  // Push current input state to the overlay store. Synchronous — so typing has
+  // no perceptible gap — and only the overlay bridges re-render, not the parent.
+  const pushInputState = (opts?: { forceVisible?: boolean }) => {
+    const store = inputStoreRef.current!;
+    const buffer = commandBufferRef.current;
+    const all = [...suggestionsRef.current, ...ghostSourcesRef.current];
+    const suggestions = buffer === "" ? all : all.filter((c) => c.includes(buffer));
+    const visible =
+      opts?.forceVisible ??
+      (buffer.trim() !== "" &&
+        suggestionsRef.current.some((c) => c.includes(buffer)));
+    isVisibleRef.current = visible;
+    const patch: Partial<TerminalInputSnapshot> = { buffer, visible, suggestions };
+    if (visible) {
+      const p = readSuggestionPos();
+      if (p) patch.pos = p;
+    }
+    store.set(patch);
+  };
+  pushInputStateRef.current = pushInputState;
+
+  // Cursor-move handler: only reposition while the box is actually visible.
+  const updateSuggestionBox = () => {
+    if (!isVisibleRef.current) return;
+    const p = readSuggestionPos();
+    if (p) inputStoreRef.current!.set({ pos: p });
+  };
+
   const handleFocus = () => {
     termRef.current?.focus();
   };
@@ -520,6 +627,11 @@ const XTerminal = memo(function XTerminal({
     } catch { /* quota exceeded — silently ignore */ }
   }, [suggestions, hostKey]);
 
+  // Keep overlay suggestions in sync when the suggestion pool changes.
+  useEffect(() => {
+    pushInputStateRef.current({ forceVisible: isVisibleRef.current });
+  }, [suggestions, ghostSourcesVersion]);
+
   // Sync diagnostics to the shared store so the status bar can read them
   useEffect(() => {
     if (diagnosticsEnabled) {
@@ -545,14 +657,13 @@ const XTerminal = memo(function XTerminal({
 
       if (domEvent.ctrlKey && domEvent.code === "Space") {
         domEvent.preventDefault();
-        setIsVisible(true)
+        pushInputStateRef.current({ forceVisible: true });
       }
 
       // Ctrl+C / Ctrl+D / Ctrl+Z → interrupt / EOF / suspend → clear buffer
       if (domEvent.ctrlKey && (domEvent.key === 'c' || domEvent.key === 'd' || domEvent.key === 'z')) {
         commandBufferRef.current = "";
-        setCommandBuffer("");
-        setIsVisible(false);
+        pushInputStateRef.current({ forceVisible: false });
         return;
       }
 
@@ -567,32 +678,21 @@ const XTerminal = memo(function XTerminal({
           addShellHistoryCommand(shellHistoryHost, trimmed);
         }
         commandBufferRef.current = "";
-        setCommandBuffer("");
-        setIsVisible(false);
+        pushInputStateRef.current({ forceVisible: false });
         return;
       }
 
       if (isBackspace) {
         lastKeyAtRef.current = Date.now();
-        const updated = commandBufferRef.current.slice(0, -1);
-        commandBufferRef.current = updated;
-        setCommandBuffer(updated);
-        setIsVisible(
-          updated.trim() !== "" &&
-          suggestionsRef.current.some((cmd) => cmd.includes(updated))
-        );
+        commandBufferRef.current = commandBufferRef.current.slice(0, -1);
+        pushInputStateRef.current();
         return;
       }
 
       if (isPrintable) {
         lastKeyAtRef.current = Date.now();
-        const updated = commandBufferRef.current + key;
-        commandBufferRef.current = updated;
-        setCommandBuffer(updated);
-        setIsVisible(
-          updated.trim() !== "" &&
-          suggestionsRef.current.some((cmd) => cmd.includes(updated))
-        );
+        commandBufferRef.current = commandBufferRef.current + key;
+        pushInputStateRef.current();
       }
     };
 
@@ -626,7 +726,7 @@ const XTerminal = memo(function XTerminal({
 
     // Paste only — write text into terminal without executing
     termRef.current?.input(toAppend);
-    setIsVisible(false);
+    pushInputStateRef.current({ forceVisible: false });
     setCommand("", "single");
     handleFocus();
   }, [command]);
@@ -733,25 +833,20 @@ const XTerminal = memo(function XTerminal({
 
       {/* Ghost text inline autocomplete (grey overlay at cursor) */}
       {autocomplete && !isAltScreen && (
-        <GhostText
+        <GhostTextBridge
+          store={inputStoreRef.current!}
           termRef={termRef}
-          commandBuffer={commandBuffer}
-          suggestions={filteredSuggestions}
-          onAccept={handleGhostAccept}
           containerRef={terminalRef}
+          onAccept={handleGhostAccept}
         />
       )}
 
       {autocomplete && suggestionBox && (
-        <AISuggestionBox
-          suggestionPos={suggestionPos}
-          isVisible={isVisible}
-          suggestions={filteredSuggestions}
-          terminalHeight={terminalRef.current?.offsetHeight || 600}
-          terminalWidth={terminalRef.current?.offsetWidth || 800}
+        <SuggestionBoxBridge
+          store={inputStoreRef.current!}
+          terminalRef={terminalRef}
           setSuggestions={setSuggestions}
           hostKey={hostKey}
-          commandBuffer={commandBuffer}
           sessionId={sessionId}
         />
       )}
@@ -788,10 +883,10 @@ const XTerminal = memo(function XTerminal({
 
       {/* Collab typing indicator — shown when a joiner is typing */}
       {/* Collab typing indicator + placeholder — self-contained, no parent re-render */}
-      <CollabTypingIndicator
+      <CollabTypingBridge
+        store={inputStoreRef.current!}
         socket={socket}
         termRef={termRef}
-        commandBuffer={commandBuffer}
         containerRef={terminalRef}
         placeholderDisabled={isAltScreen}
       />
