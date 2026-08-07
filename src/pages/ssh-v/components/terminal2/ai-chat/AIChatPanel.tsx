@@ -426,9 +426,11 @@ function AgentStepRow({
 function AgentAccordion({
   agentMessages,
   colors,
+  forceRunning = false,
 }: {
   agentMessages: AIChatMessage[];
   colors: Record<string, string>;
+  forceRunning?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   if (agentMessages.length === 0) return null;
@@ -436,7 +438,7 @@ function AgentAccordion({
   // Determine overall status from the last message
   const last = agentMessages[agentMessages.length - 1];
   const lastAction = last.agentAction ?? 'info';
-  const isRunning = lastAction === 'executing' || lastAction === 'waiting' || lastAction === 'replanning';
+  const isRunning = forceRunning || lastAction === 'executing' || lastAction === 'waiting' || lastAction === 'replanning';
   const isDone = lastAction === 'success';
   const isError = lastAction === 'error' || lastAction === 'blocked';
   const isStopped = lastAction === 'stopped';
@@ -451,12 +453,15 @@ function AgentAccordion({
           ? `${colors.foreground}60`
           : `${colors.foreground}80`;
 
-  // Summary label
+  // Summary label. Prefer the run-total stamped on the final message; fall back
+  // to this group's own executed-command count (each accordion is one segment of
+  // a run that may be split by interleaved assistant messages).
   const totalSteps = agentMessages.filter((m) => m.agentCommand).length;
+  const executedCount = last.agentTotalCommands ?? totalSteps;
   const label = isRunning
     ? `Agent working — step ${last.agentStep ?? '?'}`
     : isDone
-      ? `Agent completed — ${totalSteps} command${totalSteps !== 1 ? 's' : ''} executed`
+      ? `Agent completed — ${executedCount} command${executedCount !== 1 ? 's' : ''} executed`
       : isError
         ? `Agent error at step ${last.agentStep ?? '?'}`
         : isStopped
@@ -914,28 +919,53 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
           </div>
         )}
         {(() => {
-          // Group consecutive agent messages into accordions
+          // Group agent messages by run (agentRunId) into a single accordion,
+          // even when a run's steps are interleaved with assistant messages.
+          // The accordion renders at the run's LAST agent message, so the AI's
+          // inline text responses stay above the collapsed run summary.
           const elements: React.ReactNode[] = [];
-          let agentBuffer: AIChatMessage[] = [];
 
-          const flushAgents = () => {
-            if (agentBuffer.length > 0) {
-              elements.push(
-                <AgentAccordion
-                  key={`agent-group-${agentBuffer[0].id}`}
-                  agentMessages={agentBuffer}
-                  colors={colors as Record<string, string>}
-                />,
-              );
-              agentBuffer = [];
+          const runMsgs = new Map<string, AIChatMessage[]>();
+          const idToRun = new Map<number, string>();
+          let legacyKey = '';
+          let prevWasAgent = false;
+          for (const msg of messages) {
+            if (msg.role !== 'agent') { prevWasAgent = false; continue; }
+            // Messages without a runId fall back to contiguous grouping (legacy).
+            const key = msg.agentRunId
+              ? `run-${msg.agentRunId}`
+              : (prevWasAgent ? legacyKey : (legacyKey = `legacy-${msg.id}`));
+            prevWasAgent = true;
+            if (!runMsgs.has(key)) runMsgs.set(key, []);
+            runMsgs.get(key)!.push(msg);
+            idToRun.set(msg.id, key);
+          }
+          const lastIdOfRun = new Map<string, number>();
+          for (const [key, msgs] of runMsgs) lastIdOfRun.set(key, msgs[msgs.length - 1].id);
+
+          // The run holding the last agent message is the one still executing.
+          let activeRunKey: string | null = null;
+          if (agentStatus?.running) {
+            for (let i = messages.length - 1; i >= 0; i--) {
+              if (messages[i].role === 'agent') { activeRunKey = idToRun.get(messages[i].id) ?? null; break; }
             }
-          };
+          }
 
           for (const msg of messages) {
             if (msg.role === 'agent') {
-              agentBuffer.push(msg);
+              const key = idToRun.get(msg.id)!;
+              // Render the accordion once, at the run's last agent message.
+              if (lastIdOfRun.get(key) === msg.id) {
+                elements.push(
+                  <AgentAccordion
+                    key={`agent-${key}`}
+                    agentMessages={runMsgs.get(key)!}
+                    colors={colors as Record<string, string>}
+                    forceRunning={key === activeRunKey}
+                  />,
+                );
+              }
             } else {
-              flushAgents();
               elements.push(
                 <MessageBubble
                   key={msg.id}
@@ -948,7 +978,6 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
               );
             }
           }
-          flushAgents();
           return elements;
         })()}
         {loading && messages[messages.length - 1]?.role !== 'assistant' && (

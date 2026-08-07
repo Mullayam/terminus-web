@@ -32,6 +32,10 @@ export interface AIChatMessage {
   agentCommand?: string;
   /** Terminal output captured */
   agentOutput?: string;
+  /** Total commands executed across the whole agent run (set on the final message) */
+  agentTotalCommands?: number;
+  /** Groups every message from one agent run into a single accordion */
+  agentRunId?: string;
 }
 
 interface AIChatSession {
@@ -92,8 +96,8 @@ interface AIChatState {
   updateAssistantMessage: (sessionId: string, msgId: number, content: string) => void;
   appendAssistantContent: (sessionId: string, msgId: number, delta: string) => void;
   setMessageCommands: (sessionId: string, msgId: number, commands: string[]) => void;
-  addAgentMessage: (sessionId: string, content: string, meta?: Partial<Pick<AIChatMessage, 'agentAction' | 'agentStep' | 'agentMaxSteps' | 'agentCommand' | 'agentOutput'>>) => number;
-  updateAgentMessage: (sessionId: string, msgId: number, content: string, meta?: Partial<Pick<AIChatMessage, 'agentAction' | 'agentStep' | 'agentMaxSteps' | 'agentCommand' | 'agentOutput'>>) => void;
+  addAgentMessage: (sessionId: string, content: string, meta?: Partial<Pick<AIChatMessage, 'agentAction' | 'agentStep' | 'agentMaxSteps' | 'agentCommand' | 'agentOutput' | 'agentTotalCommands' | 'agentRunId'>>) => number;
+  updateAgentMessage: (sessionId: string, msgId: number, content: string, meta?: Partial<Pick<AIChatMessage, 'agentAction' | 'agentStep' | 'agentMaxSteps' | 'agentCommand' | 'agentOutput' | 'agentTotalCommands' | 'agentRunId'>>) => void;
   setGhostCommand: (sessionId: string, command: string) => void;
   clearGhostCommand: (sessionId: string) => void;
   setAutoExecute: (sessionId: string, enabled: boolean) => void;

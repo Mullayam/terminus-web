@@ -107,9 +107,12 @@ export function useAgentExecutor(sessionId: string) {
       const { updateAgentMessage } = state;
       const msgs = session.messages;
       const finalAction = aborted ? 'stopped' : 'success';
+      // Sweep the whole list: agent status bubbles are interleaved with assistant
+      // messages, so we must not stop at the first non-agent message (which would
+      // leave earlier steps stuck showing "Agent working").
       for (let i = msgs.length - 1; i >= 0; i--) {
         const m = msgs[i];
-        if (m.role !== 'agent') break;
+        if (m.role !== 'agent') continue;
         if (m.agentAction === 'executing' || m.agentAction === 'waiting' || m.agentAction === 'replanning') {
           updateAgentMessage(sessionId, m.id, m.content, { agentAction: finalAction as any });
         }
@@ -199,11 +202,12 @@ export function useAgentExecutor(sessionId: string) {
       abortRef.current = false;
 
       const { addAgentMessage, updateAgentMessage } = useAIChatStore.getState();
+      const runId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
       const postAgent = (
         content: string,
         action: AgentAction,
-        extra?: { step?: number; command?: string; output?: string },
+        extra?: { step?: number; command?: string; output?: string; total?: number },
       ) => {
         return addAgentMessage(sessionId, content, {
           agentAction: action,
@@ -211,6 +215,8 @@ export function useAgentExecutor(sessionId: string) {
           agentMaxSteps: maxSteps,
           agentCommand: extra?.command,
           agentOutput: extra?.output,
+          agentTotalCommands: extra?.total,
+          agentRunId: runId,
         });
       };
 
@@ -227,6 +233,7 @@ export function useAgentExecutor(sessionId: string) {
 
       let currentCommands = commands;
       let step = 1;
+      let commandsRun = 0;
 
       postAgent(
         `Starting auto-execute — ${commands.length} command${commands.length > 1 ? 's' : ''} (max ${maxSteps} steps)`,
@@ -265,6 +272,7 @@ export function useAgentExecutor(sessionId: string) {
 
             const execMsgId = postAgent('Executing command...', 'executing', { step, command: cmd });
             const prevLen = executeCommand(cmd);
+            commandsRun++;
             const output = await waitForOutput(prevLen, step * OUTPUT_SETTLE_EXTRA_MS);
             lastOutput = output;
 
@@ -282,7 +290,7 @@ export function useAgentExecutor(sessionId: string) {
           const hasError = detectError(lastOutput);
           if (!hasError) {
             updateStatus({ step, action: 'Completed successfully', lastResult: 'success', running: false });
-            postAgent('All commands completed successfully.', 'success', { step });
+            postAgent('All commands completed successfully.', 'success', { step, total: commandsRun });
             notifyIfHidden('Terminus AI Agent', `Commands completed successfully (step ${step}/${maxSteps}).`);
             break;
           }
@@ -347,11 +355,12 @@ export function useAgentExecutor(sessionId: string) {
       abortRef.current = false;
 
       const { addAgentMessage, updateAgentMessage } = useAIChatStore.getState();
+      const runId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
       const postAgent = (
         content: string,
         action: AgentAction,
-        extra?: { step?: number; command?: string; output?: string },
+        extra?: { step?: number; command?: string; output?: string; total?: number },
       ) => {
         return addAgentMessage(sessionId, content, {
           agentAction: action,
@@ -359,6 +368,8 @@ export function useAgentExecutor(sessionId: string) {
           agentMaxSteps: maxSteps,
           agentCommand: extra?.command,
           agentOutput: extra?.output,
+          agentTotalCommands: extra?.total,
+          agentRunId: runId,
         });
       };
 
@@ -375,13 +386,8 @@ export function useAgentExecutor(sessionId: string) {
 
       let step = 1;
       let lastExecutedCmd = '';
+      let commandsRun = 0;
       updateStatus({ step, action: 'Starting…', running: true, lastResult: 'running' });
-
-      postAgent(
-        `Starting step-by-step execution for: "${userTask.slice(0, 100)}${userTask.length > 100 ? '…' : ''}"`,
-        'info',
-        { step },
-      );
 
       // Send initial task with step-by-step system prompt
       // Show only the user task in chat, hide the system prompt
@@ -411,7 +417,7 @@ export function useAgentExecutor(sessionId: string) {
             postAgent(
               isBlocked ? 'Task blocked — AI needs your input.' : 'Task completed.',
               isBlocked ? 'error' : 'success',
-              { step },
+              { step, total: commandsRun },
             );
             notifyIfHidden('Terminus AI Agent', isBlocked ? 'Task blocked.' : 'Task completed.');
             break;
@@ -422,7 +428,7 @@ export function useAgentExecutor(sessionId: string) {
           if (cmds.length === 0) {
             // AI responded without a command — task is done or it's answering a question
             updateStatus({ step, action: 'Task completed', lastResult: 'success', running: false });
-            postAgent('Task completed.', 'success', { step });
+            postAgent('Task completed.', 'success', { step, total: commandsRun });
             notifyIfHidden('Terminus AI Agent', 'Task completed.');
             break;
           }
@@ -433,7 +439,7 @@ export function useAgentExecutor(sessionId: string) {
           // Detect duplicate command (AI suggesting the same thing again)
           if (cmd === lastExecutedCmd) {
             updateStatus({ step, action: 'Task completed', lastResult: 'success', running: false });
-            postAgent('Task completed (same command would repeat).', 'success', { step });
+            postAgent('Task completed (same command would repeat).', 'success', { step, total: commandsRun });
             break;
           }
 
@@ -456,11 +462,14 @@ export function useAgentExecutor(sessionId: string) {
 
           const prevLen = executeCommand(cmd);
           lastExecutedCmd = cmd;
+          commandsRun++;
           const output = await waitForOutput(prevLen, Math.min(step, 3) * OUTPUT_SETTLE_EXTRA_MS);
 
-          // Update agent bubble with captured output
+          // Update agent bubble with captured output. The command completed
+          // regardless of whether it produced output, so mark it 'success' —
+          // 'waiting' would keep the step spinning as "Agent working".
           updateAgentMessage(sessionId, execMsgId, output ? `Step ${step}: Command completed` : `Step ${step}: Command completed (no output)`, {
-            agentAction: output ? 'success' : 'waiting',
+            agentAction: 'success',
             agentStep: step,
             agentMaxSteps: maxSteps,
             agentCommand: cmd,
@@ -484,15 +493,11 @@ export function useAgentExecutor(sessionId: string) {
             break;
           }
 
-          // Feed real output back to AI and ask for next step
+          // Feed real output back to AI and ask for next step. Progress shows in
+          // the status bar only — no persistent bubble — so the run doesn't
+          // fragment into stuck "Agent working" accordions between steps.
           step++;
           updateStatus({ step, action: 'Reading output, planning next step…', lastResult: 'running' });
-
-          postAgent(
-            `Step ${step}: Sending output to AI for next step…`,
-            'replanning',
-            { step },
-          );
 
           const nextPrompt = `Here is the real output from the command \`${cmd}\`:\n\`\`\`\n${output.slice(0, 3000)}\n\`\`\`\n\nBased on this REAL output, what is the next command? ONE command in a bash code block. If the task is done, just say so with a summary (no commands needed).`;
 
