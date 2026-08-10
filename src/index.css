@@ -64,23 +64,28 @@ html {
     }
   }
 }
-.xterm {
-  /* Set scrollbar width for Webkit browsers */
+/* xterm scrolls its inner .xterm-viewport element, so target both. */
+.xterm,
+.xterm .xterm-viewport {
+  /* Firefox */
   scrollbar-width: thin;
   scrollbar-color: #535391 #1e1e1e; /* Thumb color, Track color */
 }
 
 /* Webkit-based browsers (e.g., Chrome, Safari) */
-.xterm::-webkit-scrollbar {
+.xterm::-webkit-scrollbar,
+.xterm .xterm-viewport::-webkit-scrollbar {
   border-radius: 2px;
   width: 8px; /* Adjust width as needed */
 }
 
-.xterm::-webkit-scrollbar-track {
+.xterm::-webkit-scrollbar-track,
+.xterm .xterm-viewport::-webkit-scrollbar-track {
   background: #1e1e1e; /* Track color */
 }
 
-.xterm::-webkit-scrollbar-thumb {
+.xterm::-webkit-scrollbar-thumb,
+.xterm .xterm-viewport::-webkit-scrollbar-thumb {
   background-color: #007acc; /* Thumb color */
   border-radius: 4px; /* Optional: makes the thumb rounded */
   border: 1px solid #1e1e1e; /* Optional: adds a border */
