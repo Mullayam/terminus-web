@@ -181,6 +181,9 @@ const XTerminal = memo(function XTerminal({
   // Mirrors the render gate below so key handling never blocks arrows when the
   // suggestion box is disabled in settings.
   const suggestBoxEnabledRef = useRef(false);
+  // True while autocomplete (ghost text OR box) is on — lets us skip all
+  // suggestion work when the whole feature is disabled.
+  const autocompleteEnabledRef = useRef(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showCopied, setShowCopied] = useState(false);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -196,6 +199,7 @@ const XTerminal = memo(function XTerminal({
   const showInlineAIRef = useRef(false);
   useEffect(() => { showInlineAIRef.current = showInlineAI; }, [showInlineAI]);
   useEffect(() => {
+    autocompleteEnabledRef.current = autocomplete;
     suggestBoxEnabledRef.current = autocomplete && suggestionBox;
     // Disabling the box must free arrow keys immediately, not on next keystroke.
     if (!suggestBoxEnabledRef.current) {
@@ -223,6 +227,9 @@ const XTerminal = memo(function XTerminal({
   const commandBufferRef = useRef<string>("");
   const [isAltScreen, setIsAltScreen] = useState(false);
   const inputResyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Coalesces overlay store updates to one per frame (off the keystroke path).
+  const inputRafRef = useRef<number | null>(null);
+  const pendingSnapshotRef = useRef<Partial<TerminalInputSnapshot> | null>(null);
   const lastKeyAtRef = useRef(0);
   // Cached xterm helper textarea — avoids re-querying + reflow on cursor move.
   const helperTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -476,7 +483,11 @@ const XTerminal = memo(function XTerminal({
   // Push current input state to the overlay store. Synchronous — so typing has
   // no perceptible gap — and only the overlay bridges re-render, not the parent.
   const pushInputState = (opts?: { forceVisible?: boolean }) => {
-    const store = inputStoreRef.current!;
+    // Feature fully off → do no suggestion work and keep arrow keys free.
+    if (!autocompleteEnabledRef.current) {
+      isVisibleRef.current = false;
+      return;
+    }
     const buffer = commandBufferRef.current;
     const all = [...suggestionsRef.current, ...ghostSourcesRef.current];
     const suggestions = buffer === "" ? all : all.filter((c) => c.includes(buffer));
@@ -493,7 +504,18 @@ const XTerminal = memo(function XTerminal({
       const p = readSuggestionPos();
       if (p) patch.pos = p;
     }
-    store.set(patch);
+    // Coalesce the overlay update to one per frame so the React overlays never
+    // re-render on the synchronous keystroke path — typing + xterm paint + the
+    // command send (onData) all stay unblocked.
+    pendingSnapshotRef.current = patch;
+    if (inputRafRef.current == null) {
+      inputRafRef.current = requestAnimationFrame(() => {
+        inputRafRef.current = null;
+        const snapshot = pendingSnapshotRef.current;
+        pendingSnapshotRef.current = null;
+        if (snapshot) inputStoreRef.current!.set(snapshot);
+      });
+    }
   };
   pushInputStateRef.current = pushInputState;
 
@@ -550,13 +572,13 @@ const XTerminal = memo(function XTerminal({
 
     new LigaturesAddon().activate(term);
 
-    // Block arrow keys from reaching xterm while suggestion box is open
-    term.attachCustomKeyEventHandler((e) => {
-      if (isVisibleRef.current && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-        return false; // prevent xterm from sending escape sequences to shell
-      }
-      return true;
-    });
+    // Arrow Up/Down kept free for shell history — box no longer blocks them.
+    // term.attachCustomKeyEventHandler((e) => {
+    //   if (isVisibleRef.current && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+    //     return false; // prevent xterm from sending escape sequences to shell
+    //   }
+    //   return true;
+    // });
 
     // Track alternate-screen switches (vim/htop/less/tmux) so the empty-line
     // placeholder and ghost text stay hidden inside full-screen apps.
@@ -814,6 +836,7 @@ const XTerminal = memo(function XTerminal({
       el.removeEventListener("mousedown", handleRightMouseDown);
       el.removeEventListener("mouseup", handleMouseUp);
       if (inputResyncTimerRef.current) clearTimeout(inputResyncTimerRef.current);
+      if (inputRafRef.current != null) cancelAnimationFrame(inputRafRef.current);
       if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
     };
   }, []);

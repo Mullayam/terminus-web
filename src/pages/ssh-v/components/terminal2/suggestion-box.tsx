@@ -203,13 +203,15 @@ const AISuggestionBox: React.FC<SuggestionBoxProps> = ({ terminalHeight, setSugg
   useEffect(() => {
     if (!isVisible) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setActiveIndex((i) => (i + 1) % suggestions.length);
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setActiveIndex((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
-      } else if (e.key === "Tab" && activeIndex >= 0 && activeIndex < suggestions.length) {
+      // Arrow Up/Down are NOT handled here — kept free for shell history.
+      // if (e.key === "ArrowDown") {
+      //   e.preventDefault();
+      //   setActiveIndex((i) => (i + 1) % suggestions.length);
+      // } else if (e.key === "ArrowUp") {
+      //   e.preventDefault();
+      //   setActiveIndex((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
+      // } else
+      if (e.key === "Tab" && activeIndex >= 0 && activeIndex < suggestions.length) {
         e.preventDefault();
         e.stopPropagation();
         setCommand(suggestions[activeIndex], "single");
