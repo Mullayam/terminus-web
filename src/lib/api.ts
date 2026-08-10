@@ -3,31 +3,51 @@ import { __config } from "./config";
 const API_URL = __config.API_URL + "/api/upload";
 export class ApiCore {
 
-    static async uploadFile(file: File & { path?: string } | Array<File & { path?: string }>, path: string, sessionId?: string) {
+    /**
+     * Upload to the SFTP session behind `sftpSessionId` (must match the /sftp
+     * socket handshake id so progress routes back to that panel).
+     *  - single File / archive (.zip/.tar.gz/.tgz/.gz) → `file`
+     *  - folder / multi-file (array)                    → `files` + `paths`
+     * `name` doubles as the cancel key (@@CANCEL_UPLOADING).
+     */
+    static async uploadFile(
+        file: (File & { path?: string }) | Array<File & { path?: string }>,
+        path: string,
+        sftpSessionId?: string,
+        name?: string,
+    ) {
         const formData = new FormData();
-        if (Array.isArray(file)) {
-            file.forEach((f, index) => {
-                formData.append(`file[${index}]`, f);
-                // Send each file's relative path so the server can
-                // reconstruct nested directories (e.g. test/test2/test.sh)
-                const relativePath = f.path || (f as any).webkitRelativePath || '';
-                if (relativePath) {
-                    formData.append(`relativePath[${index}]`, relativePath);
-                }
-            });
+        // Unwrap a single, non-nested item so the server treats it as `file`
+        // (single-file streaming + archive extraction). Real folders or
+        // multi-selections use files[] with a matching JSON `paths` array.
+        const arr = Array.isArray(file) ? file : null;
+        const singleNonNested =
+            !!arr &&
+            arr.length === 1 &&
+            !(arr[0].path || (arr[0] as any).webkitRelativePath || "").includes("/");
+        const single = !arr ? file : singleNonNested ? arr[0] : null;
+
+        if (single) {
+            formData.append("file", single); // single file or archive
         } else {
-            formData.append("file", file); // Append a single file
+            // Folder upload: files[] plus a JSON array of relative paths (same order)
+            const paths: string[] = [];
+            arr!.forEach((f) => {
+                formData.append("files", f);
+                paths.push(f.path || (f as any).webkitRelativePath || f.name);
+            });
+            formData.append("paths", JSON.stringify(paths));
         }
         formData.append("path", path);
-        // The server requires a session identifier to know which SFTP
-        // connection to upload into ("sftpSessionId or sessionId is required").
-        if (sessionId) {
-            formData.append("sessionId", sessionId);
-        }
+
+        const label = name || (single ? single.name : `${arr?.length ?? 0} items`);
+        if (label) formData.append("name", label);
+
+        if (sftpSessionId) formData.append("sftpSessionId", sftpSessionId);
 
         const url = new URL(API_URL);
-        if (sessionId) {
-            url.searchParams.set("sessionId", sessionId);
+        if (sftpSessionId) {
+            url.searchParams.set("sftpSessionId", sftpSessionId);
         }
 
         const response = await fetch(url.toString(), {

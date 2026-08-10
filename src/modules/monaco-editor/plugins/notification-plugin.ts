@@ -35,6 +35,8 @@ export const NOTIFICATION_EVENTS = {
   UPDATE: "@@EDITOR_NOTIFICATION_UPDATE",
   /** Server → Client: dismiss a notification */
   DISMISS: "@@EDITOR_NOTIFICATION_DISMISS",
+  /** Client → Server: a notification action button was clicked */
+  ACTION: "@@EDITOR_NOTIFICATION_ACTION",
 } as const;
 
 /* ── Backend payload types ─────────────────────────────────── */
@@ -155,7 +157,7 @@ function handleShowNotification(payload: BackendNotification) {
       primary: a.primary,
       onClick: () => {
         // Emit action back to server
-        _socket?.emit("@@EDITOR_NOTIFICATION_ACTION", {
+        _socket?.emit(NOTIFICATION_EVENTS.ACTION, {
           notificationId: payload.id,
           actionId: a.id,
         });

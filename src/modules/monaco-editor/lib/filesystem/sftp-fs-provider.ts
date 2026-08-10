@@ -75,7 +75,7 @@ export class SftpFileSystemProvider implements FileSystemProvider {
 
         // Create dedicated socket
         const s = io(`${__config.API_URL}/sftp`, {
-            query: { sessionId: this.opts.sessionId },
+            query: { sessionId: this.opts.sessionId, sftpSessionId: this.opts.sessionId },
             autoConnect: true,
             forceNew: true,
             multiplex: false,

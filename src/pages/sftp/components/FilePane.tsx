@@ -8,6 +8,7 @@ import {
   Filter,
   FolderCode,
   HomeIcon,
+  Loader2,
   MoreVertical,
   RefreshCwIcon,
   Upload,
@@ -43,6 +44,67 @@ import type { RootObject } from "./FileList";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 
+type DroppedFile = File & { path?: string };
+
+/**
+ * Reads everything from a drop, expanding dropped folders recursively via the
+ * webkitGetAsEntry API so nested files keep their relative path (folder upload).
+ * Falls back to the flat file list when the entries API is unavailable.
+ */
+async function readDroppedFiles(dataTransfer: DataTransfer): Promise<DroppedFile[]> {
+  const items = dataTransfer.items;
+  // Entries must be captured synchronously while the drop event is still live.
+  const entries: any[] = [];
+  if (items && items.length) {
+    for (let i = 0; i < items.length; i++) {
+      const entry = (items[i] as any).webkitGetAsEntry?.();
+      if (entry) entries.push(entry);
+    }
+  }
+  if (!entries.length) {
+    return Array.from(dataTransfer.files ?? []) as DroppedFile[];
+  }
+
+  const out: DroppedFile[] = [];
+  const walk = (entry: any): Promise<void> =>
+    new Promise((resolve) => {
+      if (entry.isFile) {
+        entry.file(
+          (file: File) => {
+            const withPath = file as DroppedFile;
+            withPath.path = (entry.fullPath || file.name).replace(/^\//, "");
+            out.push(withPath);
+            resolve();
+          },
+          () => resolve(),
+        );
+      } else if (entry.isDirectory) {
+        const reader = entry.createReader();
+        const pending: Promise<void>[] = [];
+        const readBatch = () => {
+          // readEntries returns at most 100 entries per call — loop until empty.
+          reader.readEntries(
+            (batch: any[]) => {
+              if (!batch.length) {
+                Promise.all(pending).then(() => resolve());
+                return;
+              }
+              for (const child of batch) pending.push(walk(child));
+              readBatch();
+            },
+            () => resolve(),
+          );
+        };
+        readBatch();
+      } else {
+        resolve();
+      }
+    });
+
+  await Promise.all(entries.map((entry) => walk(entry)));
+  return out;
+}
+
 export function FilePane({
   title,
   files,
@@ -68,6 +130,7 @@ export function FilePane({
   const [sessionClosed, setSessionClosed] = useState(false);
   const [fileUploadProgress, setFileUploadProgress] =
     useState<DownloadProgressType | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
   const [treeCollapsed, setTreeCollapsed] = useState(false);
   const [treeStats, setTreeStats] = useState<RootObject | null>(null);
   const [newItemDialog, setNewItemDialog] = useState<{ open: boolean; type: "file" | "folder" }>({ open: false, type: "file" });
@@ -359,34 +422,73 @@ export function FilePane({
       files.filter((file: SFTP_FILES_LIST) => !file.name.startsWith(".")),
     );
   };
-  const handleDragOver = (e: any) => {
+  // Track nested drag enter/leave so the overlay doesn't flicker when the
+  // pointer moves between child rows/cells (dragenter/dragleave fire per node).
+  const dragCounterRef = useRef(0);
+
+  const handleDragEnter = (e: any) => {
     e.preventDefault();
+    e.stopPropagation();
+    // Ignore drags that aren't files (e.g. text selection, internal elements)
+    if (!e.dataTransfer?.types?.includes("Files")) return;
+    dragCounterRef.current += 1;
     setDragOver(true);
   };
 
-  const handleDragLeave = () => {
-    setDragOver(false);
+  const handleDragOver = (e: any) => {
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
   };
 
-  const handleDrop = (e: any) => {
+  const handleDragLeave = (e: any) => {
     e.preventDefault();
-    setDragOver(false);
-    const file = e.dataTransfer.files[0];
+    e.stopPropagation();
+    if (!e.dataTransfer?.types?.includes("Files")) return;
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setDragOver(false);
+    }
+  };
 
-    if (file) {
-      setUploadFileName(file.name);
-      startUpload(file);
+  const handleDrop = async (e: any) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setDragOver(false);
+
+    const dataTransfer = e.dataTransfer;
+    if (!dataTransfer) return;
+
+    const collected = await readDroppedFiles(dataTransfer);
+    if (collected.length === 0) return;
+
+    // A single loose file keeps the simple single-upload path; anything with a
+    // nested path (folder) or multiple files goes through the batch uploader.
+    if (collected.length === 1 && !collected[0].path?.includes("/")) {
+      startUpload(collected[0]);
+    } else {
+      startUpload(collected);
     }
   };
 
   const startUpload = async (file: any) => {
+    const label = Array.isArray(file)
+      ? file.length === 1
+        ? file[0].name
+        : `${file.length} items`
+      : file?.name;
+    setUploadFileName(label);
     try {
-      const data = await ApiCore.uploadFile(file, path, tabId);
+      const data = await ApiCore.uploadFile(file, path, tabId, label);
       if (!data.status) {
         throw new Error(data.message);
       }
       setOpen(false);
     } catch (error: any) {
+      setUploadFileName(null);
+      setFileUploadProgress(null);
+      setIsExtracting(false);
       toast({
         variant: "destructive",
         title: "Error",
@@ -425,13 +527,18 @@ export function FilePane({
   useEffect(() => {
     if (!socket) return;
     const onUploadProgress = (data: DownloadProgressType) => {
+      setIsExtracting(false);
       setFileUploadProgress(data);
+    };
+    const onExtracting = () => {
+      setIsExtracting(true);
     };
     const onFileUploaded = () => {
       setUploadFileName(null);
       setFileUploadProgress(null);
+      setIsExtracting(false);
     };
-    socket.on(SocketEventConstants.SFTP_READY, () => {
+    const onSftpReady = () => {
       if (tabId) {
         updateSession(tabId, {
           isConnected: true,
@@ -439,13 +546,8 @@ export function FilePane({
           error: undefined,
         });
       }
-    });
-    socket.on(SocketEventConstants.STARTING, onUploadProgress);
-    socket.on(SocketEventConstants.PREPARING, onUploadProgress);
-    socket.on(SocketEventConstants.COMPRESSING, onUploadProgress);
-    socket.on(SocketEventConstants.FILE_UPLOADED_PROGRESS, onUploadProgress);
-    socket.on(SocketEventConstants.FILE_UPLOADED, onFileUploaded);
-    socket.on(SocketEventConstants.SFTP_ENDED, (mesage: string) => {
+    };
+    const onSftpEnded = (mesage: string) => {
       toast({
         title: "SFTP Session Ended",
         description: mesage,
@@ -458,22 +560,29 @@ export function FilePane({
           error: "Session Ended",
         });
       }
-    });
+    };
+    socket.on(SocketEventConstants.SFTP_READY, onSftpReady);
+    socket.on(SocketEventConstants.EXTRACTING, onExtracting);
+    socket.on(SocketEventConstants.FILE_UPLOADED_PROGRESS, onUploadProgress);
+    socket.on(SocketEventConstants.FILE_UPLOADED, onFileUploaded);
+    socket.on(SocketEventConstants.SFTP_ENDED, onSftpEnded);
     setFilteredFiles(
       showHiddenFiles
         ? files
         : files.filter((file: SFTP_FILES_LIST) => !file.name.startsWith(".")),
     );
-    setTimeout(() => files.length > 0 && handleSetLoading(false), 1000);
+    const loadingTimer = setTimeout(
+      () => files.length > 0 && handleSetLoading(false),
+      1000,
+    );
 
     return () => {
-      socket.off(SocketEventConstants.STARTING, onUploadProgress);
-      socket.off(SocketEventConstants.PREPARING, onUploadProgress);
-      socket.off(SocketEventConstants.COMPRESSING, onUploadProgress);
+      clearTimeout(loadingTimer);
+      socket.off(SocketEventConstants.EXTRACTING, onExtracting);
       socket.off(SocketEventConstants.FILE_UPLOADED_PROGRESS, onUploadProgress);
       socket.off(SocketEventConstants.FILE_UPLOADED, onFileUploaded);
-      socket.off(SocketEventConstants.SFTP_ENDED);
-      socket.off(SocketEventConstants.SFTP_READY);
+      socket.off(SocketEventConstants.SFTP_ENDED, onSftpEnded);
+      socket.off(SocketEventConstants.SFTP_READY, onSftpReady);
     };
   }, [files, handleSetLoading, socket, showHiddenFiles]);
 
@@ -516,6 +625,7 @@ export function FilePane({
           <ResizablePanel defaultSize={80}>
             <div
               className="flex flex-col h-full"
+              onDragEnter={handleDragEnter}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
@@ -655,14 +765,8 @@ export function FilePane({
                 )}
                 {dragOver && (
                   <div
-                    className={`absolute inset-0 border-2 border-dashed rounded-lg p-8  opacity-95 bg-black flex items-center justify-center transition-all duration-200 ease-in-out`}
+                    className={`absolute inset-0 z-20 border-2 border-dashed rounded-lg p-8 opacity-95 bg-black flex items-center justify-center transition-all duration-200 ease-in-out pointer-events-none`}
                   >
-                    <input
-                      type="file"
-                      multiple
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    />
-
                     <div className="text-center">
                       <Upload className="mx-auto h-12 w-12 text-gray-400" />
                       <p className="mt-2 text-gray-200 font-semibold">
@@ -676,15 +780,22 @@ export function FilePane({
                 )}
               </ScrollArea>
 
+              {isExtracting && (
+                <div className="fixed bottom-5 right-4 z-[1000] flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-gray-800/95 px-4 py-3 shadow-xl">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                  <span className="text-sm text-gray-900 dark:text-white">Extracting archive…</span>
+                </div>
+              )}
+
               {uploadFileName && fileUploadProgress && (
                 <ShowProgressBar
                   index={1}
                   download={fileUploadProgress}
                   onCancel={() => {
-                    socket?.emit(SocketEventConstants.CANCEL_UPLOADING, {
-                      fileName: uploadFileName,
-                    });
+                    socket?.emit(SocketEventConstants.CANCEL_UPLOADING, uploadFileName);
                     setUploadFileName(null);
+                    setFileUploadProgress(null);
+                    setIsExtracting(false);
                   }}
                 />
               )}

@@ -20,7 +20,10 @@ export default function PathBreadcrumb({
     const [tempPath, setTempPath] = useState(currentPath);
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
+    // Index of the highlighted suggestion during keyboard navigation (-1 = none)
+    const [activeIndex, setActiveIndex] = useState(-1);
     const inputRef = useRef<HTMLInputElement>(null);
+    const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
 
     const splitedPath = currentPath.split('/').filter(Boolean);
 
@@ -43,6 +46,18 @@ export default function PathBreadcrumb({
             debouncedFetchSuggestions(tempPath);
         }
     }, [tempPath, editMode]);
+
+    // Reset the highlight whenever the suggestion list changes
+    useEffect(() => {
+        setActiveIndex(-1);
+    }, [suggestions]);
+
+    // Keep the highlighted suggestion visible while navigating with the keyboard
+    useEffect(() => {
+        if (activeIndex >= 0) {
+            itemRefs.current[activeIndex]?.scrollIntoView({ block: 'nearest' });
+        }
+    }, [activeIndex]);
 
     const handleDoubleClick = () => {
         setTempPath(currentPath);
@@ -69,11 +84,24 @@ export default function PathBreadcrumb({
     };
 
     const handleInputKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter') {
+        const hasSuggestions = showSuggestions && suggestions.length > 0;
+
+        if (e.key === 'ArrowDown' && hasSuggestions) {
             e.preventDefault();
-            handleSetCurrentDir(tempPath);
+            setActiveIndex((i) => (i + 1) % suggestions.length);
+        } else if (e.key === 'ArrowUp' && hasSuggestions) {
+            e.preventDefault();
+            setActiveIndex((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            const target = activeIndex >= 0 ? suggestions[activeIndex] : tempPath;
+            handleSetCurrentDir(target);
             setEditMode(false);
             setShowSuggestions(false);
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            setShowSuggestions(false);
+            setActiveIndex(-1);
         }
     };
 
@@ -126,13 +154,17 @@ export default function PathBreadcrumb({
 
             {/* Autocomplete Suggestions */}
             {editMode && showSuggestions && suggestions.length > 0 && (
-                <div className="absolute z-50 mt-1 w-96    bg-[#1a1b26] border border-[#2c2d3c] rounded-lg text-green-400  p-2  max-h-60 overflow-y-auto">
-                    {suggestions.map((suggestion) => (
+                <div className="scrollbar-green absolute z-50 mt-1 w-96 bg-[#1a1b26] border border-[#2c2d3c] rounded-lg text-green-400 p-2 max-h-60 overflow-y-auto">
+                    {suggestions.map((suggestion, index) => (
                         <div
                             key={suggestion}
+                            ref={(el) => (itemRefs.current[index] = el)}
                             onClick={() => handleSuggestionClick(suggestion)}
-                            className="group flex justify-between items-center font-mono whitespace-nowrap overflow-hidden hover:bg-[#2a2b36] px-2 py-1 rounded text-xs transition-colors duration-150 border-b border-[#2a2b36] last:border-b-0 text-green-400 hover:text-green-300 cursor-pointer"
-
+                            onMouseEnter={() => setActiveIndex(index)}
+                            className={`group flex justify-between items-center font-mono whitespace-nowrap overflow-hidden px-2 py-1 rounded text-xs transition-colors duration-150 border-b border-[#2a2b36] last:border-b-0 cursor-pointer ${index === activeIndex
+                                ? 'bg-[#2a2b36] text-green-300'
+                                : 'text-green-400 hover:bg-[#2a2b36] hover:text-green-300'
+                                }`}
                         >
                             {suggestion}
                         </div>

@@ -241,7 +241,7 @@ const AISuggestionBox: React.FC<SuggestionBoxProps> = ({ terminalHeight, setSugg
     setSuggestions((prev) => {
       const updated = prev.filter((s) => s !== command);
       if (hostKey) {
-        try { localStorage.setItem(`terminus-suggestions:${hostKey}`, JSON.stringify(updated)); } catch { /* ignore */ }
+        try { localStorage.setItem(hostKey, JSON.stringify(updated)); } catch { /* ignore */ }
       }
       return updated;
     });

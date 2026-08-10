@@ -181,6 +181,14 @@ const XTerminal = memo(function XTerminal({
   const [showSearch, setShowSearch] = useState(false);
   const [showCopied, setShowCopied] = useState(false);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tracks an in-progress right-button drag (used to distinguish select vs paste)
+  const rightDragRef = useRef<{
+    startX: number;
+    startY: number;
+    startCell: { col: number; row: number } | null;
+    t: number;
+    dragged: boolean;
+  } | null>(null);
   const [showInlineAI, setShowInlineAI] = useState(false);
   const showInlineAIRef = useRef(false);
   useEffect(() => { showInlineAIRef.current = showInlineAI; }, [showInlineAI]);
@@ -349,17 +357,91 @@ const XTerminal = memo(function XTerminal({
     copiedTimerRef.current = setTimeout(() => setShowCopied(false), 1200);
   };
 
-  // Right-click pastes whatever is on the clipboard.
-  const handleContextMenu = async (e: MouseEvent) => {
-    e.preventDefault();
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text) {
-        termRef.current?.paste(text);
-      }
-    } catch (err) {
-      // clipboard read can be blocked; ignore
+  // ── Right button: drag to select, plain click to paste ──
+  // xterm only drag-selects with the left button, so right-drag selection is
+  // implemented manually; a simple click (no drag) pastes instead.
+  const getCellFromEvent = (e: MouseEvent): { col: number; row: number } | null => {
+    const term = termRef.current;
+    const dims = (term as any)?._core?._renderService?.dimensions;
+    const screen = term?.element?.querySelector(".xterm-screen") as HTMLElement | null;
+    if (!term || !dims || !screen) return null;
+    const rect = screen.getBoundingClientRect();
+    const cellW = dims.css.cell.width || 1;
+    const cellH = dims.css.cell.height || 1;
+    const col = Math.max(0, Math.min(term.cols - 1, Math.floor((e.clientX - rect.left) / cellW)));
+    const row = Math.max(0, Math.min(term.rows - 1, Math.floor((e.clientY - rect.top) / cellH)));
+    return { col, row };
+  };
+
+  const selectRightDragRange = (start: { col: number; row: number }, end: { col: number; row: number }) => {
+    const term = termRef.current;
+    if (!term) return;
+    const cols = term.cols;
+    const top = term.buffer.active.viewportY;
+    let a = (top + start.row) * cols + start.col;
+    let b = (top + end.row) * cols + end.col;
+    if (b < a) [a, b] = [b, a];
+    const selRow = Math.floor(a / cols);
+    term.select(a - selRow * cols, selRow, b - a + 1);
+  };
+
+  const handleRightMouseMove = (e: MouseEvent) => {
+    const st = rightDragRef.current;
+    if (!st) return;
+    if (!st.dragged && (Math.abs(e.clientX - st.startX) > 4 || Math.abs(e.clientY - st.startY) > 4)) {
+      st.dragged = true;
     }
+    if (st.dragged && st.startCell) {
+      const cell = getCellFromEvent(e);
+      if (cell) selectRightDragRange(st.startCell, cell);
+      e.preventDefault();
+    }
+  };
+
+  const handleRightMouseUp = async (e: MouseEvent) => {
+    const st = rightDragRef.current;
+    rightDragRef.current = null;
+    window.removeEventListener("mousemove", handleRightMouseMove, true);
+    window.removeEventListener("mouseup", handleRightMouseUp, true);
+    if (!st || e.button !== 2) return;
+
+    if (st.dragged) {
+      // Selection gesture — copy and keep the highlight visible
+      const selection = termRef.current?.getSelection()?.trim();
+      if (selection) {
+        try { await navigator.clipboard.writeText(selection); } catch { /* clipboard blocked */ }
+        setShowCopied(true);
+        if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+        copiedTimerRef.current = setTimeout(() => setShowCopied(false), 1200);
+      }
+      return;
+    }
+
+    // Simple click (no drag) within the click window → paste
+    if (Date.now() - st.t < 400) {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) termRef.current?.paste(text);
+      } catch { /* clipboard blocked */ }
+    }
+  };
+
+  const handleRightMouseDown = (e: MouseEvent) => {
+    if (e.button !== 2) return;
+    rightDragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startCell: getCellFromEvent(e),
+      t: Date.now(),
+      dragged: false,
+    };
+    window.addEventListener("mousemove", handleRightMouseMove, true);
+    window.addEventListener("mouseup", handleRightMouseUp, true);
+  };
+
+  // Suppress the native context menu; right-click paste/select runs on mouse up.
+  const handleContextMenu = (e: MouseEvent) => {
+    e.preventDefault();
   };
 
   // Reads the suggestion-box anchor from the xterm helper textarea. The
@@ -705,6 +787,7 @@ const XTerminal = memo(function XTerminal({
     const disposeTitle = termRef.current?.onTitleChange((title) => document.title = `Terminal: ${title}`);
     const el = terminalRef.current!;
     el.addEventListener("contextmenu", handleContextMenu);
+    el.addEventListener("mousedown", handleRightMouseDown);
     el.addEventListener("mouseup", handleMouseUp);
     window.addEventListener('keydown', handleKeyDown);
     return () => {
@@ -714,6 +797,7 @@ const XTerminal = memo(function XTerminal({
       disposeTitle?.dispose?.();
       window.removeEventListener('keydown', handleKeyDown);
       el.removeEventListener("contextmenu", handleContextMenu);
+      el.removeEventListener("mousedown", handleRightMouseDown);
       el.removeEventListener("mouseup", handleMouseUp);
       if (inputResyncTimerRef.current) clearTimeout(inputResyncTimerRef.current);
       if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);

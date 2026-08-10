@@ -42,6 +42,8 @@ export default function EnhancedFileUploadPopup({ open, startUpload, setOpen, fi
       const fileArray = Array.from(files) as FileWithPath[]
       setFiles(prevItems => [...prevItems, ...fileArray])
     }
+    // Reset so selecting the same file/folder again still fires onChange
+    event.target.value = ''
   }
 
   return (
@@ -63,17 +65,37 @@ export default function EnhancedFileUploadPopup({ open, startUpload, setOpen, fi
             <input {...getInputProps()}
               multiple />
             <Upload className="mx-auto h-12 w-12 text-gray-400" />
-            <p className="mt-2 text-sm text-gray-500">Drag &apos;n&apos; drop some files/folder here </p>
-            <Button
-              variant="ghost"
-              className="bg-primary hover:bg-primary/90"
-              onClick={() => document.getElementById('fileInput')?.click()}
-            >
-              Select Files
-            </Button>
+            <p className="mt-2 text-sm text-gray-500">Drag &apos;n&apos; drop files or a folder here</p>
+            <div className="mt-3 flex items-center justify-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                className="bg-primary hover:bg-primary/90"
+                onClick={(e) => { e.stopPropagation(); document.getElementById('fileInput')?.click(); }}
+              >
+                Select Files
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="bg-primary hover:bg-primary/90"
+                onClick={(e) => { e.stopPropagation(); document.getElementById('folderInput')?.click(); }}
+              >
+                Select Folder
+              </Button>
+            </div>
+            {/* Any file type — documents, images, archives (.zip, .tar, .gz, …) */}
             <input
               type="file"
               id="fileInput"
+              className="hidden"
+              onChange={handleFileInputChange}
+              multiple
+            />
+            {/* Whole-folder upload — preserves nested relative paths */}
+            <input
+              type="file"
+              id="folderInput"
               className="hidden"
               onChange={handleFileInputChange}
               {...({ webkitdirectory: true } as unknown as React.InputHTMLAttributes<HTMLInputElement>)}

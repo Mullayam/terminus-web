@@ -733,7 +733,8 @@ export function FileList({
       });
     } else if (type === "move") {
       socket?.emit(SocketEventConstants.SFTP_MOVE_FILE, {
-        folderPath: fullPath,
+        oldPath: fullPath,
+        newPath: newPath,
       });
     } else if (type === "rename") {
       const payload = {

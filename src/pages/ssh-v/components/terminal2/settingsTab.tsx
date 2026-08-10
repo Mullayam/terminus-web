@@ -1,5 +1,5 @@
 
-import { AlertCircle, Palette, Save, Type } from 'lucide-react';
+import { AlertCircle, Palette, RotateCcw, Save, Type } from 'lucide-react';
 import { useTabStore } from '@/store/rightSidebarTabStore';
 import { XtermTheme, ThemeName, themeNames } from '@/pages/ssh-v/components/themes';
 import { useSSHStore } from '@/store/sshStore';
@@ -53,12 +53,40 @@ export default function SettingsTab() {
     updateSettings({ [key]: !settings[key] });
   };
 
+  // Reset theme, colors, font and all behavior toggles back to defaults
+  const handleReset = () => {
+    if (activeTabId) {
+      setSessionTheme(activeTabId, 'custom');
+      setSessionFont(activeTabId, { fontSize: 15, fontWeight: '400', fontWeightBold: '700' });
+    }
+    updateSettings({
+      theme: 'custom',
+      notifications: true,
+      autoSave: true,
+      autocomplete: true,
+      suggestionBox: true,
+      diagnostics: false,
+      fontSize: 'medium',
+    });
+  };
+
   return (
     <div className="space-y-6 px-2" style={{ color: `${colors.foreground}dd` }}>
       {/* Header */}
-      <div>
-        <h3 className="text-lg font-semibold" style={{ color: colors.foreground }}>Dummy Settings</h3>
-        <p className="text-sm" style={{ color: `${colors.foreground}80` }}>Customize your experience</p>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h3 className="text-lg font-semibold" style={{ color: colors.foreground }}>Settings</h3>
+          <p className="text-sm" style={{ color: `${colors.foreground}80` }}>Customize your experience</p>
+        </div>
+        <button
+          onClick={handleReset}
+          title="Reset theme, colors, font, autocomplete & suggestions to defaults"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs transition-colors shrink-0 hover:opacity-80"
+          style={{ borderColor: `${colors.foreground}30`, color: colors.foreground, backgroundColor: `${colors.foreground}10` }}
+        >
+          <RotateCcw size={14} />
+          Reset
+        </button>
       </div>
 
       {/* Appearance */}
