@@ -178,6 +178,9 @@ const XTerminal = memo(function XTerminal({
   const inputStoreRef = useRef<TerminalInputStore | null>(null);
   if (!inputStoreRef.current) inputStoreRef.current = createTerminalInputStore();
   const isVisibleRef = useRef(false);
+  // Mirrors the render gate below so key handling never blocks arrows when the
+  // suggestion box is disabled in settings.
+  const suggestBoxEnabledRef = useRef(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showCopied, setShowCopied] = useState(false);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -192,6 +195,14 @@ const XTerminal = memo(function XTerminal({
   const [showInlineAI, setShowInlineAI] = useState(false);
   const showInlineAIRef = useRef(false);
   useEffect(() => { showInlineAIRef.current = showInlineAI; }, [showInlineAI]);
+  useEffect(() => {
+    suggestBoxEnabledRef.current = autocomplete && suggestionBox;
+    // Disabling the box must free arrow keys immediately, not on next keystroke.
+    if (!suggestBoxEnabledRef.current) {
+      isVisibleRef.current = false;
+      inputStoreRef.current?.set({ visible: false });
+    }
+  }, [autocomplete, suggestionBox]);
   const terminalRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchAddonRef = useRef<SearchAddon | null>(null);
@@ -469,10 +480,13 @@ const XTerminal = memo(function XTerminal({
     const buffer = commandBufferRef.current;
     const all = [...suggestionsRef.current, ...ghostSourcesRef.current];
     const suggestions = buffer === "" ? all : all.filter((c) => c.includes(buffer));
+    // Never mark the box visible (and thus never swallow arrow keys) when the
+    // suggestion box is disabled in settings.
     const visible =
-      opts?.forceVisible ??
-      (buffer.trim() !== "" &&
-        suggestionsRef.current.some((c) => c.includes(buffer)));
+      suggestBoxEnabledRef.current &&
+      (opts?.forceVisible ??
+        (buffer.trim() !== "" &&
+          suggestionsRef.current.some((c) => c.includes(buffer))));
     isVisibleRef.current = visible;
     const patch: Partial<TerminalInputSnapshot> = { buffer, visible, suggestions };
     if (visible) {
