@@ -20,11 +20,23 @@ export class IDB<Tables extends { [key: string]: Table }> {
     constructor(
         private readonly tables: TableSchema<Tables>,
         name: string = "idb",
-        version: number = 1
+        version: number = 1,
+        // Historical migration steps declared BEFORE the current version. Use a
+        // step that drops a store (omit it / set null) followed by the current
+        // version that recreates it to change a primary key — Dexie cannot alter
+        // a primary key in-place ("Not yet support for changing primary key").
+        migrations: { version: number; stores: Record<string, string | null> }[] = []
     ) {
         this.db = new Dexie(name) as Dexie & Tables;
+        for (const m of [...migrations].sort((a, b) => a.version - b.version)) {
+            this.db.version(m.version).stores(m.stores);
+        }
         this.db.version(version).stores(tables);
-        !this.db.isOpen() && this.db.open();
+        if (!this.db.isOpen()) {
+            this.db.open().catch((err) => {
+                console.error("IDB failed to open:", err);
+            });
+        }
         if (typeof window !== "undefined") {
             import("dexie-observable").then(() => this.useObservable());
         }

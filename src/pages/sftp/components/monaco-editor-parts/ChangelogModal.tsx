@@ -3,7 +3,7 @@
  * Styled to match the editor theme (uses --editor-* CSS vars with fallbacks).
  */
 import React, { useCallback, useEffect } from "react";
-import { X, Sparkles, Code2, Braces, FileSearch, Palette, Puzzle, Camera, Package } from "lucide-react";
+import { X, Sparkles, Code2, Braces, FileSearch, Palette, Puzzle, Camera, Package, Terminal } from "lucide-react";
 
 /* ────────────────────────────────────────────────────────── */
 /*  Changelog data                                            */
@@ -16,6 +16,18 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG: ChangelogEntry[] = [
+  {
+    icon: <Terminal className="w-4 h-4" />,
+    title: "SSH Terminal Intelligence",
+    items: [
+      "AI Command Explanation — understand any command before it runs (Ctrl+Shift+E)",
+      "Live Resource Monitor — CPU, RAM, disk & network streamed over SSH (Ctrl+Shift+M)",
+      "Smart filesystem autocomplete for cd, ls, cat, vim, cp, mv…",
+      "Context-aware command packs (Docker, Git, Kubernetes, systemctl…)",
+      "Inline AI command bar remapped to Ctrl+I",
+      "Reliable shortcuts — keys are no longer swallowed by the terminal",
+    ],
+  },
   {
     icon: <Sparkles className="w-4 h-4" />,
     title: "26 Remote Provider Adapters",
@@ -160,7 +172,7 @@ function ChangelogModalInner({ onClose }: ChangelogModalProps) {
                 color: "#fff",
               }}
             >
-              v3.0
+              v3.1
             </span>
           </div>
           <button

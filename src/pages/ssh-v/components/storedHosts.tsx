@@ -5,11 +5,15 @@ import { useNavigate } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { HostImportExport } from './HostImportExport'
+import { HostEditDialog } from './HostEditDialog'
+import { useState } from 'react'
+import { HostsObject } from '../..'
 
 const StoredHosts = ({ hosts, handleClickOnHostCard, onHostsChanged }: { hosts: any[], handleClickOnHostCard: (index: any) => void, onHostsChanged?: () => void }) => {
 
     const { tabs, addTab, setActiveTab } = useSSHStore()
     const navigate = useNavigate()
+    const [editHost, setEditHost] = useState<HostsObject | null>(null)
 
     const handleNewConnectionClick = () => {
         const id = uuid()
@@ -46,6 +50,7 @@ const StoredHosts = ({ hosts, handleClickOnHostCard, onHostsChanged }: { hosts: 
                                 index={index}
                                 info={host}
                                 onClick={handleClickOnHostCard}
+                                onEdit={() => setEditHost(host)}
                             />
                         ))}
                     </div>
@@ -85,6 +90,8 @@ const StoredHosts = ({ hosts, handleClickOnHostCard, onHostsChanged }: { hosts: 
                     </button>
                 </div>
             </div>
+
+            <HostEditDialog host={editHost} onClose={() => setEditHost(null)} onSaved={onHostsChanged} />
         </div>
     )
 }

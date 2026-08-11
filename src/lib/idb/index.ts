@@ -29,5 +29,20 @@ const tables: CreatePKTableSchema<Tables> = {
     session_themes: "++sessionId",
     shell_history: "++host"
 }
-export const idb = new IDB<Tables>(tables, IDB_NAME, 4)
+export const idb = new IDB<Tables>(tables, IDB_NAME, 6, [
+    // v5: drop `session_themes`. Its primary key was changed in-place from
+    // `sessionId` to `++sessionId`, which Dexie cannot migrate and made the
+    // whole DB fail to open (DatabaseClosedError → hosts stopped storing/showing).
+    // The store is recreated fresh at the current version; cached themes are
+    // regenerable, while all other tables (hosts, etc.) are preserved.
+    {
+        version: 5,
+        stores: {
+            all_commands: "++command",
+            hosts: "++id,host",
+            shell_history: "++host",
+            session_themes: null,
+        },
+    },
+])
 

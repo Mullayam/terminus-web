@@ -19,7 +19,7 @@ import { ExternalLink, Github, Linkedin, Megaphone } from "lucide-react";
 
 /* ── Version & copy (update each release) ──────────────────── */
 
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.1.0";
 
 const ANNOUNCEMENT = {
     headline: `What's New in v${APP_VERSION}`,
@@ -27,7 +27,9 @@ const ANNOUNCEMENT = {
 global dialog & notification system, SFTP file-tree with drag-and-drop, 
 AI-assisted completions, inline commands, split editors, theme marketplace, 
 and a context-engine for smarter code intelligence. 
-Extensions can be installed from Open VSX or by dropping a .vsix file.`,
+Extensions can be installed from Open VSX or by dropping a .vsix file. 
+Plus new SSH terminal intelligence — AI command explanations (Ctrl+Shift+E), 
+a live resource monitor (Ctrl+Shift+M), and smart filesystem autocomplete.`,
     links: [
         {
             label: "GitHub",

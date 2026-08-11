@@ -1,6 +1,6 @@
 {
   "name": "@enjoys/terminus-web",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "A web-based SSH/SFTP terminal emulator built with React, Vite, TypeScript, Zustand, Redis, socket.io, and SSH2. Features multi-tab sessions, persistent local state, auto-reconnect, and drag-and-drop tab management.",

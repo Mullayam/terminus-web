@@ -475,7 +475,7 @@ const XTerminal = memo(function XTerminal({
       setTimeout(() => searchInputRef.current?.focus(), 50);
       return true;
     }
-    if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i')) {
+    if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'i' || e.key === 'I')) {
       e.preventDefault();
       const next = !showInlineAIRef.current;
       showInlineAIRef.current = next;
@@ -1072,7 +1072,7 @@ const XTerminal = memo(function XTerminal({
     el.addEventListener("contextmenu", handleContextMenu);
     el.addEventListener("mousedown", handleRightMouseDown);
     el.addEventListener("mouseup", handleMouseUp);
-    // Intercept app shortcuts at the xterm level so keys like Ctrl+F / Ctrl+Shift+I
+    // Intercept app shortcuts at the xterm level so keys like Ctrl+F / Ctrl+I
     // aren't swallowed as terminal input, and only fire while the terminal is focused.
     termRef.current?.attachCustomKeyEventHandler((e) => {
       if (e.type !== 'keydown') return true;
@@ -1249,7 +1249,7 @@ const XTerminal = memo(function XTerminal({
         />
       )}
 
-      {/* Inline AI command input (Ctrl+Shift+I) */}
+      {/* Inline AI command input (Ctrl+I) */}
       {showInlineAI && (
         <InlineCommandInput
           sessionId={sessionId}

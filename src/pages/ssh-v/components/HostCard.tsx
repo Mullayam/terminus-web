@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { HostsObject } from '../..';
-import { Monitor, Trash2, Terminal, Key, Lock } from 'lucide-react';
+import { Trash2, Terminal, Key, Lock, Pencil } from 'lucide-react';
 import { idb } from '@/lib/idb';
 import { useCallback, useMemo } from 'react';
 
@@ -88,10 +88,11 @@ function detectHostBrand(username: string, host: string, localName: string): Hos
 interface HostCardProps {
     info: HostsObject;
     onClick?: (key: number) => void;
+    onEdit?: (key: number) => void;
     index: number;
 }
 
-export function HostCard({ info, onClick, index }: HostCardProps) {
+export function HostCard({ info, onClick, onEdit, index }: HostCardProps) {
     const navigate = useNavigate();
 
     const handleConnect = useCallback(() => {
@@ -101,6 +102,14 @@ export function HostCard({ info, onClick, index }: HostCardProps) {
             navigate('/ssh/connect', { state: info });
         }
     }, [onClick, index, navigate, info]);
+
+    const handleEdit = useCallback(
+        (e: React.MouseEvent) => {
+            e.stopPropagation();
+            onEdit?.(index);
+        },
+        [onEdit, index],
+    );
 
     const handleDelete = useCallback(
         (e: React.MouseEvent) => {
@@ -128,16 +137,26 @@ export function HostCard({ info, onClick, index }: HostCardProps) {
                        transition-all duration-200 hover:bg-white/[0.06] hover:border-white/[0.12] hover:shadow-lg hover:shadow-black/20
                        hover:-translate-y-0.5"
         >
-            {/* Delete button — top-right, visible on hover */}
-            <button
-                onClick={handleDelete}
-                className="absolute top-2.5 right-2.5 p-1.5 rounded-md
-                           opacity-0 group-hover:opacity-100 transition-all duration-150
-                           text-gray-500 hover:text-red-400 hover:bg-red-400/10"
-                title="Remove host"
-            >
-                <Trash2 size={14} />
-            </button>
+            {/* Actions — top-right, visible on hover */}
+            <div className="absolute top-2.5 right-2.5 flex items-center gap-1
+                            opacity-0 group-hover:opacity-100 transition-all duration-150">
+                {onEdit && (
+                    <button
+                        onClick={handleEdit}
+                        className="p-1.5 rounded-md text-gray-500 hover:text-emerald-400 hover:bg-emerald-400/10"
+                        title="Edit host"
+                    >
+                        <Pencil size={14} />
+                    </button>
+                )}
+                <button
+                    onClick={handleDelete}
+                    className="p-1.5 rounded-md text-gray-500 hover:text-red-400 hover:bg-red-400/10"
+                    title="Remove host"
+                >
+                    <Trash2 size={14} />
+                </button>
+            </div>
 
             <div className="flex items-start gap-3.5">
                 {/* Avatar — OS/platform icon */}

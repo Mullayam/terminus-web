@@ -34,6 +34,7 @@ const features: FeatureCard[] = [
   {
     category: "SSH Terminal",
     tagline: "Your server, one click away",
+    isNew: true,
     description:
       "Full-featured web terminal with WebGL rendering, multi-tab sessions, split panes, and 17+ themes. SSH into any server without leaving your browser.",
     icon: Terminal,
@@ -41,10 +42,11 @@ const features: FeatureCard[] = [
     accentBg: "bg-emerald-500/10",
     highlights: [
       "Multi-tab & split terminal sessions",
-      "Password & private-key authentication",
+      "Smart filesystem & command-aware autocomplete",
+      "Live resource monitor — CPU/RAM/disk/net (Ctrl+Shift+M)",
       "17+ themes with per-session customization",
       "Idle auto-reconnect & session resilience",
-      "Command palette (PM2, Nginx, Docker)",
+      "Natural-language command palette (Ctrl+K)",
       "VS Code-style search bar (Ctrl+F)",
     ],
     cta: { label: "Launch Terminal", href: "/ssh/connect" },
@@ -61,9 +63,10 @@ const features: FeatureCard[] = [
     accentBg: "bg-amber-500/10",
     highlights: [
       "AI Agent — autonomous multi-step execution",
+      "Explain any command before it runs (Ctrl+Shift+E)",
       "35+ dangerous-pattern safety checks",
       "Ghost-text autocomplete from AI & history",
-      "Inline AI command bar (Ctrl+Shift+I)",
+      "Inline AI command bar (Ctrl+I)",
       "SSE streaming chat with multi-provider support",
       "Real-time diagnostics — AI explains & fixes errors",
     ],
@@ -132,6 +135,7 @@ const features: FeatureCard[] = [
     accentBg: "bg-teal-500/10",
     highlights: [
       "Ghost-text inline autocomplete (Tab / → to accept)",
+      "Remote filesystem path completion (cd, ls, cat…)",
       "Suggestion box with keyboard navigation",
       "Context-engine powered command packs",
       "Per-session toggles for all suggestion sources",

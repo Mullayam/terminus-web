@@ -16,6 +16,7 @@ import { useSFTPStore } from '@/store/sftpStore';
 import { SFTPContext } from '../sftp-context';
 import { useSftpSocket } from '@/hooks/useSftpSocket';
 import { HostImportExport } from '@/pages/ssh-v/components/HostImportExport';
+import { HostEditDialog } from '@/pages/ssh-v/components/HostEditDialog';
 
 export interface DownloadProgressType {
     name: string;
@@ -40,6 +41,7 @@ export default function SFTPTabClient({ tabId }: { tabId: string }) {
     // Only truly local UI state (not per-tab data)
     const [hosts, setHosts] = useState<HostsObject[]>([]);
     const [hostId, setHostId] = useState<string | null>(null);
+    const [editHost, setEditHost] = useState<HostsObject | null>(null);
     const [showForm, setShowForm] = useState(false);
     const [downloadProgress, setDownloadProgress] = useState<Record<string, DownloadProgressType>>({});
 
@@ -210,7 +212,7 @@ export default function SFTPTabClient({ tabId }: { tabId: string }) {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                         {hosts.map((host, index) => (
                             <div key={index} className={isConnecting ? 'pointer-events-none opacity-50' : ''}>
-                                <HostCard index={index} info={host} onClick={handleClickOnHostCard} />
+                                <HostCard index={index} info={host} onClick={handleClickOnHostCard} onEdit={() => setEditHost(host)} />
                             </div>
                         ))}
                     </div>
@@ -224,6 +226,8 @@ export default function SFTPTabClient({ tabId }: { tabId: string }) {
                     )}
                 </SSHConnectionForm>
             )}
+
+            <HostEditDialog host={editHost} onClose={() => setEditHost(null)} onSaved={refreshHosts} />
         </div>
     );
 }
