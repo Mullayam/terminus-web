@@ -33,6 +33,11 @@ export enum SocketEventConstants {
   SSH_HOST_KEYS = "@@SSH_HOST_KEYS",
   SSH_PERMISSIONS = "@@SSH_PERMISSIONS",
   SSH_EXEC_SILENT_RESULT = "@@SSH_EXEC_SILENT_RESULT",
+  // Client → server: run a silent command in a non-interactive exec channel.
+  // Payload: { requestId: string, cmd: string }
+  SSH_EXEC_SILENT = "@@SSH_EXEC_SILENT",
+  // Server → client: silent command output. Payload: { requestId: string, output: string }
+  SSH_EXEC_SILENT_OUTPUT = "@@SSH_EXEC_SILENT_OUTPUT",
 
   // SFTP
   SFTP_ENDED = "@@SFTP_ENDED",
@@ -54,6 +59,9 @@ export enum SocketEventConstants {
   SFTP_GET_DIR_TREE = "@@SFTP_GET_DIR_TREE",
   SFTP_DIR_TREE = "@@SFTP_DIR_TREE",
   SFTP_ZIP_EXTRACT = "@@SFTP_ZIP_EXTRACT",
+  SFTP_COMPRESS = "@@SFTP_COMPRESS",
+  SFTP_EXTRACT = "@@SFTP_EXTRACT",
+  SFTP_ARCHIVE_PROGRESS = "@@SFTP_ARCHIVE_PROGRESS",
   FILE_UPLOADED = "@@FILE_UPLOADED",
   FILE_UPLOADED_PROGRESS = "@@FILE_UPLOADED_PROGRESS",
   EXTRACTING = "@@EXTRACTING",

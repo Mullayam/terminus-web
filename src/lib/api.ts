@@ -1,6 +1,8 @@
 import { __config } from "./config";
 
-const API_URL = __config.API_URL + "/api/upload";
+/** Every backend route lives under this prefix (web.ts: router.use("/api", ...)). */
+const API_BASE = __config.API_URL + "/api";
+const API_URL = `${API_BASE}/upload`;
 export class ApiCore {
 
     /**
@@ -68,7 +70,7 @@ export class ApiCore {
         name: string
         sessionId?: string
     }) {
-        const url = new URL(__config.API_URL + "/api/download");
+        const url = new URL(`${API_BASE}/download`);
         if (sessionId) {
             url.searchParams.set("sessionId", sessionId);
         }
@@ -149,7 +151,7 @@ export class ApiCore {
      * Fetch the content of a remote file via REST API.
      */
     static async fetchFileContent(sessionId: string, remotePath: string): Promise<{status:boolean,message:string, result: string }> {
-        const response = await fetch(__config.API_URL + "/api/file/read", {
+        const response = await fetch(`${API_BASE}/file/read`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ sessionId, path: remotePath }),
@@ -165,7 +167,7 @@ export class ApiCore {
      * Save / update the content of a remote file via REST API.
      */
     static async saveFileContent(sessionId: string, remotePath: string, content: string): Promise<{ status: boolean,message:string, result: string  }> {
-        const response = await fetch(__config.API_URL + "/api/file/write", {
+        const response = await fetch(`${API_BASE}/file/write`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ sessionId, path: remotePath, content }),
@@ -176,4 +178,91 @@ export class ApiCore {
         }
         return response.json();
     }
+
+    /* ── Resumable upload (chunked) ─────────────────────────────
+     * `/upload/status` → resume offset, `/upload/chunk` → send a slice,
+     * `/upload/abort` → discard staged bytes. See useResumableUpload.
+     */
+
+    /** Ask the server how many bytes are already staged for `uploadId`. */
+    static async uploadStatus(uploadId: string): Promise<ApiEnvelope<UploadStatusResult>> {
+        const response = await fetch(`${API_BASE}/upload/status`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uploadId }),
+        });
+        return response.json();
+    }
+
+    /**
+     * Send one slice starting at `offset`. Returns the raw HTTP status too so
+     * callers can special-case 409 (offset mismatch / chunk in progress).
+     */
+    static async uploadChunk(params: {
+        chunk: Blob;
+        uploadId: string;
+        path: string;
+        name: string;
+        offset: number;
+        total: number;
+        sftpSessionId: string;
+        signal?: AbortSignal;
+    }): Promise<{ httpStatus: number; body: ApiEnvelope<UploadChunkResult> }> {
+        const form = new FormData();
+        form.append("uploadId", params.uploadId);
+        form.append("path", params.path);
+        form.append("name", params.name);
+        form.append("offset", String(params.offset));
+        form.append("total", String(params.total));
+        form.append("sftpSessionId", params.sftpSessionId);
+        form.append("chunk", params.chunk, params.name);
+
+        const response = await fetch(`${API_BASE}/upload/chunk`, {
+            method: "POST",
+            body: form,
+            signal: params.signal,
+        });
+        const body = await response.json().catch(() => ({
+            status: false,
+            message: response.statusText,
+            result: null,
+        }));
+        return { httpStatus: response.status, body };
+    }
+
+    /** Discard a resumable upload's staged bytes so a later attempt restarts clean. */
+    static async uploadAbort(
+        uploadId: string,
+    ): Promise<{ httpStatus: number; body: ApiEnvelope<{ uploadId: string }> }> {
+        const response = await fetch(`${API_BASE}/upload/abort`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uploadId }),
+        });
+        const body = await response.json().catch(() => ({
+            status: false,
+            message: response.statusText,
+            result: null,
+        }));
+        return { httpStatus: response.status, body };
+    }
+}
+
+/* ── Resumable upload response shapes ───────────────────────── */
+export interface ApiEnvelope<T> {
+    status: boolean;
+    message: string;
+    result: T;
+}
+
+export interface UploadStatusResult {
+    uploadId: string;
+    offset: number;
+}
+
+export interface UploadChunkResult {
+    uploadId: string;
+    offset: number;
+    completed: boolean;
+    remotePath?: string;
 }

@@ -45,6 +45,10 @@ import {
   ShieldCheck,
   ExternalLink,
   Eye,
+  Copy,
+  CopyPlus,
+  FileArchive,
+  PackageOpen,
 } from "lucide-react";
 import { DeleteFolderDialog } from "./DeleteDialog";
 import { NewFolderDialog } from "./NewDialog";
@@ -57,6 +61,7 @@ import { FileEditor } from "./FileEditor";
 import { ApiCore } from "@/lib/api";
 import { useDialogState, useLoadingState } from "@/store";
 import { isPreviewable } from "./MediaPreviewPage";
+import { useSftpFileActions, isArchiveFile } from "../hooks/useSftpFileActions";
 export type FileOperations = "file" | "folder" | "rename" | "move" | "copy";
 
 export interface RootObject {
@@ -717,6 +722,23 @@ export function FileList({
       dirPath: currentDirRef.current,
     });
   }, []);
+
+  // Refresh shortly after a mutating action so the backend copy lands first.
+  const refreshSoon = useCallback(() => {
+    setTimeout(handleRefreshSftp, 500);
+  }, [handleRefreshSftp]);
+
+  const existingNames = useMemo(() => files.map((f) => f.name), [files]);
+
+  const { duplicateFile, copyContent, compress, extract } = useSftpFileActions({
+    socket,
+    currentDir,
+    tabId,
+    existingNames,
+    onRefresh: refreshSoon,
+    notify: toast,
+  });
+
   const handleCreateFileOrDir = (
     path: string,
     type: FileOperations,
@@ -744,23 +766,6 @@ export function FileList({
       socket?.emit(SocketEventConstants.SFTP_RENAME_FILE, payload);
     }
     handleRefreshSftp();
-  };
-  /*************  ✨ Windsurf Command 🌟  *************/
-  const handleCopy = (sourcePath: string, destinationPath: string) => {
-
-    if (sourcePath === destinationPath) {
-      const sourceFileName = sourcePath.split("/").pop();
-      
-      const fileNameWithoutExtension = sourceFileName?.split(".").shift();
-      const fileExtension = sourceFileName?.split(".").pop();
-      destinationPath = `${destinationPath}/${fileNameWithoutExtension}-copy.${fileExtension}`;
-
-      socket?.emit(SocketEventConstants.SFTP_COPY_FILE, {
-        currentPath: sourcePath,
-        destinationPath: destinationPath,
-      });
-      handleRefreshSftp();
-    }
   };
 
   useEffect(() => {
@@ -853,6 +858,39 @@ export function FileList({
                                 "_blank",
                               );
                             },
+                          },
+                          {
+                            label: "Duplicate",
+                            icon: <CopyPlus className="w-4 h-4" />,
+                            action: () => duplicateFile(row.original),
+                          },
+                          {
+                            label: "Copy Content",
+                            icon: <Copy className="w-4 h-4" />,
+                            disabled: row.original.type === "d",
+                            action: () => copyContent(row.original),
+                          },
+                          {
+                            label: "Compress → ZIP",
+                            icon: <FileArchive className="w-4 h-4" />,
+                            action: () => compress(row.original, "zip"),
+                          },
+                          {
+                            label: "Compress → TAR.GZ",
+                            icon: <FileArchive className="w-4 h-4" />,
+                            action: () => compress(row.original, "tar.gz"),
+                          },
+                          {
+                            label: "Extract",
+                            icon: <PackageOpen className="w-4 h-4" />,
+                            disabled: !isArchiveFile(row.getValue("name")),
+                            action: () => extract(row.original),
+                          },
+                          {
+                            label: "Extract Here",
+                            icon: <PackageOpen className="w-4 h-4" />,
+                            disabled: !isArchiveFile(row.getValue("name")),
+                            action: () => extract(row.original, { here: true }),
                           },
                           {
                             label: "Refresh",

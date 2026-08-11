@@ -42,6 +42,15 @@ import { XtermTheme, ThemeName } from "./themes";
 import { getAllCommandData } from "@/lib/context-engine/contextEngineStorage";
 import { useAIChatStore } from "@/store/aiChatStore";
 import { createTerminalInputStore, useTerminalInput, type TerminalInputStore, type TerminalInputSnapshot } from "./terminal2/inputStore";
+import { rankSuggestions, hasFuzzyMatch, type UsageMap } from "./terminal2/fuzzyRank";
+import ArgHintBar, { type CommandIndex, type ArgCommandInfo } from "./terminal2/arg-hint-bar";
+import CommandBlocks from "./terminal2/command-blocks";
+import { useCommandBlocksStore, type CommandBlock } from "@/store/commandBlocksStore";
+import { fetchAICommand, stripAnsi as stripAnsiCmd } from "./terminal2/aiCommand";
+import CommandPalette from "./terminal2/command-palette";
+import ShareSessionDialog from "./terminal2/share-session-dialog";
+import { terminalEvents, TerminalEventKey } from "@/lib/terminalEvents";
+import { parseFsCommand, splitPath, buildListCommand, parseListOutput, buildFsSuggestions, type FsEntry } from "./terminal2/fsSuggest";
 
 const SEARCH_DECORATIONS: ISearchOptions["decorations"] = {
   matchBackground: "#FFA50080",
@@ -134,6 +143,37 @@ const CollabTypingBridge = memo(function CollabTypingBridge({
   );
 });
 
+const ArgHintBridge = memo(function ArgHintBridge({
+  store,
+  commandIndex,
+  bg,
+  fg,
+  accent,
+  border,
+  onInsert,
+}: {
+  store: TerminalInputStore;
+  commandIndex: CommandIndex;
+  bg: string;
+  fg: string;
+  accent: string;
+  border: string;
+  onInsert: (text: string) => void;
+}) {
+  const { buffer } = useTerminalInput(store);
+  return (
+    <ArgHintBar
+      buffer={buffer}
+      commandIndex={commandIndex}
+      bg={bg}
+      fg={fg}
+      accent={accent}
+      border={border}
+      onInsert={onInsert}
+    />
+  );
+});
+
 // https://github.com/xtermjs/xterm.js/blob/master/demo/client.ts
 const XTerminal = memo(function XTerminal({
   socket,
@@ -149,6 +189,8 @@ const XTerminal = memo(function XTerminal({
   const autocomplete = useTabStore((s) => s.settings.autocomplete);
   const suggestionBox = useTabStore((s) => s.settings.suggestionBox);
   const diagnosticsEnabled = useTabStore((s) => s.settings.diagnostics);
+  const commandPaletteEnabled = useTabStore((s) => s.settings.commandPalette);
+  const commandBlocksEnabled = useTabStore((s) => s.settings.commandBlocks);
   const isRightSidebarOpen = useTabStore((s) => s.rightSidebarOpen);
   const isAIChatOpen = useAIChatStore((s) => s.isOpen);
   const sessionTheme = useSSHStore((s) => s.sessionThemes[sessionId]) || 'custom';
@@ -198,6 +240,8 @@ const XTerminal = memo(function XTerminal({
   const [showInlineAI, setShowInlineAI] = useState(false);
   const showInlineAIRef = useRef(false);
   useEffect(() => { showInlineAIRef.current = showInlineAI; }, [showInlineAI]);
+  const [showPalette, setShowPalette] = useState(false);
+  const [showShare, setShowShare] = useState(false);
   useEffect(() => {
     autocompleteEnabledRef.current = autocomplete;
     suggestBoxEnabledRef.current = autocomplete && suggestionBox;
@@ -220,12 +264,44 @@ const XTerminal = memo(function XTerminal({
   /** Extra ghost-text sources (store commands + context-engine packs). Not persisted to history. */
   const ghostSourcesRef = useRef<string[]>([]);
   const [ghostSourcesVersion, setGhostSourcesVersion] = useState(0);
+  // Transient `cd`/`ls` directory-entry suggestions (never persisted).
+  const fsSuggestionsRef = useRef<string[]>([]);
+  const fsQueryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fsPendingRef = useRef<{ requestId: string; command: string; path: string } | null>(null);
+  // Cache the last listed directory so typing more chars filters locally (no refetch).
+  const fsCacheRef = useRef<{ key: string; entries: FsEntry[] }>({ key: "", entries: [] });
+  // Structured command metadata (flags/subcommands) for the arg-hint bar.
+  const [commandIndex, setCommandIndex] = useState<CommandIndex>({});
   const suggestionsRef = useRef(suggestions);
   useEffect(() => { suggestionsRef.current = suggestions; }, [suggestions]);
+  // Per-command usage stats (frequency + recency) used to rank suggestions.
+  const usageKey = useMemo(() => `terminus-usage:${sessionHost ?? sessionId}`, [sessionId, sessionHost]);
+  const usageRef = useRef<UsageMap>({});
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(usageKey);
+      usageRef.current = raw ? JSON.parse(raw) : {};
+    } catch { usageRef.current = {}; }
+  }, [usageKey]);
+  // Load persisted shell history (IndexedDB) and seed suggestions from it.
+  useEffect(() => {
+    let cancelled = false;
+    const host = sessionHost ?? sessionId;
+    useCommandStore.getState().loadShellHistory(host).then(() => {
+      if (cancelled) return;
+      const hist = useCommandStore.getState().shellHistory[host] ?? [];
+      if (hist.length) setSuggestions((prev) => Array.from(new Set([...prev, ...hist])));
+    });
+    return () => { cancelled = true; };
+  }, [sessionHost, sessionId]);
   const diagnosticsEnabledRef = useRef(diagnosticsEnabled);
   useEffect(() => { diagnosticsEnabledRef.current = diagnosticsEnabled; }, [diagnosticsEnabled]);
+  const commandBlocksEnabledRef = useRef(commandBlocksEnabled);
+  useEffect(() => { commandBlocksEnabledRef.current = commandBlocksEnabled; }, [commandBlocksEnabled]);
   const commandBufferRef = useRef<string>("");
   const [isAltScreen, setIsAltScreen] = useState(false);
+  const isAltScreenRef = useRef(false);
+  useEffect(() => { isAltScreenRef.current = isAltScreen; }, [isAltScreen]);
   const inputResyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Coalesces overlay store updates to one per frame (off the keystroke path).
   const inputRafRef = useRef<number | null>(null);
@@ -267,6 +343,48 @@ const XTerminal = memo(function XTerminal({
   }, [socket]);
 
   const lastPromptPrefixRef = useRef('');
+
+  /* ── Arg-hint bar: insert a flag/subcommand into the live input ── */
+  const handleArgInsert = useCallback((text: string) => {
+    const buf = commandBufferRef.current;
+    const needsSpace = buf.length > 0 && !buf.endsWith(' ');
+    const ins = (needsSpace ? ' ' : '') + text + ' ';
+    socket.emit(SocketEventConstants.SSH_EMIT_INPUT, ins);
+    commandBufferRef.current = buf + ins;
+    pushInputStateRef.current({ forceVisible: false });
+    termRef.current?.focus();
+  }, [socket]);
+
+  /* ── Command blocks: re-run a captured command ── */
+  const handleBlockRerun = useCallback((cmd: string) => {
+    if (!isAltScreenRef.current) {
+      const store = useCommandBlocksStore.getState();
+      store.finalizeCurrent(sessionId);
+      store.startBlock(sessionId, cmd);
+    }
+    commandBufferRef.current = "";
+    socket.emit(SocketEventConstants.SSH_EMIT_INPUT, cmd + '\r');
+    pushInputStateRef.current({ forceVisible: false });
+    termRef.current?.focus();
+  }, [socket, sessionId]);
+
+  /* ── Command blocks: ask AI to fix a failed command ── */
+  const handleBlockFix = useCallback(async (block: CommandBlock): Promise<string> => {
+    const logs = useTerminalStore.getState().logs[sessionId] ?? [];
+    const termContext = stripAnsiCmd(logs.slice(-40).join('')).trim();
+    const question =
+      `The shell command \`${block.command}\` produced this output:\n` +
+      `${block.output.slice(-1500)}\n\n` +
+      `If it failed, reply with a single corrected shell command that fixes the problem. ` +
+      `Reply ONLY with the raw command — no explanation, no markdown, no code fences.`;
+    const cmd = await fetchAICommand({
+      sessionId,
+      question,
+      context: termContext ? `Recent terminal output:\n${termContext}` : '',
+    });
+    if (cmd) useAIChatStore.getState().setGhostCommand(sessionId, cmd);
+    return cmd;
+  }, [sessionId]);
 
   const handleSearchNext = () => {
     const query = searchInputRef.current?.value || '';
@@ -352,10 +470,20 @@ const XTerminal = memo(function XTerminal({
       const next = !showInlineAIRef.current;
       showInlineAIRef.current = next;
       setShowInlineAI(next);
+    } else if (e.ctrlKey && e.shiftKey && (e.key === 'B' || e.key === 'b')) {
+      e.preventDefault();
+      if (useTabStore.getState().settings.commandBlocks) useCommandBlocksStore.getState().togglePanel(sessionId);
+    } else if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'k' || e.key === 'K')) {
+      e.preventDefault();
+      if (useTabStore.getState().settings.commandPalette) setShowPalette((v) => !v);
+    } else if (e.ctrlKey && e.shiftKey && (e.key === 'S')) {
+      e.preventDefault();
+      setShowShare((v) => !v);
     } else if (e.key === 'Escape') {
       searchAddonRef.current?.clearDecorations();
       searchAddonRef.current?.clearActiveDecoration();
       setShowSearch(false);
+      setShowShare(false);
     }
   };
   // Copy-on-select: when a left-drag selection ends, copy it to the clipboard
@@ -480,6 +608,28 @@ const XTerminal = memo(function XTerminal({
     };
   };
 
+  // Debounced: detect a `cd`/`ls` command in the buffer and announce the
+  // partial path so the filesystem-autocomplete listener can fetch entries.
+  const scheduleFsQuery = (buffer: string) => {
+    const fs = parseFsCommand(buffer);
+    if (!fs) {
+      if (fsSuggestionsRef.current.length) fsSuggestionsRef.current = [];
+      fsPendingRef.current = null;
+      return;
+    }
+    const { dir } = splitPath(fs.path);
+    const key = `${fs.command}|${dir}`;
+    // Same directory as last listing → just re-filter locally, no network.
+    if (key === fsCacheRef.current.key) {
+      fsSuggestionsRef.current = buildFsSuggestions(fs.command, fs.path, fsCacheRef.current.entries);
+      return;
+    }
+    if (fsQueryTimerRef.current) clearTimeout(fsQueryTimerRef.current);
+    fsQueryTimerRef.current = setTimeout(() => {
+      terminalEvents.emit(TerminalEventKey.FILESYSTEM_COMMAND, { command: fs.command, path: fs.path, sessionId });
+    }, 160);
+  };
+
   // Push current input state to the overlay store. Synchronous — so typing has
   // no perceptible gap — and only the overlay bridges re-render, not the parent.
   const pushInputState = (opts?: { forceVisible?: boolean }) => {
@@ -489,15 +639,17 @@ const XTerminal = memo(function XTerminal({
       return;
     }
     const buffer = commandBufferRef.current;
-    const all = [...suggestionsRef.current, ...ghostSourcesRef.current];
-    const suggestions = buffer === "" ? all : all.filter((c) => c.includes(buffer));
+    // Detect `cd`/`ls`-style commands → fetch immediate directory entries.
+    scheduleFsQuery(buffer);
+    const all = [...fsSuggestionsRef.current, ...suggestionsRef.current, ...ghostSourcesRef.current];
+    const suggestions = buffer === "" ? all : rankSuggestions(buffer, all, usageRef.current);
     // Never mark the box visible (and thus never swallow arrow keys) when the
     // suggestion box is disabled in settings.
     const visible =
       suggestBoxEnabledRef.current &&
       (opts?.forceVisible ??
         (buffer.trim() !== "" &&
-          suggestionsRef.current.some((c) => c.includes(buffer))));
+          (fsSuggestionsRef.current.length > 0 || hasFuzzyMatch(buffer, suggestionsRef.current))));
     isVisibleRef.current = visible;
     const patch: Partial<TerminalInputSnapshot> = { buffer, visible, suggestions };
     if (visible) {
@@ -583,8 +735,13 @@ const XTerminal = memo(function XTerminal({
     // Track alternate-screen switches (vim/htop/less/tmux) so the empty-line
     // placeholder and ghost text stay hidden inside full-screen apps.
     setIsAltScreen(term.buffer.active.type === 'alternate');
+    isAltScreenRef.current = term.buffer.active.type === 'alternate';
     const disposeBufferChange = term.buffer.onBufferChange(() => {
-      setIsAltScreen(term.buffer.active.type === 'alternate');
+      const alt = term.buffer.active.type === 'alternate';
+      isAltScreenRef.current = alt;
+      setIsAltScreen(alt);
+      // Stop attributing full-screen-app output to the last command block.
+      if (alt) useCommandBlocksStore.getState().finalizeCurrent(sessionId);
     });
 
     if (!sessionHost) {
@@ -619,6 +776,8 @@ const XTerminal = memo(function XTerminal({
       useSSHStore.getState().clearSessionActivity(sessionId);
       // Feed output to diagnostics scanner (only if enabled)
       if (diagnosticsEnabledRef.current) diagFeed(input);
+      // Attribute output to the current command block (skip full-screen apps)
+      if (!isAltScreenRef.current && commandBlocksEnabledRef.current) useCommandBlocksStore.getState().appendOutput(sessionId, input);
     };
     socket.on(SocketEventConstants.SSH_EMIT_DATA, handleSSHData);
     // Server sends shell history after ready
@@ -640,9 +799,29 @@ const XTerminal = memo(function XTerminal({
         }
         if (!added) return prev;
         const arr = Array.from(set);
-        return arr.length > 500 ? arr.slice(-500) : arr;
+        return arr.length > 5000 ? arr.slice(-5000) : arr;
       });
     });
+
+    // Filesystem autocomplete: turn a detected `cd`/`ls` into a silent listing
+    // request, and feed the parsed entries back into the suggestions.
+    const offFsEvent = terminalEvents.on(TerminalEventKey.FILESYSTEM_COMMAND, ({ command, path, sessionId: sid }) => {
+      if (sid !== sessionId) return;
+      const { dir } = splitPath(path);
+      const requestId = `fs-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      fsPendingRef.current = { requestId, command, path };
+      socket.emit(SocketEventConstants.SSH_EXEC_SILENT, { requestId, cmd: buildListCommand(dir) });
+    });
+    const handleFsOutput = (payload: { requestId: string; output: string }) => {
+      const pending = fsPendingRef.current;
+      if (!pending || !payload || pending.requestId !== payload.requestId) return;
+      const entries = parseListOutput(payload.output ?? "");
+      const { dir } = splitPath(pending.path);
+      fsCacheRef.current = { key: `${pending.command}|${dir}`, entries };
+      fsSuggestionsRef.current = buildFsSuggestions(pending.command, pending.path, entries);
+      pushInputStateRef.current();
+    };
+    socket.on(SocketEventConstants.SSH_EXEC_SILENT_OUTPUT, handleFsOutput);
 
     window.addEventListener("resize", handleResize);
 
@@ -653,37 +832,56 @@ const XTerminal = memo(function XTerminal({
 
     getAllCommandData().then((cmdRecords) => {
       const cmds: string[] = [];
+      const index: CommandIndex = {};
       for (const item of cmdRecords) {
-        const data = item.data as any;
-        if (data?.name) cmds.push(data.name);
-        if (Array.isArray(data?.subcommands)) {
-          for (const sub of data.subcommands) {
-            if (sub?.name && data?.name) {
-              cmds.push(`${data.name} ${sub.name}`);
-            }
-            if (Array.isArray(sub?.options) && data?.name && sub?.name) {
-              for (const opt of sub.options) {
-                if (opt?.name) cmds.push(`${data.name} ${sub.name} ${opt.name}`);
+        // A record's data may be a single command object or an array of them.
+        const objects: any[] = Array.isArray(item.data) ? item.data : (item.data ? [item.data] : []);
+        for (const data of objects) {
+          const name = data?.name;
+          if (!name) continue;
+          cmds.push(name);
+          const info: ArgCommandInfo = index[name] ?? { name, options: [], subcommands: {} };
+          if (Array.isArray(data?.options)) {
+            for (const opt of data.options) if (opt?.name) info.options.push(opt.name);
+          }
+          if (Array.isArray(data?.subcommands)) {
+            for (const sub of data.subcommands) {
+              if (!sub?.name) continue;
+              cmds.push(`${name} ${sub.name}`);
+              const subInfo = info.subcommands[sub.name] ?? { options: [] };
+              if (Array.isArray(sub?.options)) {
+                for (const opt of sub.options) {
+                  if (opt?.name) {
+                    cmds.push(`${name} ${sub.name} ${opt.name}`);
+                    subInfo.options.push(opt.name);
+                  }
+                }
               }
-            }
-            if (Array.isArray(sub?.examples)) {
-              for (const ex of sub.examples) {
-                if (typeof ex === "string") cmds.push(ex);
+              if (Array.isArray(sub?.examples)) {
+                for (const ex of sub.examples) {
+                  if (typeof ex === "string") cmds.push(ex);
+                }
               }
+              info.subcommands[sub.name] = subInfo;
             }
           }
+          index[name] = info;
         }
       }
       if (cmds.length > 0) {
         ghostSourcesRef.current = Array.from(new Set([...ghostSourcesRef.current, ...cmds]));
         setGhostSourcesVersion(v => v + 1);
       }
+      if (Object.keys(index).length > 0) setCommandIndex(index);
     }).catch(() => { });
 
     return () => {
       window.removeEventListener("resize", handleResize);
       socket.off(SocketEventConstants.SSH_EMIT_DATA, handleSSHData);
       socket.off(SocketEventConstants.SSH_EXEC_SILENT_RESULT);
+      socket.off(SocketEventConstants.SSH_EXEC_SILENT_OUTPUT, handleFsOutput);
+      offFsEvent();
+      if (fsQueryTimerRef.current) clearTimeout(fsQueryTimerRef.current);
       disposeOnData.dispose();
       disposeOnResize.dispose();
       disposeBufferChange.dispose();
@@ -781,6 +979,8 @@ const XTerminal = memo(function XTerminal({
       // Ctrl+C / Ctrl+D / Ctrl+Z → interrupt / EOF / suspend → clear buffer
       if (domEvent.ctrlKey && (domEvent.key === 'c' || domEvent.key === 'd' || domEvent.key === 'z')) {
         commandBufferRef.current = "";
+        fsSuggestionsRef.current = [];
+        fsCacheRef.current = { key: "", entries: [] };
         pushInputStateRef.current({ forceVisible: false });
         return;
       }
@@ -791,11 +991,20 @@ const XTerminal = memo(function XTerminal({
           setSuggestions(prev => {
             if (prev.includes(trimmed)) return prev;
             const next = [...prev, trimmed];
-            return next.length > 500 ? next.slice(-500) : next;
+            return next.length > 5000 ? next.slice(-5000) : next;
           });
           addShellHistoryCommand(shellHistoryHost, trimmed);
+          // Bump frequency/recency stats for ranking.
+          const u = usageRef.current;
+          const prev = u[trimmed];
+          u[trimmed] = { count: (prev?.count ?? 0) + 1, last: Date.now() };
+          try { localStorage.setItem(usageKey, JSON.stringify(u)); } catch { /* quota */ }
+          // Start a new command block to capture this command's output.
+          if (!isAltScreenRef.current && commandBlocksEnabledRef.current) useCommandBlocksStore.getState().startBlock(sessionId, trimmed);
         }
         commandBufferRef.current = "";
+        fsSuggestionsRef.current = [];
+        fsCacheRef.current = { key: "", entries: [] };
         pushInputStateRef.current({ forceVisible: false });
         return;
       }
@@ -809,6 +1018,10 @@ const XTerminal = memo(function XTerminal({
 
       if (isPrintable) {
         lastKeyAtRef.current = Date.now();
+        // Starting a new command → stop capturing output into the previous block.
+        if (commandBufferRef.current === "" && !isAltScreenRef.current && commandBlocksEnabledRef.current) {
+          useCommandBlocksStore.getState().finalizeCurrent(sessionId);
+        }
         commandBufferRef.current = commandBufferRef.current + key;
         pushInputStateRef.current();
       }
@@ -972,6 +1185,22 @@ const XTerminal = memo(function XTerminal({
         />
       )}
 
+      {/* Inline argument/flag hint bar (docked bottom-left) */}
+      {autocomplete && !isAltScreen && (() => {
+        const t = XtermTheme[sessionTheme] || XtermTheme.default;
+        return (
+          <ArgHintBridge
+            store={inputStoreRef.current!}
+            commandIndex={commandIndex}
+            bg={t.background}
+            fg={t.foreground}
+            accent={(t as any).green ?? (t as any).cyan ?? t.foreground}
+            border={(t as any).brightBlack ?? `${t.foreground}22`}
+            onInsert={handleArgInsert}
+          />
+        );
+      })()}
+
       {/* AI Ghost text (from Ask AI sidebar input) */}
       {suggestionBox && (
         <AIGhostText
@@ -1001,6 +1230,56 @@ const XTerminal = memo(function XTerminal({
 
       {/* Info overlay — shown once per host, self-managed */}
       <TerminalInfoOverlay hostKey={sessionHost ?? sessionId} />
+
+      {/* Command blocks (Warp-style) — capture, copy, re-run, share */}
+      {commandBlocksEnabled && (() => {
+        const t = XtermTheme[sessionTheme] || XtermTheme.default;
+        return (
+          <CommandBlocks
+            sessionId={sessionId}
+            onRerun={handleBlockRerun}
+            onFix={handleBlockFix}
+            onApplyFix={handleAIGhostAccept}
+            bg={t.background}
+            fg={t.foreground}
+            accent={(t as any).green ?? (t as any).cyan ?? t.foreground}
+            border={(t as any).brightBlack ?? `${t.foreground}22`}
+          />
+        );
+      })()}
+
+      {/* Ctrl+K natural-language command palette */}
+      {commandPaletteEnabled && showPalette && (() => {
+        const t = XtermTheme[sessionTheme] || XtermTheme.default;
+        return (
+          <CommandPalette
+            sessionId={sessionId}
+            onInsert={handleAIGhostAccept}
+            onRun={handleBlockRerun}
+            onClose={() => { setShowPalette(false); termRef.current?.focus(); }}
+            bg={t.background}
+            fg={t.foreground}
+            accent={(t as any).cyan ?? (t as any).green ?? t.foreground}
+            border={(t as any).brightBlack ?? `${t.foreground}22`}
+            error={(t as any).red ?? '#f43f5e'}
+          />
+        );
+      })()}
+
+      {/* Ctrl+Shift+S share session (read-only spectator + collab links) */}
+      {showShare && (() => {
+        const t = XtermTheme[sessionTheme] || XtermTheme.default;
+        return (
+          <ShareSessionDialog
+            sessionId={sessionId}
+            onClose={() => { setShowShare(false); termRef.current?.focus(); }}
+            bg={t.background}
+            fg={t.foreground}
+            accent={(t as any).cyan ?? (t as any).green ?? t.foreground}
+            border={(t as any).brightBlack ?? `${t.foreground}22`}
+          />
+        );
+      })()}
 
       {/* Collab typing indicator — shown when a joiner is typing */}
       {/* Collab typing indicator + placeholder — self-contained, no parent re-render */}

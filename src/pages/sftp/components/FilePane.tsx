@@ -29,6 +29,9 @@ import PathBreadcrumb from "./PathBreadcrumb";
 import { ShowProgressBar } from "./DownloadProgress";
 import { DownloadProgressType } from "./SFTPTabClient";
 import { useSFTPStore } from "@/store/sftpStore";
+import { useResumableUpload } from "../hooks/useResumableUpload";
+import { UploadManagerPanel } from "./upload";
+import { ArchiveProgress } from "./ArchiveProgress";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -105,6 +108,30 @@ async function readDroppedFiles(dataTransfer: DataTransfer): Promise<DroppedFile
   return out;
 }
 
+/** Archives the classic endpoint extracts server-side — kept off the resumable path. */
+function isExtractableArchive(name: string): boolean {
+  return /\.(zip|tar\.gz|tgz|gz)$/i.test(name);
+}
+
+/** Relative path for folder detection (drag sets `.path`, folder-select sets `webkitRelativePath`). */
+function relPath(f: { path?: string; webkitRelativePath?: string }): string {
+  return f.path || f.webkitRelativePath || "";
+}
+
+/**
+ * Returns the files eligible for resumable upload — a single file or several
+ * loose (non-nested) non-archive files. Folders and extractable archives return
+ * null so they keep the classic `/api/upload` path.
+ */
+function resumableFiles(file: unknown): File[] | null {
+  const arr = (Array.isArray(file) ? file : [file]) as Array<File & { path?: string }>;
+  if (arr.length === 0) return null;
+  const allEligible = arr.every(
+    (f) => f instanceof File && !relPath(f).includes("/") && !isExtractableArchive(f.name),
+  );
+  return allEligible ? (arr as File[]) : null;
+}
+
 export function FilePane({
   title,
   files,
@@ -141,6 +168,24 @@ export function FilePane({
 
   // Get homeDir from the store — always use own tabId, never activeTabId
   const homeDir = session?.homeDir || "/";
+
+  // ── Resumable, multi-file uploads (loose non-archive files) ──
+  const refreshAfterUpload = useCallback(() => {
+    socket?.emit(SocketEventConstants.SFTP_GET_FILE, { dirPath: path });
+  }, [socket, path]);
+
+  const {
+    enqueue: enqueueResumable,
+    retry: retryUpload,
+    pause: pauseUpload,
+    resume: resumeUpload,
+    abort: abortUpload,
+    dismiss: dismissUpload,
+  } = useResumableUpload({
+    sessionId: tabId ?? "",
+    socket,
+    onComplete: refreshAfterUpload,
+  });
 
   /** Navigate to parent directory, clamped to homeDir */
   const handleGoBack = useCallback(() => {
@@ -473,6 +518,18 @@ export function FilePane({
   };
 
   const startUpload = async (file: any) => {
+    // Loose non-archive files (single or many) go through the resumable
+    // uploader; folders, multi-selections with nested paths and extractable
+    // archives keep the classic path.
+    const resumable = resumableFiles(file);
+    if (resumable) {
+      enqueueResumable(resumable, path);
+      setUploadedFiles([]);
+      setIsUploading(false);
+      setOpen(false);
+      return;
+    }
+
     const label = Array.isArray(file)
       ? file.length === 1
         ? file[0].name
@@ -526,7 +583,8 @@ export function FilePane({
   };
   useEffect(() => {
     if (!socket) return;
-    const onUploadProgress = (data: DownloadProgressType) => {
+    const onUploadProgress = (data: DownloadProgressType & { phase?: string }) => {
+      if (data.phase) return; // resumable uploads render in UploadManagerPanel
       setIsExtracting(false);
       setFileUploadProgress(data);
     };
@@ -799,6 +857,17 @@ export function FilePane({
                   }}
                 />
               )}
+
+              <UploadManagerPanel
+                sessionId={tabId ?? ""}
+                onPause={pauseUpload}
+                onResume={resumeUpload}
+                onRetry={retryUpload}
+                onAbort={abortUpload}
+                onDismiss={dismissUpload}
+              />
+
+              <ArchiveProgress socket={socket} />
             </div>
           </ResizablePanel>
         </ResizablePanelGroup>

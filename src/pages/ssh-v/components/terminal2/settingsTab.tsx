@@ -1,5 +1,6 @@
 
-import { AlertCircle, Palette, RotateCcw, Save, Type } from 'lucide-react';
+import { type ReactNode } from 'react';
+import { AlertCircle, Palette, RotateCcw, Save, Type, Bell, Sparkles, Command, Blocks, GitCompare, SquareTerminal, FileCode } from 'lucide-react';
 import { useTabStore } from '@/store/rightSidebarTabStore';
 import { XtermTheme, ThemeName, themeNames } from '@/pages/ssh-v/components/themes';
 import { useSSHStore } from '@/store/sshStore';
@@ -16,6 +17,36 @@ const FONT_WEIGHTS = [
   { label: 'Extra', value: '800' },
   { label: 'Black', value: '900' },
 ];
+
+/** A single labelled on/off setting row. */
+function ToggleRow({ icon, title, description, checked, onToggle, fg }: {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  checked: boolean;
+  onToggle: () => void;
+  fg: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md p-2.5" style={{ backgroundColor: `${fg}0d` }}>
+      <div className="flex min-w-0 items-center gap-2.5">
+        <span className="shrink-0" style={{ color: `${fg}cc` }}>{icon}</span>
+        <div className="min-w-0">
+          <p className="text-xs font-medium" style={{ color: fg }}>{title}</p>
+          <p className="truncate text-[11px]" style={{ color: `${fg}80` }}>{description}</p>
+        </div>
+      </div>
+      <button
+        role="switch"
+        aria-checked={checked}
+        onClick={onToggle}
+        className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${checked ? 'bg-blue-600' : 'bg-neutral-600'}`}
+      >
+        <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
+      </button>
+    </div>
+  );
+}
 
 export default function SettingsTab() {
   const { settings, updateSettings } = useTabStore();
@@ -49,7 +80,7 @@ export default function SettingsTab() {
     }
   };
 
-  const handleToggleSetting = (key: 'notifications' | 'autoSave' | 'autocomplete' | 'suggestionBox' | 'diagnostics') => {
+  const handleToggleSetting = (key: 'notifications' | 'autoSave' | 'autocomplete' | 'suggestionBox' | 'diagnostics' | 'commandPalette' | 'commandBlocks' | 'diffBeforeSave') => {
     updateSettings({ [key]: !settings[key] });
   };
 
@@ -66,6 +97,9 @@ export default function SettingsTab() {
       autocomplete: true,
       suggestionBox: true,
       diagnostics: false,
+      commandPalette: true,
+      commandBlocks: true,
+      diffBeforeSave: true,
       fontSize: 'medium',
     });
   };
@@ -202,116 +236,32 @@ export default function SettingsTab() {
         </div>
       </div>
 
-      {/* Behavior */}
+      {/* Terminal behavior */}
       <div className="rounded-lg p-4 border" style={{ backgroundColor: `${colors.background}dd`, borderColor: `${colors.foreground}20` }}>
-        <h4 className="font-medium text-sm mb-4" style={{ color: colors.foreground }}>Behavior</h4>
-
-        <div className="space-y-3">
-          {/* Notifications */}
-
-
-          {/* Auto Save */}
-          <div className="flex items-center justify-between p-2 rounded" style={{ backgroundColor: `${colors.foreground}10` }}>
-            <div className="flex items-center space-x-2">
-              <Save size={14} style={{ color: `${colors.foreground}cc` }} />
-              <div>
-                <p className="font-medium text-xs" style={{ color: colors.foreground }}>Auto Save</p>
-                <p className="text-xs" style={{ color: `${colors.foreground}80` }}>Save automatically</p>
-              </div>
-            </div>
-            <button
-              onClick={() => handleToggleSetting('autoSave')}
-              className={`
-                relative inline-flex h-4 w-7 items-center rounded-full transition-colors
-                ${settings.autoSave ? 'bg-blue-600' : 'bg-neutral-600'}
-              `}
-            >
-              <span
-                className={`
-                  inline-block h-3 w-3 transform rounded-full bg-white transition-transform
-                  ${settings.autoSave ? 'translate-x-4' : 'translate-x-0.5'}
-                `}
-              />
-            </button>
-          </div>
+        <div className="flex items-center space-x-2 mb-4">
+          <SquareTerminal size={16} className="text-blue-400" />
+          <h4 className="font-medium text-sm" style={{ color: colors.foreground }}>Terminal</h4>
+        </div>
+        <div className="space-y-2">
+          <ToggleRow icon={<Type size={14} />} title="Autocomplete" description="Ghost text & suggestions" checked={settings.autocomplete} onToggle={() => handleToggleSetting('autocomplete')} fg={colors.foreground} />
+          <ToggleRow icon={<Sparkles size={14} />} title="Suggestion Box" description="AI suggestions & ghost text" checked={settings.suggestionBox} onToggle={() => handleToggleSetting('suggestionBox')} fg={colors.foreground} />
+          <ToggleRow icon={<Command size={14} />} title="Command Palette" description="Ctrl+K natural-language commands" checked={settings.commandPalette} onToggle={() => handleToggleSetting('commandPalette')} fg={colors.foreground} />
+          <ToggleRow icon={<Blocks size={14} />} title="Command Blocks" description="Capture, re-run & fix commands" checked={settings.commandBlocks} onToggle={() => handleToggleSetting('commandBlocks')} fg={colors.foreground} />
+          <ToggleRow icon={<AlertCircle size={14} />} title="Diagnostics" description="Error & warning detection" checked={settings.diagnostics} onToggle={() => handleToggleSetting('diagnostics')} fg={colors.foreground} />
+          <ToggleRow icon={<Bell size={14} />} title="Notifications" description="Show terminal notifications" checked={settings.notifications} onToggle={() => handleToggleSetting('notifications')} fg={colors.foreground} />
         </div>
       </div>
 
-    
-
-      {/* Autocomplete */}
-      <div className="flex items-center justify-between p-2 rounded" style={{ backgroundColor: `${colors.foreground}10` }}>
-        <div className="flex items-center space-x-2">
-          <Type size={14} style={{ color: `${colors.foreground}cc` }} />
-          <div>
-            <p className="font-medium text-xs" style={{ color: colors.foreground }}>Autocomplete</p>
-            <p className="text-xs" style={{ color: `${colors.foreground}80` }}>Ghost text &amp; suggestions</p>
-          </div>
+      {/* Editor behavior */}
+      <div className="rounded-lg p-4 border" style={{ backgroundColor: `${colors.background}dd`, borderColor: `${colors.foreground}20` }}>
+        <div className="flex items-center space-x-2 mb-4">
+          <FileCode size={16} className="text-emerald-400" />
+          <h4 className="font-medium text-sm" style={{ color: colors.foreground }}>Editor</h4>
         </div>
-        <button
-          onClick={() => handleToggleSetting('autocomplete')}
-          className={`
-            relative inline-flex h-4 w-7 items-center rounded-full transition-colors
-            ${settings.autocomplete ? 'bg-blue-600' : 'bg-neutral-600'}
-          `}
-        >
-          <span
-            className={`
-              inline-block h-3 w-3 transform rounded-full bg-white transition-transform
-              ${settings.autocomplete ? 'translate-x-4' : 'translate-x-0.5'}
-            `}
-          />
-        </button>
-      </div>
-
-      {/* Suggestion Box (AI suggestions + AI ghost text) */}
-      <div className="flex items-center justify-between p-2 rounded" style={{ backgroundColor: `${colors.foreground}10` }}>
-        <div className="flex items-center space-x-2">
-          <Type size={14} style={{ color: `${colors.foreground}cc` }} />
-          <div>
-            <p className="font-medium text-xs" style={{ color: colors.foreground }}>Suggestion Box</p>
-            <p className="text-xs" style={{ color: `${colors.foreground}80` }}>AI suggestions &amp; AI ghost text</p>
-          </div>
+        <div className="space-y-2">
+          <ToggleRow icon={<Save size={14} />} title="Auto Save" description="Save automatically after edits" checked={settings.autoSave} onToggle={() => handleToggleSetting('autoSave')} fg={colors.foreground} />
+          <ToggleRow icon={<GitCompare size={14} />} title="Diff Before Save" description="Review SFTP changes before writing" checked={settings.diffBeforeSave} onToggle={() => handleToggleSetting('diffBeforeSave')} fg={colors.foreground} />
         </div>
-        <button
-          onClick={() => handleToggleSetting('suggestionBox')}
-          className={`
-            relative inline-flex h-4 w-7 items-center rounded-full transition-colors
-            ${settings.suggestionBox ? 'bg-blue-600' : 'bg-neutral-600'}
-          `}
-        >
-          <span
-            className={`
-              inline-block h-3 w-3 transform rounded-full bg-white transition-transform
-              ${settings.suggestionBox ? 'translate-x-4' : 'translate-x-0.5'}
-            `}
-          />
-        </button>
-      </div>
-
-      {/* Diagnostics */}
-      <div className="flex items-center justify-between p-2 rounded" style={{ backgroundColor: `${colors.foreground}10` }}>
-        <div className="flex items-center space-x-2">
-          <AlertCircle size={14} style={{ color: `${colors.foreground}cc` }} />
-          <div>
-            <p className="font-medium text-xs" style={{ color: colors.foreground }}>Diagnostics</p>
-            <p className="text-xs" style={{ color: `${colors.foreground}80` }}>Error &amp; warning detection</p>
-          </div>
-        </div>
-        <button
-          onClick={() => handleToggleSetting('diagnostics')}
-          className={`
-            relative inline-flex h-4 w-7 items-center rounded-full transition-colors
-            ${settings.diagnostics ? 'bg-blue-600' : 'bg-neutral-600'}
-          `}
-        >
-          <span
-            className={`
-              inline-block h-3 w-3 transform rounded-full bg-white transition-transform
-              ${settings.diagnostics ? 'translate-x-4' : 'translate-x-0.5'}
-            `}
-          />
-        </button>
       </div>
     </div>
   );

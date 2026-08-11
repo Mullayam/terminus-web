@@ -33,6 +33,12 @@ interface Settings {
   autocomplete: boolean;
   suggestionBox: boolean;
   diagnostics: boolean;
+  /** Ctrl+K natural-language command palette */
+  commandPalette: boolean;
+  /** Warp-style command blocks panel */
+  commandBlocks: boolean;
+  /** Show a Monaco diff before writing an SFTP file */
+  diffBeforeSave: boolean;
   fontSize: 'small' | 'medium' | 'large';
 }
 
@@ -141,6 +147,9 @@ export const useTabStore = create<TabState>((set, get) => ({
     autocomplete: true,
     suggestionBox: true,
     diagnostics: false,
+    commandPalette: true,
+    commandBlocks: true,
+    diffBeforeSave: true,
     fontSize: 'medium'
   },
   setActiveTab: (tab) => set({ activeTab: tab }),

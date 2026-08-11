@@ -310,6 +310,11 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
   const hoverProviderRef = useRef<monacoNs.IDisposable | null>(null);
   const notificationsRef = useRef<EditorNotificationsHandle | null>(null);
 
+  // Keep the latest onSave so the Ctrl+S action never calls a stale closure
+  // (handleMount runs once, but onSave is recreated on every parent render).
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
+
   // Flips to true once Monaco editor is ready (handleMount has fired).
   // Used as a dependency so effects that need editorRef/monacoRef can retry.
   const [editorReady, setEditorReady] = useState(false);
@@ -469,16 +474,14 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
       const disposables: monacoNs.IDisposable[] = [];
 
       // ── Ctrl+S / Cmd+S save handler ──
-      if (onSave) {
-        editor.addAction({
-          id: "terminus-save",
-          label: "Save File",
-          keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
-          run: () => {
-            onSave(editor.getValue());
-          },
-        });
-      }
+      editor.addAction({
+        id: "terminus-save",
+        label: "Save File",
+        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
+        run: () => {
+          onSaveRef.current?.(editor.getValue());
+        },
+      });
 
       // ── Toggle terminal (Ctrl+`) ──
       if (enableTerminal || onTerminalToggleProp) {

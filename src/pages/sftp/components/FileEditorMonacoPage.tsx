@@ -22,6 +22,8 @@ import { Loader2, RefreshCw } from "lucide-react";
 import { cachedIconUrl } from "@/lib/iconCache";
 import { getIconForFile } from "vscode-icons-js";
 import { useSFTPStore } from "@/store/sftpStore";
+import { useTabStore } from "@/store/rightSidebarTabStore";
+import SaveDiffModal from "./monaco-editor-parts/SaveDiffModal";
 import {
     MonacoEditor,
     ALL_BUILTIN_PLUGINS,
@@ -66,6 +68,7 @@ import { EditorAnnouncementDialog } from "@/components/EditorAnnouncementDialog"
 import { MONACO_THEMES } from "./monaco-editor-parts/ThemePicker";
 import { useFileOperations } from "@/modules/monaco-editor/components/file-tree/useFileOperations";
 import { getLoadedMonacoTheme } from "@/modules/monaco-editor/themes/monaco-themes-catalog";
+import { useAutoSave } from "../hooks/useAutoSave";
 
 /* ── Constants ─────────────────────────────────────────────── */
 
@@ -161,6 +164,9 @@ export default function FileEditorMonacoPage() {
     const [error, setError] = useState<string | null>(null);
     const [modified, setModified] = useState(false);
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
+    const [autoSaveEnabled, setAutoSaveEnabled] = useState(
+        () => localStorage.getItem("monaco-editor-autosave") !== "off",
+    );
     const [wordWrap, setWordWrap] = useState(true);
     const [showShortcuts, setShowShortcuts] = useState(false);
     const [showThemePicker, setShowThemePicker] = useState(false);
@@ -194,6 +200,16 @@ export default function FileEditorMonacoPage() {
     const contentRef = useRef("");
     /** Per-tab content refs keyed by tab id */
     const tabContentRefs = useRef<Record<string, string>>({});
+    /** Skip the pre-save diff prompt for the rest of the session. */
+    const skipDiffRef = useRef(false);
+    /** Pending diff-before-save dialog state. */
+    const [saveDiff, setSaveDiff] = useState<null | {
+        fileName: string;
+        original: string;
+        modified: string;
+        language: string;
+        commit: () => void;
+    }>(null);
 
     /* ── Extension Host (custom ext-host worker) ─────────── */
     useExtensionHost({ enabled: true });
@@ -569,14 +585,8 @@ export default function FileEditorMonacoPage() {
     useEffect(() => { fetchContent(); }, [fetchContent]);
 
     /* ── Save file ─────────────────────────────────────────── */
-    const handleSave = useCallback(async (value?: string) => {
-        if (saving) return;
-        // Must have either editor SFTP or URL sessionId
-        if (!editorSftpReady && !sessionIdRef.current) return;
-        const tab = activeTab;
-        const saveFilePath = tab?.filePath ?? filePath;
-        const saveFileName = tab?.fileName ?? fileName;
-        const toSave = value ?? (activeTabId ? tabContentRefs.current[activeTabId] : undefined) ?? contentRef.current;
+    // Actual write + post-save bookkeeping (shared by direct and diff-confirmed saves).
+    const commitSave = useCallback(async (saveFilePath: string, saveFileName: string, toSave: string) => {
         setSaving(true);
         try {
             // Prefer editor's own SFTP socket when connected
@@ -611,7 +621,48 @@ export default function FileEditorMonacoPage() {
         } finally {
             setSaving(false);
         }
-    }, [saving, activeTab, activeTabId, filePath, fileName, editorSftpReady, writeFileViaSocket]);
+    }, [editorSftpReady, writeFileViaSocket, activeTabId]);
+
+    const handleSave = useCallback(async (value?: string, opts?: { skipDiff?: boolean }) => {
+        if (saving) return;
+        // Must have either editor SFTP or URL sessionId
+        if (!editorSftpReady && !sessionIdRef.current) return;
+        const tab = activeTab;
+        const saveFilePath = tab?.filePath ?? filePath;
+        const saveFileName = tab?.fileName ?? fileName;
+        const toSave = value ?? (activeTabId ? tabContentRefs.current[activeTabId] : undefined) ?? contentRef.current;
+
+        // Manual saves diff against the current remote file before writing.
+        if (!opts?.skipDiff && !skipDiffRef.current && editorSftpReady && useTabStore.getState().settings.diffBeforeSave) {
+            try {
+                const remote = await readFileViaSocket(saveFilePath);
+                if (remote !== toSave) {
+                    setSaveDiff({
+                        fileName: saveFileName,
+                        original: remote ?? "",
+                        modified: toSave,
+                        language: detectLanguage(saveFilePath || saveFileName),
+                        commit: () => { setSaveDiff(null); commitSave(saveFilePath, saveFileName, toSave); },
+                    });
+                    return;
+                }
+                // Identical to remote — nothing to write.
+                setModified(false);
+                return;
+            } catch {
+                // Couldn't read remote — fall through to a direct save.
+            }
+        }
+        await commitSave(saveFilePath, saveFileName, toSave);
+    }, [saving, activeTab, activeTabId, filePath, fileName, editorSftpReady, readFileViaSocket, commitSave]);
+
+    /* ── Auto-save: debounced save after edits settle ──────── */
+    const { schedule: scheduleAutoSave, cancel: cancelAutoSave } = useAutoSave({
+        enabled: autoSaveEnabled,
+        modified,
+        delay: 1500,
+        onSave: (value?: string) => handleSave(value, { skipDiff: true }),
+    });
 
     /* ── Monaco callbacks ───────────────────────────────────── */
     const handleChange = useCallback((value: string) => {
@@ -627,10 +678,15 @@ export default function FileEditorMonacoPage() {
                     [activeTabId]: { ...prev[activeTabId], modified: isModified },
                 }));
             }
+            if (isModified) scheduleAutoSave();
+            else cancelAutoSave();
         } else {
-            setModified(value !== originalContentRef.current);
+            const isModified = value !== originalContentRef.current;
+            setModified(isModified);
+            if (isModified) scheduleAutoSave();
+            else cancelAutoSave();
         }
-    }, [activeTabId, tabs]);
+    }, [activeTabId, tabs, scheduleAutoSave, cancelAutoSave]);
 
     const handleEditorMount = useCallback((editor: MonacoEditorInstance) => {
         editorRef.current = editor;
@@ -719,19 +775,37 @@ export default function FileEditorMonacoPage() {
     const closeShortcuts = useCallback(() => setShowShortcuts(false), []);
 
     /* ── Status bar: last saved time ─────────────────────────── */
+    const toggleAutoSave = useCallback(() => {
+        setAutoSaveEnabled((prev) => {
+            const next = !prev;
+            localStorage.setItem("monaco-editor-autosave", next ? "on" : "off");
+            return next;
+        });
+    }, []);
+
     const statusBarItems = useMemo(() => {
-        if (!lastSaved) return [];
-        const fmt = lastSaved.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-        return [
+        const items = [
             {
+                id: "autosave-toggle",
+                text: autoSaveEnabled ? "Auto-save: On" : "Auto-save: Off",
+                tooltip: "Toggle auto-save (saves 1.5s after you stop typing)",
+                alignment: "right" as const,
+                priority: 90,
+                onClick: toggleAutoSave,
+            },
+        ];
+        if (lastSaved) {
+            const fmt = lastSaved.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+            items.unshift({
                 id: "last-saved",
                 text: `Saved ${fmt}`,
                 tooltip: `Last saved at ${lastSaved.toLocaleString()}`,
                 alignment: "right" as const,
                 priority: 100,
-            },
-        ];
-    }, [lastSaved]);
+            } as (typeof items)[number]);
+        }
+        return items;
+    }, [lastSaved, autoSaveEnabled, toggleAutoSave]);
 
     /* ── Reload-from-server confirmation ─────────────────────── */
     const [reloadConfirmOpen, setReloadConfirmOpen] = useState(false);
@@ -1056,6 +1130,21 @@ export default function FileEditorMonacoPage() {
 
             {/* Shortcuts modal (memoized, conditionally rendered) */}
             {showShortcuts && <ShortcutsModal onClose={closeShortcuts} />}
+
+            {/* Diff-before-save confirmation */}
+            {saveDiff && (
+                <SaveDiffModal
+                    fileName={saveDiff.fileName}
+                    original={saveDiff.original}
+                    modified={saveDiff.modified}
+                    language={saveDiff.language}
+                    theme={themeId}
+                    saving={saving}
+                    onConfirm={saveDiff.commit}
+                    onCancel={() => setSaveDiff(null)}
+                    onDisableForSession={() => { skipDiffRef.current = true; }}
+                />
+            )}
 
             {/* Reload confirmation dialog */}
             <AlertDialog open={reloadConfirmOpen} onOpenChange={setReloadConfirmOpen}>

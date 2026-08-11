@@ -22,6 +22,16 @@ type Store = {
 
 type CommandItem = { name: string; command: string }
 
+/** Upper bound on retained per-host shell history. */
+const SHELL_HISTORY_CAP = 5000
+const historyWriteTimers: Record<string, ReturnType<typeof setTimeout>> = {}
+function persistShellHistory(host: string, commands: string[]) {
+    clearTimeout(historyWriteTimers[host])
+    historyWriteTimers[host] = setTimeout(() => {
+        idb.putItem("shell_history", { host, commands }).catch(console.error)
+    }, 400)
+}
+
 type CommandStore = {
     /** Per-host shell history (zustand-only, resets on page reload) */
     shellHistory: Record<string, string[]>
@@ -33,6 +43,8 @@ type CommandStore = {
     addShellHistoryCommand: (host: string, command: string) => void
     addShellHistoryBatch: (host: string, commands: string[]) => void
     removeShellHistoryCommand: (host: string, command: string) => void
+    /** Load a host's persisted shell history from IndexedDB into the store */
+    loadShellHistory: (host: string) => Promise<void>
     addToAllCommands: (command: CommandItem) => void
     setAllCommands: (commands: CommandItem[]) => void
     removeFromAllCommands: (command: string) => void
@@ -71,7 +83,10 @@ export const useCommandStore = create<CommandStore>()((set, get) => ({
     addShellHistoryCommand: (host, command) => set((state) => {
         const prev = state.shellHistory[host] ?? [];
         if (prev.includes(command)) return state;
-        return { shellHistory: { ...state.shellHistory, [host]: [...prev, command] } };
+        const next = [...prev, command];
+        const capped = next.length > SHELL_HISTORY_CAP ? next.slice(-SHELL_HISTORY_CAP) : next;
+        persistShellHistory(host, capped);
+        return { shellHistory: { ...state.shellHistory, [host]: capped } };
     }),
 
     /** Merge a batch of commands (e.g. from SSH_EXEC_SILENT_RESULT) */
@@ -80,14 +95,35 @@ export const useCommandStore = create<CommandStore>()((set, get) => ({
         const set2 = new Set(prev);
         const newCmds = commands.filter(c => c && !set2.has(c));
         if (newCmds.length === 0) return state;
-        return { shellHistory: { ...state.shellHistory, [host]: [...prev, ...newCmds] } };
+        const next = [...prev, ...newCmds];
+        const capped = next.length > SHELL_HISTORY_CAP ? next.slice(-SHELL_HISTORY_CAP) : next;
+        persistShellHistory(host, capped);
+        return { shellHistory: { ...state.shellHistory, [host]: capped } };
     }),
 
     /** Remove a single command from a host's history */
     removeShellHistoryCommand: (host, command) => set((state) => {
         const prev = state.shellHistory[host] ?? [];
-        return { shellHistory: { ...state.shellHistory, [host]: prev.filter(c => c !== command) } };
+        const next = prev.filter(c => c !== command);
+        persistShellHistory(host, next);
+        return { shellHistory: { ...state.shellHistory, [host]: next } };
     }),
+
+    /** Load persisted history from IDB and merge it into the in-memory store */
+    loadShellHistory: async (host) => {
+        try {
+            const rec = await idb.getItemByKey("shell_history", host) as { host: string; commands: string[] } | undefined;
+            if (!rec?.commands?.length) return;
+            set((state) => {
+                const existing = state.shellHistory[host] ?? [];
+                const merged = Array.from(new Set([...rec.commands, ...existing]));
+                const capped = merged.length > SHELL_HISTORY_CAP ? merged.slice(-SHELL_HISTORY_CAP) : merged;
+                return { shellHistory: { ...state.shellHistory, [host]: capped } };
+            });
+        } catch (e) {
+            console.error("Failed to load shell history:", e);
+        }
+    },
 
     addToAllCommands: (command) => {
         set((state) => ({ allCommands: [command, ...state.allCommands] }))

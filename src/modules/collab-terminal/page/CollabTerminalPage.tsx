@@ -45,6 +45,8 @@ import { Loader2, RefreshCcw, Settings, AlertTriangle } from 'lucide-react';
 
 export default function CollabTerminalPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
+  // Spectator links (`?spectator=1`) force a client-side read-only view.
+  const isSpectator = new URLSearchParams(window.location.search).get('spectator') === '1';
   const socketRef = useRef<Socket | null>(null);
   const terminalRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -201,6 +203,9 @@ export default function CollabTerminalPage() {
     const disposable = term.onData((data: string) => {
       const { permission: currentPermission, isLocked: currentIsLocked, lockedBy: currentLockedBy, mySocketId } = useCollabStore.getState();
 
+      // Spectator share link → strictly read-only, never emit input.
+      if (isSpectator) return;
+
       // Read-only: don't even try
       if (currentPermission === '400') return;
 
@@ -220,7 +225,7 @@ export default function CollabTerminalPage() {
     });
 
     return () => disposable.dispose();
-  }, [termRef.current, emitInput, appendToBuffer]);
+  }, [termRef.current, emitInput, appendToBuffer, isSpectator]);
 
   // ── Block user (track IP locally for unblock UI) ─────────────────────
   const handleBlockUser = useCallback(
@@ -339,6 +344,11 @@ export default function CollabTerminalPage() {
           <div className="flex items-center gap-3">
             <PermissionBadge />
             <UserCountBadge />
+            {isSpectator && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-500">
+                👁 Spectator · read-only
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <span className="cursor-pointer" onClick={() => sessionId && navigator.clipboard.writeText(sessionId)}>

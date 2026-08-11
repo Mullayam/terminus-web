@@ -13,6 +13,7 @@
   <a href="#screenshots">Screenshots</a> •
   <a href="#getting-started">Getting Started</a> •
   <a href="#architecture">Architecture</a> •
+  <a href="#reports--audits">Reports</a> •
   <a href="#contributing">Contributing</a> •
   <a href="#license">License</a>
 </p>
@@ -151,6 +152,23 @@ src/
 ├── routes/              # Route definitions
 └── store/               # Global Zustand stores
 ```
+
+---
+
+## Reports & Audits
+
+In-depth engineering audits, performance notes, and backend design docs for the project live in the [`reports/`](./reports) folder:
+
+| Report | Description |
+|---|---|
+| [Archive Management (Backend)](./reports/ARCHIVE_MANAGEMENT_BACKEND.md) | Backend design for archive (zip/extract) management |
+| [Filesystem Plugin Audit](./reports/FILESYSTEM_PLUGIN_AUDIT.txt) | Audit of the editor filesystem provider/plugin |
+| [Monaco API Audit](./reports/MONACO_API_AUDIT.txt) | Review of the Monaco editor integration surface |
+| [Monaco Directory Structure](./reports/MONACO_DIRECTORY_STRUCTURE.txt) | Map of the `monaco-editor` module layout |
+| [Performance Notes](./reports/Performance.txt) | Performance findings and optimizations |
+| [SFTP Editor Tree Sidebar Audit](./reports/SFTP_EDITOR_TREE_SIDEBAR_AUDIT.txt) | Audit of the SFTP editor tree sidebar |
+| [SFTP Sidebar Audit](./reports/SFTP_SIDEBAR_AUDIT.txt) | Audit of the SFTP sidebar |
+| [SFTP Sidebar Audit (v2)](./reports/SFTP_SIDEBAR_AUDIT_v2.txt) | Follow-up SFTP sidebar audit |
 
 ---
 
