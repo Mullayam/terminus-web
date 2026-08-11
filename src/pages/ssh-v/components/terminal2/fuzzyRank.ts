@@ -65,14 +65,20 @@ function usageBonus(stat: UsageStat | undefined, now: number): number {
   return freq * 3 + recency;
 }
 
+/** Boost applied to priority items (shell history) — larger than any base score. */
+const PRIORITY_BONUS = 2000;
+
 /**
  * Filter `items` to fuzzy matches of `query` and sort best-first, blending
  * match quality with usage stats. De-duplicates while preserving the best rank.
+ * Items present in `priority` (e.g. the user's shell history) are boosted so
+ * they always rank above generic/pack suggestions of the same query.
  */
 export function rankSuggestions(
   query: string,
   items: string[],
   usage: UsageMap,
+  priority?: Set<string>,
 ): string[] {
   const now = Date.now();
   const seen = new Set<string>();
@@ -82,7 +88,8 @@ export function rankSuggestions(
     seen.add(text);
     const base = fuzzyScore(query, text);
     if (base === null) continue;
-    scored.push({ text, score: base + usageBonus(usage[text], now) });
+    const bonus = priority?.has(text) ? PRIORITY_BONUS : 0;
+    scored.push({ text, score: base + usageBonus(usage[text], now) + bonus });
   }
   scored.sort((a, b) => b.score - a.score || a.text.length - b.text.length);
   return scored.map((s) => s.text);

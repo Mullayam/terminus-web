@@ -277,7 +277,10 @@ const XTerminal = memo(function XTerminal({
   // Structured command metadata (flags/subcommands) for the arg-hint bar.
   const [commandIndex, setCommandIndex] = useState<CommandIndex>({});
   const suggestionsRef = useRef(suggestions);
-  useEffect(() => { suggestionsRef.current = suggestions; }, [suggestions]);
+  // Set mirror of the user's history/typed commands, so the ranker can boost
+  // them above generic pack suggestions. Rebuilt only when suggestions change.
+  const historySetRef = useRef<Set<string>>(new Set(suggestions));
+  useEffect(() => { suggestionsRef.current = suggestions; historySetRef.current = new Set(suggestions); }, [suggestions]);
   // Per-command usage stats (frequency + recency) used to rank suggestions.
   const usageKey = useMemo(() => `terminus-usage:${sessionHost ?? sessionId}`, [sessionId, sessionHost]);
   const usageRef = useRef<UsageMap>({});
@@ -675,8 +678,24 @@ const XTerminal = memo(function XTerminal({
     const buffer = commandBufferRef.current;
     // Detect `cd`/`ls`-style commands → fetch immediate directory entries.
     scheduleFsQuery(buffer);
-    const all = [...fsSuggestionsRef.current, ...suggestionsRef.current, ...ghostSourcesRef.current];
-    const suggestions = buffer === "" ? all : rankSuggestions(buffer, all, usageRef.current);
+    const fsList = fsSuggestionsRef.current;
+    const all = [...fsList, ...suggestionsRef.current, ...ghostSourcesRef.current];
+    let suggestions: string[];
+    if (buffer === "") {
+      suggestions = all;
+    } else {
+      // Live `cd`/`ls` directory entries stay on top; then user history ranks
+      // above generic pack/context-engine suggestions.
+      const fsRanked = fsList.length ? rankSuggestions(buffer, fsList, usageRef.current) : [];
+      const restRanked = rankSuggestions(
+        buffer,
+        [...suggestionsRef.current, ...ghostSourcesRef.current],
+        usageRef.current,
+        historySetRef.current,
+      );
+      const seen = new Set(fsRanked);
+      suggestions = [...fsRanked, ...restRanked.filter((s) => !seen.has(s))];
+    }
     // Never mark the box visible (and thus never swallow arrow keys) when the
     // suggestion box is disabled in settings.
     const visible =
