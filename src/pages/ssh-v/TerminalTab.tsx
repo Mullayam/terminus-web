@@ -72,6 +72,13 @@ export const DEFAULT_FORM_VALUES: FormValues = {
     localName: '',
 }
 
+/**
+ * In-memory cache of the last connect payload per session, used to spawn a
+ * fresh shell on reconnect. Kept out of the persisted store so credentials
+ * never touch localStorage.
+ */
+const connectPayloads = new Map<string, FormValues>();
+
 /** Inline diagnostics counts for the status bar */
 function StatusBarDiagnostics({ sessionId }: { sessionId: string }) {
     const diagnosticsEnabled = useTabStore((s) => s.settings.diagnostics);
@@ -103,7 +110,7 @@ export default function TerminalTab({ sessionId }: Props) {
     const { addSharedSession, addPermissions, deletePermission, deleteSharedSession } = useTerminalStore()
     const { activeItem } = useSidebarState();
 
-    const { tabs, sessions, addSession, updateStatus, updateSftpStatus, activeTabId, loadSessionTheme, loadSessionFont, splitMode, splitTabId } = useSSHStore();
+    const { tabs, sessions, addSession, updateStatus, updateSftpStatus, activeTabId, loadSessionTheme, loadSessionFont, splitMode, splitTabId, reconnectSignals } = useSSHStore();
     const socketRef = useRef<Socket | null>(null);
 
     // Check if SFTP is available on any session connected to the same host
@@ -162,6 +169,7 @@ export default function TerminalTab({ sessionId }: Props) {
         })
 
         setActiveTabData(data);
+        connectPayloads.set(sessionId, data);
         socketRef.current?.emit(SocketEventConstants.SSH_START_SESSION, JSON.stringify(data));
         setIsLoading(true);
         hostId && setHostId(null)
@@ -232,10 +240,6 @@ export default function TerminalTab({ sessionId }: Props) {
         const handleCollabUserLeft = (data: { socketId: string; userCount: number }) => {
             deleteSharedSession(activeTabId!, data.socketId)
         }
-        const onResume = () => {
-            socket?.emit(SocketEventConstants.SSH_RESUME, sessionId)
-
-        }
         socket.on(SocketEventConstants.session_info, handleAddSession)
         socket.on(SocketEventConstants.COLLAB_USER_JOINED, handleCollabUserJoined)
         socket.on(SocketEventConstants.COLLAB_USER_LEFT, handleCollabUserLeft)
@@ -246,8 +250,9 @@ export default function TerminalTab({ sessionId }: Props) {
         socket.on(SocketEventConstants.SSH_EMIT_ERROR, handleSSHError);
         socket.on('connect', () => console.log('Connected', socket.id));
         socket.on('disconnect', () => {
-            console.log('Disconnected');
-            navigate('/ssh/connect');
+            // Keep the tab; surface a reconnect entry point instead of navigating away.
+            updateStatus(sessionId, 'disconnected');
+            setIsLoading(false);
         });
         socket.on('connect_error', (error) => console.error('Error:', error));
 
@@ -269,6 +274,58 @@ export default function TerminalTab({ sessionId }: Props) {
 
 
     }, [sessionId, activeTabId]);
+
+    /**
+     * Fresh-shell reconnect: reuse the existing socket (reconnecting the
+     * transport if needed) and re-run the SSH handshake with the cached
+     * credentials. Falls back to SSH_RESUME when no credentials are cached
+     * (e.g. after a page reload).
+     */
+    const doReconnect = React.useCallback(() => {
+        const socket = socketRef.current;
+        if (!socket) return;
+        const creds = connectPayloads.get(sessionId);
+        updateStatus(sessionId, 'connecting');
+        setIsLoading(true);
+        const emitStart = () => {
+            if (creds) {
+                socket.emit(SocketEventConstants.SSH_START_SESSION, JSON.stringify(creds));
+            } else {
+                socket.emit(SocketEventConstants.SSH_RESUME, sessionId);
+            }
+        };
+        if (socket.connected) {
+            emitStart();
+        } else {
+            socket.once('connect', emitStart);
+            socket.connect();
+        }
+    }, [sessionId, updateStatus]);
+
+    // Latest doReconnect for closures bound once (idle tracker).
+    const doReconnectRef = useRef(doReconnect);
+    doReconnectRef.current = doReconnect;
+
+    // Reconnect on demand: the topbar bumps this per-session signal.
+    const reconnectSignal = reconnectSignals[sessionId] ?? 0;
+    const lastReconnectRef = useRef(reconnectSignal);
+    React.useEffect(() => {
+        if (reconnectSignal !== lastReconnectRef.current) {
+            lastReconnectRef.current = reconnectSignal;
+            doReconnect();
+        }
+    }, [reconnectSignal, doReconnect]);
+
+    // Idle-reconnect: if the socket dropped while idle, re-establish on the
+    // next return to activity.
+    React.useEffect(() => {
+        const stop = startTracking(() => {
+            if (!socketRef.current?.connected) doReconnectRef.current();
+        });
+        return stop;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     React.useEffect(() => {
 
         if (activeTabData !== null) {

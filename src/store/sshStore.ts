@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 import { Socket } from 'socket.io-client';
 import { ThemeName } from '@/pages/ssh-v/components/themes';
@@ -55,6 +56,8 @@ interface SSHStore {
   sessionFonts: Record<string, SessionFontSettings>;
   /** Sessions with unseen output that arrived while the tab was not visible. */
   sessionActivity: Record<string, boolean>;
+  /** Bumped per-session to request a fresh-shell reconnect from the mounted tab. */
+  reconnectSignals: Record<string, number>;
   addSession: (session: SSHSession) => void;
   updateStatus: (sessionId: string, status: SSHSession['status'], error?: string) => void;
   updateSftpStatus: (sessionId: string, status: boolean) => void;
@@ -64,6 +67,7 @@ interface SSHStore {
   removeTab: (tabId: string) => void;
   markSessionActivity: (sessionId: string) => void;
   clearSessionActivity: (sessionId: string) => void;
+  requestReconnect: (sessionId: string) => void;
   setSplit: (mode: 'horizontal' | 'vertical', tabId: string) => void;
   clearSplit: () => void;
   setSessionTheme: (sessionId: string, theme: ThemeName) => void;
@@ -74,17 +78,20 @@ interface SSHStore {
   loadSessionFont: (sessionId: string) => void;
 }
 
-export const useSSHStore = create<SSHStore>((set, get) => ({
-  sessions: {},
-  tabs: [],
-  activeTabId: undefined,
-  sftp_enabled: false,
-  splitMode: 'none',
-  splitTabId: null,
-  sessionThemes: {},
-  sessionFonts: loadAllFontsFromLS(),
-  sessionActivity: {},
-  addSession: (session) =>
+export const useSSHStore = create<SSHStore>()(
+  persist(
+    (set, get) => ({
+      sessions: {},
+      tabs: [],
+      activeTabId: undefined,
+      sftp_enabled: false,
+      splitMode: 'none',
+      splitTabId: null,
+      sessionThemes: {},
+      sessionFonts: loadAllFontsFromLS(),
+      sessionActivity: {},
+      reconnectSignals: {},
+      addSession: (session) =>
     set((state) => ({
       sessions: {
         ...state.sessions,
@@ -162,6 +169,12 @@ export const useSSHStore = create<SSHStore>((set, get) => ({
     if (!state.sessionActivity[sessionId]) return state;
     return { sessionActivity: { ...state.sessionActivity, [sessionId]: false } };
   }),
+  requestReconnect: (sessionId) => set((state) => ({
+    reconnectSignals: {
+      ...state.reconnectSignals,
+      [sessionId]: (state.reconnectSignals[sessionId] ?? 0) + 1,
+    },
+  })),
   setSessionTheme: (sessionId, theme) => {
     set((state) => ({
       sessionThemes: { ...state.sessionThemes, [sessionId]: theme },
@@ -208,4 +221,23 @@ export const useSSHStore = create<SSHStore>((set, get) => ({
       }));
     }
   },
-}));
+    }),
+    {
+      name: 'terminus-ssh-store',
+      // Sockets are non-serializable and die with the page. Persist only tab
+      // metadata; strip the live socket and mark every session disconnected so
+      // the reopened tab shows a reconnect entry point instead of a stale one.
+      partialize: (state) => ({
+        tabs: state.tabs,
+        activeTabId: state.activeTabId,
+        sessions: Object.fromEntries(
+          Object.entries(state.sessions).map(([id, s]) => [
+            id,
+            { ...s, socket: null, status: 'disconnected' as const, error: undefined },
+          ]),
+        ),
+      }),
+    },
+  ),
+);
+

@@ -1,4 +1,4 @@
-import { Columns2, Copy, Menu, Plus, PlusCircle, Power, Rows2, Square, X, Bot } from 'lucide-react';
+import { Columns2, Copy, Menu, Plus, PlusCircle, Power, RotateCcw, Rows2, Square, X, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
@@ -58,13 +58,11 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
     clearSplit,
     sessionActivity,
     sessionThemes,
+    requestReconnect,
   } = useSSHStore();
 
   const { removeLog } = useTerminalStore()
   const { activeItem } = useSidebarState()
-
-  const activeTab = tabs.find((tab) => tab.id === activeTabId);
-  const current = activeTab ? sessions[activeTab.sessionId] : undefined;
 
   /**
    * Handle the event when a tab is removed.
@@ -88,12 +86,13 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
     removeTab(tabId);
   };
 
-  const retry = () => {
-    if (current?.sessionId) {
-      console.log('🔁 Retrying:', current.sessionId);
-      updateStatus(current.sessionId, 'connecting');
-      // TODO: re-emit socket event
-    }
+  /** Reconnect a tab's session with a fresh shell (right-click menu). */
+  const handleReconnect = (tabId: string) => {
+    const tab = tabs.find((t) => t.id === tabId);
+    if (!tab) return;
+    // Ensure the owning tab is mounted so it receives the reconnect signal.
+    setActiveTab(tabId);
+    requestReconnect(tab.sessionId);
   };
 
   /** Duplicate: open a new tab that connects to the same host */
@@ -203,6 +202,14 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
                   className="w-52 bg-[#1a1b26] border-gray-700"
                   onCloseAutoFocus={(e) => e.preventDefault()}
                 >
+                  <ContextMenuItem
+                    onClick={() => handleReconnect(tab.id)}
+                    className="cursor-pointer"
+                  >
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Reconnect
+                  </ContextMenuItem>
+                  <ContextMenuSeparator className="bg-gray-700/50" />
                   {tabSession?.status === 'connected' && (
                     <>
                       <ContextMenuItem
