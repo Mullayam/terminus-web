@@ -335,13 +335,14 @@ export default function ResourceMonitor({ sessionId, onClose }: ResourceMonitorP
         <span style={{ fontSize: 10, color: `${fg}66`, maxWidth: 90, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{host}</span>
         <div style={{ flex: 1 }} />
         <button
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={() => setPaused((p) => !p)}
           title={paused ? "Resume" : "Pause"}
           style={{ display: "flex", background: "transparent", border: "none", color: `${fg}99`, cursor: "pointer", padding: 2 }}
         >
           {paused ? <Play size={14} /> : <Pause size={14} />}
         </button>
-        <button onClick={onClose} title="Close (Ctrl+Shift+M)" style={{ display: "flex", background: "transparent", border: "none", color: `${fg}99`, cursor: "pointer", padding: 2 }}>
+        <button onPointerDown={(e) => e.stopPropagation()} onClick={onClose} title="Close (Ctrl+Shift+M)" style={{ display: "flex", background: "transparent", border: "none", color: `${fg}99`, cursor: "pointer", padding: 2 }}>
           <X size={15} />
         </button>
       </div>
