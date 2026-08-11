@@ -195,6 +195,15 @@ const AISuggestionBox: React.FC<SuggestionBoxProps> = ({ terminalHeight, setSugg
   const MAX_HEIGHT = 280;
   const GAP = 12;
   const LINE_HEIGHT = 18;
+  // Only ~10 rows fit in MAX_HEIGHT; rendering every match (can be 100s from
+  // shell history + context-engine) on each keystroke is what causes typing lag.
+  const MAX_RENDERED = 200;
+
+  // Bounded slice actually painted — keeps the keystroke path cheap.
+  const visibleSuggestions = useMemo(
+    () => suggestions.slice(0, MAX_RENDERED),
+    [suggestions],
+  );
 
   // Reset active index when suggestions or buffer changes
   useEffect(() => { setActiveIndex(-1); }, [suggestions.length, commandBuffer]);
@@ -211,14 +220,14 @@ const AISuggestionBox: React.FC<SuggestionBoxProps> = ({ terminalHeight, setSugg
       //   e.preventDefault();
       //   setActiveIndex((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
       // } else
-      if (e.key === "Tab" && activeIndex >= 0 && activeIndex < suggestions.length) {
+      if (e.key === "Tab" && activeIndex >= 0 && activeIndex < visibleSuggestions.length) {
         e.preventDefault();
         e.stopPropagation();
-        setCommand(suggestions[activeIndex], "single");
-      } else if (e.key === "Enter" && activeIndex >= 0 && activeIndex < suggestions.length) {
+        setCommand(visibleSuggestions[activeIndex], "single");
+      } else if (e.key === "Enter" && activeIndex >= 0 && activeIndex < visibleSuggestions.length) {
         e.preventDefault();
         e.stopPropagation();
-        setCommand(suggestions[activeIndex], "single");
+        setCommand(visibleSuggestions[activeIndex], "single");
       } else if (e.key === "Escape") {
         e.preventDefault();
         e.stopPropagation();
@@ -227,7 +236,7 @@ const AISuggestionBox: React.FC<SuggestionBoxProps> = ({ terminalHeight, setSugg
     };
     window.addEventListener("keydown", handler, true);
     return () => window.removeEventListener("keydown", handler, true);
-  }, [isVisible, activeIndex, suggestions, setCommand]);
+  }, [isVisible, activeIndex, visibleSuggestions, setCommand]);
 
   // Scroll active item into view
   useEffect(() => {
@@ -372,7 +381,7 @@ const AISuggestionBox: React.FC<SuggestionBoxProps> = ({ terminalHeight, setSugg
               Suggestions
             </span>
             <span style={{ fontSize: 10, color: mixHex(c.bg, c.fg, 0.55) }}>
-              {suggestions.length}
+              {suggestions.length > MAX_RENDERED ? `${MAX_RENDERED}+` : suggestions.length}
             </span>
           </div>
           <div
@@ -385,7 +394,7 @@ const AISuggestionBox: React.FC<SuggestionBoxProps> = ({ terminalHeight, setSugg
               scrollbarColor: `${c.dimFg}40 transparent`,
             }}
           >
-            {suggestions.map((cmd, index) => {
+            {visibleSuggestions.map((cmd, index) => {
               const isActive = index === activeIndex;
               return (
                 <div
