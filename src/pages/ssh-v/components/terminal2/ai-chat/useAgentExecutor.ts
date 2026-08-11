@@ -10,8 +10,11 @@ import stripAnsi from 'strip-ansi';
 /** Max number of agent retry iterations per activation */
 const DEFAULT_MAX_STEPS = 25;
 
-/** How long to wait (ms) after executing a command before reading output */
-const OUTPUT_SETTLE_MS = 15000;
+/** Base settle window: proceed this long after terminal output goes quiet (ms). */
+const OUTPUT_SETTLE_MS = 3000;
+
+/** When NO output has appeared yet, double the wait this many rounds (3s→6s→12s). */
+const SETTLE_MAX_ROUNDS = 3;
 
 /** Max total wait before sending Ctrl+C (ms) */
 const OUTPUT_MAX_WAIT_MS = 30000;
@@ -20,14 +23,20 @@ const OUTPUT_MAX_WAIT_MS = 30000;
 const OUTPUT_SETTLE_EXTRA_MS = 500;
 
 /** The user-level prompt for agent mode (system prompt is on backend) */
-const STEP_BY_STEP_PROMPT = `You are in AGENT MODE — you can execute commands directly on this terminal.
+const STEP_BY_STEP_PROMPT = `You are in AGENT MODE — you run commands on a REAL terminal, ONE at a time, and see the actual output before deciding the next step. Work like a careful engineer: Think → Act → Observe → Decide.
 
-- Answer questions from terminal context without running commands.
-- For simple requests, just provide the ONE command needed.
-- For complex tasks (3+ steps), show a brief plan checklist first, then execute step by step.
-- ONE command per response in a \`\`\`bash code block.
-- After each command I'll show you the real output — use it for the next step.
-- When done, give a brief summary.`;
+Each step:
+1. THINK: one short line — what you need to find out or do next, and why.
+2. ACT: exactly ONE command in a \`\`\`bash code block.
+3. OBSERVE: I run it and send you the REAL output. Read it before doing anything else.
+4. DECIDE: base the NEXT command on what actually happened — never assume a result you haven't seen.
+
+Rules:
+- If the answer is already visible in the terminal context, just answer — no command.
+- Simple request → the single command needed. Complex task (3+ steps) → a brief plan checklist first, then step through it.
+- One command per response, always. Wait for its output before the next one.
+- If a command errors, diagnose it from its output and adapt — don't repeat the same command blindly.
+- When the task is finished, give a brief summary and end with [TASK_COMPLETE]. If you're stuck and need the user, end with [TASK_BLOCKED].`;
 
 /** Dangerous command patterns that should never be auto-executed */
 const DANGEROUS_PATTERNS = [
@@ -90,6 +99,52 @@ export function requestNotificationPermission() {
   }
 }
 
+/** Resolvers for risky commands awaiting the user's Allow/Deny, keyed by approvalId. */
+const pendingApprovals = new Map<string, (allowed: boolean) => void>();
+
+/** Called from the chat UI when the user clicks Allow/Deny on a risky command. */
+export function resolveAgentApproval(approvalId: string, allowed: boolean) {
+  pendingApprovals.get(approvalId)?.(allowed);
+}
+
+/**
+ * Post a "confirm" bubble for a risky command and block until the user clicks
+ * Allow/Deny in the chat panel (or the run is stopped, which denies it).
+ */
+function awaitApproval(
+  sessionId: string,
+  cmd: string,
+  runId: string,
+  maxSteps: number,
+  step: number,
+  updateStatus: (partial: Partial<AgentStatus>) => void,
+): Promise<boolean> {
+  const { addAgentMessage, updateAgentMessage } = useAIChatStore.getState();
+  const approvalId = `ap-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const msgId = addAgentMessage(sessionId, 'Approval required — this command looks risky.', {
+    agentAction: 'confirm',
+    agentStep: step,
+    agentMaxSteps: maxSteps,
+    agentCommand: cmd,
+    agentRunId: runId,
+    agentApprovalId: approvalId,
+  });
+  notifyIfHidden('Terminus AI Agent', `Approval required to run: ${cmd.slice(0, 80)}`);
+  updateStatus({ action: 'Waiting for your approval…', lastResult: 'running' });
+  return new Promise<boolean>((resolve) => {
+    pendingApprovals.set(approvalId, (allowed) => {
+      pendingApprovals.delete(approvalId);
+      updateAgentMessage(
+        sessionId,
+        msgId,
+        allowed ? 'Approved — running command.' : 'Denied — command skipped.',
+        { agentAction: allowed ? 'executing' : 'blocked', agentCommand: cmd },
+      );
+      resolve(allowed);
+    });
+  });
+}
+
 export function useAgentExecutor(sessionId: string) {
   const abortRef = useRef(false);
   const runningRef = useRef(false);
@@ -122,15 +177,20 @@ export function useAgentExecutor(sessionId: string) {
   );
 
   /** Wait for terminal output to settle after command execution.
-   *  Waits up to OUTPUT_MAX_WAIT_MS; if still producing output, sends Ctrl+C. */
+   *  Fast path: once output appears, resolve after OUTPUT_SETTLE_MS of quiet.
+   *  Slow start: if NO output shows yet, back off the deadline 3s→6s→12s
+   *  (SETTLE_MAX_ROUNDS) before giving up. Runaway output → Ctrl+C at the cap. */
   const waitForOutput = useCallback(
     (prevLogLen: number, extraMs = 0): Promise<string> => {
       return new Promise((resolve) => {
-        const settleTime = OUTPUT_SETTLE_MS + extraMs;
+        const settleWindow = OUTPUT_SETTLE_MS + extraMs;
         const hardDeadline = OUTPUT_MAX_WAIT_MS + extraMs;
         const start = Date.now();
         let lastLen = prevLogLen;
         let lastChangeTime = start;
+        let sawOutput = false;
+        let round = 1;
+        let noOutputDeadline = start + settleWindow; // first backoff round
         let ctrlCSent = false;
 
         const check = () => {
@@ -139,13 +199,15 @@ export function useAgentExecutor(sessionId: string) {
             return;
           }
           const logs = useTerminalStore.getState().logs[sessionId] ?? [];
-          const elapsed = Date.now() - start;
-          const sinceLast = Date.now() - lastChangeTime;
+          const now = Date.now();
+          const elapsed = now - start;
 
           if (logs.length > lastLen) {
             lastLen = logs.length;
-            lastChangeTime = Date.now();
+            lastChangeTime = now;
+            sawOutput = true;
           }
+          const sinceLast = now - lastChangeTime;
 
           // Hard deadline: if still getting output, send Ctrl+C and collect what we have
           if (elapsed >= hardDeadline && !ctrlCSent) {
@@ -161,17 +223,27 @@ export function useAgentExecutor(sessionId: string) {
             return;
           }
 
-          // Settle: no new output for settleTime → done
-          if (sinceLast >= settleTime && elapsed >= settleTime) {
-            const newLines = logs.slice(prevLogLen);
-            resolve(stripAnsi(newLines.join('')).trim());
-            return;
+          if (sawOutput) {
+            // Output arrived → done once it's been quiet for the settle window.
+            if (sinceLast >= settleWindow) {
+              const newLines = logs.slice(prevLogLen);
+              resolve(stripAnsi(newLines.join('')).trim());
+              return;
+            }
+          } else if (now >= noOutputDeadline) {
+            // Still nothing → exponential backoff (3s → 6s → 12s), then give up.
+            if (round >= SETTLE_MAX_ROUNDS) {
+              resolve('');
+              return;
+            }
+            round += 1;
+            noOutputDeadline = now + settleWindow * 2 ** (round - 1);
           }
 
           setTimeout(check, 500);
         };
 
-        setTimeout(check, 1500);
+        setTimeout(check, 800);
       });
     },
     [sessionId],
@@ -249,24 +321,20 @@ export function useAgentExecutor(sessionId: string) {
             break;
           }
 
-          const safeCommands = currentCommands.filter((cmd) => {
-            if (isDangerous(cmd)) {
-              postAgent(`Blocked dangerous command: \`${cmd}\``, 'blocked', { step, command: cmd });
-              return false;
-            }
-            return true;
-          });
-
-          if (safeCommands.length === 0) {
-            updateStatus({ action: 'All commands blocked (dangerous)', running: false });
-            notifyIfHidden('Terminus AI Agent', 'Dangerous commands were blocked.');
-            break;
-          }
-
           let lastOutput = '';
-          for (let ci = 0; ci < safeCommands.length; ci++) {
+          for (let ci = 0; ci < currentCommands.length; ci++) {
             if (abortRef.current) break;
-            const cmd = safeCommands[ci];
+            const cmd = currentCommands[ci];
+
+            // Risky commands never auto-run — pause for the user's Allow/Deny.
+            if (isDangerous(cmd)) {
+              const approved = await awaitApproval(sessionId, cmd, runId, maxSteps, step, updateStatus);
+              if (abortRef.current) break;
+              if (!approved) {
+                postAgent('Command denied — skipped.', 'blocked', { step, command: cmd });
+                continue;
+              }
+            }
 
             updateStatus({ step, action: `Running: ${cmd.slice(0, 60)}${cmd.length > 60 ? '…' : ''}`, lastResult: 'running' });
 
@@ -443,12 +511,15 @@ export function useAgentExecutor(sessionId: string) {
             break;
           }
 
-          // Safety check
+          // Risky commands never auto-run — pause for the user's Allow/Deny.
           if (isDangerous(cmd)) {
-            postAgent(`Blocked dangerous command: \`${cmd}\``, 'blocked', { step, command: cmd });
-            updateStatus({ step, action: 'Dangerous command blocked', lastResult: 'error', running: false });
-            notifyIfHidden('Terminus AI Agent', 'A dangerous command was blocked.');
-            break;
+            const approved = await awaitApproval(sessionId, cmd, runId, maxSteps, step, updateStatus);
+            if (abortRef.current) break;
+            if (!approved) {
+              updateStatus({ step, action: 'Command denied by user', lastResult: 'error', running: false });
+              postAgent('Command denied — task stopped.', 'stopped', { step });
+              break;
+            }
           }
 
           // Execute the command
@@ -499,7 +570,7 @@ export function useAgentExecutor(sessionId: string) {
           step++;
           updateStatus({ step, action: 'Reading output, planning next step…', lastResult: 'running' });
 
-          const nextPrompt = `Here is the real output from the command \`${cmd}\`:\n\`\`\`\n${output.slice(0, 3000)}\n\`\`\`\n\nBased on this REAL output, what is the next command? ONE command in a bash code block. If the task is done, just say so with a summary (no commands needed).`;
+          const nextPrompt = `Here is the REAL output from \`${cmd}\`:\n\`\`\`\n${output.slice(0, 3000)}\n\`\`\`\n\nObserve it, then decide. THINK in one short line about what this output means, then give the NEXT single command in a \`\`\`bash code block. If the task is complete, give a brief summary and end with [TASK_COMPLETE]. If you're stuck and need the user, end with [TASK_BLOCKED].`;
 
           // Hide internal agent prompt from chat — user sees agent bubbles instead
           await sendMessage(nextPrompt, undefined, { displayContent: null });
@@ -522,6 +593,9 @@ export function useAgentExecutor(sessionId: string) {
 
   const stopAgent = useCallback(() => {
     abortRef.current = true;
+    // Auto-deny anything waiting on approval so the loop doesn't hang.
+    pendingApprovals.forEach((resolve) => resolve(false));
+    pendingApprovals.clear();
     const state = useAIChatStore.getState();
     const status = state.agentStatus[sessionId];
     if (status) {

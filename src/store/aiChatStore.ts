@@ -14,7 +14,7 @@ export interface AgentStatus {
   lastResult?: 'success' | 'error' | 'running';
 }
 
-export type AgentAction = 'executing' | 'waiting' | 'success' | 'error' | 'replanning' | 'blocked' | 'stopped' | 'info';
+export type AgentAction = 'executing' | 'waiting' | 'success' | 'error' | 'replanning' | 'blocked' | 'stopped' | 'info' | 'confirm';
 
 export interface AIChatMessage {
   id: number;
@@ -36,6 +36,8 @@ export interface AIChatMessage {
   agentTotalCommands?: number;
   /** Groups every message from one agent run into a single accordion */
   agentRunId?: string;
+  /** Pending-approval id for a risky command awaiting user Allow/Deny */
+  agentApprovalId?: string;
 }
 
 interface AIChatSession {
@@ -96,8 +98,8 @@ interface AIChatState {
   updateAssistantMessage: (sessionId: string, msgId: number, content: string) => void;
   appendAssistantContent: (sessionId: string, msgId: number, delta: string) => void;
   setMessageCommands: (sessionId: string, msgId: number, commands: string[]) => void;
-  addAgentMessage: (sessionId: string, content: string, meta?: Partial<Pick<AIChatMessage, 'agentAction' | 'agentStep' | 'agentMaxSteps' | 'agentCommand' | 'agentOutput' | 'agentTotalCommands' | 'agentRunId'>>) => number;
-  updateAgentMessage: (sessionId: string, msgId: number, content: string, meta?: Partial<Pick<AIChatMessage, 'agentAction' | 'agentStep' | 'agentMaxSteps' | 'agentCommand' | 'agentOutput' | 'agentTotalCommands' | 'agentRunId'>>) => void;
+  addAgentMessage: (sessionId: string, content: string, meta?: Partial<Pick<AIChatMessage, 'agentAction' | 'agentStep' | 'agentMaxSteps' | 'agentCommand' | 'agentOutput' | 'agentTotalCommands' | 'agentRunId' | 'agentApprovalId'>>) => number;
+  updateAgentMessage: (sessionId: string, msgId: number, content: string, meta?: Partial<Pick<AIChatMessage, 'agentAction' | 'agentStep' | 'agentMaxSteps' | 'agentCommand' | 'agentOutput' | 'agentTotalCommands' | 'agentRunId' | 'agentApprovalId'>>) => void;
   setGhostCommand: (sessionId: string, command: string) => void;
   clearGhostCommand: (sessionId: string) => void;
   setAutoExecute: (sessionId: string, enabled: boolean) => void;

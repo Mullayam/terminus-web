@@ -11,6 +11,7 @@ import {
   Shield,
   ShieldCheck,
   ShieldOff,
+  ShieldAlert,
   Sparkles,
   Square,
   StopCircle,
@@ -23,7 +24,7 @@ import { useSessionTheme } from '@/hooks/useSessionTheme';
 import { useAIChatStore, type AIChatMessage, type AgentStatus, type AgentAction, getModelOptions, getDefaultModel } from '@/store/aiChatStore';
 import { useSSHStore } from '@/store/sshStore';
 import { useAIChat, extractCommands } from './useAIChat';
-import { useAgentExecutor, requestNotificationPermission } from './useAgentExecutor';
+import { useAgentExecutor, requestNotificationPermission, resolveAgentApproval } from './useAgentExecutor';
 import { SocketEventConstants } from '@/lib/sockets/event-constants';
 
 interface AIChatPanelProps {
@@ -350,6 +351,7 @@ const AGENT_ICONS: Record<AgentAction, { icon: typeof Play; color: string; spin?
   blocked: { icon: ShieldOff, color: 'red' },
   stopped: { icon: Square, color: 'foreground' },
   info: { icon: Shield, color: 'cyan' },
+  confirm: { icon: ShieldAlert, color: 'yellow' },
 };
 
 /** A single agent step — shown inside the accordion */
@@ -442,31 +444,36 @@ function AgentAccordion({
   const isDone = lastAction === 'success';
   const isError = lastAction === 'error' || lastAction === 'blocked';
   const isStopped = lastAction === 'stopped';
+  const isAwaitingApproval = lastAction === 'confirm';
 
-  const accentColor = isRunning
-    ? colors.cyan
-    : isDone
-      ? colors.green
-      : isError
-        ? colors.red
-        : isStopped
-          ? `${colors.foreground}60`
-          : `${colors.foreground}80`;
+  const accentColor = isAwaitingApproval
+    ? colors.yellow ?? colors.cyan
+    : isRunning
+      ? colors.cyan
+      : isDone
+        ? colors.green
+        : isError
+          ? colors.red
+          : isStopped
+            ? `${colors.foreground}60`
+            : `${colors.foreground}80`;
 
   // Summary label. Prefer the run-total stamped on the final message; fall back
   // to this group's own executed-command count (each accordion is one segment of
   // a run that may be split by interleaved assistant messages).
   const totalSteps = agentMessages.filter((m) => m.agentCommand).length;
   const executedCount = last.agentTotalCommands ?? totalSteps;
-  const label = isRunning
-    ? `Agent working — step ${last.agentStep ?? '?'}`
-    : isDone
-      ? `Agent completed — ${executedCount} command${executedCount !== 1 ? 's' : ''} executed`
-      : isError
-        ? `Agent error at step ${last.agentStep ?? '?'}`
-        : isStopped
-          ? 'Agent stopped by user'
-          : `Agent — ${agentMessages.length} step${agentMessages.length !== 1 ? 's' : ''}`;
+  const label = isAwaitingApproval
+    ? 'Agent needs your approval'
+    : isRunning
+      ? `Agent working — step ${last.agentStep ?? '?'}`
+      : isDone
+        ? `Agent completed — ${executedCount} command${executedCount !== 1 ? 's' : ''} executed`
+        : isError
+          ? `Agent error at step ${last.agentStep ?? '?'}`
+          : isStopped
+            ? 'Agent stopped by user'
+            : `Agent — ${agentMessages.length} step${agentMessages.length !== 1 ? 's' : ''}`;
 
   return (
     <div
@@ -483,6 +490,8 @@ function AgentAccordion({
       >
         {isRunning ? (
           <Loader2 size={12} className="animate-spin shrink-0" />
+        ) : isAwaitingApproval ? (
+          <ShieldAlert size={12} className="shrink-0" />
         ) : isDone ? (
           <ShieldCheck size={12} className="shrink-0" />
         ) : isError ? (
@@ -499,6 +508,45 @@ function AgentAccordion({
           style={{ color: `${colors.foreground}40` }}
         />
       </button>
+      {isAwaitingApproval && last.agentApprovalId && (
+        <div
+          className="px-3 py-2.5 border-t"
+          style={{ borderColor: `${accentColor}20`, backgroundColor: `${accentColor}0a` }}
+        >
+          <div className="flex items-center gap-1.5 text-[11px] font-medium mb-1.5" style={{ color: accentColor }}>
+            <ShieldAlert size={12} className="shrink-0" />
+            Approval required — risky command
+          </div>
+          {last.agentCommand && (
+            <pre
+              className="px-2 py-1 rounded text-[10px] font-mono overflow-x-auto mb-2"
+              style={{
+                backgroundColor: `${colors.foreground}0a`,
+                color: colors.red ?? colors.foreground,
+                border: `1px solid ${colors.foreground}12`,
+              }}
+            >
+              $ {stripAnsi(last.agentCommand)}
+            </pre>
+          )}
+          <div className="flex gap-2">
+            <button
+              onClick={() => resolveAgentApproval(last.agentApprovalId!, true)}
+              className="flex-1 px-2 py-1 rounded text-[11px] font-medium transition-opacity hover:opacity-80"
+              style={{ backgroundColor: `${colors.green}22`, color: colors.green, border: `1px solid ${colors.green}44` }}
+            >
+              Allow
+            </button>
+            <button
+              onClick={() => resolveAgentApproval(last.agentApprovalId!, false)}
+              className="flex-1 px-2 py-1 rounded text-[11px] font-medium transition-opacity hover:opacity-80"
+              style={{ backgroundColor: `${colors.red}22`, color: colors.red, border: `1px solid ${colors.red}44` }}
+            >
+              Deny
+            </button>
+          </div>
+        </div>
+      )}
       {expanded && (
         <div
           className="px-2 pb-2 border-t"
