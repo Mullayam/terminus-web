@@ -98,12 +98,14 @@ const SuggestionBoxBridge = memo(function SuggestionBoxBridge({
   setSuggestions,
   hostKey,
   sessionId,
+  onDismiss,
 }: {
   store: TerminalInputStore;
   terminalRef: RefObject<HTMLDivElement | null>;
   setSuggestions: Dispatch<SetStateAction<string[]>>;
   hostKey: string;
   sessionId: string;
+  onDismiss: () => void;
 }) {
   const { buffer, visible, pos, suggestions } = useTerminalInput(store);
   return (
@@ -117,6 +119,7 @@ const SuggestionBoxBridge = memo(function SuggestionBoxBridge({
       hostKey={hostKey}
       commandBuffer={buffer}
       sessionId={sessionId}
+      onDismiss={onDismiss}
     />
   );
 });
@@ -224,6 +227,9 @@ const XTerminal = memo(function XTerminal({
   const inputStoreRef = useRef<TerminalInputStore | null>(null);
   if (!inputStoreRef.current) inputStoreRef.current = createTerminalInputStore();
   const isVisibleRef = useRef(false);
+  // Set when the user dismisses the suggestion box with Escape; reset on the next
+  // keystroke so it can re-appear.
+  const suggestDismissedRef = useRef(false);
   // Mirrors the render gate below so key handling never blocks arrows when the
   // suggestion box is disabled in settings.
   const suggestBoxEnabledRef = useRef(false);
@@ -257,6 +263,8 @@ const XTerminal = memo(function XTerminal({
     }
   }, [autocomplete, suggestionBox]);
   const terminalRef = useRef<HTMLDivElement | null>(null);
+  // Wrapper (xterm + overlays) used to scope app shortcuts to this instance.
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchAddonRef = useRef<SearchAddon | null>(null);
   const allCommands = useCommandStore((s) => s.allCommands);
@@ -484,6 +492,8 @@ const XTerminal = memo(function XTerminal({
       const next = !showInlineAIRef.current;
       showInlineAIRef.current = next;
       setShowInlineAI(next);
+      // Hide the suggestion box so it doesn't swallow Escape while inline AI is open.
+      pushInputStateRef.current();
       return true;
     }
     if (e.ctrlKey && e.shiftKey && (e.key === 'B' || e.key === 'b')) {
@@ -699,8 +709,11 @@ const XTerminal = memo(function XTerminal({
     }
     // Never mark the box visible (and thus never swallow arrow keys) when the
     // suggestion box is disabled in settings.
+    if (opts?.forceVisible) suggestDismissedRef.current = false;
     const visible =
       suggestBoxEnabledRef.current &&
+      !showInlineAIRef.current &&
+      !suggestDismissedRef.current &&
       (opts?.forceVisible ??
         (buffer.trim() !== "" &&
           (fsSuggestionsRef.current.length > 0 || hasFuzzyMatch(buffer, suggestionsRef.current))));
@@ -735,6 +748,13 @@ const XTerminal = memo(function XTerminal({
   const handleFocus = () => {
     termRef.current?.focus();
   };
+
+  // Escape from the suggestion box hides it until the next keystroke.
+  const dismissSuggestions = useCallback(() => {
+    suggestDismissedRef.current = true;
+    isVisibleRef.current = false;
+    inputStoreRef.current?.set({ visible: false });
+  }, []);
   useEffect(() => {
     if (!terminalRef.current) return;
 
@@ -1078,6 +1098,7 @@ const XTerminal = memo(function XTerminal({
 
       if (isBackspace) {
         lastKeyAtRef.current = Date.now();
+        suggestDismissedRef.current = false;
         commandBufferRef.current = commandBufferRef.current.slice(0, -1);
         pushInputStateRef.current();
         return;
@@ -1085,6 +1106,7 @@ const XTerminal = memo(function XTerminal({
 
       if (isPrintable) {
         lastKeyAtRef.current = Date.now();
+        suggestDismissedRef.current = false;
         // Starting a new command → stop capturing output into the previous block.
         if (commandBufferRef.current === "" && !isAltScreenRef.current && commandBlocksEnabledRef.current) {
           useCommandBlocksStore.getState().finalizeCurrent(sessionId);
@@ -1105,13 +1127,17 @@ const XTerminal = memo(function XTerminal({
     el.addEventListener("contextmenu", handleContextMenu);
     el.addEventListener("mousedown", handleRightMouseDown);
     el.addEventListener("mouseup", handleMouseUp);
-    // Intercept app shortcuts at the xterm level so keys like Ctrl+F / Ctrl+I
-    // aren't swallowed as terminal input, and only fire while the terminal is focused.
-    termRef.current?.attachCustomKeyEventHandler((e) => {
-      if (e.type !== 'keydown') return true;
-      return !handleAppShortcut(e);
-    });
+    // App shortcuts on a window capture listener scoped to this terminal instance
+    // (rootRef). Capture runs before xterm (so keys aren't swallowed) and lets us
+    // preventDefault browser shortcuts like Ctrl+K; stopPropagation on a consumed
+    // shortcut keeps it from also reaching the shell.
+    const onWindowKeyDown = (e: KeyboardEvent) => {
+      if (!rootRef.current?.contains(document.activeElement)) return;
+      if (handleAppShortcut(e)) e.stopPropagation();
+    };
+    window.addEventListener('keydown', onWindowKeyDown, true);
     return () => {
+      window.removeEventListener('keydown', onWindowKeyDown, true);
       disposeOnCursorMove?.dispose?.();
       disposeOnKey?.dispose?.();
       disposeBell?.dispose?.();
@@ -1137,7 +1163,7 @@ const XTerminal = memo(function XTerminal({
   }, [command]);
 
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full" ref={rootRef}>
       <div
         ref={terminalRef}
         id="terminal"
@@ -1253,6 +1279,7 @@ const XTerminal = memo(function XTerminal({
           setSuggestions={setSuggestions}
           hostKey={hostKey}
           sessionId={sessionId}
+          onDismiss={dismissSuggestions}
         />
       )}
 

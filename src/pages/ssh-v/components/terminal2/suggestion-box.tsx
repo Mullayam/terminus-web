@@ -20,6 +20,8 @@ interface SuggestionBoxProps {
   commandBuffer?: string
   /** Session ID for AI ghost command */
   sessionId: string
+  /** Hide the box (Escape) until the next keystroke. */
+  onDismiss?: () => void
 }
 
 /**
@@ -185,7 +187,7 @@ function useAICommandSuggestion(commandBuffer: string, isVisible: boolean, sessi
   return { aiLoading, aiError, fetchAISuggestions };
 }
 
-const AISuggestionBox: React.FC<SuggestionBoxProps> = ({ terminalHeight, setSuggestions, terminalWidth, suggestionPos, suggestions, isVisible = true, hostKey, commandBuffer = "", sessionId }) => {
+const AISuggestionBox: React.FC<SuggestionBoxProps> = ({ terminalHeight, setSuggestions, terminalWidth, suggestionPos, suggestions, isVisible = true, hostKey, commandBuffer = "", sessionId, onDismiss }) => {
   const { setCommand } = useCommandStore();
   const c = useBoxColors();
   const { aiLoading, aiError, fetchAISuggestions } = useAICommandSuggestion(commandBuffer, isVisible, sessionId);
@@ -232,11 +234,12 @@ const AISuggestionBox: React.FC<SuggestionBoxProps> = ({ terminalHeight, setSugg
         e.preventDefault();
         e.stopPropagation();
         setActiveIndex(-1);
+        onDismiss?.();
       }
     };
     window.addEventListener("keydown", handler, true);
     return () => window.removeEventListener("keydown", handler, true);
-  }, [isVisible, activeIndex, visibleSuggestions, setCommand]);
+  }, [isVisible, activeIndex, visibleSuggestions, setCommand, onDismiss]);
 
   // Scroll active item into view
   useEffect(() => {
