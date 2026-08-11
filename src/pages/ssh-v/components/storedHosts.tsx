@@ -4,8 +4,9 @@ import { useSSHStore } from '@/store/sshStore'
 import { useNavigate } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
+import { HostImportExport } from './HostImportExport'
 
-const StoredHosts = ({ hosts, handleClickOnHostCard }: { hosts: any[], handleClickOnHostCard: (index: any) => void }) => {
+const StoredHosts = ({ hosts, handleClickOnHostCard, onHostsChanged }: { hosts: any[], handleClickOnHostCard: (index: any) => void, onHostsChanged?: () => void }) => {
 
     const { tabs, addTab, setActiveTab } = useSSHStore()
     const navigate = useNavigate()
@@ -24,13 +25,16 @@ const StoredHosts = ({ hosts, handleClickOnHostCard }: { hosts: any[], handleCli
         <div className="p-2 pb-10 relative h-full">
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-white text-xl font-semibold">Hosts</h2>
-                <Button
-                    variant={"ghost"}
-                    onClick={handleNewConnectionClick} // Optional handler
-                    className="text-sm text-blue-400 hover:underline"
-                >
-                    New Connection
-                </Button>
+                <div className="flex items-center gap-1.5">
+                    <HostImportExport onImported={onHostsChanged} />
+                    <Button
+                        variant={"ghost"}
+                        onClick={handleNewConnectionClick} // Optional handler
+                        className="text-sm text-blue-400 hover:underline"
+                    >
+                        New Connection
+                    </Button>
+                </div>
             </div>
 
             {hosts.length > 0 ? (
@@ -51,13 +55,16 @@ const StoredHosts = ({ hosts, handleClickOnHostCard }: { hosts: any[], handleCli
                 <div className="flex flex-col items-center justify-center h-[70vh] gap-4">
                     <h2 className="text-2xl text-white">No Saved Hosts</h2>
                     <p className="text-gray-400">Create a new connection to get started.</p>
-                    <Button
-                        variant={"secondary"}
-                        onClick={handleNewConnectionClick}
-                        className="text-sm mt-2"
-                    >
-                        New Connection
-                    </Button>
+                    <div className="flex items-center gap-2 mt-2">
+                        <Button
+                            variant={"secondary"}
+                            onClick={handleNewConnectionClick}
+                            className="text-sm"
+                        >
+                            New Connection
+                        </Button>
+                        <HostImportExport onImported={onHostsChanged} />
+                    </div>
                     <p className="text-gray-500 text-[20px] italic mt-2">Switch to SFTP via the bottom bar</p>
                 </div>
             )}

@@ -49,6 +49,18 @@ export async function fetchAICommand({
     history: [],
   };
 
+  return cleanCommand(await streamChat(payload, signal));
+}
+
+/**
+ * Shared SSE reader for the `/api/chat/ai` endpoint. Returns the full reply
+ * text and invokes `onText` with the cumulative text as chunks arrive.
+ */
+async function streamChat(
+  payload: unknown,
+  signal?: AbortSignal,
+  onText?: (full: string) => void,
+): Promise<string> {
   const res = await fetch(`${__config.API_URL}/api/chat/ai`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -89,8 +101,49 @@ export async function fetchAICommand({
       } catch {
         fullText += eventData;
       }
+      onText?.(fullText);
     }
   }
 
-  return cleanCommand(fullText);
+  return fullText;
+}
+
+export interface AIExplainParams {
+  sessionId: string;
+  command: string;
+  context?: string;
+  signal?: AbortSignal;
+  /** Called with the cumulative explanation text as it streams in. */
+  onText?: (full: string) => void;
+}
+
+/**
+ * Streams a concise, plain-language explanation of a shell command from the
+ * `/api/chat/ai` endpoint. Unlike {@link fetchAICommand}, the reply is kept as
+ * prose so the user can understand a command before running it.
+ */
+export async function streamAIExplanation({
+  sessionId,
+  command,
+  context = "",
+  signal,
+  onText,
+}: AIExplainParams): Promise<string> {
+  const state = useAIChatStore.getState();
+  const model = state.selectedModel[sessionId] ?? getDefaultModel(state.providers);
+
+  const payload = {
+    modelId: model?.modelId ?? "",
+    providerId: model?.providerId ?? "",
+    question:
+      "Explain concisely what this shell command does before I run it. " +
+      "Cover its effect, any notable flags, and call out anything destructive or risky. " +
+      "Use at most 4 short bullet points, plain text, no code fences.\n\nCommand:\n" +
+      command,
+    selection: command,
+    context,
+    history: [],
+  };
+
+  return streamChat(payload, signal, onText);
 }

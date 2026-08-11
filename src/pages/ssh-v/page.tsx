@@ -17,6 +17,12 @@ export default function NewSSH() {
     const { listen: listenNewConnectionClick } = useCustomEvent("NEW_SSH_CLIENT")
     const store = useStore()
 
+    const refreshHosts = () => {
+        idb.getAllItems("hosts").then((data) => {
+            if (data) setHosts(data as any)
+        })
+    }
+
     const handleClickOnHostCard = async (index: any) => {
         let data = hosts[index]
         if (!data) {
@@ -86,7 +92,7 @@ export default function NewSSH() {
     return (
         <div className='w-full h-full overflow-hidden'>
             <SessionActivityMonitor />
-            {tabs.length === 0 && <StoredHosts hosts={hosts} handleClickOnHostCard={handleClickOnHostCard} />}
+            {tabs.length === 0 && <StoredHosts hosts={hosts} handleClickOnHostCard={handleClickOnHostCard} onHostsChanged={refreshHosts} />}
             {tabs.map((tab) => (
                 tab.id === activeTabId ? <TerminalTab key={tab.id} sessionId={tab.sessionId} /> : null
             ))}

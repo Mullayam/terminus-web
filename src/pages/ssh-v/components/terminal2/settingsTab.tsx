@@ -1,6 +1,6 @@
 
 import { type ReactNode } from 'react';
-import { AlertCircle, Palette, RotateCcw, Save, Type, Bell, Sparkles, Command, Blocks, GitCompare, SquareTerminal, FileCode } from 'lucide-react';
+import { AlertCircle, Palette, RotateCcw, Save, Type, Bell, Sparkles, Command, Blocks, GitCompare, SquareTerminal, FileCode, Lightbulb } from 'lucide-react';
 import { useTabStore } from '@/store/rightSidebarTabStore';
 import { XtermTheme, ThemeName, themeNames } from '@/pages/ssh-v/components/themes';
 import { useSSHStore } from '@/store/sshStore';
@@ -80,7 +80,7 @@ export default function SettingsTab() {
     }
   };
 
-  const handleToggleSetting = (key: 'notifications' | 'autoSave' | 'autocomplete' | 'suggestionBox' | 'diagnostics' | 'commandPalette' | 'commandBlocks' | 'diffBeforeSave') => {
+  const handleToggleSetting = (key: 'notifications' | 'autoSave' | 'autocomplete' | 'suggestionBox' | 'diagnostics' | 'commandPalette' | 'commandExplain' | 'commandBlocks' | 'diffBeforeSave') => {
     updateSettings({ [key]: !settings[key] });
   };
 
@@ -98,6 +98,7 @@ export default function SettingsTab() {
       suggestionBox: true,
       diagnostics: false,
       commandPalette: true,
+      commandExplain: true,
       commandBlocks: true,
       diffBeforeSave: true,
       fontSize: 'medium',
@@ -246,6 +247,7 @@ export default function SettingsTab() {
           <ToggleRow icon={<Type size={14} />} title="Autocomplete" description="Ghost text & suggestions" checked={settings.autocomplete} onToggle={() => handleToggleSetting('autocomplete')} fg={colors.foreground} />
           <ToggleRow icon={<Sparkles size={14} />} title="Suggestion Box" description="AI suggestions & ghost text" checked={settings.suggestionBox} onToggle={() => handleToggleSetting('suggestionBox')} fg={colors.foreground} />
           <ToggleRow icon={<Command size={14} />} title="Command Palette" description="Ctrl+K natural-language commands" checked={settings.commandPalette} onToggle={() => handleToggleSetting('commandPalette')} fg={colors.foreground} />
+          <ToggleRow icon={<Lightbulb size={14} />} title="Explain Command" description="Ctrl+Shift+E AI explanation before running" checked={settings.commandExplain} onToggle={() => handleToggleSetting('commandExplain')} fg={colors.foreground} />
           <ToggleRow icon={<Blocks size={14} />} title="Command Blocks" description="Capture, re-run & fix commands" checked={settings.commandBlocks} onToggle={() => handleToggleSetting('commandBlocks')} fg={colors.foreground} />
           <ToggleRow icon={<AlertCircle size={14} />} title="Diagnostics" description="Error & warning detection" checked={settings.diagnostics} onToggle={() => handleToggleSetting('diagnostics')} fg={colors.foreground} />
           <ToggleRow icon={<Bell size={14} />} title="Notifications" description="Show terminal notifications" checked={settings.notifications} onToggle={() => handleToggleSetting('notifications')} fg={colors.foreground} />

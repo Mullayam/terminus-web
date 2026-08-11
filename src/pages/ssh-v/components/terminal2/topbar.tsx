@@ -1,4 +1,4 @@
-import { Columns2, Copy, Menu, Plus, PlusCircle, Power, RotateCcw, Rows2, Square, X, Bot } from 'lucide-react';
+import { Columns2, Copy, Menu, Plus, PlusCircle, Power, RotateCcw, Rows2, Square, X, Bot, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
@@ -19,6 +19,7 @@ import { useTerminalStore } from '@/store/terminalStore';
 import { useSidebarState } from '@/store/sidebarStore';
 import { useSessionTheme } from '@/hooks/useSessionTheme';
 import { useAIChatStore } from '@/store/aiChatStore';
+import { useMonitorStore } from '@/store/monitorStore';
 import { XtermTheme } from '../themes';
 import {
   Popover,
@@ -42,6 +43,8 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
   const { colors } = useSessionTheme();
   const toggleAIChat = useAIChatStore((s) => s.toggle);
   const isAIChatOpen = useAIChatStore((s) => s.isOpen);
+  const toggleMonitor = useMonitorStore((s) => s.toggle);
+  const isMonitorOpen = useMonitorStore((s) => s.isOpen);
   const {
     sessions,
     tabs,
@@ -311,12 +314,29 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
               <small><kbd className="font-semibold">Escape</kbd> — Close Find</small>
               <small><kbd className="font-semibold">Ctrl + C</kbd> — Copy</small>
               <small><kbd className="font-semibold">Ctrl + V</kbd> — Paste</small>
+              <small><kbd className="font-semibold">Ctrl + Shift + E</kbd> — Explain command</small>
+              <small><kbd className="font-semibold">Ctrl + Shift + M</kbd> — Resource Monitor</small>
 
             </div>
 
           </PopoverContent>
         </Popover>
         {activeItem === "Terminal" && <>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggleMonitor}
+            className={cn(
+              "h-8 px-2.5 gap-1.5 transition-colors",
+              isMonitorOpen
+                ? "text-emerald-400 bg-emerald-500/10"
+                : "text-gray-400 hover:text-gray-300"
+            )}
+            title="Resource Monitor (Ctrl+Shift+M)"
+          >
+            <Activity className="h-4 w-4" />
+            <span className="text-xs hidden xl:inline">Monitor</span>
+          </Button>
           <Button
             variant="ghost"
             size="sm"

@@ -35,6 +35,8 @@ interface Settings {
   diagnostics: boolean;
   /** Ctrl+K natural-language command palette */
   commandPalette: boolean;
+  /** Ctrl+Shift+E AI explanation of a command before it runs */
+  commandExplain: boolean;
   /** Warp-style command blocks panel */
   commandBlocks: boolean;
   /** Show a Monaco diff before writing an SFTP file */
@@ -148,6 +150,7 @@ export const useTabStore = create<TabState>((set, get) => ({
     suggestionBox: true,
     diagnostics: false,
     commandPalette: true,
+    commandExplain: true,
     commandBlocks: true,
     diffBeforeSave: true,
     fontSize: 'medium'

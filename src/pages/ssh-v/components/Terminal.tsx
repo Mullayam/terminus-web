@@ -46,8 +46,10 @@ import { rankSuggestions, hasFuzzyMatch, type UsageMap } from "./terminal2/fuzzy
 import ArgHintBar, { type CommandIndex, type ArgCommandInfo } from "./terminal2/arg-hint-bar";
 import CommandBlocks from "./terminal2/command-blocks";
 import { useCommandBlocksStore, type CommandBlock } from "@/store/commandBlocksStore";
+import { useMonitorStore } from "@/store/monitorStore";
 import { fetchAICommand, stripAnsi as stripAnsiCmd } from "./terminal2/aiCommand";
 import CommandPalette from "./terminal2/command-palette";
+import CommandExplain from "./terminal2/command-explain";
 import ShareSessionDialog from "./terminal2/share-session-dialog";
 import { terminalEvents, TerminalEventKey } from "@/lib/terminalEvents";
 import { parseFsCommand, splitPath, buildListCommand, parseListOutput, buildFsSuggestions, type FsEntry } from "./terminal2/fsSuggest";
@@ -190,6 +192,7 @@ const XTerminal = memo(function XTerminal({
   const suggestionBox = useTabStore((s) => s.settings.suggestionBox);
   const diagnosticsEnabled = useTabStore((s) => s.settings.diagnostics);
   const commandPaletteEnabled = useTabStore((s) => s.settings.commandPalette);
+  const commandExplainEnabled = useTabStore((s) => s.settings.commandExplain);
   const commandBlocksEnabled = useTabStore((s) => s.settings.commandBlocks);
   const isRightSidebarOpen = useTabStore((s) => s.rightSidebarOpen);
   const isAIChatOpen = useAIChatStore((s) => s.isOpen);
@@ -241,6 +244,7 @@ const XTerminal = memo(function XTerminal({
   const showInlineAIRef = useRef(false);
   useEffect(() => { showInlineAIRef.current = showInlineAI; }, [showInlineAI]);
   const [showPalette, setShowPalette] = useState(false);
+  const [explainCommand, setExplainCommand] = useState<string | null>(null);
   const [showShare, setShowShare] = useState(false);
   useEffect(() => {
     autocompleteEnabledRef.current = autocomplete;
@@ -476,14 +480,24 @@ const XTerminal = memo(function XTerminal({
     } else if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'k' || e.key === 'K')) {
       e.preventDefault();
       if (useTabStore.getState().settings.commandPalette) setShowPalette((v) => !v);
+    } else if (e.ctrlKey && e.shiftKey && (e.key === 'E' || e.key === 'e')) {
+      e.preventDefault();
+      if (useTabStore.getState().settings.commandExplain) {
+        const cmd = commandBufferRef.current.trim();
+        setExplainCommand((prev) => (prev !== null ? null : cmd || ''));
+      }
     } else if (e.ctrlKey && e.shiftKey && (e.key === 'S')) {
       e.preventDefault();
       setShowShare((v) => !v);
+    } else if (e.ctrlKey && e.shiftKey && (e.key === 'M' || e.key === 'm')) {
+      e.preventDefault();
+      useMonitorStore.getState().toggle();
     } else if (e.key === 'Escape') {
       searchAddonRef.current?.clearDecorations();
       searchAddonRef.current?.clearActiveDecoration();
       setShowSearch(false);
       setShowShare(false);
+      setExplainCommand(null);
     }
   };
   // Copy-on-select: when a left-drag selection ends, copy it to the clipboard
@@ -1262,6 +1276,24 @@ const XTerminal = memo(function XTerminal({
             accent={(t as any).cyan ?? (t as any).green ?? t.foreground}
             border={(t as any).brightBlack ?? `${t.foreground}22`}
             error={(t as any).red ?? '#f43f5e'}
+          />
+        );
+      })()}
+
+      {/* Ctrl+Shift+E AI command explanation (pre-exec) */}
+      {commandExplainEnabled && explainCommand !== null && (() => {
+        const t = XtermTheme[sessionTheme] || XtermTheme.default;
+        return (
+          <CommandExplain
+            sessionId={sessionId}
+            command={explainCommand}
+            onRun={handleBlockRerun}
+            onClose={() => { setExplainCommand(null); termRef.current?.focus(); }}
+            bg={t.background}
+            fg={t.foreground}
+            accent={t.cyan ?? t.green ?? t.foreground}
+            border={`${t.foreground}22`}
+            error={t.red ?? '#f43f5e'}
           />
         );
       })()}

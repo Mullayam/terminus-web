@@ -4,6 +4,8 @@ import { Sparkles, Loader2, CornerDownLeft, Play, Copy, RefreshCw, X } from "luc
 import { fetchAICommand } from "./aiCommand";
 import { useTerminalStore } from "@/store/terminalStore";
 import { stripAnsi } from "./aiCommand";
+import { useCommandExplanation, ExplanationBody } from "./command-explain";
+import { useTabStore } from "@/store/rightSidebarTabStore";
 
 interface CommandPaletteProps {
   sessionId: string;
@@ -31,6 +33,8 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ sessionId, onInsert, on
   const queryRef = useRef<HTMLInputElement>(null);
   const resultRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const explainEnabled = useTabStore((s) => s.settings.commandExplain);
+  const explanation = useCommandExplanation(result, sessionId, explainEnabled && !!result.trim());
 
   useEffect(() => { setTimeout(() => queryRef.current?.focus(), 30); }, []);
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -135,6 +139,14 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ sessionId, onInsert, on
                 style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: fg, fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}
               />
             </div>
+            {explainEnabled && (
+              <div style={{ borderTop: `1px solid ${border}`, paddingTop: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, fontSize: 11, fontWeight: 600, color: `${fg}99` }}>
+                  <Sparkles size={12} style={{ color: accent }} /> What this does
+                </div>
+                <ExplanationBody state={explanation} fg={fg} accent={accent} error={error} />
+              </div>
+            )}
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <PaletteBtn onClick={generate} fg={fg} border={border}><RefreshCw size={13} /> Regenerate</PaletteBtn>
               <PaletteBtn onClick={() => { navigator.clipboard.writeText(result).catch(() => {}); }} fg={fg} border={border}><Copy size={13} /> Copy</PaletteBtn>

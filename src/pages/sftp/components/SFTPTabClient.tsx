@@ -15,6 +15,7 @@ import { Loader2, X } from 'lucide-react';
 import { useSFTPStore } from '@/store/sftpStore';
 import { SFTPContext } from '../sftp-context';
 import { useSftpSocket } from '@/hooks/useSftpSocket';
+import { HostImportExport } from '@/pages/ssh-v/components/HostImportExport';
 
 export interface DownloadProgressType {
     name: string;
@@ -55,6 +56,12 @@ export default function SFTPTabClient({ tabId }: { tabId: string }) {
 
     // Load hosts from IDB
     useEffect(() => {
+        idb.getAllItems('hosts').then((data) => {
+            if (data) setHosts(data as any);
+        });
+    }, []);
+
+    const refreshHosts = useCallback(() => {
         idb.getAllItems('hosts').then((data) => {
             if (data) setHosts(data as any);
         });
@@ -188,14 +195,17 @@ export default function SFTPTabClient({ tabId }: { tabId: string }) {
                 <div className="p-8">
                     <div className="flex justify-between items-center mb-4">
                         <h2 className="text-white text-xl font-semibold">Hosts</h2>
-                        <Button
-                            variant="ghost"
-                            onClick={() => setShowForm(true)}
-                            disabled={isConnecting}
-                            className="text-sm text-blue-400 hover:underline"
-                        >
-                            New Connection
-                        </Button>
+                        <div className="flex items-center gap-1.5">
+                            <HostImportExport onImported={refreshHosts} />
+                            <Button
+                                variant="ghost"
+                                onClick={() => setShowForm(true)}
+                                disabled={isConnecting}
+                                className="text-sm text-blue-400 hover:underline"
+                            >
+                                New Connection
+                            </Button>
+                        </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                         {hosts.map((host, index) => (
