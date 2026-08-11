@@ -464,41 +464,61 @@ const XTerminal = memo(function XTerminal({
     }, 60);
   };
 
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.ctrlKey && e.key === 'f') {
+  // App-level shortcuts. Routed through xterm's customKeyEventHandler so keys the
+  // terminal would otherwise consume (Ctrl+F, Ctrl+K, …) are caught before being
+  // sent to the shell, and only while the terminal is focused. Returns true when
+  // the event was consumed (so xterm ignores it).
+  const handleAppShortcut = (e: KeyboardEvent): boolean => {
+    if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'f' || e.key === 'F')) {
       e.preventDefault();
       setShowSearch(true);
       setTimeout(() => searchInputRef.current?.focus(), 50);
-    } else if (e.ctrlKey && e.shiftKey && e.key === 'I') {
+      return true;
+    }
+    if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i')) {
       e.preventDefault();
       const next = !showInlineAIRef.current;
       showInlineAIRef.current = next;
       setShowInlineAI(next);
-    } else if (e.ctrlKey && e.shiftKey && (e.key === 'B' || e.key === 'b')) {
+      return true;
+    }
+    if (e.ctrlKey && e.shiftKey && (e.key === 'B' || e.key === 'b')) {
       e.preventDefault();
       if (useTabStore.getState().settings.commandBlocks) useCommandBlocksStore.getState().togglePanel(sessionId);
-    } else if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'k' || e.key === 'K')) {
+      return true;
+    }
+    if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === 'k' || e.key === 'K')) {
       e.preventDefault();
       if (useTabStore.getState().settings.commandPalette) setShowPalette((v) => !v);
-    } else if (e.ctrlKey && e.shiftKey && (e.key === 'E' || e.key === 'e')) {
+      return true;
+    }
+    if (e.ctrlKey && e.shiftKey && (e.key === 'E' || e.key === 'e')) {
       e.preventDefault();
       if (useTabStore.getState().settings.commandExplain) {
         const cmd = commandBufferRef.current.trim();
         setExplainCommand((prev) => (prev !== null ? null : cmd || ''));
       }
-    } else if (e.ctrlKey && e.shiftKey && (e.key === 'S')) {
+      return true;
+    }
+    if (e.ctrlKey && e.shiftKey && (e.key === 'S' || e.key === 's')) {
       e.preventDefault();
       setShowShare((v) => !v);
-    } else if (e.ctrlKey && e.shiftKey && (e.key === 'M' || e.key === 'm')) {
+      return true;
+    }
+    if (e.ctrlKey && e.shiftKey && (e.key === 'M' || e.key === 'm')) {
       e.preventDefault();
       useMonitorStore.getState().toggle();
-    } else if (e.key === 'Escape') {
+      return true;
+    }
+    if (e.key === 'Escape') {
+      // Close overlays but let Escape still reach the shell (vim, less, …).
       searchAddonRef.current?.clearDecorations();
       searchAddonRef.current?.clearActiveDecoration();
       setShowSearch(false);
       setShowShare(false);
       setExplainCommand(null);
     }
+    return false;
   };
   // Copy-on-select: when a left-drag selection ends, copy it to the clipboard
   // and clear the selection (PuTTY-style).
@@ -1052,13 +1072,17 @@ const XTerminal = memo(function XTerminal({
     el.addEventListener("contextmenu", handleContextMenu);
     el.addEventListener("mousedown", handleRightMouseDown);
     el.addEventListener("mouseup", handleMouseUp);
-    window.addEventListener('keydown', handleKeyDown);
+    // Intercept app shortcuts at the xterm level so keys like Ctrl+F / Ctrl+Shift+I
+    // aren't swallowed as terminal input, and only fire while the terminal is focused.
+    termRef.current?.attachCustomKeyEventHandler((e) => {
+      if (e.type !== 'keydown') return true;
+      return !handleAppShortcut(e);
+    });
     return () => {
       disposeOnCursorMove?.dispose?.();
       disposeOnKey?.dispose?.();
       disposeBell?.dispose?.();
       disposeTitle?.dispose?.();
-      window.removeEventListener('keydown', handleKeyDown);
       el.removeEventListener("contextmenu", handleContextMenu);
       el.removeEventListener("mousedown", handleRightMouseDown);
       el.removeEventListener("mouseup", handleMouseUp);
