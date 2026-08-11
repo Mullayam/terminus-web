@@ -47,7 +47,11 @@ export const useCommandBlocksStore = create<CommandBlocksState>((set) => ({
   startBlock: (sessionId, command) =>
     set((state) => {
       const list = state.blocks[sessionId] ?? [];
-      const finalized = list.map((b) => (b.running ? { ...b, running: false } : b));
+      // Keep commands unique: drop any prior block for the same command and
+      // finalize the rest, so a re-run replaces the old entry with fresh output.
+      const kept = list
+        .filter((b) => b.command !== command)
+        .map((b) => (b.running ? { ...b, running: false } : b));
       const block: CommandBlock = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         command,
@@ -55,7 +59,7 @@ export const useCommandBlocksStore = create<CommandBlocksState>((set) => ({
         startedAt: Date.now(),
         running: true,
       };
-      const next = [...finalized, block];
+      const next = [...kept, block];
       return { blocks: { ...state.blocks, [sessionId]: next.slice(-MAX_BLOCKS) } };
     }),
 
