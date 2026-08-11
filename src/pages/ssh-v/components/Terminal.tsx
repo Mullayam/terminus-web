@@ -44,6 +44,7 @@ import { useAIChatStore } from "@/store/aiChatStore";
 import { createTerminalInputStore, useTerminalInput, type TerminalInputStore, type TerminalInputSnapshot } from "./terminal2/inputStore";
 import { rankSuggestions, hasFuzzyMatch, type UsageMap } from "./terminal2/fuzzyRank";
 import ArgHintBar, { type CommandIndex, type ArgCommandInfo } from "./terminal2/arg-hint-bar";
+import { BUILTIN_COMMAND_INDEX } from "./terminal2/builtinCommands";
 import CommandBlocks from "./terminal2/command-blocks";
 import { useCommandBlocksStore, type CommandBlock } from "@/store/commandBlocksStore";
 import { useMonitorStore } from "@/store/monitorStore";
@@ -275,7 +276,7 @@ const XTerminal = memo(function XTerminal({
   // Cache the last listed directory so typing more chars filters locally (no refetch).
   const fsCacheRef = useRef<{ key: string; entries: FsEntry[] }>({ key: "", entries: [] });
   // Structured command metadata (flags/subcommands) for the arg-hint bar.
-  const [commandIndex, setCommandIndex] = useState<CommandIndex>({});
+  const [commandIndex, setCommandIndex] = useState<CommandIndex>(BUILTIN_COMMAND_INDEX);
   const suggestionsRef = useRef(suggestions);
   // Set mirror of the user's history/typed commands, so the ranker can boost
   // them above generic pack suggestions. Rebuilt only when suggestions change.
@@ -885,7 +886,18 @@ const XTerminal = memo(function XTerminal({
 
     getAllCommandData().then((cmdRecords) => {
       const cmds: string[] = [];
+      // Start from a deep copy of the built-ins so installed packs extend them
+      // without mutating the shared constant.
       const index: CommandIndex = {};
+      for (const [k, v] of Object.entries(BUILTIN_COMMAND_INDEX)) {
+        index[k] = {
+          name: v.name,
+          options: [...v.options],
+          subcommands: Object.fromEntries(
+            Object.entries(v.subcommands).map(([s, o]) => [s, { options: [...o.options] }]),
+          ),
+        };
+      }
       for (const item of cmdRecords) {
         // A record's data may be a single command object or an array of them.
         const objects: any[] = Array.isArray(item.data) ? item.data : (item.data ? [item.data] : []);
@@ -894,8 +906,10 @@ const XTerminal = memo(function XTerminal({
           if (!name) continue;
           cmds.push(name);
           const info: ArgCommandInfo = index[name] ?? { name, options: [], subcommands: {} };
-          if (Array.isArray(data?.options)) {
-            for (const opt of data.options) if (opt?.name) info.options.push(opt.name);
+          // Packs store top-level flags under `globalOptions`; keep `options` as fallback.
+          const topOptions = Array.isArray(data?.globalOptions) ? data.globalOptions : data?.options;
+          if (Array.isArray(topOptions)) {
+            for (const opt of topOptions) if (opt?.name) info.options.push(opt.name);
           }
           if (Array.isArray(data?.subcommands)) {
             for (const sub of data.subcommands) {

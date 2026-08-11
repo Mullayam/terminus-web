@@ -45,22 +45,37 @@ function computeHints(
   const info = index[cmd];
   if (!info) return null;
 
-  const sub = tokens.length >= 2 ? tokens[1] : undefined;
+  const subNames = Object.keys(info.subcommands);
+  const hasSubs = subNames.length > 0;
+  // Token currently being typed (empty right after a space).
+  const partial = endsWithSpace ? "" : tokens[tokens.length - 1];
+  const sub = tokens[1];
+  // A subcommand is "locked in" once it's an exact match followed by a space or
+  // further tokens (e.g. `git commit ` / `git commit -m`).
+  const subLocked = !!(sub && info.subcommands[sub] && (tokens.length > 2 || endsWithSpace));
+
   let label: string;
   let items: string[];
-  if (sub && info.subcommands[sub]) {
+  if (subLocked) {
     label = `${cmd} ${sub}`;
     items = info.subcommands[sub].options;
-  } else if (Object.keys(info.subcommands).length > 0 && tokens.length < 2) {
+  } else if (hasSubs && !partial.startsWith("-") && tokens.length <= 2) {
+    // Right after the command (`git `) or typing the subcommand name (`git co`)
+    // → offer subcommands, narrowed below by the partial prefix.
     label = cmd;
-    items = Object.keys(info.subcommands);
+    items = subNames;
   } else {
+    // Flags for the command (`git -`, `ls -a`, or a command with no subcommands).
     label = cmd;
     items = info.options;
   }
 
   const typed = new Set(tokens);
-  const hints = Array.from(new Set(items)).filter((h) => !typed.has(h)).slice(0, MAX_HINTS);
+  const p = partial.toLowerCase();
+  const hints = Array.from(new Set(items))
+    .filter((h) => !typed.has(h))
+    .filter((h) => (p ? h.toLowerCase().startsWith(p) : true))
+    .slice(0, MAX_HINTS);
   if (hints.length === 0) return null;
   return { label, hints };
 }
