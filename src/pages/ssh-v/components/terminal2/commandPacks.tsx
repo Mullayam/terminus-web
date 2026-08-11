@@ -74,7 +74,9 @@ interface FilePreview {
 
 export default function CommandPacks() {
     const { colors } = useSessionTheme();
-    const { syncPacks, addToAllCommands } = useCommandStore();
+    // Selectors: avoid re-rendering this heavy panel on unrelated command-store updates.
+    const syncPacks = useCommandStore((s) => s.syncPacks);
+    const addToAllCommands = useCommandStore((s) => s.addToAllCommands);
     const {
         setInstalledPacksCount,
         checkForUpdate,
@@ -285,6 +287,8 @@ export default function CommandPacks() {
                     <button
                         onClick={async () => {
                             await clearAllCommandData();
+                            // Re-merge so the Commands tab drops the purged pack commands
+                            await syncPacks();
                             setInstalledCats(new Set());
                             setInstallState({});
                             setInstalledPacksCount(0);
