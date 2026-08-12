@@ -41,6 +41,21 @@ const StoredHosts = ({ hosts, handleClickOnHostCard, onHostsChanged }: { hosts: 
                 </div>
             </div>
 
+            {tabs.length > 0 && (
+                <div className="flex items-center gap-2 mb-4 flex-wrap">
+                    <span className="text-xs text-gray-500">Open sessions:</span>
+                    {tabs.map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className="px-2.5 py-1 rounded-full text-xs font-medium bg-[#1C1C1C] text-gray-300 hover:bg-[#24253a] hover:text-green-400 transition-colors"
+                        >
+                            {tab.title}
+                        </button>
+                    ))}
+                </div>
+            )}
+
             {hosts.length > 0 ? (
                 <>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

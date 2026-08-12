@@ -1,4 +1,4 @@
-import { Columns2, Copy, Menu, Plus, PlusCircle, Power, RotateCcw, Rows2, Square, X, Bot, Activity } from 'lucide-react';
+import { Columns2, Copy, Home, Menu, Plus, PlusCircle, Power, RotateCcw, Rows2, Square, X, Bot, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
@@ -53,6 +53,7 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
     removeSession,
     removeTab,
     setActiveTab,
+    clearActiveTab,
     addSession,
     addTab,
     splitMode,
@@ -143,6 +144,15 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
             onClick={onToggleSidebar}
           >
             <Menu className="h-4 w-4 text-gray-400" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={clearActiveTab}
+            title="Hosts"
+          >
+            <Home className="h-4 w-4 text-gray-400" />
           </Button>
           <div className="flex space-x-2">
             {tabs.map((tab, index) => {

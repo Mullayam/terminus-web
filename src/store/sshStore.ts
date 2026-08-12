@@ -63,6 +63,8 @@ interface SSHStore {
   updateSftpStatus: (sessionId: string, status: boolean) => void;
   removeSession: (sessionId: string) => void;
   setActiveTab: (tabId: string) => void;
+  /** Clear the active tab so the saved-hosts grid is shown. */
+  clearActiveTab: () => void;
   addTab: (tab: SSHTab) => void;
   removeTab: (tabId: string) => void;
   markSessionActivity: (sessionId: string) => void;
@@ -161,6 +163,7 @@ export const useSSHStore = create<SSHStore>()(
       sessionActivity: { ...state.sessionActivity, [tab.sessionId]: false },
     };
   }),
+  clearActiveTab: () => set({ activeTabId: undefined }),
   markSessionActivity: (sessionId) => set((state) => {
     if (state.sessionActivity[sessionId]) return state;
     return { sessionActivity: { ...state.sessionActivity, [sessionId]: true } };

@@ -7,15 +7,23 @@ import StoredHosts from './components/storedHosts';
 import SessionActivityMonitor from './components/SessionActivityMonitor';
 import { useCustomEvent } from '@/hooks/use-events';
 import { HostsObject } from '..';
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { idb } from '@/lib/idb';
 import { useStore } from '@/store';
 
 export default function NewSSH() {
-    const { tabs, activeTabId, addSession, addTab, setActiveTab } = useSSHStore()
+    const { tabs, activeTabId, addSession, addTab, clearActiveTab } = useSSHStore()
     const [hosts, setHosts] = useState<HostsObject[]>([])
     const { listen: listenNewConnectionClick } = useCustomEvent("NEW_SSH_CLIENT")
     const store = useStore()
+
+    // Landing on /ssh/connect always shows the saved-hosts grid, even when
+    // persisted tabs were restored from a previous session. Tabs stay in the
+    // store and remain reachable from the Hosts strip / tab bar.
+    useLayoutEffect(() => {
+        clearActiveTab()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     const refreshHosts = () => {
         idb.getAllItems("hosts").then((data) => {
@@ -92,7 +100,7 @@ export default function NewSSH() {
     return (
         <div className='w-full h-full overflow-hidden'>
             <SessionActivityMonitor />
-            {tabs.length === 0 && <StoredHosts hosts={hosts} handleClickOnHostCard={handleClickOnHostCard} onHostsChanged={refreshHosts} />}
+            {!activeTabId && <StoredHosts hosts={hosts} handleClickOnHostCard={handleClickOnHostCard} onHostsChanged={refreshHosts} />}
             {tabs.map((tab) => (
                 tab.id === activeTabId ? <TerminalTab key={tab.id} sessionId={tab.sessionId} /> : null
             ))}
