@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import stripAnsi from "strip-ansi";
 
 export interface CommandBlock {
   id: string;
@@ -26,10 +27,9 @@ const MAX_BLOCK_OUTPUT = 8000;
 /** Max blocks retained per session. */
 const MAX_BLOCKS = 200;
 
-// eslint-disable-next-line no-control-regex
-const ANSI_RE = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
-function stripAnsi(str: string): string {
-  return str.replace(ANSI_RE, "").replace(/\r/g, "");
+/** Strip ANSI escape sequences and carriage returns for plain-ASCII output. */
+function cleanOutput(str: string): string {
+  return stripAnsi(str).replace(/\r/g, "");
 }
 
 function capOutput(s: string): string {
@@ -79,7 +79,7 @@ export const useCommandBlocksStore = create<CommandBlocksState>((set) => ({
           const last = list[list.length - 1];
           if (!last.running) continue;
           const newList = list.slice();
-          newList[newList.length - 1] = { ...last, output: capOutput(last.output + stripAnsi(chunkStr)) };
+          newList[newList.length - 1] = { ...last, output: capOutput(last.output + cleanOutput(chunkStr)) };
           blocks[sid] = newList;
           changed = true;
         }

@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { Terminal, Share, Settings, Command, History, Package } from 'lucide-react';
+import { Terminal, Share, Settings, Command, History, Package, Boxes } from 'lucide-react';
 import { TabType, useTabStore } from '@/store/rightSidebarTabStore';
 import { useSessionTheme } from '@/hooks/useSessionTheme';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 const tabs = [
   { id: 'commands' as TabType, name: 'Commands', icon: Command },
   { id: 'history' as TabType, name: 'History', icon: History },
+  { id: 'widgets' as TabType, name: 'Widgets', icon: Boxes },
   { id: 'extensions' as TabType, name: 'Command Packs', icon: Package },
   { id: 'sharing' as TabType, name: 'Sharing', icon: Share },
   { id: 'settings' as TabType, name: 'Settings', icon: Settings }

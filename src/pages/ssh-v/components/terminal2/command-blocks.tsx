@@ -136,7 +136,8 @@ const BlockItem = memo(function BlockItem({
           style={{
             margin: 0, padding: "6px 10px", maxHeight: 200, overflow: "auto",
             fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, lineHeight: 1.5,
-            color: `${fg}cc`, background: bg, whiteSpace: "pre-wrap", wordBreak: "break-word",
+            color: `${fg}cc`, background: bg,
+            whiteSpace: "pre", tabSize: 8, fontVariantLigatures: "none",
           }}
         >
           {output}

@@ -7,7 +7,7 @@ import {
   isNewerVersion,
 } from '@/lib/context-engine';
 
-export type TabType = 'commands' | 'history' | 'sharing' | 'settings' | 'extensions';
+export type TabType = 'commands' | 'history' | 'sharing' | 'settings' | 'extensions' | 'widgets';
 
 interface Command {
   id: string;

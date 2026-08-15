@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { CommandList } from "./commandList";
 import CommandHistory from "./commandHistory";
 import CommandPacks from "./commandPacks";
+import WidgetCenter from "./widget-center";
 
 import TerminalShare from "./share";
 import TabContainer from "./tabContainer";
@@ -35,6 +36,8 @@ export function RightSidebar({
                 return <CommandList />;
             case 'history':
                 return <CommandHistory />;
+            case 'widgets':
+                return <WidgetCenter />;
             case 'extensions':
                 return <CommandPacks />;
             case 'sharing':

@@ -1,10 +1,11 @@
-import { FileBadge, FilesIcon, Terminal } from "lucide-react";
+import { Boxes, FileBadge, FilesIcon, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import React, { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 import { useSidebarState } from "@/store/sidebarStore";
 import { useSSHStore } from "@/store/sshStore";
+import { useTabStore } from "@/store/rightSidebarTabStore";
 import { useSessionTheme } from "@/hooks/useSessionTheme";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -19,6 +20,10 @@ interface NavItem {
 export function Sidebar() {
   const { sessions, activeTabId } = useSSHStore();
   const { activeItem, setActiveItem } = useSidebarState();
+  const setActiveTab = useTabStore((s) => s.setActiveTab);
+  const setRightSidebarOpen = useTabStore((s) => s.setRightSidebarOpen);
+  const rightSidebarOpen = useTabStore((s) => s.rightSidebarOpen);
+  const activeTab = useTabStore((s) => s.activeTab);
   const { colors } = useSessionTheme();
   const navigate = useNavigate();
 
@@ -51,6 +56,12 @@ export function Sidebar() {
   const handleClick = (item: NavItem) => {
     setActiveItem(item.label as any);
     if (item.url) navigate(item.url);
+  };
+
+  const widgetsActive = rightSidebarOpen && activeTab === "widgets";
+  const openWidgets = () => {
+    setActiveTab("widgets");
+    setRightSidebarOpen(!widgetsActive);
   };
 
   return (
@@ -91,6 +102,17 @@ export function Sidebar() {
           <FileBadge className="h-5 w-5 text-gray-400" />
         </Button>
       </Link>
+
+      {/* Widget Center launcher */}
+      <Button
+        variant="ghost"
+        size="icon"
+        title="Widgets"
+        className={cn("mb-4 relative group", widgetsActive && "bg-[#24253a]")}
+        onClick={openWidgets}
+      >
+        <Boxes className={cn("h-5 w-5", widgetsActive ? "text-orange-500" : "text-gray-400")} />
+      </Button>
     </div>
   );
 }

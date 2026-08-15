@@ -14,6 +14,21 @@ export interface ShellHistoryRecord {
     commands: string[];
 }
 
+export interface WidgetRecord {
+    id: string;
+    name: string;
+    description?: string;
+    command: string;
+    refreshMs: number;
+    render: 'raw' | 'table';
+    delimiter?: string;
+    columns?: string[];
+    maxRows?: number;
+    accent?: string;
+    builtin?: boolean;
+    createdAt: number;
+}
+
 type Tables = {
     all_commands: EntityTable<{
         name: string,
@@ -22,14 +37,16 @@ type Tables = {
     hosts: EntityTable<HostsObject, "id">
     session_themes: EntityTable<SessionThemeRecord, "sessionId">
     shell_history: EntityTable<ShellHistoryRecord, "host">
+    widgets: EntityTable<WidgetRecord, "id">
 }
 const tables: CreatePKTableSchema<Tables> = {
     all_commands: "++command",
     hosts: "++id,host",
     session_themes: "++sessionId",
-    shell_history: "++host"
+    shell_history: "++host",
+    widgets: "id"
 }
-export const idb = new IDB<Tables>(tables, IDB_NAME, 6, [
+export const idb = new IDB<Tables>(tables, IDB_NAME, 7, [
     // v5: drop `session_themes`. Its primary key was changed in-place from
     // `sessionId` to `++sessionId`, which Dexie cannot migrate and made the
     // whole DB fail to open (DatabaseClosedError → hosts stopped storing/showing).
