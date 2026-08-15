@@ -758,6 +758,11 @@ export function FileList({
         oldPath: fullPath,
         newPath: newPath,
       });
+    } else if (type === "copy") {
+      socket?.emit(SocketEventConstants.SFTP_COPY_FILE, {
+        currentPath: fullPath,
+        destinationPath: newPath,
+      });
     } else if (type === "rename") {
       const payload = {
         oldPath: `${currentDir}/${path}`,
@@ -916,6 +921,19 @@ export function FileList({
                             content: (
                               <NewFolderDialog
                                 type="move"
+                                data={row.original}
+                                currentDir={currentDir}
+                                homeDir={homeDir}
+                                onClick={handleCreateFileOrDir}
+                              />
+                            ),
+                          },
+                          {
+                            label: "Copy",
+                            icon: <Copy className="w-4 h-4" />,
+                            content: (
+                              <NewFolderDialog
+                                type="copy"
                                 data={row.original}
                                 currentDir={currentDir}
                                 homeDir={homeDir}
