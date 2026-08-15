@@ -4,11 +4,13 @@ import { TopBar } from "./topbar";
 import { RightSidebar } from "./rightSidebar";
 import { AIChatPanel } from "./ai-chat";
 import ResourceMonitor from "./resource-monitor";
+import DockerWidget from "./docker-widget";
 import { useSessionTheme } from "@/hooks/useSessionTheme";
 import { useSSHStore } from "@/store/sshStore";
 import { useTabStore } from "@/store/rightSidebarTabStore";
 import { useAIChatStore } from "@/store/aiChatStore";
 import { useMonitorStore } from "@/store/monitorStore";
+import { useDockerStore } from "@/store/dockerStore";
 
 export default function TerminalLayout({ children }: { children: React.ReactNode }) {
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
@@ -18,6 +20,8 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
     const closeAIChat = useAIChatStore((s) => s.close);
     const isMonitorOpen = useMonitorStore((s) => s.isOpen);
     const closeMonitor = useMonitorStore((s) => s.close);
+    const isDockerOpen = useDockerStore((s) => s.isOpen);
+    const closeDocker = useDockerStore((s) => s.close);
     const { colors } = useSessionTheme();
     const activeTabId = useSSHStore((s) => s.activeTabId);
     const activeTab = useSSHStore((s) => s.tabs.find((t) => t.id === s.activeTabId));
@@ -63,6 +67,8 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
                     {sessionId && <AIChatPanel sessionId={sessionId} />}
                     {/* Floating resource monitor */}
                     {sessionId && isMonitorOpen && <ResourceMonitor sessionId={sessionId} onClose={closeMonitor} />}
+                    {/* Floating docker panel */}
+                    {sessionId && isDockerOpen && <DockerWidget sessionId={sessionId} onClose={closeDocker} />}
                 </div>
             </div>
             <div className="flex lg:hidden items-center justify-center w-full h-full text-center p-4" style={{ backgroundColor: colors.background }}>

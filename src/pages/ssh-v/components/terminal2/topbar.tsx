@@ -1,4 +1,4 @@
-import { Columns2, Copy, Home, Menu, Plus, PlusCircle, Power, RotateCcw, Rows2, Square, X, Bot, Activity } from 'lucide-react';
+import { Columns2, Copy, Home, Menu, Plus, PlusCircle, Power, RotateCcw, Rows2, Square, X, Bot, Activity, Container } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
@@ -20,6 +20,7 @@ import { useSidebarState } from '@/store/sidebarStore';
 import { useSessionTheme } from '@/hooks/useSessionTheme';
 import { useAIChatStore } from '@/store/aiChatStore';
 import { useMonitorStore } from '@/store/monitorStore';
+import { useDockerStore } from '@/store/dockerStore';
 import { XtermTheme } from '../themes';
 import {
   Popover,
@@ -45,6 +46,8 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
   const isAIChatOpen = useAIChatStore((s) => s.isOpen);
   const toggleMonitor = useMonitorStore((s) => s.toggle);
   const isMonitorOpen = useMonitorStore((s) => s.isOpen);
+  const toggleDocker = useDockerStore((s) => s.toggle);
+  const isDockerOpen = useDockerStore((s) => s.isOpen);
   const {
     sessions,
     tabs,
@@ -326,6 +329,7 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
               <small><kbd className="font-semibold">Ctrl + V</kbd> — Paste</small>
               <small><kbd className="font-semibold">Ctrl + Shift + E</kbd> — Explain command</small>
               <small><kbd className="font-semibold">Ctrl + Shift + M</kbd> — Resource Monitor</small>
+              <small><kbd className="font-semibold">Ctrl + Shift + D</kbd> — Docker</small>
 
             </div>
 
@@ -346,6 +350,21 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
           >
             <Activity className="h-4 w-4" />
             <span className="text-xs hidden xl:inline">Monitor</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggleDocker}
+            className={cn(
+              "h-8 px-2.5 gap-1.5 transition-colors",
+              isDockerOpen
+                ? "text-sky-400 bg-sky-500/10"
+                : "text-gray-400 hover:text-gray-300"
+            )}
+            title="Docker (Ctrl+Shift+D)"
+          >
+            <Container className="h-4 w-4" />
+            <span className="text-xs hidden xl:inline">Docker</span>
           </Button>
           <Button
             variant="ghost"
