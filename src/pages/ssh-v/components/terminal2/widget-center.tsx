@@ -100,6 +100,15 @@ export default function WidgetCenter() {
     padding: "6px 8px", color: fg, fontSize: 12, outline: "none",
   };
   const labelStyle: React.CSSProperties = { fontSize: 11, color: `${fg}99`, fontWeight: 500, marginBottom: 4, display: "block" };
+  // Theme the native dropdown so the option list matches the terminal theme instead of rendering white.
+  const isDarkBg = (() => {
+    const hex = (colors.background || "").replace("#", "");
+    if (hex.length < 6) return true;
+    const r = parseInt(hex.slice(0, 2), 16), g = parseInt(hex.slice(2, 4), 16), b = parseInt(hex.slice(4, 6), 16);
+    return 0.299 * r + 0.587 * g + 0.114 * b < 128;
+  })();
+  const selectStyle: React.CSSProperties = { ...inputStyle, colorScheme: isDarkBg ? "dark" : "light" };
+  const optionStyle: React.CSSProperties = { background: colors.background, color: fg };
 
   const startAdd = () => { setEditingId(null); setForm(EMPTY_FORM); setMode("form"); };
   const startEdit = (d: WidgetDef) => { setEditingId(d.id); setForm(defToForm(d)); setMode("form"); };
@@ -147,7 +156,7 @@ export default function WidgetCenter() {
   if (mode === "form") {
     const canSave = form.name.trim().length > 0 && form.command.trim().length > 0;
     return (
-      <div className="space-y-4 px-2" style={{ color: `${fg}dd` }}>
+      <div className="space-y-4 px-4 pt-4 pb-6" style={{ color: `${fg}dd` }}>
         <div className="flex items-center gap-2">
           <button onClick={() => setMode("list")} style={{ display: "flex", background: "transparent", border: "none", color: `${fg}aa`, cursor: "pointer", padding: 2 }} title="Back">
             <ArrowLeft size={16} />
@@ -174,14 +183,14 @@ export default function WidgetCenter() {
         <div className="flex gap-2">
           <div style={{ flex: 1 }}>
             <label style={labelStyle}>Refresh</label>
-            <select style={inputStyle} value={form.refreshMs} onChange={(e) => setForm((f) => ({ ...f, refreshMs: Number(e.target.value) }))}>
-              {REFRESH_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            <select style={selectStyle} value={form.refreshMs} onChange={(e) => setForm((f) => ({ ...f, refreshMs: Number(e.target.value) }))}>
+              {REFRESH_OPTIONS.map((o) => <option key={o.value} value={o.value} style={optionStyle}>{o.label}</option>)}
             </select>
           </div>
           <div style={{ flex: 1 }}>
             <label style={labelStyle}>Render</label>
-            <select style={inputStyle} value={form.render} onChange={(e) => setForm((f) => ({ ...f, render: e.target.value as WidgetRender }))}>
-              {RENDER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            <select style={selectStyle} value={form.render} onChange={(e) => setForm((f) => ({ ...f, render: e.target.value as WidgetRender }))}>
+              {RENDER_OPTIONS.map((o) => <option key={o.value} value={o.value} style={optionStyle}>{o.label}</option>)}
             </select>
           </div>
         </div>
@@ -243,13 +252,13 @@ export default function WidgetCenter() {
               <div className="flex gap-2">
                 <div style={{ width: 96 }}>
                   <label style={labelStyle}>Condition</label>
-                  <select style={inputStyle} value={form.alertOp} onChange={(e) => setForm((f) => ({ ...f, alertOp: e.target.value as WidgetAlert["op"] }))}>
-                    <option value=">">value &gt;</option>
-                    <option value="<">value &lt;</option>
-                    <option value=">=">value ≥</option>
-                    <option value="<=">value ≤</option>
-                    <option value="==">value =</option>
-                    <option value="match">matches</option>
+                  <select style={selectStyle} value={form.alertOp} onChange={(e) => setForm((f) => ({ ...f, alertOp: e.target.value as WidgetAlert["op"] }))}>
+                    <option value=">" style={optionStyle}>value &gt;</option>
+                    <option value="<" style={optionStyle}>value &lt;</option>
+                    <option value=">=" style={optionStyle}>value ≥</option>
+                    <option value="<=" style={optionStyle}>value ≤</option>
+                    <option value="==" style={optionStyle}>value =</option>
+                    <option value="match" style={optionStyle}>matches</option>
                   </select>
                 </div>
                 <div style={{ flex: 1 }}>
@@ -306,7 +315,7 @@ export default function WidgetCenter() {
   }
 
   return (
-    <div className="space-y-4 px-2" style={{ color: `${fg}dd` }}>
+    <div className="space-y-4 px-4 pt-4 pb-6" style={{ color: `${fg}dd` }}>
       <div className="flex items-start justify-between gap-2">
         <div>
           <h3 className="text-lg font-semibold" style={{ color: fg }}>Widget Center</h3>

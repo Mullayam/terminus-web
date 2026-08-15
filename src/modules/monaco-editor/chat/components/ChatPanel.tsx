@@ -202,7 +202,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             <select
               value={selectedProviderId ?? ""}
               onChange={(e) => selectProvider(e.target.value)}
-              className="flex-1 bg-[#3c3c3c] text-gray-300 text-[11px] rounded px-2 py-1 border border-[#555] focus:border-[#007acc] focus:outline-none"
+              className="flex-1 bg-[#3c3c3c] [color-scheme:dark] text-gray-300 text-[11px] rounded px-2 py-1 border border-[#555] focus:border-[#007acc] focus:outline-none"
             >
               {providers.map((p) => (
                 <option key={p.id} value={p.id} disabled={!p.available}>
@@ -214,7 +214,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               <select
                 value={selectedModelId ?? ""}
                 onChange={(e) => selectModel(e.target.value)}
-                className="bg-[#3c3c3c] text-gray-300 text-[11px] rounded px-2 py-1 border border-[#555] focus:border-[#007acc] focus:outline-none max-w-[100px]"
+                className="bg-[#3c3c3c] [color-scheme:dark] text-gray-300 text-[11px] rounded px-2 py-1 border border-[#555] focus:border-[#007acc] focus:outline-none max-w-[100px]"
               >
                 {selectedProvider.models.map((m) => (
                   <option key={m.id} value={m.id}>

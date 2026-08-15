@@ -404,7 +404,7 @@ function SelectSetting({
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="appearance-none bg-[#3c3c3c] text-[11px] text-gray-300 pl-2 pr-5 py-0.5 rounded border border-[#555] hover:border-[#007acc] focus:border-[#007acc] focus:outline-none transition-colors cursor-pointer"
+          className="appearance-none bg-[#3c3c3c] [color-scheme:dark] text-[11px] text-gray-300 pl-2 pr-5 py-0.5 rounded border border-[#555] hover:border-[#007acc] focus:border-[#007acc] focus:outline-none transition-colors cursor-pointer"
         >
           {options.map((opt) => (
             <option key={opt.value} value={opt.value}>
@@ -566,7 +566,7 @@ function CustomSnippetUrlList({
           <select
             value={newLang}
             onChange={(e) => setNewLang(e.target.value)}
-            className="appearance-none bg-[#3c3c3c] text-[10px] text-gray-300 pl-1.5 pr-4 py-0.5 rounded border border-[#555] hover:border-[#007acc] focus:border-[#007acc] focus:outline-none transition-colors cursor-pointer flex-1"
+            className="appearance-none bg-[#3c3c3c] [color-scheme:dark] text-[10px] text-gray-300 pl-1.5 pr-4 py-0.5 rounded border border-[#555] hover:border-[#007acc] focus:border-[#007acc] focus:outline-none transition-colors cursor-pointer flex-1"
           >
             {commonLanguages.map((lang) => (
               <option key={lang} value={lang}>

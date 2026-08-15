@@ -106,7 +106,7 @@ export default function SettingsTab() {
   };
 
   return (
-    <div className="space-y-6 px-2" style={{ color: `${colors.foreground}dd` }}>
+    <div className="space-y-6 px-4 pt-4 pb-6" style={{ color: `${colors.foreground}dd` }}>
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div>

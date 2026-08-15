@@ -144,7 +144,7 @@ export const CustomContextMenuPanel: React.FC<CustomContextMenuPanelProps> = ({
             <select
               value={actionType}
               onChange={(e) => setActionType(e.target.value as any)}
-              className="appearance-none bg-[#3c3c3c] text-[10px] text-gray-300 pl-1.5 pr-4 py-0.5 rounded border border-[#555] hover:border-[#007acc] focus:border-[#007acc] focus:outline-none transition-colors cursor-pointer"
+              className="appearance-none bg-[#3c3c3c] [color-scheme:dark] text-[10px] text-gray-300 pl-1.5 pr-4 py-0.5 rounded border border-[#555] hover:border-[#007acc] focus:border-[#007acc] focus:outline-none transition-colors cursor-pointer"
             >
               <option value="command">Command</option>
               <option value="url">URL (AI Tool)</option>
