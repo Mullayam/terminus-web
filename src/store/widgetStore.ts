@@ -8,6 +8,7 @@ interface WidgetState {
   defs: WidgetDef[];
   openIds: string[];
   loaded: boolean;
+  dashboard: boolean;
   load: () => Promise<void>;
   addWidget: (def: Omit<WidgetDef, "id" | "createdAt">) => Promise<WidgetDef>;
   updateWidget: (id: string, patch: Partial<WidgetDef>) => Promise<void>;
@@ -15,12 +16,14 @@ interface WidgetState {
   open: (id: string) => void;
   close: (id: string) => void;
   toggleOpen: (id: string) => void;
+  toggleDashboard: () => void;
 }
 
 export const useWidgetStore = create<WidgetState>((set, get) => ({
   defs: [],
   openIds: [],
   loaded: false,
+  dashboard: false,
 
   load: async () => {
     if (get().loaded) return;
@@ -56,4 +59,5 @@ export const useWidgetStore = create<WidgetState>((set, get) => ({
   close: (id) => set((s) => ({ openIds: s.openIds.filter((x) => x !== id) })),
   toggleOpen: (id) =>
     set((s) => (s.openIds.includes(id) ? { openIds: s.openIds.filter((x) => x !== id) } : { openIds: [...s.openIds, id] })),
+  toggleDashboard: () => set((s) => ({ dashboard: !s.dashboard })),
 }));

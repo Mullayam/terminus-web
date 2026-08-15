@@ -1,9 +1,62 @@
 import type { WidgetRecord } from "@/lib/idb";
+export type { WidgetAlert } from "@/lib/idb";
 
 /** A user-defined (or prebuilt) widget backed by a silent-exec command. */
 export type WidgetDef = WidgetRecord;
 
 export type WidgetRender = WidgetRecord["render"];
+
+/** Render modes exposed in the builder, with human labels. */
+export const RENDER_OPTIONS: { label: string; value: WidgetRender }[] = [
+  { label: "Raw text", value: "raw" },
+  { label: "Table", value: "table" },
+  { label: "Sparkline", value: "sparkline" },
+  { label: "Gauge", value: "gauge" },
+];
+
+/** Extract the first numeric value from output; if `pattern` is given, its first capture group (or match). */
+export function extractValue(output: string, pattern?: string): number | null {
+  const text = output ?? "";
+  if (pattern) {
+    try {
+      const m = new RegExp(pattern).exec(text);
+      if (m) {
+        const raw = m[1] ?? m[0];
+        const n = parseFloat(String(raw).replace(/[^0-9.+-]/g, ""));
+        return Number.isFinite(n) ? n : null;
+      }
+      return null;
+    } catch {
+      // fall through to default numeric scan on an invalid regex
+    }
+  }
+  const m = text.match(/-?\d+(?:\.\d+)?/);
+  if (!m) return null;
+  const n = parseFloat(m[0]);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Evaluate a widget alert against the current output. Returns true when the alert is tripped. */
+export function evalAlert(alert: WidgetRecord["alert"], output: string, value: number | null): boolean {
+  if (!alert) return false;
+  if (alert.op === "match") {
+    if (!alert.pattern) return false;
+    try {
+      return new RegExp(alert.pattern, "i").test(output ?? "");
+    } catch {
+      return false;
+    }
+  }
+  if (value == null || alert.value == null) return false;
+  switch (alert.op) {
+    case ">": return value > alert.value;
+    case "<": return value < alert.value;
+    case ">=": return value >= alert.value;
+    case "<=": return value <= alert.value;
+    case "==": return value === alert.value;
+    default: return false;
+  }
+}
 
 /** Theme color keys a widget accent may reference. */
 export const WIDGET_ACCENTS = ["green", "cyan", "blue", "magenta", "yellow", "red"] as const;
@@ -100,4 +153,9 @@ export const WIDGET_TEMPLATE: Omit<WidgetDef, "id" | "createdAt"> = {
   maxRows: 20,
   accent: "cyan",
   builtin: false,
+  stream: false,
+  valuePattern: "",
+  gaugeMax: 100,
+  unit: "",
+  docked: false,
 };

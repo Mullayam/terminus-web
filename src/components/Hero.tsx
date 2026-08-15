@@ -8,10 +8,10 @@ import { ArrowRight, Terminal, Users, Shield, Sparkles, FolderTree, Code2 } from
 const heroScreenshots = [
   {
     src: "/1.png",
-    alt: "SSH Terminal with ghost-text autocomplete and AI suggestion box",
+    alt: "SSH terminal command palette with AI-powered command suggestions",
     callouts: [
-      { label: "Ghost Autocomplete", position: "top-8 right-4", anim: "animate-float" },
-      { label: "AI Commands", position: "bottom-20 left-4", anim: "animate-float-delayed" },
+      { label: "Command Palette", position: "top-8 right-4", anim: "animate-float" },
+      { label: "Ask AI Commands", position: "bottom-20 left-4", anim: "animate-float-delayed" },
     ],
   },
   {
@@ -24,50 +24,74 @@ const heroScreenshots = [
   },
   {
     src: "/3.png",
-    alt: "Collaborative terminal sharing with role-based permissions",
+    alt: "Collaborative terminal session sharing with role-based access",
     callouts: [
-      { label: "Share Sessions", position: "top-8 left-4", anim: "animate-float" },
+      { label: "Share Session", position: "top-8 left-4", anim: "animate-float" },
       { label: "Role Permissions", position: "bottom-16 right-4", anim: "animate-float-delayed" },
     ],
   },
   {
     src: "/4.png",
-    alt: "SFTP file manager with context menu and permissions",
+    alt: "SFTP file manager with compress, extract and full context menu",
     callouts: [
-      { label: "Drag & Drop", position: "top-8 right-4", anim: "animate-float" },
-      { label: "13 Actions", position: "bottom-20 left-4", anim: "animate-float-delayed" },
+      { label: "Compress & Extract", position: "top-8 right-4", anim: "animate-float" },
+      { label: "Full Context Menu", position: "bottom-20 left-4", anim: "animate-float-delayed" },
     ],
   },
   {
     src: "/5.png",
-    alt: "Code editor with full context menu and editing tools",
+    alt: "Code editor context menu with Prettier, ESLint and built-in AI chat",
     callouts: [
-      { label: "Context Menu", position: "top-8 right-4", anim: "animate-float" },
-      { label: "Sort & Comment", position: "bottom-16 left-4", anim: "animate-float-delayed" },
+      { label: "Prettier & ESLint", position: "top-8 right-4", anim: "animate-float" },
+      { label: "Built-in AI Chat", position: "bottom-16 left-4", anim: "animate-float-delayed" },
     ],
   },
   {
     src: "/6.png",
-    alt: "Editor with 17 built-in plugins and IntelliSense",
+    alt: "AI ghost-text code completion powered by multiple LLM providers",
     callouts: [
-      { label: "17 Plugins", position: "top-8 right-4", anim: "animate-float" },
-      { label: "IntelliSense", position: "bottom-20 left-4", anim: "animate-float-delayed" },
+      { label: "Ghost-Text AI", position: "top-8 right-4", anim: "animate-float" },
+      { label: "Multiple LLMs", position: "bottom-20 left-4", anim: "animate-float-delayed" },
     ],
   },
   {
     src: "/7.png",
-    alt: "Editor with 25+ themes and IntelliSense autocomplete",
+    alt: "Docker container manager, resource monitor and live widget center",
     callouts: [
-      { label: "25+ Themes", position: "top-8 left-4", anim: "animate-float" },
-      { label: "AI Completions", position: "bottom-16 right-4", anim: "animate-float-delayed" },
+      { label: "Docker Control", position: "top-8 left-4", anim: "animate-float" },
+      { label: "Resource Monitor", position: "bottom-16 right-4", anim: "animate-float-delayed" },
     ],
   },
   {
     src: "/8.png",
-    alt: "Editor with embedded terminal panel",
+    alt: "Code editor with embedded terminal panel",
     callouts: [
       { label: "Embedded Terminal", position: "top-8 right-4", anim: "animate-float" },
       { label: "Resizable", position: "bottom-16 left-4", anim: "animate-float-delayed" },
+    ],
+  },
+  {
+    src: "/10.png",
+    alt: "Split terminal panes running multiple sessions at once",
+    callouts: [
+      { label: "Split Panes", position: "top-8 right-4", anim: "animate-float" },
+      { label: "Multi-Session", position: "bottom-20 left-4", anim: "animate-float-delayed" },
+    ],
+  },
+  {
+    src: "/11.png",
+    alt: "VS Code-style remote workspace with saved SFTP connections",
+    callouts: [
+      { label: "Remote Workspace", position: "top-8 left-4", anim: "animate-float" },
+      { label: "Saved Connections", position: "bottom-16 right-4", anim: "animate-float-delayed" },
+    ],
+  },
+  {
+    src: "/12.png",
+    alt: "Terminal behavior settings with autocomplete and command block toggles",
+    callouts: [
+      { label: "Behavior Toggles", position: "top-8 right-4", anim: "animate-float" },
+      { label: "Command Blocks", position: "bottom-20 left-4", anim: "animate-float-delayed" },
     ],
   },
 ];

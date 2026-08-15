@@ -14,19 +14,44 @@ export interface ShellHistoryRecord {
     commands: string[];
 }
 
+export interface WidgetAlert {
+    /** Comparison against the extracted numeric value, or 'match' for a regex on raw output. */
+    op: '>' | '<' | '>=' | '<=' | '==' | 'match';
+    /** Numeric threshold (used by the numeric operators). */
+    value?: number;
+    /** Regex tested against raw output (used when op === 'match'). */
+    pattern?: string;
+    /** Fire a desktop notification when the alert trips. */
+    notify?: boolean;
+    /** Play a short beep when the alert trips. */
+    sound?: boolean;
+}
+
 export interface WidgetRecord {
     id: string;
     name: string;
     description?: string;
     command: string;
     refreshMs: number;
-    render: 'raw' | 'table';
+    render: 'raw' | 'table' | 'sparkline' | 'gauge';
     delimiter?: string;
     columns?: string[];
     maxRows?: number;
     accent?: string;
     builtin?: boolean;
     createdAt: number;
+    /** Log/tail mode: poll a bounded snapshot (e.g. `docker logs --tail 200`) and auto-scroll to newest. */
+    stream?: boolean;
+    /** Regex used to extract a numeric value for sparkline/gauge/alerts. First capture group or first match wins. */
+    valuePattern?: string;
+    /** Full-scale value for gauge rendering (value/gaugeMax = fill). Defaults to 100. */
+    gaugeMax?: number;
+    /** Display unit appended to sparkline/gauge values (e.g. "%", "MB"). */
+    unit?: string;
+    /** Threshold alert configuration. */
+    alert?: WidgetAlert;
+    /** Render inside the dashboard grid instead of as a floating panel. */
+    docked?: boolean;
 }
 
 type Tables = {
