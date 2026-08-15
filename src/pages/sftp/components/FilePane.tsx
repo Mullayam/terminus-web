@@ -337,6 +337,35 @@ export function FilePane({
           });
         }
       },
+      onCopyContent: async (node) => {
+        if (node.type === "d") return;
+        if (!tabId) {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "No active session.",
+            duration: 2000,
+          });
+          return;
+        }
+        try {
+          const res = await ApiCore.fetchFileContent(tabId, node.fullPath);
+          if (!res.status) throw new Error(res.message || "Failed to read file");
+          await navigator.clipboard.writeText(res.result ?? "");
+          toast({
+            title: "Copied",
+            description: `${node.name} content copied to clipboard.`,
+            duration: 2000,
+          });
+        } catch (error: any) {
+          toast({
+            variant: "destructive",
+            title: "Copy failed",
+            description: error.message,
+            duration: 2000,
+          });
+        }
+      },
       onProperties: (fullPath) => {
         socket?.emit(SocketEventConstants.SFTP_FILE_STATS, { path: fullPath });
       },

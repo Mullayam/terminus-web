@@ -3,6 +3,7 @@ import { SFTP_FILES_LIST } from "./interface";
 import FileIcon from "@/components/FileIcon";
 import {
   ChevronRight,
+  ClipboardCopy,
   Copy,
   Download,
   ExternalLink,
@@ -47,6 +48,7 @@ export interface TreeContextActions {
   onNewFile?: (node: TreeNode) => void;
   onNewFolder?: (node: TreeNode) => void;
   onCopy?: (node: TreeNode) => void;
+  onCopyContent?: (node: TreeNode) => void;
   /** Render custom content for context items that need dialogs */
   renderEdit?: (fullPath: string, name: string) => React.ReactNode;
   renderRename?: (node: TreeNode) => React.ReactNode;
@@ -167,6 +169,14 @@ function buildContextItems(node: TreeNode, actions?: TreeContextActions) {
     label: "Copy",
     icon: <Copy className="w-4 h-4" />,
     content: actions.renderCopy?.(node),
+  });
+
+  // Copy Content
+  items.push({
+    label: "Copy Content",
+    icon: <ClipboardCopy className="w-4 h-4" />,
+    disabled: isDir,
+    action: () => actions.onCopyContent?.(node),
   });
 
   // Delete
