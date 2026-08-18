@@ -502,6 +502,7 @@ export default function KubernetesWidget({ sessionId, onClose }: KubernetesWidge
           </button>
           {showNsDropdown && namespaces.length > 0 && (
             <div
+              onPointerDown={(e) => e.stopPropagation()}
               style={{
                 position: "absolute", top: "100%", left: 0, marginTop: 2, zIndex: 60,
                 background: bg, border: `1px solid ${border}`, borderRadius: 6,
