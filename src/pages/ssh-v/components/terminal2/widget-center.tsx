@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import {
   ArrowLeft,
+  Box,
   Boxes,
+  Container as ContainerIcon,
   Eye,
   EyeOff,
   LayoutGrid,
@@ -12,6 +14,8 @@ import {
 } from "lucide-react";
 import { useSessionTheme } from "@/hooks/useSessionTheme";
 import { useWidgetStore } from "@/store/widgetStore";
+import { useDockerStore } from "@/store/dockerStore";
+import { useKubernetesStore } from "@/store/kubernetesStore";
 import type { WidgetDef, WidgetRender, WidgetAlert } from "@/lib/widgets/types";
 import { REFRESH_OPTIONS, RENDER_OPTIONS, WIDGET_ACCENTS, WIDGET_TEMPLATE } from "@/lib/widgets/types";
 
@@ -86,6 +90,10 @@ const EMPTY_FORM: FormState = {
 export default function WidgetCenter() {
   const { colors } = useSessionTheme();
   const { defs, openIds, load, addWidget, updateWidget, removeWidget, toggleOpen, dashboard, toggleDashboard } = useWidgetStore();
+  const isDockerOpen = useDockerStore((s) => s.isOpen);
+  const toggleDocker = useDockerStore((s) => s.toggle);
+  const isK8sOpen = useKubernetesStore((s) => s.isOpen);
+  const toggleK8s = useKubernetesStore((s) => s.toggle);
 
   const [mode, setMode] = useState<"list" | "form">("list");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -335,6 +343,24 @@ export default function WidgetCenter() {
         </div>
       </div>
 
+      {/* Built-in infrastructure panels */}
+      <BuiltInPanelRow
+        label="Docker" description="Containers, stats, start/stop/restart"
+        icon={<ContainerIcon size={16} />}
+        accentColor={colors.blue ?? colors.cyan}
+        isOpen={isDockerOpen}
+        onToggle={toggleDocker}
+        fg={fg} border={border}
+      />
+      <BuiltInPanelRow
+        label="Kubernetes" description="Pods, logs, describe, scale, exec"
+        icon={<Box size={16} />}
+        accentColor={colors.magenta ?? colors.blue}
+        isOpen={isK8sOpen}
+        onToggle={toggleK8s}
+        fg={fg} border={border}
+      />
+
       <div className="space-y-2">
         {defs.length === 0 && (
           <div style={{ fontSize: 12, color: `${fg}88`, textAlign: "center", padding: "20px 0" }}>No widgets yet.</div>
@@ -368,6 +394,43 @@ export default function WidgetCenter() {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/* ── Built-in infrastructure panel toggle row ────────────────────── */
+
+function BuiltInPanelRow({
+  label, description, icon, accentColor, isOpen, onToggle, fg, border,
+}: {
+  label: string; description: string; icon: React.ReactNode;
+  accentColor: string; isOpen: boolean; onToggle: () => void;
+  fg: string; border: string;
+}) {
+  return (
+    <div
+      className="flex items-center gap-2.5 rounded-md p-2.5 cursor-pointer"
+      style={{
+        backgroundColor: `${fg}0d`,
+        border: `1px solid ${isOpen ? accentColor + "66" : border}`,
+      }}
+      onClick={onToggle}
+    >
+      <span className="shrink-0" style={{ color: accentColor }}>{icon}</span>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium truncate" style={{ color: fg }}>{label}</p>
+        <p className="truncate text-[11px]" style={{ color: `${fg}80` }}>{description}</p>
+      </div>
+      <span
+        style={{
+          fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 4,
+          color: isOpen ? accentColor : `${fg}66`,
+          background: isOpen ? `${accentColor}18` : `${fg}0a`,
+          border: `1px solid ${isOpen ? accentColor + "44" : border}`,
+        }}
+      >
+        {isOpen ? "ON" : "OFF"}
+      </span>
     </div>
   );
 }

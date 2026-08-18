@@ -6,6 +6,7 @@ import { RightSidebar } from "./rightSidebar";
 import { AIChatPanel } from "./ai-chat";
 import ResourceMonitor from "./resource-monitor";
 import DockerWidget from "./docker-widget";
+import KubernetesWidget from "./kubernetes-widget";
 import CustomWidget from "./custom-widget";
 import { useSessionTheme } from "@/hooks/useSessionTheme";
 import { useSSHStore } from "@/store/sshStore";
@@ -13,6 +14,7 @@ import { useTabStore } from "@/store/rightSidebarTabStore";
 import { useAIChatStore } from "@/store/aiChatStore";
 import { useMonitorStore } from "@/store/monitorStore";
 import { useDockerStore } from "@/store/dockerStore";
+import { useKubernetesStore } from "@/store/kubernetesStore";
 import { useWidgetStore } from "@/store/widgetStore";
 
 export default function TerminalLayout({ children }: { children: React.ReactNode }) {
@@ -26,6 +28,8 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
     const closeMonitor = useMonitorStore((s) => s.close);
     const isDockerOpen = useDockerStore((s) => s.isOpen);
     const closeDocker = useDockerStore((s) => s.close);
+    const isKubernetesOpen = useKubernetesStore((s) => s.isOpen);
+    const closeKubernetes = useKubernetesStore((s) => s.close);
     const widgetDefs = useWidgetStore((s) => s.defs);
     const openWidgetIds = useWidgetStore((s) => s.openIds);
     const loadWidgets = useWidgetStore((s) => s.load);
@@ -84,6 +88,8 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
                     {sessionId && isMonitorOpen && <ResourceMonitor sessionId={sessionId} onClose={closeMonitor} />}
                     {/* Floating docker panel */}
                     {sessionId && isDockerOpen && <DockerWidget sessionId={sessionId} onClose={closeDocker} />}
+                    {/* Floating kubernetes panel */}
+                    {sessionId && isKubernetesOpen && <KubernetesWidget sessionId={sessionId} onClose={closeKubernetes} />}
                     {/* Floating custom widgets */}
                     {sessionId && !dashboard && openWidgetIds.map((id, i) => {
                         const def = widgetDefs.find((d) => d.id === id);

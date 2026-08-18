@@ -148,7 +148,7 @@ function awaitApproval(
 export function useAgentExecutor(sessionId: string) {
   const abortRef = useRef(false);
   const runningRef = useRef(false);
-  const { sendMessage, getTerminalContext } = useAIChat(sessionId);
+  const { sendMessage, abort: abortAIStream, getTerminalContext } = useAIChat(sessionId);
 
   const setAgentStatus = useAIChatStore((s) => s.setAgentStatus);
   const clearAgentStatus = useAIChatStore((s) => s.clearAgentStatus);
@@ -593,9 +593,15 @@ export function useAgentExecutor(sessionId: string) {
 
   const stopAgent = useCallback(() => {
     abortRef.current = true;
+    // Cancel any in-flight AI SSE stream so sendMessage() rejects immediately.
+    abortAIStream();
+    // Send Ctrl+C to kill any running command in the terminal.
+    const socket = useSSHStore.getState().sessions[sessionId]?.socket;
+    if (socket) socket.emit(SocketEventConstants.SSH_EMIT_INPUT, '\x03');
     // Auto-deny anything waiting on approval so the loop doesn't hang.
     pendingApprovals.forEach((resolve) => resolve(false));
     pendingApprovals.clear();
+    runningRef.current = false;
     const state = useAIChatStore.getState();
     const status = state.agentStatus[sessionId];
     if (status) {
@@ -614,7 +620,7 @@ export function useAgentExecutor(sessionId: string) {
         }
       }
     }
-  }, [sessionId, setAgentStatus]);
+  }, [sessionId, setAgentStatus, abortAIStream]);
 
   return { runAgentLoop, runStepByStepLoop, stopAgent, requestNotificationPermission };
 }

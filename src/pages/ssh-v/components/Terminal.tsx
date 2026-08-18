@@ -49,6 +49,7 @@ import CommandBlocks from "./terminal2/command-blocks";
 import { useCommandBlocksStore, type CommandBlock } from "@/store/commandBlocksStore";
 import { useMonitorStore } from "@/store/monitorStore";
 import { useDockerStore } from "@/store/dockerStore";
+import { useKubernetesStore } from "@/store/kubernetesStore";
 import { fetchAICommand, stripAnsi as stripAnsiCmd } from "./terminal2/aiCommand";
 import CommandPalette from "./terminal2/command-palette";
 import CommandExplain from "./terminal2/command-explain";
@@ -528,6 +529,11 @@ const XTerminal = memo(function XTerminal({
     if (e.ctrlKey && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
       e.preventDefault();
       useDockerStore.getState().toggle();
+      return true;
+    }
+    if (e.ctrlKey && e.shiftKey && (e.key === 'K' || e.key === 'k')) {
+      e.preventDefault();
+      useKubernetesStore.getState().toggle();
       return true;
     }
     if (e.key === 'Escape') {
