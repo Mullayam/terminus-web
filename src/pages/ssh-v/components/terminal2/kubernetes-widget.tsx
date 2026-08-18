@@ -482,7 +482,7 @@ export default function KubernetesWidget({ sessionId, onClose }: KubernetesWidge
         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
         style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderBottom: `1px solid ${border}`, cursor: "move", userSelect: "none" }}
       >
-        <Box size={15} style={{ color: colors.blue ?? colors.cyan }} />
+        <Box size={15} style={{ color: colors.blue }} />
         <span style={{ fontSize: 12.5, fontWeight: 600, color: fg }}>Kubernetes</span>
         {result?.available && (
           <span style={{ fontSize: 10, color: `${fg}66` }}>{runningCount}/{pods.length} running</span>
@@ -622,13 +622,13 @@ export default function KubernetesWidget({ sessionId, onClose }: KubernetesWidge
                   /* Action buttons */
                   <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 1 }}>
                     <ActionBtn label="Logs" icon={<FileText size={11} />} disabled={isBusy} onClick={() => requestAction(pod, "logs")} fg={fg} border={border} accent={colors.cyan} />
-                    <ActionBtn label="Describe" icon={<Search size={11} />} disabled={isBusy} onClick={() => requestAction(pod, "describe")} fg={fg} border={border} accent={colors.blue ?? colors.cyan} />
+                    <ActionBtn label="Describe" icon={<Search size={11} />} disabled={isBusy} onClick={() => requestAction(pod, "describe")} fg={fg} border={border} accent={colors.blue} />
                     {running && (
                       <ActionBtn label="Exec" icon={<Terminal size={11} />} disabled={isBusy} onClick={() => requestAction(pod, "exec")} fg={fg} border={border} accent={colors.green} />
                     )}
                     <ActionBtn label="Restart" icon={<RotateCcw size={11} />} disabled={isBusy} onClick={() => requestAction(pod, "restart")} fg={fg} border={border} accent={colors.yellow} />
-                    <ActionBtn label="Scale" icon={<Scale size={11} />} disabled={isBusy} onClick={() => requestAction(pod, "scale")} fg={fg} border={border} accent={colors.magenta ?? colors.blue} />
-                    <ActionBtn label="Image" icon={<ImageIcon size={11} />} disabled={isBusy} onClick={() => requestAction(pod, "set-image")} fg={fg} border={border} accent={colors.magenta ?? colors.blue} />
+                    <ActionBtn label="Scale" icon={<Scale size={11} />} disabled={isBusy} onClick={() => requestAction(pod, "scale")} fg={fg} border={border} accent={colors.magenta} />
+                    <ActionBtn label="Image" icon={<ImageIcon size={11} />} disabled={isBusy} onClick={() => requestAction(pod, "set-image")} fg={fg} border={border} accent={colors.magenta} />
                     <ActionBtn label="Delete" icon={<Trash2 size={11} />} disabled={isBusy} onClick={() => requestAction(pod, "delete")} fg={fg} border={border} accent={colors.red} />
                     {isBusy && <RefreshCw size={13} style={{ color: `${fg}88`, alignSelf: "center", animation: "k8Spin 0.9s linear infinite" }} />}
                   </div>

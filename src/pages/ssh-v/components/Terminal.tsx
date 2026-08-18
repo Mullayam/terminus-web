@@ -1387,9 +1387,9 @@ const XTerminal = memo(function XTerminal({
             onClose={() => { setExplainCommand(null); termRef.current?.focus(); }}
             bg={t.background}
             fg={t.foreground}
-            accent={t.cyan ?? t.green ?? t.foreground}
+            accent={t.cyan}
             border={`${t.foreground}22`}
-            error={t.red ?? '#f43f5e'}
+            error={t.red}
           />
         );
       })()}
