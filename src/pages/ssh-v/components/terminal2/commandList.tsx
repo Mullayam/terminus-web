@@ -24,7 +24,7 @@ interface CommandRowProps {
 /** Memoized row so the search box / add form doesn't re-render the whole command list. */
 const CommandRow = memo(function CommandRow({ cmd, foreground, onClick, onRun, onEdit, onDelete }: CommandRowProps) {
   return (
-    <div className="group min-w-0">
+    <div className="group w-80">
       <div className="flex items-center mb-1 min-w-0">
         <Button
           variant="ghost"
