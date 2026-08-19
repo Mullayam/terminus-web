@@ -323,7 +323,9 @@ const XTerminal = memo(function XTerminal({
   const inputResyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Coalesces overlay store updates to one per frame (off the keystroke path).
   const inputRafRef = useRef<number | null>(null);
-  const pendingSnapshotRef = useRef<Partial<TerminalInputSnapshot> | null>(null);
+  // Latest pushInputState() opts; the expensive ranking runs once per frame in
+  // the rAF, so a burst of keystrokes never re-ranks the pack pool N times.
+  const pendingInputOptsRef = useRef<{ forceVisible?: boolean } | undefined>(undefined);
   const lastKeyAtRef = useRef(0);
   // Cached xterm helper textarea — avoids re-querying + reflow on cursor move.
   const helperTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -690,65 +692,62 @@ const XTerminal = memo(function XTerminal({
     }, 160);
   };
 
-  // Push current input state to the overlay store. Synchronous — so typing has
-  // no perceptible gap — and only the overlay bridges re-render, not the parent.
+  // Push current input state to the overlay store. The expensive ranking runs
+  // ONCE per animation frame (off the synchronous keystroke path), so typing
+  // stays smooth even with large command-pack pools; only the overlay bridges
+  // re-render, never the parent.
   const pushInputState = (opts?: { forceVisible?: boolean }) => {
     // Feature fully off → do no suggestion work and keep arrow keys free.
     if (!autocompleteEnabledRef.current) {
       isVisibleRef.current = false;
       return;
     }
-    const buffer = commandBufferRef.current;
-    // Detect `cd`/`ls`-style commands → fetch immediate directory entries.
-    scheduleFsQuery(buffer);
-    const fsList = fsSuggestionsRef.current;
-    const all = [...fsList, ...suggestionsRef.current, ...ghostSourcesRef.current];
-    let suggestions: string[];
-    if (buffer === "") {
-      suggestions = all;
-    } else {
-      // Live `cd`/`ls` directory entries stay on top; then user history ranks
-      // above generic pack/context-engine suggestions.
-      const fsRanked = fsList.length ? rankSuggestions(buffer, fsList, usageRef.current) : [];
-      const restRanked = rankSuggestions(
-        buffer,
-        [...suggestionsRef.current, ...ghostSourcesRef.current],
-        usageRef.current,
-        historySetRef.current,
-      );
-      const seen = new Set(fsRanked);
-      suggestions = [...fsRanked, ...restRanked.filter((s) => !seen.has(s))];
-    }
-    // Never mark the box visible (and thus never swallow arrow keys) when the
-    // suggestion box is disabled in settings.
+    // Reset the Escape-dismiss latch synchronously so a forced re-show survives
+    // frame coalescing.
     if (opts?.forceVisible) suggestDismissedRef.current = false;
-    // `suggestions` already blends fs entries + history + command packs (filtered
-    // by the ranker), so gate visibility on it — otherwise pack-only matches
-    // (with no matching history) would never open the box.
-    const visible =
-      suggestBoxEnabledRef.current &&
-      !showInlineAIRef.current &&
-      !suggestDismissedRef.current &&
-      (opts?.forceVisible ??
-        (buffer.trim() !== "" && suggestions.length > 0));
-    isVisibleRef.current = visible;
-    const patch: Partial<TerminalInputSnapshot> = { buffer, visible, suggestions };
-    if (visible) {
-      const p = readSuggestionPos();
-      if (p) patch.pos = p;
-    }
-    // Coalesce the overlay update to one per frame so the React overlays never
-    // re-render on the synchronous keystroke path — typing + xterm paint + the
-    // command send (onData) all stay unblocked.
-    pendingSnapshotRef.current = patch;
-    if (inputRafRef.current == null) {
-      inputRafRef.current = requestAnimationFrame(() => {
-        inputRafRef.current = null;
-        const snapshot = pendingSnapshotRef.current;
-        pendingSnapshotRef.current = null;
-        if (snapshot) inputStoreRef.current!.set(snapshot);
-      });
-    }
+    // Record the latest intent; ranking + store update happen in the rAF below.
+    pendingInputOptsRef.current = opts;
+    if (inputRafRef.current != null) return;
+    inputRafRef.current = requestAnimationFrame(() => {
+      inputRafRef.current = null;
+      const o = pendingInputOptsRef.current;
+      const buffer = commandBufferRef.current;
+      // Detect `cd`/`ls`-style commands → fetch immediate directory entries.
+      scheduleFsQuery(buffer);
+      const fsList = fsSuggestionsRef.current;
+      let suggestions: string[];
+      if (buffer === "") {
+        suggestions = [...fsList, ...suggestionsRef.current, ...ghostSourcesRef.current];
+      } else {
+        // Live `cd`/`ls` directory entries stay on top; then user history ranks
+        // above generic pack/context-engine suggestions.
+        const fsRanked = fsList.length ? rankSuggestions(buffer, fsList, usageRef.current) : [];
+        const restRanked = rankSuggestions(
+          buffer,
+          [...suggestionsRef.current, ...ghostSourcesRef.current],
+          usageRef.current,
+          historySetRef.current,
+        );
+        const seen = new Set(fsRanked);
+        suggestions = [...fsRanked, ...restRanked.filter((s) => !seen.has(s))];
+      }
+      // `suggestions` already blends fs entries + history + command packs (filtered
+      // by the ranker), so gate visibility on it — otherwise pack-only matches
+      // (with no matching history) would never open the box.
+      const visible =
+        suggestBoxEnabledRef.current &&
+        !showInlineAIRef.current &&
+        !suggestDismissedRef.current &&
+        (o?.forceVisible ??
+          (buffer.trim() !== "" && suggestions.length > 0));
+      isVisibleRef.current = visible;
+      const patch: Partial<TerminalInputSnapshot> = { buffer, visible, suggestions };
+      if (visible) {
+        const p = readSuggestionPos();
+        if (p) patch.pos = p;
+      }
+      inputStoreRef.current!.set(patch);
+    });
   };
   pushInputStateRef.current = pushInputState;
 
