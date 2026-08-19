@@ -41,7 +41,7 @@ import useAudio from "@/hooks/useAudio";
 import { XtermTheme, ThemeName } from "./themes";
 import { getAllCommandData } from "@/lib/context-engine/contextEngineStorage";
 import { useAIChatStore } from "@/store/aiChatStore";
-import { createTerminalInputStore, useTerminalInput, type TerminalInputStore, type TerminalInputSnapshot } from "./terminal2/inputStore";
+import { createTerminalInputStore, useTerminalInput, shallowEqualObj, type TerminalInputStore, type TerminalInputSnapshot } from "./terminal2/inputStore";
 import { rankSuggestions, type UsageMap } from "./terminal2/fuzzyRank";
 import ArgHintBar, { type CommandIndex, type ArgCommandInfo } from "./terminal2/arg-hint-bar";
 import { BUILTIN_COMMAND_INDEX } from "./terminal2/builtinCommands";
@@ -82,7 +82,12 @@ const GhostTextBridge = memo(function GhostTextBridge({
   containerRef: RefObject<HTMLDivElement | null>;
   onAccept: (fullCommand: string) => void;
 }) {
-  const { buffer, suggestions } = useTerminalInput(store);
+  // Only re-render on buffer/suggestions changes — skip pos-only (cursor move) updates.
+  const { buffer, suggestions } = useTerminalInput(
+    store,
+    (s) => ({ buffer: s.buffer, suggestions: s.suggestions }),
+    shallowEqualObj,
+  );
   return (
     <GhostText
       termRef={termRef}
@@ -139,7 +144,7 @@ const CollabTypingBridge = memo(function CollabTypingBridge({
   containerRef: RefObject<HTMLDivElement | null>;
   placeholderDisabled: boolean;
 }) {
-  const { buffer } = useTerminalInput(store);
+  const buffer = useTerminalInput(store, (s) => s.buffer);
   return (
     <CollabTypingIndicator
       socket={socket}
@@ -168,7 +173,7 @@ const ArgHintBridge = memo(function ArgHintBridge({
   border: string;
   onInsert: (text: string) => void;
 }) {
-  const { buffer } = useTerminalInput(store);
+  const buffer = useTerminalInput(store, (s) => s.buffer);
   return (
     <ArgHintBar
       buffer={buffer}
