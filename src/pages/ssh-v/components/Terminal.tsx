@@ -42,7 +42,7 @@ import { XtermTheme, ThemeName } from "./themes";
 import { getAllCommandData } from "@/lib/context-engine/contextEngineStorage";
 import { useAIChatStore } from "@/store/aiChatStore";
 import { createTerminalInputStore, useTerminalInput, type TerminalInputStore, type TerminalInputSnapshot } from "./terminal2/inputStore";
-import { rankSuggestions, hasFuzzyMatch, type UsageMap } from "./terminal2/fuzzyRank";
+import { rankSuggestions, type UsageMap } from "./terminal2/fuzzyRank";
 import ArgHintBar, { type CommandIndex, type ArgCommandInfo } from "./terminal2/arg-hint-bar";
 import { BUILTIN_COMMAND_INDEX } from "./terminal2/builtinCommands";
 import CommandBlocks from "./terminal2/command-blocks";
@@ -722,13 +722,15 @@ const XTerminal = memo(function XTerminal({
     // Never mark the box visible (and thus never swallow arrow keys) when the
     // suggestion box is disabled in settings.
     if (opts?.forceVisible) suggestDismissedRef.current = false;
+    // `suggestions` already blends fs entries + history + command packs (filtered
+    // by the ranker), so gate visibility on it — otherwise pack-only matches
+    // (with no matching history) would never open the box.
     const visible =
       suggestBoxEnabledRef.current &&
       !showInlineAIRef.current &&
       !suggestDismissedRef.current &&
       (opts?.forceVisible ??
-        (buffer.trim() !== "" &&
-          (fsSuggestionsRef.current.length > 0 || hasFuzzyMatch(buffer, suggestionsRef.current))));
+        (buffer.trim() !== "" && suggestions.length > 0));
     isVisibleRef.current = visible;
     const patch: Partial<TerminalInputSnapshot> = { buffer, visible, suggestions };
     if (visible) {
@@ -767,6 +769,78 @@ const XTerminal = memo(function XTerminal({
     isVisibleRef.current = false;
     inputStoreRef.current?.set({ visible: false });
   }, []);
+
+  // (Re)builds ghost-text sources (command packs + store commands) and the
+  // arg-hint command index. Runs on mount and whenever `allCommands` changes
+  // (e.g. after a pack is installed/uninstalled) so packs surface in the
+  // suggestion box and ghost text without remounting the terminal.
+  const reloadCommandSources = useCallback(() => {
+    const storeCmds = useCommandStore.getState().allCommands.map((c) => c.command.toLocaleLowerCase());
+    const base = Array.from(new Set(storeCmds));
+    ghostSourcesRef.current = base;
+
+    getAllCommandData().then((cmdRecords) => {
+      const cmds: string[] = [];
+      // Start from a deep copy of the built-ins so installed packs extend them
+      // without mutating the shared constant.
+      const index: CommandIndex = {};
+      for (const [k, v] of Object.entries(BUILTIN_COMMAND_INDEX)) {
+        index[k] = {
+          name: v.name,
+          options: [...v.options],
+          subcommands: Object.fromEntries(
+            Object.entries(v.subcommands).map(([s, o]) => [s, { options: [...o.options] }]),
+          ),
+        };
+      }
+      for (const item of cmdRecords) {
+        // A record's data may be a single command object or an array of them.
+        const objects: any[] = Array.isArray(item.data) ? item.data : (item.data ? [item.data] : []);
+        for (const data of objects) {
+          const name = data?.name;
+          if (!name) continue;
+          cmds.push(name);
+          const info: ArgCommandInfo = index[name] ?? { name, options: [], subcommands: {} };
+          // Packs store top-level flags under `globalOptions`; keep `options` as fallback.
+          const topOptions = Array.isArray(data?.globalOptions) ? data.globalOptions : data?.options;
+          if (Array.isArray(topOptions)) {
+            for (const opt of topOptions) if (opt?.name) info.options.push(opt.name);
+          }
+          if (Array.isArray(data?.subcommands)) {
+            for (const sub of data.subcommands) {
+              if (!sub?.name) continue;
+              cmds.push(`${name} ${sub.name}`);
+              const subInfo = info.subcommands[sub.name] ?? { options: [] };
+              if (Array.isArray(sub?.options)) {
+                for (const opt of sub.options) {
+                  if (opt?.name) {
+                    cmds.push(`${name} ${sub.name} ${opt.name}`);
+                    subInfo.options.push(opt.name);
+                  }
+                }
+              }
+              if (Array.isArray(sub?.examples)) {
+                for (const ex of sub.examples) {
+                  if (typeof ex === "string") cmds.push(ex);
+                }
+              }
+              info.subcommands[sub.name] = subInfo;
+            }
+          }
+          index[name] = info;
+        }
+      }
+      // Rebuild fresh from store + pack commands (not a merge) so uninstalled
+      // pack commands are actually dropped.
+      ghostSourcesRef.current = Array.from(new Set([...base, ...cmds]));
+      setGhostSourcesVersion((v) => v + 1);
+      if (Object.keys(index).length > 0) setCommandIndex(index);
+    }).catch(() => { });
+  }, []);
+
+  // Reload ghost-text sources when the installed command set changes.
+  useEffect(() => { reloadCommandSources(); }, [allCommands, reloadCommandSources]);
+
   useEffect(() => {
     if (!terminalRef.current) return;
 
@@ -912,67 +986,9 @@ const XTerminal = memo(function XTerminal({
     window.addEventListener("resize", handleResize);
 
 
-    // Load store commands + context-engine data into ghost-text sources (NOT history)
-    const storeCmds = allCommands.map((c) => c.command.toLocaleLowerCase());
-    ghostSourcesRef.current = Array.from(new Set(storeCmds));
-
-    getAllCommandData().then((cmdRecords) => {
-      const cmds: string[] = [];
-      // Start from a deep copy of the built-ins so installed packs extend them
-      // without mutating the shared constant.
-      const index: CommandIndex = {};
-      for (const [k, v] of Object.entries(BUILTIN_COMMAND_INDEX)) {
-        index[k] = {
-          name: v.name,
-          options: [...v.options],
-          subcommands: Object.fromEntries(
-            Object.entries(v.subcommands).map(([s, o]) => [s, { options: [...o.options] }]),
-          ),
-        };
-      }
-      for (const item of cmdRecords) {
-        // A record's data may be a single command object or an array of them.
-        const objects: any[] = Array.isArray(item.data) ? item.data : (item.data ? [item.data] : []);
-        for (const data of objects) {
-          const name = data?.name;
-          if (!name) continue;
-          cmds.push(name);
-          const info: ArgCommandInfo = index[name] ?? { name, options: [], subcommands: {} };
-          // Packs store top-level flags under `globalOptions`; keep `options` as fallback.
-          const topOptions = Array.isArray(data?.globalOptions) ? data.globalOptions : data?.options;
-          if (Array.isArray(topOptions)) {
-            for (const opt of topOptions) if (opt?.name) info.options.push(opt.name);
-          }
-          if (Array.isArray(data?.subcommands)) {
-            for (const sub of data.subcommands) {
-              if (!sub?.name) continue;
-              cmds.push(`${name} ${sub.name}`);
-              const subInfo = info.subcommands[sub.name] ?? { options: [] };
-              if (Array.isArray(sub?.options)) {
-                for (const opt of sub.options) {
-                  if (opt?.name) {
-                    cmds.push(`${name} ${sub.name} ${opt.name}`);
-                    subInfo.options.push(opt.name);
-                  }
-                }
-              }
-              if (Array.isArray(sub?.examples)) {
-                for (const ex of sub.examples) {
-                  if (typeof ex === "string") cmds.push(ex);
-                }
-              }
-              info.subcommands[sub.name] = subInfo;
-            }
-          }
-          index[name] = info;
-        }
-      }
-      if (cmds.length > 0) {
-        ghostSourcesRef.current = Array.from(new Set([...ghostSourcesRef.current, ...cmds]));
-        setGhostSourcesVersion(v => v + 1);
-      }
-      if (Object.keys(index).length > 0) setCommandIndex(index);
-    }).catch(() => { });
+    // Ghost-text sources + arg-hint index are loaded by reloadCommandSources()
+    // in a dedicated effect keyed on `allCommands`, so newly installed/uninstalled
+    // command packs refresh live without remounting the terminal.
 
     return () => {
       window.removeEventListener("resize", handleResize);

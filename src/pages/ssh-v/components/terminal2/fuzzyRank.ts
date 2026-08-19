@@ -15,24 +15,41 @@ export type UsageMap = Record<string, UsageStat>;
 
 const WORD_BOUNDARY = /[\s\-_/.:]/;
 
+/** Relevance tiers, higher = more relevant. Used to filter out loose matches. */
+const TIER_SUBSEQ = 0; // loose subsequence (g…i…t inside "gzip -t")
+const TIER_SUBSTR = 1; // substring inside a word (e.g. "git" in "digital")
+const TIER_WORD = 2;   // substring starting at a word boundary (e.g. "sudo git")
+const TIER_PREFIX = 3;
+const TIER_EXACT = 4;
+
+export interface MatchResult {
+  score: number;
+  /** One of the TIER_* constants; higher means a more relevant match. */
+  tier: number;
+}
+
 /**
- * Score how well `query` matches `target` (case-insensitive). Higher is
- * better; returns `null` when `query` is not even a subsequence of `target`.
+ * Score how well `query` matches `target` (case-insensitive) and classify the
+ * match tier. Higher score is better; returns `null` when `query` is not even a
+ * subsequence of `target`.
  *
- * Tiers: exact > prefix > contiguous substring > subsequence.
+ * Tiers: exact > prefix > word-boundary substring > mid-word substring > subsequence.
  */
-export function fuzzyScore(query: string, target: string): number | null {
-  if (!query) return 0;
+export function matchScore(query: string, target: string): MatchResult | null {
+  if (!query) return { score: 0, tier: TIER_PREFIX };
   const q = query.toLowerCase();
   const t = target.toLowerCase();
 
-  if (t === q) return 1000;
-  if (t.startsWith(q)) return 800 - (t.length - q.length);
+  if (t === q) return { score: 1000, tier: TIER_EXACT };
+  if (t.startsWith(q)) return { score: 800 - (t.length - q.length), tier: TIER_PREFIX };
 
   const subIdx = t.indexOf(q);
   if (subIdx >= 0) {
     const boundary = subIdx === 0 || WORD_BOUNDARY.test(t[subIdx - 1]);
-    return 500 - subIdx + (boundary ? 60 : 0);
+    return {
+      score: 500 - subIdx + (boundary ? 60 : 0),
+      tier: boundary ? TIER_WORD : TIER_SUBSTR,
+    };
   }
 
   // Subsequence match with contiguity + word-boundary bonuses.
@@ -53,7 +70,16 @@ export function fuzzyScore(query: string, target: string): number | null {
   if (qi < q.length) return null;
   score -= Math.floor(t.length / 10);
   score -= firstIdx;
-  return 200 + score;
+  return { score: 200 + score, tier: TIER_SUBSEQ };
+}
+
+/**
+ * Score how well `query` matches `target`. Higher is better; `null` when there
+ * is no match. Thin wrapper over {@link matchScore} for score-only callers.
+ */
+export function fuzzyScore(query: string, target: string): number | null {
+  const r = matchScore(query, target);
+  return r ? r.score : null;
 }
 
 /** Bonus from how often / how recently a command has been used. */
@@ -82,17 +108,25 @@ export function rankSuggestions(
 ): string[] {
   const now = Date.now();
   const seen = new Set<string>();
-  const scored: { text: string; score: number }[] = [];
+  const scored: { text: string; score: number; tier: number }[] = [];
+  let maxTier = -1;
   for (const text of items) {
     if (seen.has(text)) continue;
     seen.add(text);
-    const base = fuzzyScore(query, text);
-    if (base === null) continue;
+    const m = matchScore(query, text);
+    if (m === null) continue;
     const bonus = priority?.has(text) ? PRIORITY_BONUS : 0;
-    scored.push({ text, score: base + usageBonus(usage[text], now) + bonus });
+    scored.push({ text, score: m.score + usageBonus(usage[text], now) + bonus, tier: m.tier });
+    if (m.tier > maxTier) maxTier = m.tier;
   }
-  scored.sort((a, b) => b.score - a.score || a.text.length - b.text.length);
-  return scored.map((s) => s.text);
+  // Relevance gate: once the query yields word-boundary/prefix matches, drop the
+  // loose mid-word-substring and subsequence matches so typing "git" surfaces
+  // only related commands (git, git commit, sudo git) — not "digital"/"gzip -t".
+  const ranked = query && maxTier >= TIER_WORD
+    ? scored.filter((s) => s.tier >= TIER_WORD)
+    : scored;
+  ranked.sort((a, b) => b.score - a.score || a.text.length - b.text.length);
+  return ranked.map((s) => s.text);
 }
 
 /** Cheap early-exit check: does any item fuzzy-match the query? */
