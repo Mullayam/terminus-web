@@ -17,6 +17,20 @@ const MAX_OUTPUT_CHARS = 4000;
 /** Terminal buffer sent as `context`. */
 const MAX_CONTEXT_CHARS = 50000;
 
+/**
+ * Cap the output while keeping both ends — the tail usually holds the error or
+ * summary the model needs, which a plain head slice would drop.
+ */
+function capOutput(output: string): string {
+  const text = output.trim();
+  if (!text) return '(command produced no output)';
+  if (text.length <= MAX_OUTPUT_CHARS) return text;
+  const head = Math.floor(MAX_OUTPUT_CHARS * 0.3);
+  const tail = MAX_OUTPUT_CHARS - head;
+  const omitted = text.length - MAX_OUTPUT_CHARS;
+  return `${text.slice(0, head)}\n… [${omitted} chars omitted] …\n${text.slice(-tail)}`;
+}
+
 /** Resolvers for tool calls awaiting the user's Approve/Deny, keyed by callId. */
 const pendingApprovals = new Map<string, (approved: boolean) => void>();
 
@@ -123,7 +137,7 @@ export function useServerAgent(sessionId: string) {
         // Leave room for the round trip so the result lands before the backend gives up.
         const budget = Math.max(2000, call.deadline - Date.now() - 1500);
         const { output, exitCode } = await execInTerminal(sessionId, event.command, budget, signal);
-        const trimmed = output.slice(0, MAX_OUTPUT_CHARS);
+        const trimmed = capOutput(output);
 
         patch(sessionId, agentName, event.callId, {
           status: 'done',

@@ -43,15 +43,31 @@ export function execInTerminal(
 
   // A key description ("Ctrl+C") must go out as real bytes, not typed text.
   const keys = resolveKeySequence(command);
-  const startLen = (useTerminalStore.getState().logs[sessionId] ?? []).length;
+  let consumed = useTerminalStore.getState().logSeq[sessionId] ?? 0;
   socket.emit(SocketEventConstants.SSH_EMIT_INPUT, keys ?? command + '\r');
 
   return new Promise<TerminalExecResult>((resolve) => {
     const start = Date.now();
-    let lastLen = startLen;
     let lastChange = start;
     let sawOutput = false;
     let settled = false;
+    let captured = '';
+
+    /**
+     * Pull chunks appended since the last drain. Counting appends instead of
+     * indexing `logs` keeps the capture correct once the buffer is trimmed.
+     */
+    const drain = (): boolean => {
+      const state = useTerminalStore.getState();
+      const logs = state.logs[sessionId] ?? [];
+      const seq = state.logSeq[sessionId] ?? 0;
+      if (seq <= consumed) return false;
+      const pending = Math.min(seq - consumed, logs.length);
+      consumed = seq;
+      if (pending === 0) return false;
+      captured += logs.slice(logs.length - pending).join('');
+      return true;
+    };
 
     const onAbort = () => finish(false);
 
@@ -59,19 +75,16 @@ export function execInTerminal(
       if (settled) return;
       settled = true;
       abortSignal?.removeEventListener('abort', onAbort);
-      const logs = useTerminalStore.getState().logs[sessionId] ?? [];
-      const raw = stripAnsi(logs.slice(startLen).join(''));
-      resolve({ output: cleanOutput(raw, command), timedOut });
+      drain();
+      resolve({ output: cleanOutput(stripAnsi(captured), command), timedOut });
     }
 
     abortSignal?.addEventListener('abort', onAbort, { once: true });
 
     const tick = () => {
       if (settled) return;
-      const logs = useTerminalStore.getState().logs[sessionId] ?? [];
       const now = Date.now();
-      if (logs.length !== lastLen) {
-        lastLen = logs.length;
+      if (drain()) {
         lastChange = now;
         sawOutput = true;
       }

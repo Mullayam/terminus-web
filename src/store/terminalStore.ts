@@ -15,6 +15,8 @@ type SharedSessionsType = {
 
 interface TerminalLogsStore {
   logs: Record<string, string[]>;
+  /** Total chunks ever appended, per session. Keeps counting after `logs` is trimmed. */
+  logSeq: Record<string, number>;
   /** Timestamp of the last reconnect, per session. 0/absent = never. */
   reconnectedAt: Record<string, number>;
   /** Interactive shell cwd, per session. Only set when the shell emits OSC 7. */
@@ -38,6 +40,7 @@ interface TerminalLogsStore {
 
 export const useTerminalStore = create<TerminalLogsStore>((set) => ({
   logs: {},
+  logSeq: {},
   reconnectedAt: {},
   cwd: {},
   sessionInfo: {
@@ -52,6 +55,10 @@ export const useTerminalStore = create<TerminalLogsStore>((set) => ({
         logs: {
           ...state.logs,
           [sessionId]: next.length > 10000 ? next.slice(-10000) : next,
+        },
+        logSeq: {
+          ...state.logSeq,
+          [sessionId]: (state.logSeq[sessionId] ?? 0) + 1,
         },
       };
     }),
@@ -68,7 +75,9 @@ export const useTerminalStore = create<TerminalLogsStore>((set) => ({
     set((state) => {
       const newLogs = { ...state.logs };
       delete newLogs[sessionId];
-      return { logs: newLogs };
+      const newSeq = { ...state.logSeq };
+      delete newSeq[sessionId];
+      return { logs: newLogs, logSeq: newSeq };
     }),
 
   markReconnected: (sessionId) =>
