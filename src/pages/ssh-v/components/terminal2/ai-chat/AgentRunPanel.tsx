@@ -22,6 +22,7 @@ import {
 } from '@/store/agentRunStore';
 import { AGENT_MODES, AGENT_PROFILES, type AgentMode, type AgentProfile } from '@/lib/agent/types';
 import { resolveToolApproval } from './useServerAgent';
+import { MarkdownText } from './markdown';
 
 type Colors = Record<string, string>;
 
@@ -396,11 +397,8 @@ function AgentPane({ run, colors, multi }: { run: AgentRun; colors: Colors; mult
       )}
 
       {body && (
-        <div
-          className="px-3 pb-2 text-[11px] leading-relaxed whitespace-pre-wrap"
-          style={{ color: `${colors.foreground}dd` }}
-        >
-          {body}
+        <div className="px-3 pb-2 text-[11px] leading-relaxed" style={{ color: `${colors.foreground}dd` }}>
+          <MarkdownText text={body} colors={colors} keyPrefix={`run-${run.name}`} />
         </div>
       )}
     </div>
