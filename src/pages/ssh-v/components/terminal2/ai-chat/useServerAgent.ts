@@ -9,6 +9,7 @@ import {
 import { useAIChatStore } from '@/store/aiChatStore';
 import { useTerminalStore } from '@/store/terminalStore';
 import { execInTerminal, interruptTerminal } from './terminalExec';
+import { notifyIfHidden } from './useAgentExecutor';
 import stripAnsi from 'strip-ansi';
 
 /** Output posted back to the model is capped so the next turn stays small. */
@@ -74,9 +75,13 @@ export function useServerAgent(sessionId: string) {
       const config = store.getConfig(sessionId);
       const timeoutMs = event.timeoutMs ?? config.toolTimeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS;
       const risk: ToolRisk = event.risk ?? 'medium';
+      const blocked = config.denyDangerous && risk === 'dangerous';
+      // The server may ask for approval, but it can never waive the local policy.
       const needsApproval =
-        event.requiresApproval ??
-        (risk === 'dangerous' || (risk === 'medium' && !config.autoApproveMedium) || !config.autoRunSafe);
+        !!event.requiresApproval ||
+        risk === 'dangerous' ||
+        (risk === 'medium' && !config.autoApproveMedium) ||
+        !config.autoRunSafe;
 
       const call: AgentToolCall = {
         callId: event.callId,
@@ -88,9 +93,14 @@ export function useServerAgent(sessionId: string) {
         reason: event.reason,
         timeoutMs,
         deadline: Date.now() + timeoutMs,
-        status: needsApproval ? 'awaiting-approval' : 'running',
+        status: blocked ? 'declined' : needsApproval ? 'awaiting-approval' : 'running',
       };
       store.upsertToolCall(sessionId, agentName, call);
+
+      if (blocked) {
+        postAgentResult({ callId: event.callId, declined: true }).catch(() => {});
+        return;
+      }
 
       // Chain onto the queue: several tool_calls can arrive before any result,
       // but they must hit the terminal one at a time.
@@ -99,6 +109,7 @@ export function useServerAgent(sessionId: string) {
         const patch = useAgentRunStore.getState().patchToolCall;
 
         if (needsApproval) {
+          notifyIfHidden('Terminus AI Agent', `Approval required to run: ${event.command.slice(0, 80)}`);
           const approved = await awaitApproval(event.callId, Math.max(0, call.deadline - Date.now()));
           if (!approved) {
             patch(sessionId, agentName, event.callId, { status: 'declined' });
@@ -200,9 +211,14 @@ export function useServerAgent(sessionId: string) {
                 break;
               case 'final':
                 s.patchRun(sessionId, agentName, { finalText: event.text, statusMessage: 'Finished' });
+                notifyIfHidden('Terminus AI Agent', 'Task completed.');
+                break;
+              case 'usage':
+                s.addUsage(sessionId, event.usage, event.quota);
                 break;
               case 'error':
                 s.patchRun(sessionId, agentName, { error: event.message });
+                notifyIfHidden('Terminus AI Agent', event.message ?? 'Agent run failed');
                 break;
               case 'done':
                 s.endRun(sessionId, agentName);

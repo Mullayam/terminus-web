@@ -12,8 +12,10 @@ import type {
   AgentModelInfo,
   AgentProfile,
   AgentProfilesCatalog,
+  AgentQuota,
   AgentRejectedModel,
   AgentRoutingInfo,
+  AgentTokenUsage,
   ToolRisk,
 } from '@/lib/agent/types';
 
@@ -81,12 +83,32 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   enabled: false,
 };
 
+/** Running totals for a session, plus the most recent provider quota snapshot. */
+export interface AgentUsageState {
+  totalTokens: number;
+  promptTokens: number;
+  completionTokens: number;
+  /** Number of `usage` events seen — roughly the billed request count */
+  requests: number;
+  quota?: AgentQuota;
+  updatedAt: number;
+}
+
+const EMPTY_USAGE: AgentUsageState = {
+  totalTokens: 0,
+  promptTokens: 0,
+  completionTokens: 0,
+  requests: 0,
+  updatedAt: 0,
+};
+
 interface AgentRunState {
   /** Runs keyed by sessionId → agent name */
   runs: Record<string, Record<string, AgentRun>>;
   /** Per-session run input, kept so a re-run can reuse it */
   lastInput: Record<string, string>;
   config: Record<string, AgentConfig>;
+  usage: Record<string, AgentUsageState>;
 
   models: AgentModelInfo[];
   capabilities: Record<string, AgentCapabilityInfo>;
@@ -109,6 +131,8 @@ interface AgentRunState {
   patchToolCall: (sessionId: string, name: string, callId: string, patch: Partial<AgentToolCall>) => void;
   endRun: (sessionId: string, name: string, error?: string) => void;
   setLastInput: (sessionId: string, input: string) => void;
+  addUsage: (sessionId: string, usage?: AgentTokenUsage, quota?: AgentQuota) => void;
+  clearUsage: (sessionId: string) => void;
   clearRuns: (sessionId: string) => void;
   removeSession: (sessionId: string) => void;
 }
@@ -131,6 +155,7 @@ export const useAgentRunStore = create<AgentRunState>((set, get) => ({
   runs: {},
   lastInput: {},
   config: {},
+  usage: {},
 
   models: [],
   capabilities: {},
@@ -236,6 +261,30 @@ export const useAgentRunStore = create<AgentRunState>((set, get) => ({
 
   setLastInput: (sessionId, input) => set((s) => ({ lastInput: { ...s.lastInput, [sessionId]: input } })),
 
+  addUsage: (sessionId, usage, quota) =>
+    set((s) => {
+      const prev = s.usage[sessionId] ?? EMPTY_USAGE;
+      return {
+        usage: {
+          ...s.usage,
+          [sessionId]: {
+            totalTokens: prev.totalTokens + (usage?.totalTokens ?? 0),
+            promptTokens: prev.promptTokens + (usage?.promptTokens ?? 0),
+            completionTokens: prev.completionTokens + (usage?.completionTokens ?? 0),
+            requests: prev.requests + 1,
+            quota: quota ?? prev.quota,
+            updatedAt: Date.now(),
+          },
+        },
+      };
+    }),
+
+  clearUsage: (sessionId) =>
+    set((s) => {
+      const { [sessionId]: _dropped, ...rest } = s.usage;
+      return { usage: rest };
+    }),
+
   clearRuns: (sessionId) =>
     set((s) => {
       const { [sessionId]: _dropped, ...rest } = s.runs;
@@ -247,7 +296,8 @@ export const useAgentRunStore = create<AgentRunState>((set, get) => ({
       const { [sessionId]: _runs, ...runsRest } = s.runs;
       const { [sessionId]: _config, ...configRest } = s.config;
       const { [sessionId]: _input, ...inputRest } = s.lastInput;
-      return { runs: runsRest, config: configRest, lastInput: inputRest };
+      const { [sessionId]: _usage, ...usageRest } = s.usage;
+      return { runs: runsRest, config: configRest, lastInput: inputRest, usage: usageRest };
     }),
 }));
 

@@ -6,6 +6,7 @@ import {
   Container as ContainerIcon,
   Eye,
   EyeOff,
+  Layers,
   LayoutGrid,
   Pencil,
   Plus,
@@ -15,6 +16,7 @@ import {
 import { useSessionTheme } from "@/hooks/useSessionTheme";
 import { useWidgetStore } from "@/store/widgetStore";
 import { useDockerStore } from "@/store/dockerStore";
+import { useComposeStore } from "@/store/composeStore";
 import { useKubernetesStore } from "@/store/kubernetesStore";
 import type { WidgetDef, WidgetRender, WidgetAlert } from "@/lib/widgets/types";
 import { REFRESH_OPTIONS, RENDER_OPTIONS, WIDGET_ACCENTS, WIDGET_TEMPLATE } from "@/lib/widgets/types";
@@ -92,6 +94,8 @@ export default function WidgetCenter() {
   const { defs, openIds, load, addWidget, updateWidget, removeWidget, toggleOpen, dashboard, toggleDashboard } = useWidgetStore();
   const isDockerOpen = useDockerStore((s) => s.isOpen);
   const toggleDocker = useDockerStore((s) => s.toggle);
+  const isComposeOpen = useComposeStore((s) => s.isOpen);
+  const toggleCompose = useComposeStore((s) => s.toggle);
   const isK8sOpen = useKubernetesStore((s) => s.isOpen);
   const toggleK8s = useKubernetesStore((s) => s.toggle);
 
@@ -358,6 +362,14 @@ export default function WidgetCenter() {
         accentColor={colors.magenta ?? colors.blue}
         isOpen={isK8sOpen}
         onToggle={toggleK8s}
+        fg={fg} border={border}
+      />
+      <BuiltInPanelRow
+        label="Compose" description="Scan compose files, up/down/build/logs per service"
+        icon={<Layers size={16} />}
+        accentColor={colors.green}
+        isOpen={isComposeOpen}
+        onToggle={toggleCompose}
         fg={fg} border={border}
       />
 

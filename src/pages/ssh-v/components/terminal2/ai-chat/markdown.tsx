@@ -176,12 +176,15 @@ export function MarkdownText({
           return (
             <pre
               key={`${keyPrefix}-code-${i}`}
-              className="my-1.5 px-2 py-1.5 rounded text-[10px] font-mono overflow-x-auto"
+              className="my-1.5 px-2 py-1.5 rounded text-[10px] font-mono max-h-64 overflow-auto themed-scrollbar whitespace-pre"
               style={{
                 backgroundColor: `${colors.foreground}08`,
                 color: colors.green,
                 border: `1px solid ${colors.foreground}12`,
-              }}
+                '--sb-thumb': `${colors.foreground}30`,
+                '--sb-thumb-hover': `${colors.foreground}50`,
+                '--sb-track': `${colors.foreground}08`,
+              } as React.CSSProperties}
             >
               {codeMatch[1].trim()}
             </pre>

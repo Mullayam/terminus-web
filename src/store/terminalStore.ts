@@ -15,12 +15,19 @@ type SharedSessionsType = {
 
 interface TerminalLogsStore {
   logs: Record<string, string[]>;
+  /** Timestamp of the last reconnect, per session. 0/absent = never. */
+  reconnectedAt: Record<string, number>;
+  /** Interactive shell cwd, per session. Only set when the shell emits OSC 7. */
+  cwd: Record<string, string>;
 
   sessionInfo: SharedSessionsType;
 
   addLogLine: (sessionId: string, line: string) => void;
   clearLogs: (sessionId: string) => void;
   removeLog: (sessionId: string) => void;
+  markReconnected: (sessionId: string) => void;
+  clearReconnected: (sessionId: string) => void;
+  setCwd: (sessionId: string, cwd: string) => void;
 
   addSharedSession: (sessionId: string, socketId: string[]) => void;
   deleteSharedSession: (sessionId: string, socketId: string) => void;
@@ -31,6 +38,8 @@ interface TerminalLogsStore {
 
 export const useTerminalStore = create<TerminalLogsStore>((set) => ({
   logs: {},
+  reconnectedAt: {},
+  cwd: {},
   sessionInfo: {
     shared_sessions: {},
   },
@@ -61,6 +70,19 @@ export const useTerminalStore = create<TerminalLogsStore>((set) => ({
       delete newLogs[sessionId];
       return { logs: newLogs };
     }),
+
+  markReconnected: (sessionId) =>
+    set((state) => ({ reconnectedAt: { ...state.reconnectedAt, [sessionId]: Date.now() } })),
+
+  clearReconnected: (sessionId) =>
+    set((state) => {
+      const next = { ...state.reconnectedAt };
+      delete next[sessionId];
+      return { reconnectedAt: next };
+    }),
+
+  setCwd: (sessionId, cwd) =>
+    set((state) => (state.cwd[sessionId] === cwd ? state : { cwd: { ...state.cwd, [sessionId]: cwd } })),
 
   addSharedSession: (sessionId, socketIds) =>
     set((state) => {

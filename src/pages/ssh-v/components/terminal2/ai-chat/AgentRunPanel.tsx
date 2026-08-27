@@ -5,8 +5,11 @@ import {
   ChevronDown,
   ChevronsUpDown,
   CircleDashed,
+  ClipboardPaste,
+  Copy,
   Cpu,
   Loader2,
+  Play,
   ShieldAlert,
   ShieldCheck,
   Square,
@@ -22,6 +25,8 @@ import {
 } from '@/store/agentRunStore';
 import { AGENT_MODES, AGENT_PROFILES, type AgentMode, type AgentProfile } from '@/lib/agent/types';
 import { resolveToolApproval } from './useServerAgent';
+import { sendToTerminal } from './terminalExec';
+import { agentModelTags, ModelTags } from './modelTags';
 import { MarkdownText } from './markdown';
 
 type Colors = Record<string, string>;
@@ -146,6 +151,9 @@ export function AgentControls({ sessionId, colors }: { sessionId: string; colors
                     </span>
                   )}
                 </div>
+                <div className="mt-0.5">
+                  <ModelTags tags={agentModelTags(m)} colors={colors} />
+                </div>
                 {m.description && (
                   <div className="text-[9px] line-clamp-2" style={{ color: `${colors.foreground}45` }}>
                     {m.description}
@@ -217,45 +225,94 @@ function Countdown({ deadline, colors }: { deadline: number; colors: Colors }) {
 
 /* ── One proposed / executed command ────────────────────────── */
 
-function ToolCallRow({ call, colors }: { call: AgentToolCall; colors: Colors }) {
+function ToolCallRow({ call, colors, sessionId }: { call: AgentToolCall; colors: Colors; sessionId: string }) {
   const [open, setOpen] = useState(call.status === 'awaiting-approval');
+  const [copied, setCopied] = useState(false);
   const accent = colors[RISK_COLOR[call.risk] ?? 'cyan'] ?? colors.cyan;
   const awaiting = call.status === 'awaiting-approval';
+
+  const copy = () => {
+    navigator.clipboard.writeText(call.command).then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1200);
+      },
+      () => { /* clipboard may be blocked */ },
+    );
+  };
 
   return (
     <div
       className="rounded-md overflow-hidden"
       style={{ border: `1px solid ${accent}22`, backgroundColor: `${accent}08` }}
     >
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 w-full px-2 py-1.5 text-left"
-        style={{ color: accent }}
-      >
-        {call.status === 'running' ? (
-          <Loader2 size={10} className="animate-spin shrink-0" />
-        ) : awaiting ? (
-          <ShieldAlert size={10} className="shrink-0" />
-        ) : call.status === 'declined' || call.status === 'failed' ? (
-          <X size={10} className="shrink-0" />
-        ) : (
-          <Terminal size={10} className="shrink-0" />
-        )}
-        <code className="flex-1 truncate text-[10px] font-mono" style={{ color: `${colors.foreground}cc` }}>
-          {call.command}
-        </code>
+      {/* Header is a row, not a single button — the actions must stay clickable. */}
+      <div className="flex items-center gap-2 w-full px-2 py-1.5" style={{ color: accent }}>
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="flex items-center gap-2 flex-1 min-w-0 text-left"
+          style={{ color: 'inherit' }}
+        >
+          {call.status === 'running' ? (
+            <Loader2 size={10} className="animate-spin shrink-0" />
+          ) : awaiting ? (
+            <ShieldAlert size={10} className="shrink-0" />
+          ) : call.status === 'declined' || call.status === 'failed' ? (
+            <X size={10} className="shrink-0" />
+          ) : (
+            <Terminal size={10} className="shrink-0" />
+          )}
+          <code className="flex-1 truncate text-[10px] font-mono" style={{ color: `${colors.foreground}cc` }}>
+            {call.command}
+          </code>
+        </button>
+
         <span
           className="px-1 rounded text-[9px] uppercase shrink-0"
           style={{ backgroundColor: `${accent}20`, color: accent }}
         >
           {call.risk}
         </span>
-        <ChevronDown
-          size={10}
-          className={`shrink-0 transition-transform ${open ? '' : '-rotate-90'}`}
-          style={{ color: `${colors.foreground}40` }}
-        />
-      </button>
+
+        <div className="flex items-center gap-0.5 shrink-0">
+          <button
+            onClick={copy}
+            className="p-1 rounded hover:bg-white/10 transition-colors"
+            title="Copy"
+            style={{ color: copied ? colors.green : `${colors.foreground}70` }}
+          >
+            {copied ? <Check size={11} /> : <Copy size={11} />}
+          </button>
+          <button
+            onClick={() => sendToTerminal(sessionId, call.command, false)}
+            className="p-1 rounded hover:bg-white/10 transition-colors"
+            title="Paste in terminal"
+            style={{ color: `${colors.foreground}70` }}
+          >
+            <ClipboardPaste size={11} />
+          </button>
+          <button
+            onClick={() => sendToTerminal(sessionId, call.command, true)}
+            className="p-1 rounded hover:bg-white/10 transition-colors"
+            title="Run in terminal"
+            style={{ color: colors.green }}
+          >
+            <Play size={11} />
+          </button>
+        </div>
+
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="p-0.5 rounded hover:bg-white/10 shrink-0"
+          title={open ? 'Collapse' : 'Expand'}
+        >
+          <ChevronDown
+            size={10}
+            className={`transition-transform ${open ? '' : '-rotate-90'}`}
+            style={{ color: `${colors.foreground}40` }}
+          />
+        </button>
+      </div>
 
       {awaiting && (
         <div className="px-2 pb-2 space-y-1.5">
@@ -332,7 +389,7 @@ function ToolCallRow({ call, colors }: { call: AgentToolCall; colors: Colors }) 
 
 /* ── A single agent pane ────────────────────────────────────── */
 
-function AgentPane({ run, colors, multi }: { run: AgentRun; colors: Colors; multi: boolean }) {
+function AgentPane({ run, colors, multi, sessionId }: { run: AgentRun; colors: Colors; multi: boolean; sessionId: string }) {
   const accent = run.error ? colors.red : run.running ? colors.cyan : colors.green;
   const body = run.finalText ?? run.text;
 
@@ -391,7 +448,7 @@ function AgentPane({ run, colors, multi }: { run: AgentRun; colors: Colors; mult
       {run.toolCalls.length > 0 && (
         <div className="px-2 pb-2 space-y-1">
           {run.toolCalls.map((call) => (
-            <ToolCallRow key={call.callId} call={call} colors={colors} />
+            <ToolCallRow key={call.callId} call={call} colors={colors} sessionId={sessionId} />
           ))}
         </div>
       )}
@@ -425,7 +482,7 @@ export function AgentRuns({
   return (
     <div className="space-y-2">
       {list.map((run) => (
-        <AgentPane key={run.name} run={run} colors={colors} multi={list.length > 1} />
+        <AgentPane key={run.name} run={run} colors={colors} multi={list.length > 1} sessionId={sessionId} />
       ))}
       {anyRunning && (
         <button

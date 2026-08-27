@@ -6,6 +6,7 @@ import { RightSidebar } from "./rightSidebar";
 import { AIChatPanel } from "./ai-chat";
 import ResourceMonitor from "./resource-monitor";
 import DockerWidget from "./docker-widget";
+import ComposeWidget from "./compose-widget";
 import KubernetesWidget from "./kubernetes-widget";
 import CustomWidget from "./custom-widget";
 import { useSessionTheme } from "@/hooks/useSessionTheme";
@@ -14,6 +15,7 @@ import { useTabStore } from "@/store/rightSidebarTabStore";
 import { useAIChatStore } from "@/store/aiChatStore";
 import { useMonitorStore } from "@/store/monitorStore";
 import { useDockerStore } from "@/store/dockerStore";
+import { useComposeStore } from "@/store/composeStore";
 import { useKubernetesStore } from "@/store/kubernetesStore";
 import { useWidgetStore } from "@/store/widgetStore";
 
@@ -28,6 +30,8 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
     const closeMonitor = useMonitorStore((s) => s.close);
     const isDockerOpen = useDockerStore((s) => s.isOpen);
     const closeDocker = useDockerStore((s) => s.close);
+    const isComposeOpen = useComposeStore((s) => s.isOpen);
+    const closeCompose = useComposeStore((s) => s.close);
     const isKubernetesOpen = useKubernetesStore((s) => s.isOpen);
     const closeKubernetes = useKubernetesStore((s) => s.close);
     const widgetDefs = useWidgetStore((s) => s.defs);
@@ -88,6 +92,8 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
                     {sessionId && isMonitorOpen && <ResourceMonitor sessionId={sessionId} onClose={closeMonitor} />}
                     {/* Floating docker panel */}
                     {sessionId && isDockerOpen && <DockerWidget sessionId={sessionId} onClose={closeDocker} />}
+                    {/* Floating docker compose panel */}
+                    {sessionId && isComposeOpen && <ComposeWidget sessionId={sessionId} onClose={closeCompose} />}
                     {/* Floating kubernetes panel */}
                     {sessionId && isKubernetesOpen && <KubernetesWidget sessionId={sessionId} onClose={closeKubernetes} />}
                     {/* Floating custom widgets */}

@@ -156,7 +156,7 @@ const MODIFIER_NAMES: Record<string, 'ctrl' | 'alt' | 'shift'> = {
  * "press Alt+F", "^C") into the real bytes to send. Returns null for anything
  * that should be treated as a normal shell command.
  */
-function resolveKeySequence(raw: string): string | null {
+export function resolveKeySequence(raw: string): string | null {
   let s = raw.trim().replace(/^[`'"]|[`'"]$/g, '').trim();
   s = s.replace(/^(?:press|hit|send|type|key)\s*:?\s*/i, '').trim();
   s = s.replace(/^<(.+)>$/, '$1').trim();
@@ -214,11 +214,11 @@ function ctrlByte(char: string): string | null {
 }
 
 
-/** Send a browser notification (if permitted and page is hidden) */
-function notifyIfHidden(title: string, body: string) {
+/** Send a browser notification when the tab is hidden or the window isn't focused. */
+export function notifyIfHidden(title: string, body: string) {
   if (typeof Notification === 'undefined') return;
   if (Notification.permission !== 'granted') return;
-  if (!document.hidden) return;
+  if (!document.hidden && document.hasFocus()) return;
   try {
     new Notification(title, { body, icon: '/favicon.ico' });
   } catch {

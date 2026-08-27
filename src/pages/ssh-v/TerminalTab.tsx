@@ -27,6 +27,7 @@ import { useTerminalStore } from '@/store/terminalStore';
 import { useSidebarState } from '@/store/sidebarStore';
 import SSHSftpViewer from './components/SSHSftpViewer';
 import ServerStatus from '@/components/layout/ServerStatus';
+import { ReconnectBadge } from './components/ReconnectBadge';
 import { useNavigate } from 'react-router-dom';
 import { useSFTPStore } from '@/store/sftpStore';
 
@@ -112,6 +113,11 @@ export default function TerminalTab({ sessionId }: Props) {
 
     const { tabs, sessions, addSession, updateStatus, updateSftpStatus, activeTabId, loadSessionTheme, loadSessionFont, splitMode, splitTabId, reconnectSignals } = useSSHStore();
     const socketRef = useRef<Socket | null>(null);
+    /** True between a reconnect request and its SSH_READY/error reply. */
+    const reconnectingRef = useRef(false);
+    /** Pending `connect` handler, kept so a superseded attempt can be detached. */
+    const pendingStartRef = useRef<(() => void) | null>(null);
+    const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Check if SFTP is available on any session connected to the same host
     // Also cross-check the independent SFTP store for same-host connections
@@ -203,11 +209,15 @@ export default function TerminalTab({ sessionId }: Props) {
 
         const handleSSHReady = (data: string) => {
             console.log("Ready")
+            reconnectingRef.current = false;
+            if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
             updateStatus(sessionId, 'connected', data)
             setIsLoading(false);
         };
 
         const handleSSHError = (data: string) => {
+            reconnectingRef.current = false;
+            if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
             updateStatus(sessionId, 'error', data)
             setIsLoading(false);
         };
@@ -284,22 +294,41 @@ export default function TerminalTab({ sessionId }: Props) {
     const doReconnect = React.useCallback(() => {
         const socket = socketRef.current;
         if (!socket) return;
+        // Each call queues a session start. Without this guard a second shell
+        // gets attached to the same socket and every keystroke echoes twice.
+        if (reconnectingRef.current) return;
+        reconnectingRef.current = true;
+
         const creds = connectPayloads.get(sessionId);
         updateStatus(sessionId, 'connecting');
         setIsLoading(true);
+        // Signals the terminal to keep scrollback and show the restored banner.
+        useTerminalStore.getState().markReconnected(sessionId);
+
         const emitStart = () => {
+            pendingStartRef.current = null;
             if (creds) {
                 socket.emit(SocketEventConstants.SSH_START_SESSION, JSON.stringify(creds));
             } else {
                 socket.emit(SocketEventConstants.SSH_RESUME, sessionId);
             }
         };
+
+        // Drop a handler left over from an earlier attempt that never connected.
+        if (pendingStartRef.current) socket.off('connect', pendingStartRef.current);
+        pendingStartRef.current = null;
+
         if (socket.connected) {
             emitStart();
         } else {
+            pendingStartRef.current = emitStart;
             socket.once('connect', emitStart);
             socket.connect();
         }
+
+        // Release the guard if the handshake never reports back.
+        if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = setTimeout(() => { reconnectingRef.current = false; }, 20000);
     }, [sessionId, updateStatus]);
 
     // Latest doReconnect for closures bound once (idle tracker).
@@ -342,7 +371,8 @@ export default function TerminalTab({ sessionId }: Props) {
             {isLoading && <FullScreenLoader text={sessions[sessionId]?.host || 'starting session'} />}
             {sessions[sessionId]?.status === 'connected' && socketRef.current ?
                 <>
-                    <div className="flex-1 min-h-0 overflow-hidden">
+                    <div className="relative flex-1 min-h-0 overflow-hidden">
+                        <ReconnectBadge sessionId={sessionId} />
                         <TerminalLayout>
                             <div style={{ display: activeItem === 'Terminal' ? 'contents' : 'none' }}>
                                 {splitMode !== 'none' && splitSocket ? (

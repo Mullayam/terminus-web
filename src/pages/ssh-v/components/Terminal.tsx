@@ -187,6 +187,41 @@ const ArgHintBridge = memo(function ArgHintBridge({
   );
 });
 
+/** How long after a reconnect to keep protecting the scrollback. */
+const KEEP_SCROLLBACK_MS = 6000;
+
+/**
+ * OSC 7 (`ESC ] 7 ; file://host/path BEL`) — emitted by most distro shells to
+ * report the working directory. Returns the last path in the chunk, if any.
+ */
+const OSC7_RE = /\x1b\]7;file:\/\/[^/]*([^\x07\x1b]*)(?:\x07|\x1b\\)/g;
+
+function parseOsc7Cwd(data: string): string | null {
+  let path: string | null = null;
+  OSC7_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = OSC7_RE.exec(data)) !== null) {
+    if (m[1]) path = m[1];
+  }
+  if (!path) return null;
+  try {
+    return decodeURIComponent(path);
+  } catch {
+    return path;
+  }
+}
+
+/**
+ * Remove escapes that erase the screen or scrollback: ED (2J/3J), full reset
+ * (RIS), and the "home then erase" pair shells emit on login.
+ */
+function stripClearScreen(data: string): string {
+  return data
+    .replace(/\x1b\[[23]J/g, '')
+    .replace(/\x1b\[H\x1b\[2J/g, '')
+    .replace(/\x1bc/g, '');
+}
+
 // https://github.com/xtermjs/xterm.js/blob/master/demo/client.ts
 const XTerminal = memo(function XTerminal({
   socket,
@@ -229,6 +264,12 @@ const XTerminal = memo(function XTerminal({
   const termRef = useRef<Terminal | null>(null);
   // Access logs/addLogLine directly — avoid subscribing to the whole store
   const addLogLine = useTerminalStore((s) => s.addLogLine);
+  const reconnectedAt = useTerminalStore((s) => s.reconnectedAt[sessionId] ?? 0);
+  // Armed on reconnect, disarmed once the new session's first output arrives.
+  const pendingReconnectRef = useRef(false);
+  // Set from the first post-reconnect chunk, not from the request — the server
+  // takes an unknown amount of time to start sending.
+  const keepScrollbackUntilRef = useRef(0);
   const fitAddonRef = useRef<FitAddon | null>(null);
   // Per-terminal input store — overlays subscribe; the parent only writes.
   const inputStoreRef = useRef<TerminalInputStore | null>(null);
@@ -933,9 +974,22 @@ const XTerminal = memo(function XTerminal({
     };
 
     const handleSSHData = (input: string) => {
-      term.write(input);
+      // The divider is written here, not when the reconnect was requested, so
+      // it lands immediately before the new session's first output.
+      if (pendingReconnectRef.current) {
+        pendingReconnectRef.current = false;
+        keepScrollbackUntilRef.current = Date.now() + KEEP_SCROLLBACK_MS;
+        const divider = `\r\n\x1b[36m──── reconnected · history restored ────\x1b[0m\r\n`;
+        term.write(divider);
+        addLogLine(sessionId, divider);
+      }
+      // A re-login clears the screen; drop those escapes so earlier output stays.
+      const data = Date.now() < keepScrollbackUntilRef.current ? stripClearScreen(input) : input;
+      const cwd = parseOsc7Cwd(data);
+      if (cwd) useTerminalStore.getState().setCwd(sessionId, cwd);
+      term.write(data);
       term.scrollToBottom();
-      addLogLine(sessionId, input);
+      addLogLine(sessionId, data);
       // Clear any pending background-activity flag while the tab is visible
       useSSHStore.getState().clearSessionActivity(sessionId);
       // Feed output to diagnostics scanner (only if enabled)
@@ -1016,6 +1070,13 @@ const XTerminal = memo(function XTerminal({
       termRef.current.options.theme = newTheme;
     }
   }, [sessionTheme]);
+
+  // On reconnect, arm the scrollback guard. The divider itself is written by
+  // handleSSHData when output actually starts flowing.
+  useEffect(() => {
+    if (!reconnectedAt) return;
+    pendingReconnectRef.current = true;
+  }, [reconnectedAt]);
 
   // Track terminal text selection for AI chat context
   useEffect(() => {

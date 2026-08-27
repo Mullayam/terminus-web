@@ -66,6 +66,26 @@ export interface AgentRoutingInfo {
   signals?: string[];
 }
 
+export interface AgentTokenUsage {
+  totalTokens?: number;
+  promptTokens?: number;
+  completionTokens?: number;
+}
+
+/** Provider rate-limit snapshot reported alongside usage. */
+export interface AgentQuota {
+  target?: string;
+  tokensLastMinute?: number;
+  tokenLimitPerMinute?: number;
+  tokensRemaining?: number;
+  requestsLastMinute?: number;
+  requestLimitPerMinute?: number;
+  requestsToday?: number;
+  requestLimitPerDay?: number;
+  windowResetsInMs?: number;
+  blockedForMs?: number;
+}
+
 export type AgentEvent =
   | (AgentEventBase & { type: 'status'; message: string })
   | (AgentEventBase & { type: 'routing' } & AgentRoutingInfo)
@@ -91,6 +111,7 @@ export type AgentEvent =
       output?: string;
     })
   | (AgentEventBase & { type: 'final'; text: string })
+  | (AgentEventBase & { type: 'usage'; usage?: AgentTokenUsage; quota?: AgentQuota })
   | (AgentEventBase & { type: 'error'; message: string })
   | (AgentEventBase & { type: 'done' });
 

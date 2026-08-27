@@ -1,8 +1,9 @@
 import { useNavigate } from 'react-router-dom';
 import { HostsObject } from '../..';
-import { Trash2, Terminal, Key, Lock, Pencil } from 'lucide-react';
+import { Trash2, Terminal, Key, Lock, Pencil, FileDown } from 'lucide-react';
 import { idb } from '@/lib/idb';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { HostExportDialog } from './HostExportDialog';
 
 /* ── Inline SVG icons for OS/platform detection ── */
 
@@ -94,6 +95,7 @@ interface HostCardProps {
 
 export function HostCard({ info, onClick, onEdit, index }: HostCardProps) {
     const navigate = useNavigate();
+    const [exporting, setExporting] = useState(false);
 
     const handleConnect = useCallback(() => {
         if (onClick) {
@@ -118,6 +120,11 @@ export function HostCard({ info, onClick, onEdit, index }: HostCardProps) {
         },
         [info.id],
     );
+
+    const handleExport = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        setExporting(true);
+    }, []);
 
     const displayName = info.localName || info.host;
 
@@ -149,6 +156,13 @@ export function HostCard({ info, onClick, onEdit, index }: HostCardProps) {
                         <Pencil size={14} />
                     </button>
                 )}
+                <button
+                    onClick={handleExport}
+                    className="p-1.5 rounded-md text-gray-500 hover:text-sky-400 hover:bg-sky-400/10"
+                    title="Export this host"
+                >
+                    <FileDown size={14} />
+                </button>
                 <button
                     onClick={handleDelete}
                     className="p-1.5 rounded-md text-gray-500 hover:text-red-400 hover:bg-red-400/10"
@@ -194,6 +208,12 @@ export function HostCard({ info, onClick, onEdit, index }: HostCardProps) {
                     {isKey ? 'Key' : 'Password'}
                 </span>
             </div>
+
+            <HostExportDialog
+                hosts={exporting ? [info] : null}
+                onClose={() => setExporting(false)}
+                filename={`terminus-host-${(displayName || 'host').replace(/[^a-z0-9._-]+/gi, '-')}`}
+            />
         </div>
     );
 }
