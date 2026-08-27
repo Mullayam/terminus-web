@@ -22,6 +22,9 @@ const OUTPUT_MAX_WAIT_MS = 30000;
 /** Additional settle time per subsequent attempt (ms) */
 const OUTPUT_SETTLE_EXTRA_MS = 500;
 
+/** How many times the agent may re-ask for a command after a bare [STILL_TO_DO] reply. */
+const MAX_CONTINUE_NUDGES = 2;
+
 /** The user-level prompt for agent mode (system prompt is on backend) */
 const STEP_BY_STEP_PROMPT = `You are in AGENT MODE — you run commands on a REAL terminal, ONE at a time, and see the actual output before deciding the next step. Work like a careful engineer: Think → Act → Observe → Decide.
 
@@ -36,7 +39,9 @@ Rules:
 - Simple request → the single command needed. Complex task (3+ steps) → a brief plan checklist first, then step through it.
 - One command per response, always. Wait for its output before the next one.
 - If a command errors, diagnose it from its output and adapt — don't repeat the same command blindly.
-- When the task is finished, give a brief summary and end with [TASK_COMPLETE]. If you're stuck and need the user, end with [TASK_BLOCKED].`;
+- When the task is finished, give a brief summary and end with [TASK_COMPLETE]. If you're stuck and need the user, end with [TASK_BLOCKED].
+- If a command needs interactive input (password, prompt, confirmation) or you need info only the user has, ask the question and end with [USER_INPUT_NEEDED].
+- If you reply without a command but the task is NOT finished yet, end with [STILL_TO_DO] so the run continues.`;
 
 /** Dangerous command patterns that should never be auto-executed */
 const DANGEROUS_PATTERNS = [
@@ -73,6 +78,39 @@ const DANGEROUS_PATTERNS = [
   /\blvremove\b/i,                   // remove logical volume
   /\bvgremove\b/i,                   // remove volume group
   /\bpvremove\b/i,                   // remove physical volume
+
+  // ── Containers / orchestration / infra teardown ──
+  /\bdocker\s+(container\s+)?(rm|kill|stop)\b/i,      // remove/kill containers
+  /\bdocker\s+(image\s+)?rmi\b/i,                     // remove images
+  /\bdocker\s+(system|image|volume|network|container|builder)\s+prune\b/i,
+  /\bdocker\s+volume\s+rm\b/i,
+  /\bdocker\s+network\s+rm\b/i,
+  /\bdocker\s+swarm\s+leave\b/i,
+  /\bdocker(-|\s+)compose\s+(down|rm|kill|stop)\b/i,  // compose teardown
+  /\bpodman\s+(rm|rmi|kill|stop|system\s+prune)\b/i,
+  /\bnerdctl\s+(rm|rmi|kill|stop|system\s+prune)\b/i,
+  /\bctr\s+(containers?|images?|tasks?)\s+(rm|delete|kill)\b/i,
+  /\bcrictl\s+(rm|rmi|rmp|stop|stopp)\b/i,
+  /\blxc\s+(delete|stop)\b/i,
+  /\blxc-destroy\b/i,
+  /\bvagrant\s+destroy\b/i,
+  /\bvirsh\s+(destroy|undefine|vol-delete|pool-destroy)\b/i,
+  /\bkubectl\s+delete\b/i,                            // delete k8s resources
+  /\bkubectl\s+drain\b/i,
+  /\bkubectl\s+scale\s+.*--replicas[= ]0\b/i,
+  /\bhelm\s+(uninstall|delete)\b/i,
+  /\bkubeadm\s+reset\b/i,
+  /\bk3s-uninstall\b/i,
+  /\bminikube\s+delete\b/i,
+  /\bkind\s+delete\s+cluster\b/i,
+  /\bterraform\s+destroy\b/i,
+  /\bterraform\s+apply\s+.*-destroy\b/i,
+  /\bpulumi\s+destroy\b/i,
+  /\baws\s+\S+\s+(delete|terminate|destroy)[\w-]*\b/i, // aws ... delete-*/terminate-*
+  /\bgcloud\s+.*\bdelete\b/i,
+  /\baz\s+.*\bdelete\b/i,
+  /\bdrop\s+(database|schema|table)\b/i,               // destructive SQL
+  /\bnuke\b/i,                                        // *-nuke tools / nuke scripts
 ];
 
 function isDangerous(cmd: string): boolean {
@@ -455,6 +493,7 @@ export function useAgentExecutor(sessionId: string) {
       let step = 1;
       let lastExecutedCmd = '';
       let commandsRun = 0;
+      let nudges = 0;
       updateStatus({ step, action: 'Starting…', running: true, lastResult: 'running' });
 
       // Send initial task with step-by-step system prompt
@@ -473,27 +512,45 @@ export function useAgentExecutor(sessionId: string) {
 
           const responseText = lastMsg.content;
 
-          // Check for task completion signals
-          if (responseText.includes('[TASK_COMPLETE]') || responseText.includes('[TASK_BLOCKED]')) {
-            const isBlocked = responseText.includes('[TASK_BLOCKED]');
+          // Check for task completion / hand-back signals
+          const needsInput = responseText.includes('[USER_INPUT_NEEDED]');
+          if (needsInput || responseText.includes('[TASK_COMPLETE]') || responseText.includes('[TASK_BLOCKED]')) {
+            const isBlocked = needsInput || responseText.includes('[TASK_BLOCKED]');
+            const label = needsInput
+              ? 'Waiting for your input — reply in the chat to continue.'
+              : isBlocked
+                ? 'Task blocked — AI needs your input.'
+                : 'Task completed.';
             updateStatus({
               step,
-              action: isBlocked ? 'Task blocked — needs user input' : 'Task completed',
+              action: needsInput
+                ? 'Waiting for your input…'
+                : isBlocked
+                  ? 'Task blocked — needs user input'
+                  : 'Task completed',
               lastResult: isBlocked ? 'error' : 'success',
               running: false,
             });
-            postAgent(
-              isBlocked ? 'Task blocked — AI needs your input.' : 'Task completed.',
-              isBlocked ? 'error' : 'success',
-              { step, total: commandsRun },
-            );
-            notifyIfHidden('Terminus AI Agent', isBlocked ? 'Task blocked.' : 'Task completed.');
+            postAgent(label, isBlocked ? 'error' : 'success', { step, total: commandsRun });
+            notifyIfHidden('Terminus AI Agent', label);
             break;
           }
 
           // Also check: if AI gave no commands and no code block, treat as complete
           const cmds = extractCommands(responseText);
           if (cmds.length === 0) {
+            // [STILL_TO_DO] means the AI knows work remains but gave no command — nudge it.
+            if (responseText.includes('[STILL_TO_DO]') && nudges < MAX_CONTINUE_NUDGES) {
+              nudges++;
+              updateStatus({ step, action: 'Work remaining — asking for the next command…', lastResult: 'running' });
+              postAgent('Work still remaining — asking AI for the next command…', 'replanning', { step });
+              await sendMessage(
+                'You marked [STILL_TO_DO] but gave no command. Provide the NEXT single command in a ```bash code block, or end with [TASK_COMPLETE] / [TASK_BLOCKED] / [USER_INPUT_NEEDED].',
+                undefined,
+                { displayContent: null },
+              );
+              continue;
+            }
             // AI responded without a command — task is done or it's answering a question
             updateStatus({ step, action: 'Task completed', lastResult: 'success', running: false });
             postAgent('Task completed.', 'success', { step, total: commandsRun });
@@ -570,7 +627,7 @@ export function useAgentExecutor(sessionId: string) {
           step++;
           updateStatus({ step, action: 'Reading output, planning next step…', lastResult: 'running' });
 
-          const nextPrompt = `Here is the REAL output from \`${cmd}\`:\n\`\`\`\n${output.slice(0, 3000)}\n\`\`\`\n\nObserve it, then decide. THINK in one short line about what this output means, then give the NEXT single command in a \`\`\`bash code block. If the task is complete, give a brief summary and end with [TASK_COMPLETE]. If you're stuck and need the user, end with [TASK_BLOCKED].`;
+          const nextPrompt = `Here is the REAL output from \`${cmd}\`:\n\`\`\`\n${output.slice(0, 3000)}\n\`\`\`\n\nObserve it, then decide. THINK in one short line about what this output means, then give the NEXT single command in a \`\`\`bash code block. If the task is complete, give a brief summary and end with [TASK_COMPLETE]. If you're stuck and need the user, end with [TASK_BLOCKED]. If you need interactive input or info only the user has, ask and end with [USER_INPUT_NEEDED]. If you answer without a command but work remains, end with [STILL_TO_DO].`;
 
           // Hide internal agent prompt from chat — user sees agent bubbles instead
           await sendMessage(nextPrompt, undefined, { displayContent: null });

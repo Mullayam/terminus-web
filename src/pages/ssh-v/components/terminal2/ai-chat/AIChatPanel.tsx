@@ -187,7 +187,7 @@ function renderMarkdownBlock(text: string, colors: Record<string, string>, keyPr
 // ────────────────────────────────────────────────────
 // Strip agent control tokens from displayed text
 // ────────────────────────────────────────────────────
-const AGENT_TOKENS = /\[TASK_COMPLETE\]|\[TASK_BLOCKED\]|\[STILL_TO_DO\]/g;
+const AGENT_TOKENS = /\[TASK_COMPLETE\]|\[TASK_BLOCKED\]|\[USER_INPUT_NEEDED\]|\[STILL_TO_DO\]/g;
 function cleanAgentTokens(text: string): string {
   return text.replace(AGENT_TOKENS, '').trim();
 }
