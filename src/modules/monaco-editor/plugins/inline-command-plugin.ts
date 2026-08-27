@@ -26,7 +26,7 @@
 
 import type * as monacoNs from "monaco-editor";
 import type { MonacoPlugin, PluginContext } from "../types";
-import { streamChat, fetchProviders } from "../chat/api";
+import { streamChat, fetchProviders, filterProvidersBySurface } from "../chat/api";
 import type { ChatRequest, ChatStreamChunk, ChatProvider, ChatRole } from "../chat/types";
 
 type Monaco = typeof monacoNs;
@@ -823,7 +823,10 @@ class InlineCommandWidget {
     this.closeSlashDropdown();
     if (this.modelDropdown) return;
 
-    const providers = await getProviders(this.options.endpoint, this.options.hostId);
+    const providers = filterProvidersBySurface(
+      await getProviders(this.options.endpoint, this.options.hostId),
+      "inline",
+    );
     const dropdown = document.createElement("div");
     dropdown.className = "inline-cmd-model-dropdown";
     dropdown.setAttribute("role", "listbox");

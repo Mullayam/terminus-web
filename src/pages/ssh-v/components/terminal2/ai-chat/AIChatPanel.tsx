@@ -22,9 +22,12 @@ import {
 import stripAnsi from 'strip-ansi';
 import { useSessionTheme } from '@/hooks/useSessionTheme';
 import { useAIChatStore, type AIChatMessage, type AgentStatus, type AgentAction, getModelOptions, getDefaultModel } from '@/store/aiChatStore';
+import { useAgentRunStore, DEFAULT_AGENT_CONFIG } from '@/store/agentRunStore';
 import { useSSHStore } from '@/store/sshStore';
 import { useAIChat, extractCommands } from './useAIChat';
 import { useAgentExecutor, requestNotificationPermission, resolveAgentApproval } from './useAgentExecutor';
+import { useServerAgent } from './useServerAgent';
+import { AgentControls, AgentRuns } from './AgentRunPanel';
 import { SocketEventConstants } from '@/lib/sockets/event-constants';
 
 interface AIChatPanelProps {
@@ -595,6 +598,15 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
   const agentStatus = useAIChatStore((s) => s.agentStatus[sessionId] as AgentStatus | undefined);
   const { runAgentLoop, runStepByStepLoop, stopAgent } = useAgentExecutor(sessionId);
 
+  // Server-driven agent: the backend proposes commands, this client runs them.
+  const agentConfig = useAgentRunStore((s) => s.config[sessionId] ?? DEFAULT_AGENT_CONFIG);
+  const setAgentConfig = useAgentRunStore((s) => s.setConfig);
+  const clearAgentRuns = useAgentRunStore((s) => s.clearRuns);
+  const serverAgentRunning = useAgentRunStore((s) =>
+    Object.values(s.runs[sessionId] ?? {}).some((r) => r.running),
+  );
+  const { run: runServerAgent, stop: stopServerAgent } = useServerAgent(sessionId);
+
   const handleToggleAutoExecute = useCallback(() => {
     const next = !autoExecute;
     setAutoExecute(sessionId, next);
@@ -662,6 +674,18 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
     // Clear selection after using it
     if (sel) setTerminalSelection(sessionId, '');
 
+    if (agentConfig.enabled) {
+      if (serverAgentRunning) return;
+      const { addUserMessage } = useAIChatStore.getState();
+      addUserMessage(sessionId, sel ? `Selected:\n\`\`\`\n${sel}\n\`\`\`\n${trimmed}` : trimmed);
+      const history = messages
+        .filter((m) => m.role !== 'agent')
+        .slice(-10)
+        .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+      runServerAgent(sel ? `${trimmed}\n\nSelected terminal text:\n${sel}` : trimmed, { history });
+      return;
+    }
+
     // When auto-execute is ON and agent isn't already running,
     // use step-by-step mode so AI plans one command at a time using real output.
     if (autoExecute && !agentStatus?.running) {
@@ -669,7 +693,7 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
     } else {
       sendMessage(trimmed, sel);
     }
-  }, [input, loading, selection, sessionId, sendMessage, setTerminalSelection, agentStatus?.running, autoExecute, runStepByStepLoop]);
+  }, [input, loading, selection, sessionId, sendMessage, setTerminalSelection, agentStatus?.running, autoExecute, runStepByStepLoop, agentConfig.enabled, serverAgentRunning, runServerAgent, messages]);
 
   // Auto-execute fallback: when loading finishes and autoExecute is ON,
   // and the agent ISN'T already running (i.e. a normal AI response with commands),
@@ -683,6 +707,7 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
     // Trigger only when loading transitions from true → false
     if (!wasLoading || loading) return;
     if (!autoExecute) return;
+    if (agentConfig.enabled) return;
     if (agentStatus?.running) return;
 
     // Don't trigger if the last message was from the agent loop itself
@@ -702,7 +727,7 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
     if (cmds.length > 0) {
       runAgentLoop(cmds);
     }
-  }, [loading, autoExecute, sessionId, agentStatus?.running, runAgentLoop]);
+  }, [loading, autoExecute, sessionId, agentStatus?.running, runAgentLoop, agentConfig.enabled]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -832,6 +857,22 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
         </div>
 
         <div className="flex items-center gap-1">
+          {/* Server agent — backend proposes commands, this client runs them */}
+          <button
+            onClick={() => setAgentConfig(sessionId, { enabled: !agentConfig.enabled })}
+            className="p-1.5 rounded transition-colors hover:bg-white/10 relative"
+            title={agentConfig.enabled
+              ? 'Agent mode ON — backend plans, commands run here with your approval'
+              : 'Agent mode OFF — click to enable the server-driven agent'}
+          >
+            <Bot size={13} style={{ color: agentConfig.enabled ? colors.cyan : `${colors.foreground}60` }} />
+            {agentConfig.enabled && (
+              <span
+                className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full"
+                style={{ backgroundColor: colors.cyan }}
+              />
+            )}
+          </button>
           {/* Auto-allow toggle — like VS Code Copilot's shield button */}
           <button
             onClick={handleToggleAutoExecute}
@@ -853,7 +894,10 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
             )}
           </button>
           <button
-            onClick={() => clearSession(sessionId)}
+            onClick={() => {
+              clearSession(sessionId);
+              clearAgentRuns(sessionId);
+            }}
             className="p-1.5 rounded hover:bg-white/10 transition-colors"
             title="Clear chat"
           >
@@ -869,8 +913,18 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
         </div>
       </div>
 
+      {/* ── Agent controls ── */}
+      {agentConfig.enabled && (
+        <div
+          className="px-4 py-2 border-b shrink-0"
+          style={{ borderColor: `${colors.foreground}12`, backgroundColor: `${colors.cyan}06` }}
+        >
+          <AgentControls sessionId={sessionId} colors={colors as Record<string, string>} />
+        </div>
+      )}
+
       {/* ── Auto-execute status banner ── */}
-      {autoExecute && (
+      {autoExecute && !agentConfig.enabled && (
         <div
           className="px-4 py-1.5 flex items-center gap-2 text-[10px] border-b shrink-0"
           style={{
@@ -1028,6 +1082,9 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
           }
           return elements;
         })()}
+        {agentConfig.enabled && (
+          <AgentRuns sessionId={sessionId} colors={colors as Record<string, string>} onStop={stopServerAgent} />
+        )}
         {loading && messages[messages.length - 1]?.role !== 'assistant' && (
           <div className="flex items-center gap-2" style={{ color: `${colors.foreground}50` }}>
             <Loader2 size={14} className="animate-spin" />

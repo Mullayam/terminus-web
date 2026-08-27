@@ -44,6 +44,20 @@ export async function fetchProviders(baseUrl: string, hostId?: string): Promise<
     return [];
 }
 
+/**
+ * Keep only the models a surface can actually serve.
+ * NVIDIA, for example, is rejected for both inline and hover.
+ */
+export function filterProvidersBySurface(
+    providers: ChatProvider[],
+    surface: "inline" | "hover",
+): ChatProvider[] {
+    const key = surface === "inline" ? "supportsInline" : "supportsHover";
+    return providers
+        .map((p) => ({ ...p, models: (p.models ?? []).filter((m) => m[key] !== false) }))
+        .filter((p) => p.models.length > 0);
+}
+
 /* ── Stream chat response ──────────────────────────────────── */
 
 /**

@@ -55,7 +55,14 @@ export interface AIProvider {
   id: string;
   name: string;
   icon?: string;
-  models: { id: string; name: string; maxTokens?: number }[];
+  models: {
+    id: string;
+    name: string;
+    maxTokens?: number;
+    supportsTools?: boolean;
+    supportsInline?: boolean;
+    supportsHover?: boolean;
+  }[];
   available: boolean;
 }
 

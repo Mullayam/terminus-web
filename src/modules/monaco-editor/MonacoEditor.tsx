@@ -1121,6 +1121,8 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
         languageId: resolvedLanguage,
         filename: fileName,
         onError: (err) => console.warn("[MonacoEditor] AI completions fetch error:", err),
+        onCacheStatus: (status) =>
+          status && console.log(`[MonacoEditor] AI completions X-Cache: ${status}`),
         onCompletionsUpdated: (count) =>
           console.log(`[MonacoEditor] AI completions updated: ${count} items for ${resolvedLanguage}`),
         customContextMenuItems: editorSettings.customContextMenuItems,

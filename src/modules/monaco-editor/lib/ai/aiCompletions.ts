@@ -54,6 +54,15 @@ export interface AICompletionConfig {
   triggerCharacters?: string[];
   /** Extra headers to send with the fetch request */
   headers?: Record<string, string>;
+  /**
+   * AI provider serving `/api/completions`.
+   * Groq's free tier rejects the completion prompt with 413, so it defaults to mistral.
+   */
+  providerId?: string;
+  /** Model ID to use (must belong to `providerId`) */
+  modelId?: string;
+  /** Called with the `X-Cache` header of each response */
+  onCacheStatus?: (status: "HIT" | "MISS" | null) => void;
   /** Called when fetch fails */
   onError?: (error: Error) => void;
   /** Called when new completions are stored */
@@ -95,11 +104,18 @@ export interface AICompletionRegistration {
   dispose(): void;
   /** Force a fetch right now (ignores debounce) */
   fetchNow(): Promise<void>;
+  /** Force the backend to regenerate instead of serving its cache */
+  refresh(): Promise<void>;
   /** Update the endpoint URL at runtime */
   setEndpoint(url: string): void;
   /** Get the number of currently cached items */
   getCachedCount(): number;
+  /** `X-Cache` value of the last response, for diagnostics */
+  getLastCacheStatus(): "HIT" | "MISS" | null;
 }
+
+/** Groq cannot serve `/api/completions` on the free tier (413 on the large prompt). */
+export const DEFAULT_COMPLETIONS_PROVIDER = "mistral";
 
 /* ── Kind resolver ─────────────────────────────────────────── */
 
@@ -199,6 +215,9 @@ export function registerAICompletions(
     debounceMs = 2000,
     triggerCharacters = ["."],
     headers = {},
+    providerId = DEFAULT_COMPLETIONS_PROVIDER,
+    modelId,
+    onCacheStatus,
     onError,
     onCompletionsUpdated,
     enableCodeLens = true,
@@ -207,6 +226,7 @@ export function registerAICompletions(
   let endpoint = config.endpoint;
   let disposed = false;
   let cachedItems: AICompletionItem[] = [];
+  let lastCacheStatus: "HIT" | "MISS" | null = null;
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let fetchController: AbortController | null = null;
   const disposables: monacoNs.IDisposable[] = [];
@@ -214,6 +234,7 @@ export function registerAICompletions(
   /* ── Build request body ────────────────────────────────── */
   function buildRequestBody(
     overridePosition?: monacoNs.Position,
+    refresh = false,
   ): string {
     const model = editor.getModel();
     const position = overridePosition ?? editor.getPosition();
@@ -236,6 +257,9 @@ export function registerAICompletions(
       filename: configFilename ?? model?.uri?.path?.split("/").pop() ?? "untitled",
       range,
       content,
+      providerId,
+      modelId,
+      refresh: refresh || undefined,
       position: position
         ? { line: position.lineNumber, column: position.column }
         : undefined,
@@ -247,6 +271,7 @@ export function registerAICompletions(
 
   async function fetchCompletions(
     overridePosition?: monacoNs.Position,
+    refresh = false,
   ): Promise<AICompletionItem[]> {
     if (disposed) return cachedItems;
 
@@ -260,7 +285,7 @@ export function registerAICompletions(
     fetchController = new AbortController();
 
     try {
-      const body = buildRequestBody(overridePosition);
+      const body = buildRequestBody(overridePosition, refresh);
       console.log(`[AI Completions] Fetching for ${languageId} from ${endpoint}`);
 
       const res = await fetch(endpoint, {
@@ -272,6 +297,10 @@ export function registerAICompletions(
         body,
         signal: fetchController.signal,
       });
+
+      const cacheHeader = res.headers.get("X-Cache");
+      lastCacheStatus = cacheHeader === "HIT" || cacheHeader === "MISS" ? cacheHeader : null;
+      onCacheStatus?.(lastCacheStatus);
 
       if (!res.ok) {
         throw new Error(`AI completions endpoint returned ${res.status}`);
@@ -578,12 +607,21 @@ export function registerAICompletions(
       await fetchCompletions();
     },
 
+    async refresh() {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      await fetchCompletions(undefined, true);
+    },
+
     setEndpoint(url: string) {
       endpoint = url;
     },
 
     getCachedCount() {
       return cachedItems.length;
+    },
+
+    getLastCacheStatus() {
+      return lastCacheStatus;
     },
   };
 }

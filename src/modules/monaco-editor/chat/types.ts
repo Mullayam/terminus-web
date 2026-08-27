@@ -26,6 +26,12 @@ export interface ChatModel {
   name: string;
   /** Max context tokens */
   maxTokens?: number;
+  /** Usable for agent tool calling */
+  supportsTools?: boolean;
+  /** Usable for inline completion / inline command */
+  supportsInline?: boolean;
+  /** Usable for hover explanations */
+  supportsHover?: boolean;
 }
 
 /* ── Message Types ─────────────────────────────────────────── */
