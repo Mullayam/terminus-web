@@ -211,7 +211,7 @@ export default function WidgetCenter() {
           <input type="checkbox" checked={form.stream} onChange={(e) => setForm((f) => ({ ...f, stream: e.target.checked }))} />
           <span>Log / tail mode (auto-scroll to newest)</span>
         </label>
-        {form.stream && <p style={{ fontSize: 10, color: `${fg}66`, marginTop: -6 }}>Polls a bounded snapshot each refresh and auto-scrolls. Use <code>--tail</code>/<code>-n</code> (e.g. <code>docker logs --tail 200 web</code>, <code>tail -n 200 /var/log/syslog</code>) — avoid <code>-f</code>, it never returns.</p>}
+        {form.stream && <p style={{ fontSize: 10, color: `${fg}66`, marginTop: -6 }}>Polls a bounded snapshot each refresh and auto-scrolls. Use <code>--tail</code>/<code>-n</code> (e.g. <code>docker logs --tail 200 web</code>, <code>tail -n 200 /var/log/syslog</code>). A <code>-f</code>/<code>--follow</code> flag is stripped automatically, since a follow never returns.</p>}
 
         {form.render === "table" && (
           <div className="space-y-3" style={{ borderLeft: `2px solid ${border}`, paddingLeft: 10 }}>

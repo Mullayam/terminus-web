@@ -57,6 +57,24 @@ function downloadText(name: string, content: string, mime: string) {
 }
 
 /** Split a line into at most `max` columns; the final column keeps the remainder. */
+/**
+ * A follow flag (`-f`/`--follow`) never returns and would hang the silent exec
+ * channel, so it is dropped before each poll. Combined short flags keep their
+ * other letters (`-fc` -> `-c`).
+ */
+function stripFollowFlags(cmd: string): string {
+  return cmd
+    .split(/\s+/)
+    .map((tok) => {
+      if (tok === "--follow" || tok === "-f") return "";
+      if (/^-[a-zA-Z]*f[a-zA-Z]*$/.test(tok)) return `-${tok.slice(1).replace(/f/g, "")}`;
+      return tok;
+    })
+    .filter((tok) => tok !== "" && tok !== "-")
+    .join(" ")
+    .trim();
+}
+
 function splitCols(line: string, delim: string | undefined, max: number): string[] {
   const parts = delim ? line.split(delim) : line.trim().split(/\s+/);
   if (max <= 0 || parts.length <= max) return parts.map((p) => p.trim());
@@ -116,7 +134,7 @@ export default function CustomWidget({ def, sessionId, index, onClose, docked = 
       if (inFlightRef.current) return;
       inFlightRef.current = true;
       seq += 1;
-      socket.emit(SocketEventConstants.SSH_EXEC_SILENT, { requestId: `${reqPrefix}${seq}`, cmd: def.command });
+      socket.emit(SocketEventConstants.SSH_EXEC_SILENT, { requestId: `${reqPrefix}${seq}`, cmd: stripFollowFlags(def.command) });
     };
     pollRef.current = poll;
 

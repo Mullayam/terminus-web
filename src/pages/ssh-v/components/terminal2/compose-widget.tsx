@@ -3,8 +3,10 @@ import {
   AlertTriangle,
   ArrowDownToLine,
   ChevronDown,
+  Download,
   Hammer,
   Layers,
+  MoreHorizontal,
   Pause,
   Play,
   RefreshCw,
@@ -14,6 +16,7 @@ import {
   Terminal as TerminalIcon,
   Trash2,
   X,
+  Zap,
 } from "lucide-react";
 import { useSSHStore } from "@/store/sshStore";
 import { useTerminalStore } from "@/store/terminalStore";
@@ -30,13 +33,21 @@ function shQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
+/** Quote a path but keep a leading `~` expandable, since quoting suppresses it. */
+function shQuotePath(value: string): string {
+  const v = value.trim();
+  if (v === "~") return `"$HOME"`;
+  if (v.startsWith("~/")) return `"$HOME"${shQuote(v.slice(1))}`;
+  return shQuote(v);
+}
+
 /** `docker compose` (v2) with a fallback to the legacy `docker-compose` binary. */
 function composeBin(): string {
   return "$(command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1 && echo 'docker compose' || echo 'docker-compose')";
 }
 
 function discoverCmd(root: string): string {
-  const r = shQuote(root);
+  const r = shQuotePath(root);
   return (
     "if ! command -v docker >/dev/null 2>&1 && ! command -v docker-compose >/dev/null 2>&1; then echo __NODOCKER__; else " +
     `find -L ${r} -maxdepth 3 \\( -name 'docker-compose*.y*ml' -o -name 'compose*.y*ml' \\) ` +
@@ -59,33 +70,53 @@ function servicesCmd(file: string): string {
 
 export type ComposeAction =
   | "up"
+  | "up-build"
+  | "recreate"
+  | "start"
   | "stop"
   | "restart"
   | "build"
-  | "recreate"
-  | "down"
+  | "build-nocache"
   | "pull"
-  | "up-all"
-  | "restart-all"
-  | "build-all";
+  | "rm"
+  | "down"
+  | "down-volumes";
 
-const DESTRUCTIVE: ComposeAction[] = ["down", "stop", "recreate"];
+const ACTION_LABEL: Record<ComposeAction, string> = {
+  "up": "Up",
+  "up-build": "Up (rebuild)",
+  "recreate": "Force recreate",
+  "start": "Start",
+  "stop": "Stop",
+  "restart": "Restart",
+  "build": "Build",
+  "build-nocache": "Build (no cache)",
+  "pull": "Pull images",
+  "rm": "Remove container",
+  "down": "Down",
+  "down-volumes": "Down + volumes",
+};
 
+const DESTRUCTIVE: ComposeAction[] = ["down", "down-volumes", "stop", "recreate", "rm"];
+
+/** An omitted `service` targets the whole stack. */
 function actionCmd(file: string, action: ComposeAction, service?: string): string {
   const f = shQuote(file);
   const s = service ? ` ${shQuote(service)}` : "";
   const bin = `${composeBin()} -f ${f}`;
   switch (action) {
     case "up": return `${bin} up -d${s} 2>&1`;
+    case "up-build": return `${bin} up -d --build${s} 2>&1`;
+    case "recreate": return `${bin} up -d --force-recreate${s} 2>&1`;
+    case "start": return `${bin} start${s} 2>&1`;
     case "stop": return `${bin} stop${s} 2>&1`;
     case "restart": return `${bin} restart${s} 2>&1`;
-    case "build": return `${bin} build --no-cache${s} 2>&1`;
-    case "recreate": return `${bin} up -d --force-recreate${s} 2>&1`;
-    case "down": return `${bin} down 2>&1`;
-    case "pull": return `${bin} pull 2>&1`;
-    case "up-all": return `${bin} up -d 2>&1`;
-    case "restart-all": return `${bin} restart 2>&1`;
-    case "build-all": return `${bin} build --no-cache 2>&1`;
+    case "build": return `${bin} build${s} 2>&1`;
+    case "build-nocache": return `${bin} build --no-cache --pull${s} 2>&1`;
+    case "pull": return `${bin} pull${s} 2>&1`;
+    case "rm": return `${bin} rm -f -s -v${s} 2>&1`;
+    case "down": return `${bin} down --remove-orphans 2>&1`;
+    case "down-volumes": return `${bin} down -v --remove-orphans 2>&1`;
   }
 }
 
@@ -324,7 +355,17 @@ export default function ComposeWidget({ sessionId, onClose }: ComposeWidgetProps
     const s = service ? ` ${shQuote(service)}` : "";
     socket.emit(
       SocketEventConstants.SSH_EMIT_INPUT,
-      `docker compose -f ${shQuote(file)} logs -f --tail 100${s}\r`,
+      `${composeBin()} -f ${shQuote(file)} logs -f --tail 100${s}\r`,
+    );
+  };
+
+  /** Interactive shells need a TTY, so exec is handed to the xterm too. */
+  const execInTerminal = (service: string) => {
+    if (!socket || !file) return;
+    socket.emit(
+      SocketEventConstants.SSH_EMIT_INPUT,
+      `${composeBin()} -f ${shQuote(file)} exec ${shQuote(service)} ` +
+      `sh -c 'command -v bash >/dev/null 2>&1 && exec bash || exec sh'\r`,
     );
   };
 
@@ -470,18 +511,32 @@ export default function ComposeWidget({ sessionId, onClose }: ComposeWidgetProps
       {/* Stack actions */}
       {file && result?.available && !result.error && (
         <div style={{ display: "flex", gap: 6, padding: "8px 12px", borderBottom: `1px solid ${border}` }}>
-          <ActionBtn label="Up" icon={<Play size={12} />} disabled={stackBusy} onClick={() => requestAction("up-all")} fg={fg} border={border} accent={colors.green} />
+          <ActionBtn label="Up" icon={<Play size={12} />} disabled={stackBusy} onClick={() => requestAction("up")} fg={fg} border={border} accent={colors.green} />
           <ActionBtn label="Down" icon={<Trash2 size={12} />} disabled={stackBusy} onClick={() => requestAction("down")} fg={fg} border={border} accent={colors.red} />
-          <ActionBtn label="Restart" icon={<RotateCcw size={12} />} disabled={stackBusy} onClick={() => requestAction("restart-all")} fg={fg} border={border} accent={colors.yellow} />
-          <ActionBtn label="Build" icon={<Hammer size={12} />} disabled={stackBusy} onClick={() => requestAction("build-all")} fg={fg} border={border} accent={colors.cyan} />
+          <ActionBtn label="Restart" icon={<RotateCcw size={12} />} disabled={stackBusy} onClick={() => requestAction("restart")} fg={fg} border={border} accent={colors.yellow} />
+          <ActionBtn label="Build" icon={<Hammer size={12} />} disabled={stackBusy} onClick={() => requestAction("build")} fg={fg} border={border} accent={colors.cyan} />
           <ActionBtn label="Logs" icon={<ScrollText size={12} />} disabled={stackBusy} onClick={() => openLogs()} fg={fg} border={border} accent={colors.blue} />
+          <MoreMenu
+            fg={fg} bg={bg} border={border} disabled={stackBusy}
+            items={[
+              { label: ACTION_LABEL["up-build"], icon: <Hammer size={12} />, onClick: () => requestAction("up-build") },
+              { label: ACTION_LABEL["recreate"], icon: <Zap size={12} />, onClick: () => requestAction("recreate") },
+              { label: ACTION_LABEL["build-nocache"], icon: <Hammer size={12} />, onClick: () => requestAction("build-nocache") },
+              { label: ACTION_LABEL["pull"], icon: <Download size={12} />, onClick: () => requestAction("pull") },
+              { label: "Start stopped", icon: <Play size={12} />, onClick: () => requestAction("start") },
+              { label: "Stop all", icon: <Square size={12} />, onClick: () => requestAction("stop") },
+              { label: ACTION_LABEL["rm"], icon: <Trash2 size={12} />, danger: true, onClick: () => requestAction("rm") },
+              { label: ACTION_LABEL["down-volumes"], icon: <Trash2 size={12} />, danger: true, onClick: () => requestAction("down-volumes") },
+              { label: "Follow logs in terminal", icon: <TerminalIcon size={12} />, onClick: () => followInTerminal() },
+            ]}
+          />
         </div>
       )}
 
       {/* Stack-level confirm */}
       {confirm && !confirm.service && (
         <ConfirmBar
-          text={`${confirm.action === "down" ? "Down" : "Recreate"} the whole stack?`}
+          text={`${ACTION_LABEL[confirm.action]} the whole stack?`}
           fg={fg} border={border} red={colors.red}
           onYes={() => { runAction(confirm.action); setConfirm(null); }}
           onNo={() => setConfirm(null)}
@@ -532,7 +587,7 @@ export default function ComposeWidget({ sessionId, onClose }: ComposeWidgetProps
 
                 {confirm && confirm.service === s.name ? (
                   <ConfirmBar
-                    text={`${confirm.action === "stop" ? "Stop" : "Recreate"} “${s.name}”?`}
+                    text={`${ACTION_LABEL[confirm.action]} “${s.name}”?`}
                     fg={fg} border={border} red={colors.red} inline
                     onYes={() => { runAction(confirm.action, s.name); setConfirm(null); }}
                     onNo={() => setConfirm(null)}
@@ -549,6 +604,21 @@ export default function ComposeWidget({ sessionId, onClose }: ComposeWidgetProps
                     )}
                     <ActionBtn label="Build" icon={<Hammer size={12} />} disabled={isBusy} onClick={() => requestAction("build", s.name)} fg={fg} border={border} accent={colors.cyan} />
                     <ActionBtn label="Logs" icon={<ScrollText size={12} />} disabled={isBusy} onClick={() => openLogs(s.name)} fg={fg} border={border} accent={colors.blue} />
+                    <MoreMenu
+                      fg={fg} bg={bg} border={border} disabled={isBusy}
+                      items={[
+                        { label: ACTION_LABEL["up-build"], icon: <Hammer size={12} />, onClick: () => requestAction("up-build", s.name) },
+                        { label: ACTION_LABEL["recreate"], icon: <Zap size={12} />, onClick: () => requestAction("recreate", s.name) },
+                        { label: ACTION_LABEL["build-nocache"], icon: <Hammer size={12} />, onClick: () => requestAction("build-nocache", s.name) },
+                        { label: ACTION_LABEL["pull"], icon: <Download size={12} />, onClick: () => requestAction("pull", s.name) },
+                        running
+                          ? { label: "Stop", icon: <Square size={12} />, danger: true, onClick: () => requestAction("stop", s.name) }
+                          : { label: "Start", icon: <Play size={12} />, onClick: () => requestAction("start", s.name) },
+                        { label: ACTION_LABEL["rm"], icon: <Trash2 size={12} />, danger: true, onClick: () => requestAction("rm", s.name) },
+                        { label: "Exec shell", icon: <TerminalIcon size={12} />, disabled: !running, onClick: () => execInTerminal(s.name) },
+                        { label: "Follow logs in terminal", icon: <TerminalIcon size={12} />, onClick: () => followInTerminal(s.name) },
+                      ]}
+                    />
                     {isBusy && <RefreshCw size={13} style={{ color: `${fg}88`, alignSelf: "center", animation: "cmpSpin 0.9s linear infinite" }} />}
                   </div>
                 )}
@@ -675,5 +745,86 @@ function ActionBtn({ label, icon, accent, fg, border, disabled, onClick }: Actio
     >
       <span style={{ color: accent, display: "flex" }}>{icon}</span>{label}
     </button>
+  );
+}
+
+interface MenuItem {
+  label: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+  danger?: boolean;
+  disabled?: boolean;
+}
+
+/** The popup is fixed-positioned so it escapes the widget's `overflow: hidden`. */
+function MoreMenu({ items, fg, bg, border, disabled }: { items: MenuItem[]; fg: string; bg: string; border: string; disabled?: boolean }) {
+  const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!anchor) return;
+    const close = () => setAnchor(null);
+    window.addEventListener("mousedown", close);
+    window.addEventListener("resize", close);
+    return () => { window.removeEventListener("mousedown", close); window.removeEventListener("resize", close); };
+  }, [anchor]);
+
+  const open = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const height = Math.min(items.length * 26 + 8, 320);
+    const y = r.bottom + height > window.innerHeight ? Math.max(8, r.top - height) : r.bottom + 4;
+    setAnchor({ x: Math.min(r.right - 190, window.innerWidth - 198), y });
+  };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        disabled={disabled}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={() => (anchor ? setAnchor(null) : open())}
+        title="More actions"
+        style={{
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          width: 26, flexShrink: 0, color: disabled ? `${fg}55` : `${fg}aa`,
+          background: "transparent", border: `1px solid ${border}`, borderRadius: 6,
+          padding: "4px 0", cursor: disabled ? "default" : "pointer",
+        }}
+      >
+        <MoreHorizontal size={13} />
+      </button>
+      {anchor && (
+        <div
+          onMouseDown={(e) => e.stopPropagation()}
+          style={{
+            position: "fixed", left: anchor.x, top: anchor.y, zIndex: 60, width: 190,
+            background: `${bg}fa`, border: `1px solid ${border}`, borderRadius: 8,
+            boxShadow: "0 12px 32px rgba(0,0,0,0.45)", padding: 4,
+            backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
+            maxHeight: 320, overflowY: "auto",
+          }}
+          className="scrollbar-green"
+        >
+          {items.map((item) => (
+            <button
+              key={item.label}
+              disabled={item.disabled}
+              onClick={() => { setAnchor(null); item.onClick(); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 7, width: "100%",
+                fontSize: 11, textAlign: "left", color: item.disabled ? `${fg}44` : item.danger ? "#f87171" : fg,
+                background: "transparent", border: "none", borderRadius: 5,
+                padding: "5px 7px", cursor: item.disabled ? "default" : "pointer",
+              }}
+              onMouseEnter={(e) => { if (!item.disabled) e.currentTarget.style.background = `${fg}12`; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+            >
+              <span style={{ display: "flex", opacity: 0.8 }}>{item.icon}</span>{item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
