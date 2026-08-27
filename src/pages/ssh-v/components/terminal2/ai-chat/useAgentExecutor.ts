@@ -39,6 +39,8 @@ Rules:
 - Simple request → the single command needed. Complex task (3+ steps) → a brief plan checklist first, then step through it.
 - One command per response, always. Wait for its output before the next one.
 - If a command errors, diagnose it from its output and adapt — don't repeat the same command blindly.
+- Commands must be non-interactive and self-terminating: no pagers (pipe to \`cat\`, use \`--no-pager\`), no editors (vim/nano), no \`tail -f\`/\`top\`/\`watch\`, and always close quotes/brackets on one line. Never write "Ctrl+C" or "press q" as a command.
+- To send a real keystroke instead of a command, put ONLY the key in the code block, e.g. \`<Ctrl+C>\`, \`<Ctrl+Shift+Tab>\`, \`<Alt+F>\`, \`<Tab>\`, \`<Up>\`, \`<Esc>\`. It is sent as an actual key press, not typed text.
 - When the task is finished, give a brief summary and end with [TASK_COMPLETE]. If you're stuck and need the user, end with [TASK_BLOCKED].
 - If a command needs interactive input (password, prompt, confirmation) or you need info only the user has, ask the question and end with [USER_INPUT_NEEDED].
 - If you reply without a command but the task is NOT finished yet, end with [STILL_TO_DO] so the run continues.`;
@@ -116,6 +118,101 @@ const DANGEROUS_PATTERNS = [
 function isDangerous(cmd: string): boolean {
   return DANGEROUS_PATTERNS.some((p) => p.test(cmd));
 }
+
+/**
+ * Shell/pager states that swallow typed text instead of running it as a command
+ * (unterminated quote → `>`, pager open → `:`/`(END)`, search prompt → `/…`).
+ * `keys` are the raw bytes that get the shell back to a normal prompt.
+ */
+const STUCK_PROMPTS: { re: RegExp; keys: string }[] = [
+  // bash `>` / zsh `quote>`, `dquote>`, `pipe>`, `heredoc>`, `cmdand>` …
+  { re: /(?:^|\n)\s*(?:[a-z]{0,10}>)\s*$/i, keys: '\x03' },
+  // less/more: page prompt, bare search prompt, or end-of-file marker
+  { re: /(?:\(END\)|--More--(?:\(\d+%\))?|\n\s*[:/]\s*)$/, keys: '\x03q' },
+];
+
+/** Non-typable keys → the bytes a real terminal sends (xterm defaults). */
+const NAMED_KEYS: Record<string, string> = {
+  enter: '\r', return: '\r', cr: '\r', newline: '\n',
+  tab: '\t', esc: '\x1b', escape: '\x1b', space: ' ',
+  backspace: '\x7f', bs: '\x7f',
+  delete: '\x1b[3~', del: '\x1b[3~', insert: '\x1b[2~', ins: '\x1b[2~',
+  home: '\x1b[H', end: '\x1b[F',
+  pageup: '\x1b[5~', pgup: '\x1b[5~', pagedown: '\x1b[6~', pgdn: '\x1b[6~',
+  up: '\x1b[A', down: '\x1b[B', right: '\x1b[C', left: '\x1b[D',
+  f1: '\x1bOP', f2: '\x1bOQ', f3: '\x1bOR', f4: '\x1bOS',
+  f5: '\x1b[15~', f6: '\x1b[17~', f7: '\x1b[18~', f8: '\x1b[19~',
+  f9: '\x1b[20~', f10: '\x1b[21~', f11: '\x1b[23~', f12: '\x1b[24~',
+};
+
+const MODIFIER_NAMES: Record<string, 'ctrl' | 'alt' | 'shift'> = {
+  ctrl: 'ctrl', control: 'ctrl', ctl: 'ctrl', c: 'ctrl',
+  alt: 'alt', meta: 'alt', option: 'alt', opt: 'alt', m: 'alt',
+  shift: 'shift', shft: 'shift', s: 'shift',
+};
+
+/**
+ * Turn a key description the model may emit ("Ctrl+C", "<Ctrl-Shift-Tab>",
+ * "press Alt+F", "^C") into the real bytes to send. Returns null for anything
+ * that should be treated as a normal shell command.
+ */
+function resolveKeySequence(raw: string): string | null {
+  let s = raw.trim().replace(/^[`'"]|[`'"]$/g, '').trim();
+  s = s.replace(/^(?:press|hit|send|type|key)\s*:?\s*/i, '').trim();
+  s = s.replace(/^<(.+)>$/, '$1').trim();
+  if (!s) return null;
+
+  // `^C` shorthand
+  const caret = s.match(/^\^([a-z@[\]\\^_?])$/i);
+  if (caret) return ctrlByte(caret[1]);
+
+  const parts = s.split(/[+\-\s]+/).filter(Boolean);
+  if (parts.length === 0 || parts.length > 4) return null;
+
+  const mods = { ctrl: false, alt: false, shift: false };
+  for (const p of parts.slice(0, -1)) {
+    const mod = MODIFIER_NAMES[p.toLowerCase()];
+    if (!mod) return null; // not a key combo — treat as a command
+    mods[mod] = true;
+  }
+  const keyName = parts[parts.length - 1].toLowerCase();
+  const named = NAMED_KEYS[keyName];
+  const hasMods = mods.ctrl || mods.alt || mods.shift;
+
+  // A bare word is only a key if it's a non-typable named key, never a command.
+  if (!hasMods && !named) return null;
+  if (!hasMods) return named;
+  if (!named && keyName.length !== 1) return null;
+
+  const modCode = 1 + (mods.shift ? 1 : 0) + (mods.alt ? 2 : 0) + (mods.ctrl ? 4 : 0);
+
+  if (named) {
+    // Tab has its own encodings; CSI/SS3 keys take a modifier parameter.
+    if (keyName === 'tab') {
+      if (modCode === 2) return '\x1b[Z';
+      return `\x1b[27;${modCode};9~`;
+    }
+    const csi = named.match(/^\x1b\[(\d+)~$/);
+    if (csi) return `\x1b[${csi[1]};${modCode}~`;
+    const cursor = named.match(/^\x1b[[O]([A-Z])$/);
+    if (cursor) return `\x1b[1;${modCode}${cursor[1]}`;
+    return (mods.alt ? '\x1b' : '') + named;
+  }
+
+  let bytes = mods.ctrl ? ctrlByte(keyName) : keyName;
+  if (!bytes) return null;
+  if (mods.shift && !mods.ctrl) bytes = bytes.toUpperCase();
+  return (mods.alt ? '\x1b' : '') + bytes;
+}
+
+/** Ctrl+<char> → the corresponding C0 control byte. */
+function ctrlByte(char: string): string | null {
+  const code = char.toUpperCase().charCodeAt(0);
+  if (code >= 63 && code <= 95) return String.fromCharCode(code & 31); // @ A-Z [ \ ] ^ _
+  if (char === '?') return '\x7f';
+  return null;
+}
+
 
 /** Send a browser notification (if permitted and page is hidden) */
 function notifyIfHidden(title: string, body: string) {
@@ -294,11 +391,35 @@ export function useAgentExecutor(sessionId: string) {
       if (!socket) return 0;
       const logs = useTerminalStore.getState().logs[sessionId] ?? [];
       const prevLen = logs.length;
-      socket.emit(SocketEventConstants.SSH_EMIT_INPUT, cmd + '\r');
+      // A key description ("Ctrl+C", "<Ctrl-Shift-Tab>") must be sent as real
+      // bytes — typing it as text would just land at the prompt.
+      const keys = resolveKeySequence(cmd);
+      socket.emit(SocketEventConstants.SSH_EMIT_INPUT, keys ?? cmd + '\r');
       return prevLen;
     },
     [sessionId],
   );
+
+  /**
+   * If the shell is sitting at a continuation/pager prompt, the next command
+   * would be typed as text instead of run. Send the real escape keys first.
+   */
+  const recoverStuckPrompt = useCallback(async (): Promise<boolean> => {
+    const socket = useSSHStore.getState().sessions[sessionId]?.socket;
+    if (!socket) return false;
+    const logs = useTerminalStore.getState().logs[sessionId] ?? [];
+    const tail = stripAnsi(logs.slice(-10).join('')).replace(/\s+$/, '');
+    if (!tail) return false;
+    const match = STUCK_PROMPTS.find((p) => p.re.test(tail));
+    if (!match) return false;
+    for (const key of match.keys) {
+      socket.emit(SocketEventConstants.SSH_EMIT_INPUT, key);
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    socket.emit(SocketEventConstants.SSH_EMIT_INPUT, '\r');
+    await new Promise((r) => setTimeout(r, 400));
+    return true;
+  }, [sessionId]);
 
   /**
    * Run the agentic execution loop (batch mode):
@@ -376,6 +497,9 @@ export function useAgentExecutor(sessionId: string) {
 
             updateStatus({ step, action: `Running: ${cmd.slice(0, 60)}${cmd.length > 60 ? '…' : ''}`, lastResult: 'running' });
 
+            if (await recoverStuckPrompt()) {
+              postAgent('Terminal was at a continuation/pager prompt — sent Ctrl+C to recover.', 'info', { step });
+            }
             const execMsgId = postAgent('Executing command...', 'executing', { step, command: cmd });
             const prevLen = executeCommand(cmd);
             commandsRun++;
@@ -442,7 +566,7 @@ export function useAgentExecutor(sessionId: string) {
         postAgent('Agent stopped by user.', 'stopped', { step });
       }
     },
-    [sessionId, executeCommand, waitForOutput, sendMessage, setAgentStatus, finalizeSpinningMessages],
+    [sessionId, executeCommand, waitForOutput, sendMessage, setAgentStatus, finalizeSpinningMessages, recoverStuckPrompt],
   );
 
   /**
@@ -582,6 +706,10 @@ export function useAgentExecutor(sessionId: string) {
           // Execute the command
           updateStatus({ step, action: `Step ${step}: ${cmd.slice(0, 50)}${cmd.length > 50 ? '…' : ''}`, lastResult: 'running' });
 
+          if (await recoverStuckPrompt()) {
+            postAgent('Terminal was at a continuation/pager prompt — sent Ctrl+C to recover.', 'info', { step });
+          }
+
           const execMsgId = postAgent(
             `Step ${step}: Executing command…`,
             'executing',
@@ -645,7 +773,7 @@ export function useAgentExecutor(sessionId: string) {
         postAgent('Agent stopped by user.', 'stopped', { step });
       }
     },
-    [sessionId, executeCommand, waitForOutput, sendMessage, setAgentStatus, finalizeSpinningMessages],
+    [sessionId, executeCommand, waitForOutput, sendMessage, setAgentStatus, finalizeSpinningMessages, recoverStuckPrompt],
   );
 
   const stopAgent = useCallback(() => {
