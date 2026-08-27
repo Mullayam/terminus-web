@@ -8,6 +8,9 @@ import { evalAlert, extractValue } from "@/lib/widgets/types";
 
 const MAX_SPARK = 48;
 
+/** A poll that gets no reply by this point is treated as stalled so the next one can run. */
+const STALL_MS = 20000;
+
 interface CustomWidgetProps {
   def: WidgetDef;
   sessionId: string;
@@ -56,7 +59,6 @@ function downloadText(name: string, content: string, mime: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** Split a line into at most `max` columns; the final column keeps the remainder. */
 /**
  * A follow flag (`-f`/`--follow`) never returns and would hang the silent exec
  * channel, so it is dropped before each poll. Combined short flags keep their
@@ -75,6 +77,16 @@ function stripFollowFlags(cmd: string): string {
     .trim();
 }
 
+/**
+ * Without this a failing command (missing binary, denied namespace) writes only
+ * to stderr and the widget renders an empty panel. The subshell keeps the
+ * redirect applied to the whole pipeline rather than just its last stage.
+ */
+function captureStderr(cmd: string): string {
+  return /2>&1|2>\s*\S/.test(cmd) ? cmd : `( ${cmd} ) 2>&1`;
+}
+
+/** Split a line into at most `max` columns; the final column keeps the remainder. */
 function splitCols(line: string, delim: string | undefined, max: number): string[] {
   const parts = delim ? line.split(delim) : line.trim().split(/\s+/);
   if (max <= 0 || parts.length <= max) return parts.map((p) => p.trim());
@@ -97,7 +109,9 @@ export default function CustomWidget({ def, sessionId, index, onClose, docked = 
   const [showFilter, setShowFilter] = useState(false);
   const [history, setHistory] = useState<number[]>([]);
   const [alerting, setAlerting] = useState(false);
+  const [stalled, setStalled] = useState(false);
   const inFlightRef = useRef(false);
+  const stallRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollRef = useRef<() => void>(() => {});
   const valueRef = useRef<number | null>(null);
   const prevAlertRef = useRef(false);
@@ -125,7 +139,9 @@ export default function CustomWidget({ def, sessionId, index, onClose, docked = 
 
     const onOutput = (payload: { requestId: string; output: string }) => {
       if (!payload || typeof payload.requestId !== "string" || !payload.requestId.startsWith(reqPrefix)) return;
+      if (stallRef.current) clearTimeout(stallRef.current);
       inFlightRef.current = false;
+      setStalled(false);
       setOutput(payload.output ?? "");
       setLastUpdate(Date.now());
     };
@@ -134,7 +150,9 @@ export default function CustomWidget({ def, sessionId, index, onClose, docked = 
       if (inFlightRef.current) return;
       inFlightRef.current = true;
       seq += 1;
-      socket.emit(SocketEventConstants.SSH_EXEC_SILENT, { requestId: `${reqPrefix}${seq}`, cmd: stripFollowFlags(def.command) });
+      if (stallRef.current) clearTimeout(stallRef.current);
+      stallRef.current = setTimeout(() => { inFlightRef.current = false; setStalled(true); }, STALL_MS);
+      socket.emit(SocketEventConstants.SSH_EXEC_SILENT, { requestId: `${reqPrefix}${seq}`, cmd: captureStderr(stripFollowFlags(def.command)) });
     };
     pollRef.current = poll;
 
@@ -144,6 +162,7 @@ export default function CustomWidget({ def, sessionId, index, onClose, docked = 
 
     return () => {
       if (timer) clearInterval(timer);
+      if (stallRef.current) clearTimeout(stallRef.current);
       inFlightRef.current = false;
       socket.off(SocketEventConstants.SSH_EXEC_SILENT_OUTPUT, onOutput);
     };
@@ -307,6 +326,11 @@ export default function CustomWidget({ def, sessionId, index, onClose, docked = 
       <div ref={bodyRef} style={{ padding: "10px 12px", overflow: "auto", flex: docked ? 1 : undefined }} className="scrollbar-green">
         {!connected ? (
           <div style={{ fontSize: 12, color: `${fg}88`, textAlign: "center", padding: "12px 0" }}>Session not connected.</div>
+        ) : stalled && output == null ? (
+          <div style={{ fontSize: 11.5, color: `${fg}88`, textAlign: "center", padding: "12px 0", lineHeight: 1.6 }}>
+            No response after {STALL_MS / 1000}s.<br />
+            <span style={{ color: `${fg}66` }}>The command may not exit on its own — use a bounded form like <code>--tail</code>/<code>-n</code>.</span>
+          </div>
         ) : output == null ? (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 12, color: `${fg}88`, padding: "12px 0" }}>
             <RefreshCw size={14} style={{ animation: "cwSpin 0.9s linear infinite" }} /> {isStream ? "Tailing…" : "Running…"}
@@ -316,7 +340,10 @@ export default function CustomWidget({ def, sessionId, index, onClose, docked = 
         ) : def.render === "gauge" ? (
           <Gauge value={currentValue} max={def.gaugeMax ?? 100} unit={def.unit} color={alerting ? alertColor : accent} fg={fg} />
         ) : output.trim().length === 0 ? (
-          <div style={{ fontSize: 12, color: `${fg}88`, textAlign: "center", padding: "12px 0" }}>No output.</div>
+          <div style={{ fontSize: 11.5, color: `${fg}88`, textAlign: "center", padding: "12px 0", lineHeight: 1.6 }}>
+            No output.<br />
+            <span style={{ color: `${fg}66` }}>The command exited without printing anything.</span>
+          </div>
         ) : def.render === "table" ? (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
             {def.columns && def.columns.length > 0 && (

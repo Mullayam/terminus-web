@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   AlertTriangle,
   ArrowDownToLine,
@@ -756,25 +757,40 @@ interface MenuItem {
   disabled?: boolean;
 }
 
-/** The popup is fixed-positioned so it escapes the widget's `overflow: hidden`. */
+/**
+ * Rendered through a portal: the widget's `backdrop-filter` makes it a containing
+ * block for fixed children, so an inline popup would be positioned against the
+ * widget and clipped by its `overflow: hidden`.
+ */
 function MoreMenu({ items, fg, bg, border, disabled }: { items: MenuItem[]; fg: string; bg: string; border: string; disabled?: boolean }) {
   const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!anchor) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (menuRef.current?.contains(t) || btnRef.current?.contains(t)) return;
+      setAnchor(null);
+    };
     const close = () => setAnchor(null);
-    window.addEventListener("mousedown", close);
+    window.addEventListener("mousedown", onDown);
     window.addEventListener("resize", close);
-    return () => { window.removeEventListener("mousedown", close); window.removeEventListener("resize", close); };
+    window.addEventListener("scroll", close, true);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+    };
   }, [anchor]);
 
   const open = () => {
     const r = btnRef.current?.getBoundingClientRect();
     if (!r) return;
-    const height = Math.min(items.length * 26 + 8, 320);
-    const y = r.bottom + height > window.innerHeight ? Math.max(8, r.top - height) : r.bottom + 4;
-    setAnchor({ x: Math.min(r.right - 190, window.innerWidth - 198), y });
+    const height = Math.min(items.length * 27 + 8, 320);
+    const y = r.bottom + height > window.innerHeight ? Math.max(8, r.top - height - 4) : r.bottom + 4;
+    setAnchor({ x: Math.max(8, Math.min(r.right - 190, window.innerWidth - 198)), y });
   };
 
   return (
@@ -782,7 +798,7 @@ function MoreMenu({ items, fg, bg, border, disabled }: { items: MenuItem[]; fg: 
       <button
         ref={btnRef}
         disabled={disabled}
-        onMouseDown={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
         onClick={() => (anchor ? setAnchor(null) : open())}
         title="More actions"
         style={{
@@ -794,15 +810,16 @@ function MoreMenu({ items, fg, bg, border, disabled }: { items: MenuItem[]; fg: 
       >
         <MoreHorizontal size={13} />
       </button>
-      {anchor && (
+      {anchor && createPortal(
         <div
-          onMouseDown={(e) => e.stopPropagation()}
+          ref={menuRef}
           style={{
-            position: "fixed", left: anchor.x, top: anchor.y, zIndex: 60, width: 190,
+            position: "fixed", left: anchor.x, top: anchor.y, zIndex: 2000, width: 190,
             background: `${bg}fa`, border: `1px solid ${border}`, borderRadius: 8,
             boxShadow: "0 12px 32px rgba(0,0,0,0.45)", padding: 4,
             backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
             maxHeight: 320, overflowY: "auto",
+            fontFamily: "'Inter', system-ui, sans-serif",
           }}
           className="scrollbar-green"
         >
@@ -823,7 +840,8 @@ function MoreMenu({ items, fg, bg, border, disabled }: { items: MenuItem[]; fg: 
               <span style={{ display: "flex", opacity: 0.8 }}>{item.icon}</span>{item.label}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
