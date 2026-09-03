@@ -523,7 +523,7 @@ function EditorInner(props: FileEditorProps) {
                                     <pre
                                         className="editor-whitespace-overlay absolute inset-0 pointer-events-none overflow-hidden"
                                         style={{
-                                            padding: `${CANVAS_PAD}px 16px`,
+                                            padding: `${CANVAS_PAD}px 16px ${CANVAS_PAD + lineHeight}px`,
                                             fontSize,
                                             fontFamily: "var(--editor-font-family)",
                                             fontWeight: "var(--editor-font-weight)" as unknown as number,
@@ -555,7 +555,7 @@ function EditorInner(props: FileEditorProps) {
                                     autoCorrect="off"
                                     className="editor-textarea"
                                     style={{
-                                        padding: `${CANVAS_PAD}px 16px`,
+                                        padding: `${CANVAS_PAD}px 16px ${CANVAS_PAD + lineHeight}px`,
                                         fontSize,
                                         fontFamily: "var(--editor-font-family)",
                                         fontWeight: "var(--editor-font-weight)" as unknown as number,
@@ -589,7 +589,7 @@ function EditorInner(props: FileEditorProps) {
                                     ✕
                                 </button>
                             </div>
-                            <div className="relative flex-1 min-w-0 overflow-auto" style={{ padding: `${CANVAS_PAD}px 16px` }}>
+                            <div className="relative flex-1 min-w-0 overflow-auto" style={{ padding: `${CANVAS_PAD}px 16px ${CANVAS_PAD + lineHeight}px` }}>
                                 <pre
                                     style={{
                                         margin: 0,

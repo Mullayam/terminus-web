@@ -99,61 +99,101 @@ export async function streamChat(
     const decoder = new TextDecoder();
     let accumulated = "";
 
+    // SSE frame state, kept across reads because one frame may be split over
+    // several network chunks.
+    let buffer = "";
+    let eventType = "";
+    let dataLines: string[] = [];
+
+    // Dispatch one complete SSE frame. Returns true when the stream is finished
+    // (a `done`/`[DONE]`/error frame) so the caller stops reading. The backend
+    // sends incremental `chunk` frames AND a final `done` frame that repeats the
+    // ENTIRE reply — applying both would insert the text twice, so `done` is
+    // treated purely as a terminator. `provider` frames are informational.
+    const dispatchFrame = (): boolean => {
+        const type = eventType;
+        const data = dataLines.join("\n");
+        eventType = "";
+        dataLines = [];
+        if (!data) return false;
+
+        if (data === "[DONE]" || type === "done") {
+            // Use the terminator's text only when nothing streamed.
+            if (!accumulated && data !== "[DONE]") {
+                try {
+                    const parsed: any = JSON.parse(data);
+                    const text = parsed?.text ?? parsed?.content ?? "";
+                    if (text) { accumulated += text; onChunk({ content: text }); }
+                } catch { /* ignore */ }
+            }
+            onChunk({ done: true });
+            return true;
+        }
+
+        if (type === "provider") return false;
+
+        try {
+            const parsed: ChatStreamChunk = JSON.parse(data);
+            if (parsed.error) {
+                onChunk({ error: parsed.error, done: true });
+                throw new Error(parsed.error);
+            }
+            const token =
+                parsed.content ??
+                (parsed as any)?.choices?.[0]?.delta?.content ??
+                (parsed as any)?.text ??
+                (parsed as any)?.token ??
+                "";
+            if (token) {
+                accumulated += token;
+                onChunk({ content: token, model: parsed.model });
+            }
+        } catch (e: any) {
+            if (e?.message?.startsWith("Chat request failed") || e?.message === data) throw e;
+            if (data) {
+                accumulated += data;
+                onChunk({ content: data });
+            }
+        }
+        return false;
+    };
+
     try {
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
 
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split("\n");
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? ""; // keep the trailing partial line
 
-            for (const line of lines) {
-                if (line.startsWith("data: ")) {
-                    const data = line.slice(6).trim();
-                    if (data === "[DONE]") {
-                        onChunk({ done: true });
-                        return accumulated;
-                    }
-
-                    try {
-                        const parsed: ChatStreamChunk = JSON.parse(data);
-
-                        if (parsed.error) {
-                            onChunk({ error: parsed.error, done: true });
-                            throw new Error(parsed.error);
-                        }
-
-                        const token =
-                            parsed.content ??
-                            (parsed as any)?.choices?.[0]?.delta?.content ??
-                            (parsed as any)?.text ??
-                            (parsed as any)?.token ??
-                            "";
-
-                        if (token) {
-                            accumulated += token;
-                            onChunk({ content: token, model: parsed.model });
-                        }
-                    } catch (e: any) {
-                        // If JSON parse fails, treat as plain text
-                        if (e?.message?.startsWith("Chat request failed") || e?.message === data) throw e;
-                        if (data) {
-                            accumulated += data;
-                            onChunk({ content: data });
-                        }
-                    }
-                } else if (
-                    line.trim() &&
-                    !line.startsWith(":") &&
-                    !line.startsWith("event:") &&
-                    !line.startsWith("id:")
-                ) {
-                    // Raw streaming (non-SSE formatted)
+            for (const raw of lines) {
+                const line = raw.replace(/\r$/, "");
+                if (line === "") {
+                    if (dispatchFrame()) return accumulated; // blank line ends a frame
+                } else if (line.startsWith("event:")) {
+                    eventType = line.slice(6).trim();
+                } else if (line.startsWith("data:")) {
+                    dataLines.push(line.slice(5).replace(/^ /, ""));
+                } else if (line.startsWith(":") || line.startsWith("id:") || line.startsWith("retry:")) {
+                    // SSE comment / non-data field — ignore
+                } else if (line.trim()) {
+                    // Raw, non-SSE line: treat as a content delta.
                     accumulated += line;
                     onChunk({ content: line });
                 }
             }
         }
+
+        // Flush any trailing buffered line, then the final frame.
+        const tail = buffer.replace(/\r$/, "");
+        if (tail.startsWith("data:")) dataLines.push(tail.slice(5).replace(/^ /, ""));
+        else if (tail.startsWith("event:")) eventType = tail.slice(6).trim();
+        else if (tail.trim() && !tail.startsWith(":") && !tail.startsWith("id:") && !tail.startsWith("retry:")) {
+            accumulated += tail;
+            onChunk({ content: tail });
+        }
+        if (dispatchFrame()) return accumulated;
     } finally {
         reader.releaseLock();
     }

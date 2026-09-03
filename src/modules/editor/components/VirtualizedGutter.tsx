@@ -23,7 +23,8 @@ export const VirtualizedGutter = memo(function VirtualizedGutter() {
     // left pad (14) + digits + right pad (10) + fold col (16)
     const gutterWidth = digitCount * (fontSize * 0.6) + 40;
 
-    const totalHeight = lineCount * lineHeight + PAD * 2;
+    // extra line-height keeps the gutter in sync with the canvas scroll-beyond-last-line padding
+    const totalHeight = lineCount * lineHeight + PAD * 2 + lineHeight;
 
     const visibleLines = useMemo(() => {
         const start = viewport.startLine;

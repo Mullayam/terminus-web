@@ -60,7 +60,8 @@ export const VirtualizedSyntaxOverlay = memo(function VirtualizedSyntaxOverlay()
         return {
             html: highlighted,
             topPadding: start * lineHeight + CANVAS_PAD,
-            bottomPadding: Math.max(0, (totalLines - end) * lineHeight + CANVAS_PAD),
+            // extra line-height = scroll-beyond-last-line room so the final line clears the status bar
+            bottomPadding: Math.max(0, (totalLines - end) * lineHeight + CANVAS_PAD + lineHeight),
         };
     }, [content, prismLang, viewport.startLine, viewport.endLine, lineHeight]);
 
