@@ -78,11 +78,27 @@ function renderMarkdown(
     blockIdx++;
   }
 
-  // Remaining text after last code block
+  // Remaining text after last code block. While streaming, an opening fence may
+  // not have its closing ``` yet — render it as a code block instead of raw text.
   if (lastIndex < content.length) {
-    parts.push(
-      <TextSegment key={`text-${lastIndex}`} text={content.slice(lastIndex)} />,
-    );
+    const remaining = content.slice(lastIndex);
+    const openFence = remaining.match(/^([\s\S]*?)```(\w*)\n?([\s\S]*)$/);
+    if (openFence) {
+      if (openFence[1]) {
+        parts.push(<TextSegment key={`text-${lastIndex}`} text={openFence[1]} />);
+      }
+      parts.push(
+        <CodeBlockView
+          key={`code-stream-${lastIndex}`}
+          language={openFence[2] || "plaintext"}
+          code={openFence[3].trimEnd()}
+        />,
+      );
+    } else {
+      parts.push(
+        <TextSegment key={`text-${lastIndex}`} text={remaining} />,
+      );
+    }
   }
 
   return parts;

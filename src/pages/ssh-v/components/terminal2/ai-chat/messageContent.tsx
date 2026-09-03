@@ -18,10 +18,15 @@ export function renderContent(
   if (!text) return null;
   text = cleanAgentTokens(text);
   if (!text) return null;
-  const parts = text.split(/(```[\s\S]*?```)/g);
+  // Also split on an unterminated trailing fence so a code block that is still
+  // streaming (opening ``` without its closing ``` yet) isn't shown as raw text.
+  const parts = text.split(/(```[\s\S]*?```|```[\s\S]*$)/g);
 
   return parts.map((part, i) => {
-    const codeMatch = part.match(/^```(?:\w*)\n?([\s\S]*?)```$/);
+    // Match a closed fence, or (while streaming) an unterminated open fence.
+    const codeMatch =
+      part.match(/^```(?:\w*)\n?([\s\S]*?)```$/) ??
+      part.match(/^```(?:\w*)\n?([\s\S]*)$/);
     if (codeMatch) {
       const code = codeMatch[1].trim();
       return (
