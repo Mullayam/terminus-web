@@ -77,7 +77,10 @@ export const foldingRegionsPlugin: MonacoPlugin = {
           }
         }
 
-        return ranges;
+        // Return null (not []) when no #region markers exist so Monaco falls
+        // back to its built-in indentation folding (e.g. YAML). An empty array
+        // would suppress that fallback for every language.
+        return ranges.length > 0 ? ranges : null;
       },
     });
   },
