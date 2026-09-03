@@ -46,7 +46,7 @@ export function ModelPicker({
       </button>
       {open && (
         <div
-          className="absolute right-0 top-full mt-1 z-50 rounded-lg border py-1 shadow-xl min-w-[180px] max-h-[300px] overflow-y-auto"
+          className="absolute right-0 top-full mt-1 z-50 rounded-lg border py-1 shadow-xl w-[280px] max-h-[300px] overflow-y-auto"
           style={{ backgroundColor: colors.background, borderColor: `${colors.foreground}20` }}
         >
           {available.map((provider) => (
@@ -73,7 +73,7 @@ export function ModelPicker({
                       backgroundColor: active ? `${colors.cyan}10` : 'transparent',
                     }}
                   >
-                    <span className="truncate">{model.name}</span>
+                    <span className="truncate flex-1 min-w-0">{model.name}</span>
                     <ModelTags
                       tags={deriveModelTags({
                         name: model.name,
