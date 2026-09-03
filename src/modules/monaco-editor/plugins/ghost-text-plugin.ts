@@ -35,6 +35,8 @@ export interface GhostTextPluginOptions {
   maxCompletionLength?: number;
   /** Request timeout in ms (default: 15000) */
   timeout?: number;
+  /** Gate: when provided and it returns false, the provider yields nothing. */
+  isActive?: () => boolean;
 }
 
 /* ── Request body type ──────────────────────────────────── */
@@ -126,34 +128,69 @@ async function fetchSSECompletion(
   const decoder = new TextDecoder();
   let accumulated = "";
 
+  // SSE frame state kept across reads (a frame may span several chunks).
+  let buffer = "";
+  let eventType = "";
+  let dataLines: string[] = [];
+
+  // Dispatch one complete SSE frame; returns true when the stream is finished.
+  // The backend streams incremental `chunk` frames AND a final `done` frame that
+  // repeats the ENTIRE reply — appending both would duplicate the text, so `done`
+  // is treated purely as a terminator (its text is used only if nothing streamed).
+  const dispatchFrame = (): boolean => {
+    const type = eventType;
+    const data = dataLines.join("\n");
+    eventType = "";
+    dataLines = [];
+    if (!data) return false;
+
+    if (data === "[DONE]" || type === "done") {
+      if (!accumulated && data !== "[DONE]") {
+        try {
+          const parsed: any = JSON.parse(data);
+          accumulated += parsed?.text ?? parsed?.content ?? "";
+        } catch { /* ignore */ }
+      }
+      return true;
+    }
+    if (type === "provider") return false;
+
+    try {
+      const parsed: any = JSON.parse(data);
+      const tok =
+        parsed?.choices?.[0]?.delta?.content ??
+        parsed?.content ??
+        parsed?.text ??
+        parsed?.token ??
+        "";
+      if (tok) accumulated += tok;
+    } catch {
+      if (data) accumulated += data;
+    }
+    return false;
+  };
+
   try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
-      const chunk = decoder.decode(value, { stream: true });
-      // Parse SSE lines: "data: ..." or plain text chunks
-      const lines = chunk.split("\n");
-      for (const line of lines) {
-        if (line.startsWith("data: ")) {
-          const data = line.slice(6).trim();
-          if (data === "[DONE]") return accumulated;
-          try {
-            // Try JSON parse (OpenAI-style: { choices: [{ delta: { content } }] })
-            const parsed = JSON.parse(data);
-            const token =
-              parsed?.choices?.[0]?.delta?.content ??
-              parsed?.content ??
-              parsed?.text ??
-              parsed?.token ??
-              "";
-            if (token) accumulated += token;
-          } catch {
-            // Plain text SSE data
-            if (data) accumulated += data;
-          }
-        } else if (line.trim() && !line.startsWith(":") && !line.startsWith("event:") && !line.startsWith("id:")) {
-          // Raw streaming (non-SSE formatted)
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? ""; // keep the trailing partial line
+
+      for (const raw of lines) {
+        const line = raw.replace(/\r$/, "");
+        if (line === "") {
+          if (dispatchFrame()) return accumulated.slice(0, maxLength); // blank line ends a frame
+        } else if (line.startsWith("event:")) {
+          eventType = line.slice(6).trim();
+        } else if (line.startsWith("data:")) {
+          dataLines.push(line.slice(5).replace(/^ /, ""));
+        } else if (line.startsWith(":") || line.startsWith("id:") || line.startsWith("retry:")) {
+          // SSE comment / non-data field — ignore
+        } else if (line.trim()) {
+          // Raw, non-SSE line: treat as a content delta.
           accumulated += line;
         }
       }
@@ -163,11 +200,20 @@ async function fetchSSECompletion(
         break;
       }
     }
+
+    // Flush any trailing buffered line, then the final frame.
+    const tail = buffer.replace(/\r$/, "");
+    if (tail.startsWith("data:")) dataLines.push(tail.slice(5).replace(/^ /, ""));
+    else if (tail.startsWith("event:")) eventType = tail.slice(6).trim();
+    else if (tail.trim() && !tail.startsWith(":") && !tail.startsWith("id:") && !tail.startsWith("retry:")) {
+      accumulated += tail;
+    }
+    dispatchFrame();
   } finally {
     reader.releaseLock();
   }
 
-  return accumulated;
+  return accumulated.slice(0, maxLength);
 }
 
 /* ── Plugin factory ────────────────────────────────────────── */
@@ -187,6 +233,7 @@ export function createGhostTextPlugin(
     maxContextLines = 60,
     maxCompletionLength = 2048,
     timeout = 15000,
+    isActive,
   } = options;
 
   // Shared state across the plugin lifecycle
@@ -225,6 +272,9 @@ export function createGhostTextPlugin(
           _context: monacoNs.languages.InlineCompletionContext,
           token: monacoNs.CancellationToken,
         ): Promise<monacoNs.languages.InlineCompletions> {
+          // Inactive when another AI provider is selected.
+          if (isActive && !isActive()) return { items: [] };
+
           // Return cached suggestion if cursor hasn't moved
           if (
             cachedSuggestion &&

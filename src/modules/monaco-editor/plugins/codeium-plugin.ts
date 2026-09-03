@@ -51,6 +51,8 @@ export interface CodeiumPluginOptions {
   onAuthRequired?: () => void;
   /** Consume completions as an SSE stream (Accept: text/event-stream) instead of JSON */
   stream?: boolean;
+  /** Gate: when provided and it returns false, the provider yields nothing. */
+  isActive?: () => boolean;
 }
 
 /* ── Wire types ────────────────────────────────────────────── */
@@ -347,6 +349,7 @@ export function createCodeiumPlugin(options: CodeiumPluginOptions): MonacoPlugin
     onError,
     onAuthRequired,
     stream = false,
+    isActive,
   } = options;
 
   let abortController: AbortController | null = null;
@@ -397,6 +400,9 @@ export function createCodeiumPlugin(options: CodeiumPluginOptions): MonacoPlugin
           _context: monacoNs.languages.InlineCompletionContext,
           token: monacoNs.CancellationToken,
         ): Promise<monacoNs.languages.InlineCompletions> {
+          // Inactive when another AI provider is selected (or AI is off).
+          if (isActive && !isActive()) return Promise.resolve({ items: [] });
+
           const toResult = (completions: CodeiumCompletion[]) => ({
             items: completions.map((c) => ({
               insertText: c.text,

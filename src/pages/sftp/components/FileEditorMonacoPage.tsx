@@ -473,13 +473,21 @@ export default function FileEditorMonacoPage() {
     const [aiProvider, setAIProvider] = useState<AICompletionProvider>(
         () => loadEditorSettings().aiCompletionProvider,
     );
+    // Live provider value read from inside long-lived plugin callbacks. The
+    // plugins persist in the registry once mounted, so this gates them off when
+    // the provider changes (or AI is turned off) without a reload.
+    const aiProviderRef = useRef(aiProvider);
+    aiProviderRef.current = aiProvider;
 
     // Ghost text endpoint — use settings value if set, else default API_URL
     const ghostTextEndpoint = loadEditorSettings().ghostTextEndpoint || __config.API_URL;
 
     // Memoize plugins — ghost text is only included when selected
     const ghostTextPlugin = useMemo(
-        () => createGhostTextPlugin({ endpoint: ghostTextEndpoint }),
+        () => createGhostTextPlugin({
+            endpoint: ghostTextEndpoint,
+            isActive: () => aiProviderRef.current === "ghost-text",
+        }),
         [ghostTextEndpoint],
     );
     const codeiumPlugin = useMemo(() => {
@@ -487,6 +495,7 @@ export default function FileEditorMonacoPage() {
         return createCodeiumPlugin({
             endpoint: settings.codeiumEndpoint || __config.API_URL,
             hostId: hostUser || undefined,
+            isActive: () => aiProviderRef.current === "codeium",
             getOtherDocuments: () => {
                 const { documents, activeId } = useOpenDocumentsStore.getState();
                 return getOtherDocuments({

@@ -284,6 +284,38 @@ class AiProviderManagerImpl {
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let buffer = "";
+                let eventType = "";
+                let dataLines: string[] = [];
+                let streamed = false;
+
+                // Dispatch one complete SSE frame; returns true when the stream ends.
+                // The backend streams incremental `chunk` frames plus a final `done`
+                // frame that repeats the ENTIRE reply — emitting both would double the
+                // ghost text, so `done` is a terminator (used only if nothing streamed).
+                const dispatchFrame = (): boolean => {
+                    const type = eventType;
+                    const data = dataLines.join("\n");
+                    eventType = "";
+                    dataLines = [];
+                    if (!data) return false;
+
+                    if (data === "[DONE]" || type === "done") {
+                        if (!streamed && data !== "[DONE]") {
+                            try {
+                                const parsed = JSON.parse(data);
+                                if (parsed.text) onChunk(parsed.text, false);
+                            } catch { /* ignore */ }
+                        }
+                        return true;
+                    }
+                    if (type === "provider") return false;
+
+                    try {
+                        const parsed = JSON.parse(data);
+                        if (parsed.text) { streamed = true; onChunk(parsed.text, false); }
+                    } catch { /* ignore malformed chunks */ }
+                    return false;
+                };
 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -293,20 +325,23 @@ class AiProviderManagerImpl {
                     const lines = buffer.split("\n");
                     buffer = lines.pop() ?? "";
 
-                    for (const line of lines) {
-                        if (line.startsWith("data: ")) {
-                            const data = line.slice(6).trim();
-                            if (data === "[DONE]") {
-                                onChunk("", true);
-                                return;
-                            }
-                            try {
-                                const parsed = JSON.parse(data);
-                                if (parsed.text) onChunk(parsed.text, false);
-                            } catch { /* ignore malformed chunks */ }
+                    for (const raw of lines) {
+                        const line = raw.replace(/\r$/, "");
+                        if (line === "") {
+                            if (dispatchFrame()) { onChunk("", true); return; }
+                        } else if (line.startsWith("event:")) {
+                            eventType = line.slice(6).trim();
+                        } else if (line.startsWith("data:")) {
+                            dataLines.push(line.slice(5).replace(/^ /, ""));
                         }
                     }
                 }
+
+                // Flush any trailing frame, then signal completion.
+                const tail = buffer.replace(/\r$/, "");
+                if (tail.startsWith("data:")) dataLines.push(tail.slice(5).replace(/^ /, ""));
+                else if (tail.startsWith("event:")) eventType = tail.slice(6).trim();
+                dispatchFrame();
                 onChunk("", true);
                 return;
             }
