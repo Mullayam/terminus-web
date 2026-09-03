@@ -29,7 +29,14 @@ export function HostExportDialog({
     filename?: string;
 }) {
     const [copied, setCopied] = useState(false);
-    const encoded = useMemo(() => (hosts ? encodeHosts(hosts) : ''), [hosts]);
+    // The `hosts` array is a fresh reference on every parent render and
+    // encodeHosts() embeds a live timestamp, so memoizing on `hosts` produces a
+    // new string each render — which would re-fire the auto-copy effect (and its
+    // toast) in a loop. Key the memo on the host ids instead so `encoded` is
+    // stable while the dialog stays open.
+    const hostKey = hosts ? hosts.map((h) => h.id).join('|') : '';
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const encoded = useMemo(() => (hosts ? encodeHosts(hosts) : ''), [hostKey]);
 
     // Copy as soon as the dialog opens so a single click is usually enough.
     useEffect(() => {
