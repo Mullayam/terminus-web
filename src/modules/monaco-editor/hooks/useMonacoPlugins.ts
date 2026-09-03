@@ -47,6 +47,14 @@ export function useMonacoPlugins() {
     return pluginRegistry.toggle(pluginId);
   }, []);
 
+  const disableAll = useCallback(() => {
+    pluginRegistry.disableAll();
+  }, []);
+
+  const enableAll = useCallback(() => {
+    pluginRegistry.enableAll();
+  }, []);
+
   const isEnabled = useCallback((pluginId: string) => {
     return pluginRegistry.isEnabled(pluginId);
   }, []);
@@ -59,6 +67,8 @@ export function useMonacoPlugins() {
     enable,
     disable,
     togglePlugin,
+    disableAll,
+    enableAll,
     isEnabled,
   };
 }

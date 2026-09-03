@@ -142,6 +142,43 @@ class PluginRegistry {
     return entry.enabled;
   }
 
+  /**
+   * Disable every registered plugin at once. The editor falls back to its
+   * default behaviour on the next mount/reload.
+   */
+  disableAll(): void {
+    const changed: string[] = [];
+    for (const [id, entry] of this.plugins) {
+      if (entry.enabled) {
+        entry.enabled = false;
+        changed.push(id);
+      }
+      this.disabledSet.add(id);
+    }
+    saveDisabledSet(this.disabledSet);
+    for (const id of changed) {
+      this.emit({ type: "disabled", pluginId: id });
+    }
+  }
+
+  /**
+   * Enable every registered plugin at once.
+   */
+  enableAll(): void {
+    const changed: string[] = [];
+    for (const [id, entry] of this.plugins) {
+      if (!entry.enabled) {
+        entry.enabled = true;
+        changed.push(id);
+      }
+    }
+    this.disabledSet.clear();
+    saveDisabledSet(this.disabledSet);
+    for (const id of changed) {
+      this.emit({ type: "enabled", pluginId: id });
+    }
+  }
+
   isEnabled(pluginId: string): boolean {
     return this.plugins.get(pluginId)?.enabled ?? false;
   }

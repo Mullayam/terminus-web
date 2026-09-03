@@ -19,7 +19,7 @@ import {
 import { useMonacoPlugins } from "../hooks/useMonacoPlugins";
 
 export const PluginManagerPanel: React.FC = () => {
-  const { snapshot, togglePlugin } = useMonacoPlugins();
+  const { snapshot, togglePlugin, disableAll, enableAll } = useMonacoPlugins();
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -61,7 +61,26 @@ export const PluginManagerPanel: React.FC = () => {
             </>
           )}
         </span>
-        <span className="text-gray-500">{snapshot.length} total</span>
+        <div className="flex items-center gap-2">
+          {enabledCount > 0 ? (
+            <button
+              onClick={() => disableAll()}
+              className="text-[10px] px-1.5 py-0.5 rounded text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+              title="Disable all plugins — the editor reverts to its default behaviour"
+            >
+              Disable all
+            </button>
+          ) : (
+            <button
+              onClick={() => enableAll()}
+              className="text-[10px] px-1.5 py-0.5 rounded text-green-400 hover:text-green-300 hover:bg-green-500/10 transition-colors"
+              title="Enable all plugins"
+            >
+              Enable all
+            </button>
+          )}
+          <span className="text-gray-500">{snapshot.length} total</span>
+        </div>
       </div>
 
       {/* Search bar */}

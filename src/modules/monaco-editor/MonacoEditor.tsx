@@ -1054,6 +1054,54 @@ export const MonacoEditor: React.FC<MonacoEditorConfig> = ({
     prevPluginIdsRef.current = currentIds;
   }, [plugins, getAllPlugins, filePath, onNotify]);
 
+  // ── Live enable/disable: apply plugin registry toggles without a reload ──
+  const filePathRef = useRef(filePath);
+  filePathRef.current = filePath;
+  const onNotifyRef = useRef(onNotify);
+  onNotifyRef.current = onNotify;
+  useEffect(() => {
+    const reconcile = () => {
+      const editor = editorRef.current;
+      const monaco = monacoRef.current;
+      if (!editor || !monaco) return;
+
+      for (const state of pluginStatesRef.current) {
+        const enabled = pluginRegistry.isEnabled(state.plugin.id);
+
+        // Dispose a plugin that was just disabled
+        if (state.context && !enabled) {
+          try {
+            state.plugin.onDispose?.();
+            state.context.__dispose();
+          } catch { /* swallow */ }
+          state.context = null;
+        }
+
+        // Mount a plugin that was just enabled
+        if (!state.context && enabled) {
+          try {
+            const ctx = createPluginContext(monaco, editor, {
+              filePath: filePathRef.current,
+              onNotify: onNotifyRef.current,
+              eventBus: eventBusRef.current,
+            }) as DisposableContext;
+            state.plugin.onMount?.(ctx);
+            state.context = ctx;
+          } catch (err) {
+            console.error(`[MonacoEditor] Plugin "${state.plugin.id}" live-mount error:`, err);
+          }
+        }
+      }
+
+      setPluginCount(pluginStatesRef.current.filter((s) => s.context !== null).length);
+    };
+
+    const unsub = pluginRegistry.subscribe((e) => {
+      if (e.type === "enabled" || e.type === "disabled") reconcile();
+    });
+    return unsub;
+  }, []);
+
   // ── Copilot / Ghost-text provider switching ──
   useEffect(() => {
     const editor = editorRef.current;
