@@ -19,7 +19,7 @@ import {
 
 /* ── Types ─────────────────────────────────────────────────── */
 
-export type AICompletionProvider = "none" | "ghost-text" | "copilot" | "ai-completions";
+export type AICompletionProvider = "none" | "ghost-text" | "copilot" | "ai-completions" | "codeium";
 
 export interface EditorSettings {
   fontSize: number;
@@ -43,6 +43,8 @@ export interface EditorSettings {
   ghostTextEndpoint: string;
   /** Copilot (monacopilot) endpoint URL (default: /api/complete) */
   copilotEndpoint: string;
+  /** Codeium companion base URL — completions at {url}/api/codeium/complete */
+  codeiumEndpoint: string;
   /** Enable parameter hints (function signature help) */
   parameterHints: boolean;
   /** Enable hover information (type definitions, docs) */
@@ -83,6 +85,7 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   aiCompletionsEndpoint: "",
   ghostTextEndpoint: "",
   copilotEndpoint: "",
+  codeiumEndpoint: "",
   parameterHints: true,
   hoverEnabled: true,
   quickSuggestions: true,

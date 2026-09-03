@@ -115,6 +115,7 @@ export {
   todoHighlightPlugin,
   minimapColorsPlugin,
   createGhostTextPlugin,
+  createCodeiumPlugin,
   createNotificationPlugin,
   setNotificationsHandle,
   getNotificationsHandle,
@@ -123,7 +124,7 @@ export {
   ALL_BUILTIN_PLUGINS,
   createInlineCommandPlugin,
 } from "./plugins";
-export type { GhostTextPluginOptions, NotificationPluginOptions, BackendNotification, InlineCommandPluginOptions } from "./plugins";
+export type { GhostTextPluginOptions, CodeiumPluginOptions, CodeiumOtherDocument, NotificationPluginOptions, BackendNotification, InlineCommandPluginOptions } from "./plugins";
 
 // ── Built-in Themes ─────────────────────────────────────────
 export {

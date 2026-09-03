@@ -13,6 +13,8 @@ export { todoHighlightPlugin } from "./todo-highlight-plugin";
 export { minimapColorsPlugin } from "./minimap-colors-plugin";
 export { createGhostTextPlugin } from "./ghost-text-plugin";
 export type { GhostTextPluginOptions } from "./ghost-text-plugin";
+export { createCodeiumPlugin } from "./codeium-plugin";
+export type { CodeiumPluginOptions, CodeiumOtherDocument } from "./codeium-plugin";
 export { createNotificationPlugin, setNotificationsHandle, getNotificationsHandle, showEditorNotification, NOTIFICATION_EVENTS } from "./notification-plugin";
 export type { NotificationPluginOptions, BackendNotification, BackendNotificationUpdate } from "./notification-plugin";
 export { createInlineCommandPlugin } from "./inline-command-plugin";

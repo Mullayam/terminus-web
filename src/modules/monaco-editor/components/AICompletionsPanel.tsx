@@ -11,6 +11,7 @@ import {
   Ghost,
   BrainCircuit,
   RefreshCw,
+  Wand2,
 } from "lucide-react";
 import type { EditorSettings, AICompletionProvider } from "./EditorSettingsPanel";
 
@@ -229,6 +230,79 @@ data: [DONE]`}
         </div>
       )}
 
+      {/* Endpoint — Codeium */}
+      {provider === "codeium" && (
+        <div className="mb-4">
+          <div className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mb-1.5 border-b border-[#3c3c3c] pb-1">
+            Companion Endpoint
+          </div>
+          <div className="flex flex-col gap-1 py-1 px-1">
+            <input
+              type="text"
+              value={settings.codeiumEndpoint}
+              placeholder="http://localhost:7145"
+              onChange={(e) => update("codeiumEndpoint", e.target.value)}
+              className="bg-[#3c3c3c] text-[11px] text-gray-300 px-2 py-1.5 rounded border border-[#555] hover:border-[#007acc] focus:border-[#007acc] focus:outline-none transition-colors w-full"
+            />
+            <p className="text-[9px] text-gray-400 mt-0.5">
+              Base URL of the backend that runs the Codeium <code className="text-[9px] bg-[#3c3c3c] px-0.5 rounded">language_server</code> binary.
+              Completions at <code className="text-[9px] bg-[#3c3c3c] px-0.5 rounded">{"{url}/api/codeium/complete"}</code>.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Codeium — Required Request / Response Format */}
+      {provider === "codeium" && (
+        <div className="mb-4">
+          <div className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mb-1.5 border-b border-[#3c3c3c] pb-1">
+            Required Formats
+          </div>
+          <div className="px-1 py-2 rounded bg-[#1e1e1e] border border-[#3c3c3c]">
+            <p className="text-[9px] text-gray-500 px-2 mb-1">
+              <strong className="text-gray-400">POST</strong> <code className="text-[9px] bg-[#3c3c3c] px-0.5 rounded">{"{endpoint}/api/codeium/complete"}</code>
+            </p>
+            <p className="text-[9px] text-gray-500 px-2 mb-1.5">Request body:</p>
+            <pre className="text-[9px] text-gray-300 px-2 py-1.5 bg-[#1a1a1a] rounded mx-1 overflow-x-auto font-mono leading-relaxed whitespace-pre">
+{`{
+  "requestId": 12,
+  "document": {
+    "filePath": "/srv/app/index.ts",
+    "languageId": "typescript",
+    "text": "<entire buffer>",
+    "cursorPosition": { "lineNumber": 1, "column": 10 },
+    "lineEnding": "\\n"
+  },
+  "otherDocuments": [
+    { "filePath": "…", "languageId": "…", "text": "…" }
+  ],
+  "editorOptions": { "tabSize": 2, "insertSpaces": true }
+}`}
+            </pre>
+            <p className="text-[9px] text-gray-500 px-2 mt-2 mb-1.5">Response — plain JSON:</p>
+            <pre className="text-[9px] text-gray-300 px-2 py-1.5 bg-[#1a1a1a] rounded mx-1 overflow-x-auto font-mono leading-relaxed whitespace-pre">
+{`{
+  "completions": [
+    {
+      "id": "<completionId>",
+      "text": "hello() {\\n  return 1;",
+      "range": {
+        "startLineNumber": 1, "startColumn": 10,
+        "endLineNumber": 1, "endColumn": 10
+      }
+    }
+  ]
+}`}
+            </pre>
+            <div className="text-[9px] text-gray-400 px-2 mt-2 space-y-0.5">
+              <p><strong className="text-gray-500">id</strong> — Codeium <code className="text-[8px] bg-[#3c3c3c] px-0.5 rounded">completionId</code>, echoed to <code className="text-[8px] bg-[#3c3c3c] px-0.5 rounded">/api/codeium/accept</code> on Tab.</p>
+              <p><strong className="text-gray-500">range</strong> <span className="text-gray-700">(optional)</span> — 1-based UTF-16 Monaco coords. The companion converts Codeium&apos;s byte offsets; omit to insert at the cursor.</p>
+              <p>Coordinates are Monaco-native — the browser never sees Codeium&apos;s wire format.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Status card */}
       {provider !== "none" && (
         <div className="mb-4">
@@ -318,6 +392,12 @@ function AIProviderSelector({
       label: "AI Completions",
       desc: "Dynamic endpoint AI suggestions",
       icon: <Sparkles className="w-4 h-4" />,
+    },
+    {
+      id: "codeium",
+      label: "Codeium",
+      desc: "Language server via backend companion",
+      icon: <Wand2 className="w-4 h-4" />,
     },
   ];
 

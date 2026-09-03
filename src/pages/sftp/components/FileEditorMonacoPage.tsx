@@ -23,12 +23,14 @@ import { cachedIconUrl } from "@/lib/iconCache";
 import { getIconForFile } from "vscode-icons-js";
 import { useSFTPStore } from "@/store/sftpStore";
 import { useTabStore } from "@/store/rightSidebarTabStore";
+import { useOpenDocumentsStore, getOtherDocuments } from "@/store/openDocumentsStore";
 import SaveDiffModal from "./monaco-editor-parts/SaveDiffModal";
 import {
     MonacoEditor,
     ALL_BUILTIN_PLUGINS,
     detectLanguage,
     createGhostTextPlugin,
+    createCodeiumPlugin,
     createNotificationPlugin,
     createInlineCommandPlugin,
     showEditorNotification,
@@ -480,6 +482,20 @@ export default function FileEditorMonacoPage() {
         () => createGhostTextPlugin({ endpoint: ghostTextEndpoint }),
         [ghostTextEndpoint],
     );
+    const codeiumPlugin = useMemo(() => {
+        const settings = loadEditorSettings();
+        return createCodeiumPlugin({
+            endpoint: settings.codeiumEndpoint || __config.API_URL,
+            hostId: hostUser || undefined,
+            getOtherDocuments: () => {
+                const { documents, activeId } = useOpenDocumentsStore.getState();
+                return getOtherDocuments({
+                    excludePath: activeId ? documents[activeId]?.filePath : undefined,
+                }).map(({ filePath, languageId, content }) => ({ filePath, languageId, text: content }));
+            },
+            onError: (err) => console.warn("[Codeium] completion error:", err.message),
+        });
+    }, [hostUser]);
     const notificationPlugin = useMemo(
         () => createNotificationPlugin({ socket: treeSocket ?? undefined }),
         [treeSocket],
@@ -492,17 +508,35 @@ export default function FileEditorMonacoPage() {
         () => [
             ...ALL_BUILTIN_PLUGINS,
             ...(aiProvider === "ghost-text" ? [ghostTextPlugin] : []),
+            ...(aiProvider === "codeium" ? [codeiumPlugin] : []),
             notificationPlugin,
             inlineCommandPlugin,
             npmManagerViewPlugin,
         ],
-        [ghostTextPlugin, notificationPlugin, inlineCommandPlugin, aiProvider],
+        [ghostTextPlugin, codeiumPlugin, notificationPlugin, inlineCommandPlugin, aiProvider],
     );
 
     // Handle AI provider change from settings panel
     const handleAIProviderChange = useCallback((provider: AICompletionProvider) => {
         setAIProvider(provider);
     }, []);
+
+    // Mirror open tabs into the shared store so cross-file features (AI inline
+    // completions, chat) can read them without touching this component's state.
+    useEffect(() => {
+        useOpenDocumentsStore.getState().syncDocuments(
+            Object.values(tabs).map((tab) => ({
+                id: tab.id,
+                filePath: tab.filePath,
+                languageId: detectLanguage(tab.filePath || tab.fileName),
+                content: tabContentRefs.current[tab.id] ?? tab.content ?? "",
+                modified: tab.modified,
+            })),
+            activeTabId ?? null,
+        );
+    }, [tabs, activeTabId]);
+
+    useEffect(() => () => useOpenDocumentsStore.getState().clear(), []);
 
     /* ── Document title + favicon ───────────────────────────── */
     const currentFileName = activeTab?.fileName ?? fileName;
@@ -534,6 +568,14 @@ export default function FileEditorMonacoPage() {
     }, [currentFileName]);
 
     /* ── Fetch file content ─────────────────────────────────── */
+    // Keep the latest SFTP readiness + socket reader in refs so the initial
+    // content fetch stays stable and does NOT re-run (remounting the whole
+    // editor via the page-level `loading` gate) on every SFTP status change.
+    const editorSftpReadyRef = useRef(editorSftpReady);
+    const readFileViaSocketRef = useRef(readFileViaSocket);
+    useEffect(() => { editorSftpReadyRef.current = editorSftpReady; }, [editorSftpReady]);
+    useEffect(() => { readFileViaSocketRef.current = readFileViaSocket; }, [readFileViaSocket]);
+
     const fetchContent = useCallback(async () => {
         if (!filePath) {
             setError("Missing file path in URL");
@@ -546,8 +588,8 @@ export default function FileEditorMonacoPage() {
             let fileData: string;
 
             // Prefer editor's own SFTP socket when connected (survives old session disconnect)
-            if (editorSftpReady) {
-                fileData = await readFileViaSocket(filePath);
+            if (editorSftpReadyRef.current) {
+                fileData = await readFileViaSocketRef.current(filePath);
             } else if (sessionIdRef.current) {
                 // Fallback to API with URL-based sessionId
                 const data = await ApiCore.fetchFileContent(sessionIdRef.current, filePath);
@@ -580,9 +622,17 @@ export default function FileEditorMonacoPage() {
         } finally {
             setLoading(false);
         }
-    }, [filePath, editorSftpReady, readFileViaSocket]);
+    }, [filePath]);
 
     useEffect(() => { fetchContent(); }, [fetchContent]);
+
+    // Recover only if the first load failed before any session was available:
+    // retry once when the editor's own SFTP connection becomes ready.
+    useEffect(() => {
+        if (editorSftpReady && error && initialContent === null) {
+            fetchContent();
+        }
+    }, [editorSftpReady, error, initialContent, fetchContent]);
 
     /* ── Save file ─────────────────────────────────────────── */
     // Actual write + post-save bookkeeping (shared by direct and diff-confirmed saves).

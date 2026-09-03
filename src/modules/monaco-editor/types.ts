@@ -374,7 +374,7 @@ export interface MonacoEditorConfig {
   /** Enable loading installed extensions from IDB on mount (default: true when showSidebar is true) */
   enableExtensions?: boolean;
   /** Called when the AI completion provider changes via settings panel */
-  onAIProviderChange?: (provider: "none" | "ghost-text" | "copilot" | "ai-completions") => void;
+  onAIProviderChange?: (provider: "none" | "ghost-text" | "copilot" | "ai-completions" | "codeium") => void;
 
   // ── Terminal integration ───────────────────────────────────
 
