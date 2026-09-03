@@ -116,6 +116,10 @@ export {
   minimapColorsPlugin,
   createGhostTextPlugin,
   createCodeiumPlugin,
+  fetchCodeiumAuthStatus,
+  fetchCodeiumAuthUrl,
+  submitCodeiumToken,
+  fetchCodeiumHealth,
   createNotificationPlugin,
   setNotificationsHandle,
   getNotificationsHandle,
@@ -124,7 +128,7 @@ export {
   ALL_BUILTIN_PLUGINS,
   createInlineCommandPlugin,
 } from "./plugins";
-export type { GhostTextPluginOptions, CodeiumPluginOptions, CodeiumOtherDocument, NotificationPluginOptions, BackendNotification, InlineCommandPluginOptions } from "./plugins";
+export type { GhostTextPluginOptions, CodeiumPluginOptions, CodeiumOtherDocument, CodeiumAuthStatus, CodeiumHealth, NotificationPluginOptions, BackendNotification, InlineCommandPluginOptions } from "./plugins";
 
 // ── Built-in Themes ─────────────────────────────────────────
 export {

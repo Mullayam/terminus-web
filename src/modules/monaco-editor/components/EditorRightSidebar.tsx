@@ -736,6 +736,7 @@ export const EditorSidebarContent: React.FC<EditorSidebarContentProps> = ({
           <AICompletionsPanel
             settings={editorSettings}
             onChange={onSettingsChange}
+            hostId={chatHostId}
           />
         )}
         {activeTab === "context-menu" && editorSettings && onSettingsChange && (

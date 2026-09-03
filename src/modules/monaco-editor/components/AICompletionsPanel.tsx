@@ -14,8 +14,9 @@ import {
   Wand2,
 } from "lucide-react";
 import type { EditorSettings, AICompletionProvider } from "./EditorSettingsPanel";
+import { CodeiumConnect } from "./CodeiumConnect";
 
-/* ── Props ─────────────────────────────────────────────────── */
+/* ── Props ─────────────────────────────────────────── */
 
 export interface AICompletionsPanelProps {
   settings: EditorSettings;
@@ -24,6 +25,8 @@ export interface AICompletionsPanelProps {
   cachedCount?: number;
   /** Called when user clicks the manual fetch button */
   onFetchNow?: () => void;
+  /** Host id for per-user Codeium auth (`?user=base64(hostId)`) */
+  hostId?: string;
 }
 
 /* ── Component ─────────────────────────────────────────────── */
@@ -33,6 +36,7 @@ export const AICompletionsPanel: React.FC<AICompletionsPanelProps> = ({
   onChange,
   cachedCount = 0,
   onFetchNow,
+  hostId,
 }) => {
   const update = <K extends keyof EditorSettings>(key: K, value: EditorSettings[K]) => {
     onChange({ ...settings, [key]: value });
@@ -250,6 +254,11 @@ data: [DONE]`}
             </p>
           </div>
         </div>
+      )}
+
+      {/* Codeium account connect flow */}
+      {provider === "codeium" && (
+        <CodeiumConnect endpoint={settings.codeiumEndpoint} hostId={hostId} />
       )}
 
       {/* Codeium — Required Request / Response Format */}

@@ -494,6 +494,12 @@ export default function FileEditorMonacoPage() {
                 }).map(({ filePath, languageId, content }) => ({ filePath, languageId, text: content }));
             },
             onError: (err) => console.warn("[Codeium] completion error:", err.message),
+            onAuthRequired: () =>
+                showEditorNotification(
+                    "Connect your Codeium account to enable completions — open the AI panel → Codeium.",
+                    "warning",
+                    { source: "Codeium", timeout: 6000 },
+                ),
         });
     }, [hostUser]);
     const notificationPlugin = useMemo(

@@ -47,6 +47,10 @@ export interface CodeiumPluginOptions {
   getOtherDocuments?: () => CodeiumOtherDocument[];
   /** Called on transport/parse failures (AbortError is swallowed) */
   onError?: (error: Error) => void;
+  /** Called once when the backend reports no api_key (HTTP 403) — trigger the connect flow */
+  onAuthRequired?: () => void;
+  /** Consume completions as an SSE stream (Accept: text/event-stream) instead of JSON */
+  stream?: boolean;
 }
 
 /* ── Wire types ────────────────────────────────────────────── */
@@ -163,6 +167,174 @@ function buildUrl(endpoint: string, path: string, hostId?: string): string {
   return hostId ? `${base}?user=${btoa(hostId)}` : base;
 }
 
+/* ── Auth API ("Connect Codeium" flow) ─────────────────────── */
+
+export interface CodeiumAuthStatus {
+  /** Companion turned on server-side */
+  enabled: boolean;
+  /** true = each user must bring their own key */
+  perUser: boolean;
+  /** A key is resolvable for this caller */
+  authenticated: boolean;
+  /** true = show the connect flow */
+  required: boolean;
+}
+
+/** GET /api/codeium/auth/status — is a key configured for this user? */
+export async function fetchCodeiumAuthStatus(
+  endpoint: string,
+  hostId?: string,
+  signal?: AbortSignal,
+): Promise<CodeiumAuthStatus> {
+  const res = await fetch(buildUrl(endpoint, "/api/codeium/auth/status", hostId), { signal });
+  if (!res.ok) throw new Error(`Codeium auth status failed: ${res.status}`);
+  const data = (await res.json()) as Partial<CodeiumAuthStatus>;
+  return {
+    enabled: data.enabled ?? false,
+    perUser: data.perUser ?? false,
+    authenticated: data.authenticated ?? false,
+    required: data.required ?? false,
+  };
+}
+
+/** GET /api/codeium/auth/url — the Codeium login page URL. */
+export async function fetchCodeiumAuthUrl(endpoint: string): Promise<string> {
+  const res = await fetch(buildUrl(endpoint, "/api/codeium/auth/url"));
+  if (!res.ok) throw new Error(`Codeium auth URL failed: ${res.status}`);
+  const data = (await res.json()) as { url?: string };
+  if (!data.url) throw new Error("Codeium auth URL missing from response");
+  return data.url;
+}
+
+/** POST /api/codeium/auth — exchange a pasted token for a stored api_key. */
+export async function submitCodeiumToken(
+  endpoint: string,
+  token: string,
+  hostId?: string,
+): Promise<{ success: boolean; message?: string }> {
+  const res = await fetch(buildUrl(endpoint, "/api/codeium/auth", hostId), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  const data = (await res.json().catch(() => ({}))) as { success?: boolean; message?: string };
+  return { success: res.ok && data.success !== false, message: data.message };
+}
+
+/* ── Health ────────────────────────────────────────── */
+
+export interface CodeiumHealth {
+  phase: "downloading" | "starting" | "ready" | "failed" | "disabled" | "unknown";
+  port?: number;
+  restarts?: number;
+}
+
+/** GET /health — companion phase for the status dot. */
+export async function fetchCodeiumHealth(endpoint: string): Promise<CodeiumHealth> {
+  const res = await fetch(buildUrl(endpoint, "/health"));
+  if (!res.ok) throw new Error(`Codeium health failed: ${res.status}`);
+  const data = (await res.json()) as { result?: { codeium?: unknown }; codeium?: unknown };
+  const c = (data.result?.codeium ?? data.codeium) as
+    | { state?: { phase?: CodeiumHealth["phase"]; port?: number }; restarts?: number }
+    | undefined;
+  return {
+    phase: c?.state?.phase ?? "unknown",
+    port: c?.state?.port,
+    restarts: c?.restarts,
+  };
+}
+
+/* ── Completion transport ─────────────────────────── */
+
+function makeStatusError(status: number): Error {
+  const err = new Error(`Codeium completion failed: ${status}`);
+  (err as { status?: number }).status = status;
+  return err;
+}
+
+/** Plain JSON completion request. Throws a status-tagged error on non-2xx. */
+async function fetchCompletionsJson(
+  url: string,
+  body: CodeiumRequestBody,
+  signal: AbortSignal,
+): Promise<CodeiumCompletion[]> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!response.ok) throw makeStatusError(response.status);
+  return normalizeCompletions(await response.json());
+}
+
+/**
+ * SSE completion request (`Accept: text/event-stream`). Codeium returns each
+ * completion whole, so we collect `completion` events until the stream closes;
+ * an `error` event rejects.
+ */
+async function fetchCompletionsStream(
+  url: string,
+  body: CodeiumRequestBody,
+  signal: AbortSignal,
+): Promise<CodeiumCompletion[]> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!response.ok) throw makeStatusError(response.status);
+  if (!response.body) return normalizeCompletions(await response.json());
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const completions: CodeiumCompletion[] = [];
+  let buffer = "";
+
+  const consumeFrame = (frame: string) => {
+    let event = "message";
+    const dataLines: string[] = [];
+    for (const line of frame.split("\n")) {
+      if (line.startsWith("event:")) event = line.slice(6).trim();
+      else if (line.startsWith("data:")) dataLines.push(line.slice(5).replace(/^ /, ""));
+    }
+    const data = dataLines.join("\n");
+    if (!data) return;
+
+    if (event === "completion") {
+      let item: Record<string, unknown>;
+      try { item = JSON.parse(data) as Record<string, unknown>; } catch { return; }
+      if (typeof item.text === "string" && item.text) {
+        completions.push({
+          id: String(item.id ?? completions.length),
+          text: item.text,
+          range: isRange(item.range) ? item.range : undefined,
+        });
+      }
+    } else if (event === "error") {
+      let message = "Codeium stream error";
+      try { message = (JSON.parse(data) as { message?: string }).message ?? message; } catch { /* keep default */ }
+      throw new Error(message);
+    }
+    // "done" needs no handling — the read loop ends when the stream closes.
+  };
+
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+    let sep: number;
+    while ((sep = buffer.indexOf("\n\n")) !== -1) {
+      consumeFrame(buffer.slice(0, sep));
+      buffer = buffer.slice(sep + 2);
+    }
+  }
+  if (buffer.trim()) consumeFrame(buffer);
+
+  return completions;
+}
+
 /* ── Plugin factory ────────────────────────────────────────── */
 
 export function createCodeiumPlugin(options: CodeiumPluginOptions): MonacoPlugin {
@@ -173,11 +345,15 @@ export function createCodeiumPlugin(options: CodeiumPluginOptions): MonacoPlugin
     maxDocumentChars = 400_000,
     timeout = 10_000,
     onError,
+    onAuthRequired,
+    stream = false,
   } = options;
 
   let abortController: AbortController | null = null;
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let lastRequestId = 0;
+  // Fire onAuthRequired at most once per unauthenticated streak (resets on any 2xx).
+  let authRequired = false;
   /** Keyed on the serialized request body, so an unchanged context reuses the last answer */
   let cached: { key: string; completions: CodeiumCompletion[] } | null = null;
 
@@ -270,18 +446,22 @@ export function createCodeiumPlugin(options: CodeiumPluginOptions): MonacoPlugin
               const timeoutId = setTimeout(() => controller.abort(), timeout);
               token.onCancellationRequested(() => controller.abort());
 
-              try {
-                const response = await fetch(buildUrl(endpoint, "/api/codeium/complete", hostId), {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(body),
-                  signal: controller.signal,
-                });
-                if (!response.ok) {
-                  throw new Error(`Codeium completion failed: ${response.status}`);
+              // 403 → not authenticated (start connect flow); 429 (rate limit) /
+              // 413 (doc too large) → skip quietly. Returns true when handled.
+              const handleStatus = (status: number): boolean => {
+                if (status === 403) {
+                  if (!authRequired) { authRequired = true; onAuthRequired?.(); }
+                  return true;
                 }
+                return status === 429 || status === 413;
+              };
 
-                const completions = normalizeCompletions(await response.json());
+              try {
+                const url = buildUrl(endpoint, "/api/codeium/complete", hostId);
+                const completions = stream
+                  ? await fetchCompletionsStream(url, body, controller.signal)
+                  : await fetchCompletionsJson(url, body, controller.signal);
+                authRequired = false;
 
                 if (token.isCancellationRequested || requestId !== lastRequestId) {
                   resolve({ items: [] });
@@ -291,7 +471,10 @@ export function createCodeiumPlugin(options: CodeiumPluginOptions): MonacoPlugin
                 cached = { key, completions };
                 resolve(toResult(completions));
               } catch (err) {
-                if ((err as Error)?.name !== "AbortError") {
+                const status = (err as { status?: number })?.status;
+                if (typeof status === "number") {
+                  if (!handleStatus(status)) onError?.(err as Error);
+                } else if ((err as Error)?.name !== "AbortError") {
                   onError?.(err as Error);
                 }
                 resolve({ items: [] });
