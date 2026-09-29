@@ -10,6 +10,8 @@ interface QuickCommandsProps {
   fg: string;
   accent: string;
   border: string;
+  /** Distance from the terminal bottom, raised to clear the Command Blocks launcher. */
+  bottomOffset?: number;
 }
 
 /** Drag the bar down past this many pixels to dismiss it. */
@@ -21,7 +23,7 @@ const CLOSE_THRESHOLD = 44;
  * The bar can be dragged downward to dismiss it (mobile-app style); a small
  * floating chip then lets the user bring it back and manage the buttons.
  */
-const QuickCommands: React.FC<QuickCommandsProps> = ({ onRun, bg, fg, accent, border }) => {
+const QuickCommands: React.FC<QuickCommandsProps> = ({ onRun, bg, fg, accent, border, bottomOffset = 10 }) => {
   const buttons = useQuickCommandsStore((s) => s.buttons);
   const visible = useQuickCommandsStore((s) => s.visible);
   const add = useQuickCommandsStore((s) => s.add);
@@ -69,7 +71,7 @@ const QuickCommands: React.FC<QuickCommandsProps> = ({ onRun, bg, fg, accent, bo
         style={{
           position: "absolute",
           right: 10,
-          bottom: 10,
+          bottom: bottomOffset,
           zIndex: 21,
           display: "flex",
           alignItems: "center",
@@ -100,7 +102,7 @@ const QuickCommands: React.FC<QuickCommandsProps> = ({ onRun, bg, fg, accent, bo
       style={{
         position: "absolute",
         right: 10,
-        bottom: 10,
+        bottom: bottomOffset,
         zIndex: 21,
         maxWidth: "calc(100% - 20px)",
         display: "flex",

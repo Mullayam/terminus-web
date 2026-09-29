@@ -1425,6 +1425,7 @@ const XTerminal = memo(function XTerminal({
             fg={t.foreground}
             accent={(t as any).cyan ?? (t as any).green ?? t.foreground}
             border={(t as any).brightBlack ?? `${t.foreground}22`}
+            bottomOffset={commandBlocksEnabled ? 56 : 10}
           />
         );
       })()}
