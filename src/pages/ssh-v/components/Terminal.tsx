@@ -1064,6 +1064,14 @@ const XTerminal = memo(function XTerminal({
     };
     socket.on(SocketEventConstants.SSH_EXEC_SILENT_OUTPUT, handleFsOutput);
 
+    // Quick-command buttons run through the event bus (not a React prop) so a
+    // click only runs the command + focuses xterm — it never re-renders this
+    // component. handleQuickRun is stable across renders (same [socket, sessionId]).
+    const offRunCmd = terminalEvents.on(TerminalEventKey.RUN_COMMAND, ({ command, sessionId: sid }) => {
+      if (sid !== sessionId) return;
+      handleQuickRun(command);
+    });
+
     window.addEventListener("resize", handleResize);
 
 
@@ -1077,6 +1085,7 @@ const XTerminal = memo(function XTerminal({
       socket.off(SocketEventConstants.SSH_EXEC_SILENT_RESULT);
       socket.off(SocketEventConstants.SSH_EXEC_SILENT_OUTPUT, handleFsOutput);
       offFsEvent();
+      offRunCmd();
       if (fsQueryTimerRef.current) clearTimeout(fsQueryTimerRef.current);
       disposeOnData.dispose();
       disposeOnResize.dispose();
@@ -1420,7 +1429,7 @@ const XTerminal = memo(function XTerminal({
         const t = XtermTheme[sessionTheme] || XtermTheme.default;
         return (
           <QuickCommands
-            onRun={handleQuickRun}
+            sessionId={sessionId}
             bg={t.background}
             fg={t.foreground}
             accent={(t as any).cyan ?? (t as any).green ?? t.foreground}

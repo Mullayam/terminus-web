@@ -2,10 +2,11 @@ import type React from "react";
 import { useRef, useState } from "react";
 import { Check, GripHorizontal, Plus, X, Zap } from "lucide-react";
 import { useQuickCommandsStore } from "@/store/quickCommandsStore";
+import { terminalEvents, TerminalEventKey } from "@/lib/terminalEvents";
 
 interface QuickCommandsProps {
-  /** Run a command in the live terminal (clears the current prompt first). */
-  onRun: (command: string) => void;
+  /** Owning terminal session — the run request is emitted on the event bus for it. */
+  sessionId: string;
   bg: string;
   fg: string;
   accent: string;
@@ -23,12 +24,17 @@ const CLOSE_THRESHOLD = 44;
  * The bar can be dragged downward to dismiss it (mobile-app style); a small
  * floating chip then lets the user bring it back and manage the buttons.
  */
-const QuickCommands: React.FC<QuickCommandsProps> = ({ onRun, bg, fg, accent, border, bottomOffset = 10 }) => {
+const QuickCommands: React.FC<QuickCommandsProps> = ({ sessionId, bg, fg, accent, border, bottomOffset = 10 }) => {
   const buttons = useQuickCommandsStore((s) => s.buttons);
   const visible = useQuickCommandsStore((s) => s.visible);
   const add = useQuickCommandsStore((s) => s.add);
   const remove = useQuickCommandsStore((s) => s.remove);
   const setVisible = useQuickCommandsStore((s) => s.setVisible);
+
+  // Fire-and-forget onto the terminal event bus — the terminal runs it without
+  // this component (or the terminal) re-rendering as a result.
+  const runCommand = (command: string) =>
+    terminalEvents.emit(TerminalEventKey.RUN_COMMAND, { command, sessionId });
 
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
@@ -182,7 +188,7 @@ const QuickCommands: React.FC<QuickCommandsProps> = ({ onRun, bg, fg, accent, bo
               }}
             >
               <button
-                onClick={() => onRun(b.command)}
+                onClick={() => runCommand(b.command)}
                 title={b.command}
                 style={{
                   padding: "3px 9px",

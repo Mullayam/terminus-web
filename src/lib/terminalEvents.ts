@@ -11,6 +11,8 @@
 export enum TerminalEventKey {
   /** User is typing a `cd`/`ls`-style command; carries the partial path. */
   FILESYSTEM_COMMAND = "@@command:filesystem",
+  /** A UI control (e.g. a quick-command button) asks to run a command in the shell. */
+  RUN_COMMAND = "@@command:run",
 }
 
 export interface FilesystemCommandPayload {
@@ -22,8 +24,16 @@ export interface FilesystemCommandPayload {
   sessionId: string;
 }
 
+export interface RunCommandPayload {
+  /** The full command line to execute in the shell. */
+  command: string;
+  /** Owning terminal session id. */
+  sessionId: string;
+}
+
 interface EventMap {
   [TerminalEventKey.FILESYSTEM_COMMAND]: FilesystemCommandPayload;
+  [TerminalEventKey.RUN_COMMAND]: RunCommandPayload;
 }
 
 type Handler<T> = (payload: T) => void;
