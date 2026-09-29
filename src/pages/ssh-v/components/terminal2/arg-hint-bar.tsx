@@ -38,17 +38,20 @@ function computeHints(
   const endsWithSpace = /\s$/.test(buffer);
   const tokens = trimmedStart.split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return null;
-  // Still typing the command itself — let the suggestion box handle it.
-  if (tokens.length === 1 && !endsWithSpace) return null;
 
   const cmd = tokens[0];
   const info = index[cmd];
+  // Unknown command → let the suggestion box complete the command name instead.
   if (!info) return null;
 
   const subNames = Object.keys(info.subcommands);
   const hasSubs = subNames.length > 0;
-  // Token currently being typed (empty right after a space).
-  const partial = endsWithSpace ? "" : tokens[tokens.length - 1];
+  // The command name is fully typed (exact match in the index). Treat a bare
+  // `docker` the same as `docker ` so the bar shows the instant the command is
+  // recognised, rather than blinking in only once a space is pressed.
+  const singleExact = tokens.length === 1 && !endsWithSpace;
+  // Token currently being typed (empty right after a space or on a bare command).
+  const partial = endsWithSpace || singleExact ? "" : tokens[tokens.length - 1];
   const sub = tokens[1];
   // A subcommand is "locked in" once it's an exact match followed by a space or
   // further tokens (e.g. `git commit ` / `git commit -m`).
@@ -72,10 +75,12 @@ function computeHints(
 
   const typed = new Set(tokens);
   const p = partial.toLowerCase();
-  const hints = Array.from(new Set(items))
-    .filter((h) => !typed.has(h))
-    .filter((h) => (p ? h.toLowerCase().startsWith(p) : true))
-    .slice(0, MAX_HINTS);
+  const available = Array.from(new Set(items)).filter((h) => !typed.has(h));
+  let hints = available.filter((h) => (p ? h.toLowerCase().startsWith(p) : true)).slice(0, MAX_HINTS);
+  // Never collapse to nothing while a known command is being typed: fall back to
+  // the full option list so the bar keeps updating its content in place instead
+  // of unmounting and flickering when the partial matches no flag/subcommand.
+  if (hints.length === 0) hints = available.slice(0, MAX_HINTS);
   if (hints.length === 0) return null;
   return { label, hints };
 }

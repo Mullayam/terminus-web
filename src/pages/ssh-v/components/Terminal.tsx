@@ -45,6 +45,7 @@ import { createTerminalInputStore, useTerminalInput, shallowEqualObj, type Termi
 import { rankSuggestions, type UsageMap } from "./terminal2/fuzzyRank";
 import ArgHintBar, { type CommandIndex, type ArgCommandInfo } from "./terminal2/arg-hint-bar";
 import { BUILTIN_COMMAND_INDEX } from "./terminal2/builtinCommands";
+import QuickCommands from "./terminal2/quick-commands";
 import CommandBlocks from "./terminal2/command-blocks";
 import { useCommandBlocksStore, type CommandBlock } from "@/store/commandBlocksStore";
 import { useMonitorStore } from "@/store/monitorStore";
@@ -430,6 +431,28 @@ const XTerminal = memo(function XTerminal({
     }
     commandBufferRef.current = "";
     socket.emit(SocketEventConstants.SSH_EMIT_INPUT, cmd + '\r');
+    pushInputStateRef.current({ forceVisible: false });
+    termRef.current?.focus();
+  }, [socket, sessionId]);
+
+  /* ── Quick commands: run a user-defined button's command ── */
+  const handleQuickRun = useCallback((cmd: string) => {
+    const command = cmd.trim();
+    if (!command) return;
+    // Inside a full-screen app (vim, less, …) just type it literally.
+    if (isAltScreenRef.current) {
+      socket.emit(SocketEventConstants.SSH_EMIT_INPUT, command);
+      termRef.current?.focus();
+      return;
+    }
+    if (commandBlocksEnabledRef.current) {
+      const store = useCommandBlocksStore.getState();
+      store.finalizeCurrent(sessionId);
+      store.startBlock(sessionId, command);
+    }
+    commandBufferRef.current = "";
+    // Ctrl+U clears any partial input on the prompt before running the command.
+    socket.emit(SocketEventConstants.SSH_EMIT_INPUT, '\x15' + command + '\r');
     pushInputStateRef.current({ forceVisible: false });
     termRef.current?.focus();
   }, [socket, sessionId]);
@@ -1388,6 +1411,20 @@ const XTerminal = memo(function XTerminal({
             accent={(t as any).green ?? (t as any).cyan ?? t.foreground}
             border={(t as any).brightBlack ?? `${t.foreground}22`}
             onInsert={handleArgInsert}
+          />
+        );
+      })()}
+
+      {/* Quick-command buttons (docked bottom-right, drag down to hide) */}
+      {!isAltScreen && (() => {
+        const t = XtermTheme[sessionTheme] || XtermTheme.default;
+        return (
+          <QuickCommands
+            onRun={handleQuickRun}
+            bg={t.background}
+            fg={t.foreground}
+            accent={(t as any).cyan ?? (t as any).green ?? t.foreground}
+            border={(t as any).brightBlack ?? `${t.foreground}22`}
           />
         );
       })()}
