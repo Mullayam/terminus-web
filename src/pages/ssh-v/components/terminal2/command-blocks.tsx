@@ -176,6 +176,9 @@ const CommandBlocks: React.FC<CommandBlocksProps> = ({ sessionId, onRerun, onFix
   const open = useCommandBlocksStore((s) => s.open[sessionId] ?? false);
   const togglePanel = useCommandBlocksStore((s) => s.togglePanel);
   const clear = useCommandBlocksStore((s) => s.clear);
+  // Dim/translucent while idle so the prompt line behind the pill stays
+  // readable; brighten to fully opaque only when hovered for interaction.
+  const [hovered, setHovered] = useState(false);
 
   return (
     <>
@@ -183,13 +186,22 @@ const CommandBlocks: React.FC<CommandBlocksProps> = ({ sessionId, onRerun, onFix
       {!open && (
         <button
           onClick={() => togglePanel(sessionId, true)}
+          onPointerEnter={() => setHovered(true)}
+          onPointerLeave={() => setHovered(false)}
+          onFocus={() => setHovered(true)}
+          onBlur={() => setHovered(false)}
           title="Command blocks"
           style={{
             position: "absolute", right: 12, bottom: 12, zIndex: 25,
             display: "flex", alignItems: "center", gap: 6, padding: "6px 10px",
-            borderRadius: 20, border: `1px solid ${border}`, background: `${bg}f2`,
-            color: fg, cursor: "pointer", fontSize: 12, boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
-            backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+            borderRadius: 20, border: `1px solid ${border}`,
+            background: hovered ? `${bg}f2` : `${bg}66`,
+            color: fg, cursor: "pointer", fontSize: 12,
+            boxShadow: hovered ? "0 4px 16px rgba(0,0,0,0.35)" : "none",
+            backdropFilter: hovered ? "blur(8px)" : "none",
+            WebkitBackdropFilter: hovered ? "blur(8px)" : "none",
+            opacity: hovered ? 1 : 0.4,
+            transition: "opacity 0.15s ease, background 0.15s ease",
           }}
         >
           <TerminalIcon size={14} style={{ color: accent }} />

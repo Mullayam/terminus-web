@@ -1408,7 +1408,7 @@ const XTerminal = memo(function XTerminal({
         />
       )}
 
-      {/* Inline argument/flag hint bar (docked bottom-left) */}
+      {/* Inline argument/flag hint bar (docked top-left, clear of the prompt line) */}
       {autocomplete && !isAltScreen && (() => {
         const t = XtermTheme[sessionTheme] || XtermTheme.default;
         return (

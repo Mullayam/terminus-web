@@ -86,8 +86,9 @@ function computeHints(
 }
 
 /**
- * Fig/Warp-style hint strip docked at the bottom of the terminal showing the
- * available flags/subcommands for the command being typed. Clicking a hint
+ * Fig/Warp-style hint strip docked at the top of the terminal showing the
+ * available flags/subcommands for the command being typed. Kept clear of the
+ * bottom prompt line so it never hides the command being typed. Clicking a hint
  * inserts it into the live input.
  */
 const ArgHintBar: React.FC<ArgHintBarProps> = ({ buffer, commandIndex, bg, fg, accent, border, onInsert }) => {
@@ -99,7 +100,7 @@ const ArgHintBar: React.FC<ArgHintBarProps> = ({ buffer, commandIndex, bg, fg, a
       style={{
         position: "absolute",
         left: 8,
-        bottom: 8,
+        top: 8,
         maxWidth: "calc(100% - 16px)",
         zIndex: 20,
         display: "flex",
