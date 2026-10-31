@@ -24,6 +24,7 @@ const heroScreenshots = [
   },
   {
     src: "/3.png",
+    frameType: "modal",
     alt: "Collaborative terminal session sharing with role-based access",
     callouts: [
       { label: "Share Session", position: "top-8 left-4", anim: "animate-float" },
@@ -64,6 +65,7 @@ const heroScreenshots = [
   },
   {
     src: "/8.png",
+    frameType: "embedded",
     alt: "Code editor with embedded terminal panel",
     callouts: [
       { label: "Embedded Terminal", position: "top-8 right-4", anim: "animate-float" },
@@ -88,6 +90,7 @@ const heroScreenshots = [
   },
   {
     src: "/12.png",
+    frameType: "sidebar",
     alt: "Terminal behavior settings with autocomplete and command block toggles",
     callouts: [
       { label: "Behavior Toggles", position: "top-8 right-4", anim: "animate-float" },
@@ -213,20 +216,88 @@ export const Hero = () => {
                 </div>
               </div>
 
-              {/* Screenshots with crossfade */}
-              <div className="relative aspect-[16/9] bg-[#0A0A0A]">
-                {heroScreenshots.map((shot, i) => (
-                  <img
-                    key={shot.src}
-                    src={shot.src}
-                    alt={shot.alt}
-                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-in-out ${
-                      i === activeIndex ? "opacity-100" : "opacity-0"
-                    }`}
-                  />
-                ))}
-                {/* Bottom vignette */}
-                <div className="absolute bottom-0 inset-x-0 h-20 bg-gradient-to-t from-[#0A0A0A]/60 to-transparent pointer-events-none" />
+              {/* Screenshots with crossfade & intelligent product framing */}
+              <div className="relative aspect-[16/9] bg-[#0A0A0A] overflow-hidden">
+                {heroScreenshots.map((shot, i) => {
+                  const isCurrent = i === activeIndex;
+                  const frameType = (shot as any).frameType || "full";
+                  return (
+                    <div
+                      key={shot.src}
+                      className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
+                        isCurrent ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+                      }`}
+                    >
+                      {frameType === "modal" ? (
+                        <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+                          <img
+                            src="/10.png"
+                            alt=""
+                            className="absolute inset-0 w-full h-full object-cover opacity-25 blur-sm scale-105"
+                          />
+                          <div className="absolute inset-0 bg-black/40" />
+                          <div className="relative z-10 max-w-[320px] sm:max-w-[380px] rounded-2xl overflow-hidden border border-pink-500/40 shadow-2xl ring-1 ring-white/10">
+                            <img
+                              src={shot.src}
+                              alt={shot.alt}
+                              className="w-full h-auto object-contain"
+                            />
+                          </div>
+                        </div>
+                      ) : frameType === "sidebar" ? (
+                        <div className="relative w-full h-full flex overflow-hidden">
+                          <div className="flex-1 relative overflow-hidden hidden sm:block">
+                            <img
+                              src="/1.png"
+                              alt=""
+                              className="w-full h-full object-cover object-left opacity-35 blur-[1px]"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-[#0A0A0A]" />
+                          </div>
+                          <div className="w-full sm:w-[340px] md:w-[380px] shrink-0 h-full overflow-hidden border-l border-border/50 bg-[#0A0A0A] shadow-2xl relative z-10">
+                            <img
+                              src={shot.src}
+                              alt={shot.alt}
+                              className="w-full h-full object-cover object-top"
+                            />
+                          </div>
+                        </div>
+                      ) : frameType === "embedded" ? (
+                        <div className="relative w-full h-full flex flex-col overflow-hidden">
+                          <div className="h-[62%] relative overflow-hidden border-b border-border/60">
+                            <img
+                              src="/5.png"
+                              alt=""
+                              className="w-full h-full object-cover object-top"
+                            />
+                          </div>
+                          <div className="h-[38%] relative bg-[#0C0C10] flex flex-col">
+                            <div className="h-5 px-3 bg-[#16161E] border-b border-border/30 flex items-center justify-between text-[10px] text-muted-foreground font-mono">
+                              <span className="flex items-center gap-1.5 text-primary">
+                                <Terminal className="w-3 h-3" /> TERMINAL
+                              </span>
+                              <span>bash — 80x24</span>
+                            </div>
+                            <div className="flex-1 overflow-hidden relative">
+                              <img
+                                src={shot.src}
+                                alt={shot.alt}
+                                className="w-full h-full object-cover object-top"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <img
+                          src={shot.src}
+                          alt={shot.alt}
+                          className="w-full h-full object-cover object-top"
+                        />
+                      )}
+                      <div className="absolute bottom-0 inset-x-0 h-20 bg-gradient-to-t from-[#0A0A0A]/60 to-transparent pointer-events-none" />
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

@@ -258,8 +258,73 @@ export const DemoGallery = () => {
                     </div>
                   </div>
 
-                  <div className="relative overflow-hidden">
-                    <img src={image} alt={title} className="w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]" />
+                  <div className="relative aspect-[16/10] overflow-hidden bg-[#0A0A0A]">
+                    {image === "/3.png" ? (
+                      <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+                        <img
+                          src="/10.png"
+                          alt=""
+                          className="absolute inset-0 w-full h-full object-cover opacity-25 blur-sm scale-105"
+                        />
+                        <div className="absolute inset-0 bg-black/40" />
+                        <div className="relative z-10 max-w-[300px] sm:max-w-[340px] rounded-2xl overflow-hidden border border-pink-500/40 shadow-2xl ring-1 ring-white/10">
+                          <img
+                            src={image}
+                            alt={title}
+                            className="w-full h-auto object-contain"
+                          />
+                        </div>
+                      </div>
+                    ) : image === "/12.png" ? (
+                      <div className="relative w-full h-full flex overflow-hidden">
+                        <div className="flex-1 relative overflow-hidden hidden sm:block">
+                          <img
+                            src="/1.png"
+                            alt=""
+                            className="w-full h-full object-cover object-left opacity-35 blur-[1px]"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-[#0A0A0A]" />
+                        </div>
+                        <div className="w-full sm:w-[300px] md:w-[340px] shrink-0 h-full overflow-hidden border-l border-border/50 bg-[#0A0A0A] shadow-2xl relative z-10">
+                          <img
+                            src={image}
+                            alt={title}
+                            className="w-full h-full object-cover object-top"
+                          />
+                        </div>
+                      </div>
+                    ) : image === "/8.png" ? (
+                      <div className="relative w-full h-full flex flex-col overflow-hidden">
+                        <div className="h-[62%] relative overflow-hidden border-b border-border/60">
+                          <img
+                            src="/5.png"
+                            alt=""
+                            className="w-full h-full object-cover object-top"
+                          />
+                        </div>
+                        <div className="h-[38%] relative bg-[#0C0C10] flex flex-col">
+                          <div className="h-5 px-3 bg-[#16161E] border-b border-border/30 flex items-center justify-between text-[10px] text-muted-foreground font-mono">
+                            <span className="flex items-center gap-1.5 text-primary">
+                              <Terminal className="w-3 h-3" /> TERMINAL
+                            </span>
+                            <span>bash — 80x24</span>
+                          </div>
+                          <div className="flex-1 overflow-hidden relative">
+                            <img
+                              src={image}
+                              alt={title}
+                              className="w-full h-full object-cover object-top"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <img
+                        src={image}
+                        alt={title}
+                        className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-[1.03]"
+                      />
+                    )}
                     <div className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-[#0A0A0A]/50 to-transparent pointer-events-none" />
                   </div>
                 </div>
