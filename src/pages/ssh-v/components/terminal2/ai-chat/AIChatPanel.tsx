@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, Loader2, Shield, ShieldCheck, Trash2, X } from 'lucide-react';
+import { Bot, FlaskConical, Loader2, Shield, ShieldCheck, Trash2, X } from 'lucide-react';
 import { useSessionTheme } from '@/hooks/useSessionTheme';
 import { useAIChatStore, type AIChatMessage, type AgentStatus, getDefaultModel } from '@/store/aiChatStore';
 import { useAgentRunStore, DEFAULT_AGENT_CONFIG } from '@/store/agentRunStore';
@@ -16,6 +16,7 @@ import { ContextBadge } from './ContextBadge';
 import { MessageList } from './MessageList';
 import { ModelPicker } from './ModelPicker';
 import { ScrollToBottom } from './ScrollToBottom';
+import { AgentPanelV2 } from './ai-v2';
 import { SocketEventConstants } from '@/lib/sockets/event-constants';
 
 interface AIChatPanelProps {
@@ -99,6 +100,8 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
   const socket = session?.socket;
 
   const [input, setInput] = useState('');
+  // v2 sandbox panel — opens over this chat, isolated from the real agent/PTY.
+  const [v2Open, setV2Open] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -222,6 +225,7 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
   if (!isOpen) return null;
 
   return (
+    <>
     <div
       className="fixed right-0 top-14 bottom-12 z-30 flex flex-col overflow-hidden transition-all duration-300 ease-out animate-in slide-in-from-right themed-scrollbar"
       style={{
@@ -271,6 +275,14 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
         />
 
         <div className="flex items-center gap-1">
+          {/* Open the v2 sandbox (mock agent — does not touch the terminal) */}
+          <button
+            onClick={() => setV2Open(true)}
+            className="p-1.5 rounded transition-colors hover:bg-white/10"
+            title="Open AI Agent v2 (sandbox — mock, not wired to the terminal)"
+          >
+            <FlaskConical size={13} style={{ color: colors.magenta }} />
+          </button>
           {/* Server agent — backend proposes commands, this client runs them */}
           <button
             onClick={handleToggleAgentMode}
@@ -408,5 +420,10 @@ export default function AIChatPanel({ sessionId }: AIChatPanelProps) {
         colors={colors as Record<string, string>}
       />
     </div>
+
+    {/* v2 agent panel — overlays this chat; mounted lazily so the /ai-agent
+        socket + settings only connect once the user opens it. */}
+    {v2Open && <AgentPanelV2 sessionId={sessionId} open onClose={() => setV2Open(false)} />}
+    </>
   );
 }
