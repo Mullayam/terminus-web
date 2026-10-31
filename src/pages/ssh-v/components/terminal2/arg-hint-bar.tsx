@@ -1,5 +1,5 @@
 import type React from "react";
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState, useRef, useCallback, useEffect } from "react";
 
 /** Structured command metadata used to surface flag/subcommand hints. */
 export interface ArgCommandInfo {
@@ -93,14 +93,72 @@ function computeHints(
  */
 const ArgHintBar: React.FC<ArgHintBarProps> = ({ buffer, commandIndex, bg, fg, accent, border, onInsert }) => {
   const result = useMemo(() => computeHints(buffer, commandIndex), [buffer, commandIndex]);
+
+  // Free-drag position within the terminal area. `null` keeps the default
+  // top-left docking; once the user drags, an explicit {x,y} takes over.
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const barRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
+
+  const onPointerMove = useCallback((e: PointerEvent) => {
+    const d = dragRef.current;
+    const bar = barRef.current;
+    if (!d || !bar) return;
+    const parent = bar.offsetParent as HTMLElement | null;
+    let nextX = d.originX + (e.clientX - d.startX);
+    let nextY = d.originY + (e.clientY - d.startY);
+    // Clamp so the bar can never be dragged out of the visible terminal area.
+    if (parent) {
+      nextX = Math.max(0, Math.min(nextX, parent.clientWidth - bar.offsetWidth));
+      nextY = Math.max(0, Math.min(nextY, parent.clientHeight - bar.offsetHeight));
+    }
+    setPos({ x: nextX, y: nextY });
+  }, []);
+
+  const onPointerUp = useCallback(() => {
+    dragRef.current = null;
+    setDragging(false);
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", onPointerUp);
+  }, [onPointerMove]);
+
+  const onHandlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault();
+      const bar = barRef.current;
+      if (!bar) return;
+      dragRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        originX: pos?.x ?? bar.offsetLeft,
+        originY: pos?.y ?? bar.offsetTop,
+      };
+      setDragging(true);
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", onPointerUp);
+    },
+    [pos, onPointerMove, onPointerUp],
+  );
+
+  // Safety net: drop listeners if the bar unmounts mid-drag.
+  useEffect(
+    () => () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    },
+    [onPointerMove, onPointerUp],
+  );
+
   if (!result) return null;
 
   return (
     <div
+      ref={barRef}
       style={{
         position: "absolute",
-        left: 8,
-        top: 8,
+        left: pos ? pos.x : 8,
+        top: pos ? pos.y : 8,
         maxWidth: "calc(100% - 16px)",
         zIndex: 20,
         display: "flex",
@@ -118,6 +176,22 @@ const ArgHintBar: React.FC<ArgHintBarProps> = ({ buffer, commandIndex, bg, fg, a
         overflow: "hidden",
       }}
     >
+      <span
+        onPointerDown={onHandlePointerDown}
+        title="Drag to move"
+        style={{
+          color: `${fg}66`,
+          cursor: dragging ? "grabbing" : "grab",
+          flexShrink: 0,
+          userSelect: "none",
+          touchAction: "none",
+          fontSize: 13,
+          lineHeight: 1,
+          letterSpacing: -1,
+        }}
+      >
+        ⠿
+      </span>
       <span style={{ color: accent, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}>
         {result.label}
       </span>
