@@ -56,6 +56,8 @@ import CommandPalette from "./terminal2/command-palette";
 import CommandExplain from "./terminal2/command-explain";
 import ShareSessionDialog from "./terminal2/share-session-dialog";
 import { terminalEvents, TerminalEventKey } from "@/lib/terminalEvents";
+import type { ILink } from "@xterm/xterm";
+import { openPathInFiles, TERMINAL_PATH_RE } from "../files-link";
 import { parseFsCommand, splitPath, buildListCommand, parseListOutput, buildFsSuggestions, type FsEntry } from "./terminal2/fsSuggest";
 
 const SEARCH_DECORATIONS: ISearchOptions["decorations"] = {
@@ -938,6 +940,28 @@ const XTerminal = memo(function XTerminal({
     term.loadAddon(new Unicode11Addon());
     term.loadAddon(new ClipboardAddon());
     term.loadAddon(new WebLinksAddon());
+    // Ctrl/Cmd+click an absolute path to show it in this tab's Files view
+    // (folders are listed, files open in the editor).
+    term.registerLinkProvider({
+      provideLinks(y, callback) {
+        const text = term.buffer.active.getLine(y - 1)?.translateToString(true) ?? "";
+        const links: ILink[] = [];
+        TERMINAL_PATH_RE.lastIndex = 0;
+        let m: RegExpExecArray | null;
+        while ((m = TERMINAL_PATH_RE.exec(text)) !== null) {
+          const path = m[1];
+          if (path.length < 2) continue;
+          const start = m.index + m[0].indexOf(path);
+          links.push({
+            range: { start: { x: start + 1, y }, end: { x: start + path.length, y } },
+            text: path,
+            decorations: { pointerCursor: false, underline: true },
+            activate: (e, p) => { if (e.ctrlKey || e.metaKey) void openPathInFiles(sessionId, p); },
+          });
+        }
+        callback(links.length ? links : undefined);
+      },
+    });
     term.loadAddon(fitAddon);
     term.loadAddon(searchAddon);
 

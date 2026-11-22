@@ -15,7 +15,7 @@ import XTerminal from './components/Terminal';
 import { FullScreenLoader } from '@/components/loader';
 import InfoBadge from './components/InfoBadge';
 import TerminalLayout from './components/terminal2';
-import { RefreshCcw } from 'lucide-react';
+import { FolderOpen, RefreshCcw } from 'lucide-react';
 import { useDiagnosticsStore } from '@/store/diagnosticsStore';
 import { DiagnosticsStatus } from './components/terminal2/diagnostics';
 import { useTabStore } from '@/store/rightSidebarTabStore';
@@ -27,6 +27,7 @@ import { useTerminalStore } from '@/store/terminalStore';
 import { useSidebarState, useSessionView } from '@/store/sidebarStore';
 import SshTabFiles from './components/SshTabFiles';
 import { connectPayloads } from './connect-payloads';
+import { openTerminalFolderInFiles } from './files-link';
 import ServerStatus from '@/components/layout/ServerStatus';
 import { ReconnectBadge } from './components/ReconnectBadge';
 import { useNavigate } from 'react-router-dom';
@@ -400,6 +401,16 @@ export default function TerminalTab({ sessionId }: Props) {
                                 </div>
                                 {/* Left: SSH/SFTP toggle */}
                                 <div className="flex items-center gap-1 mr-3">
+                                    {activeItem === 'Terminal' && (
+                                        <button
+                                            onClick={() => void openTerminalFolderInFiles(sessionId)}
+                                            title="Open the terminal's current folder in Files"
+                                            className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-colors opacity-60 hover:opacity-100"
+                                            style={{ color: colors.foreground }}
+                                        >
+                                            <FolderOpen className="w-3 h-3" /> Folder
+                                        </button>
+                                    )}
                                     {(['Terminal', 'SFTP'] as const).map((v) => (
                                         <button
                                             key={v}

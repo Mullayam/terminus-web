@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, FolderOpen, KeyRound, Loader2, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Check, Copy, CornerDownLeft, FolderOpen, KeyRound, Loader2, LocateFixed, RefreshCw } from 'lucide-react';
 import { FilePane } from '@/pages/sftp/components/FilePane';
 import { ShowProgressBar } from '@/pages/sftp/components/DownloadProgress';
 import type { DownloadProgressType } from '@/pages/sftp/components/SFTPTabClient';
@@ -11,6 +11,9 @@ import { SocketEventConstants } from '@/lib/sockets/event-constants';
 import { idb } from '@/lib/idb';
 import { Button } from '@/components/ui/button';
 import { connectPayloads } from '../connect-payloads';
+import { useFilesNavStore } from '@/store/filesNavStore';
+import { useTerminalStore } from '@/store/terminalStore';
+import { cdTerminalTo, openTerminalFolderInFiles } from '../files-link';
 
 /**
  * Files (SFTP) view inside an SSH tab.
@@ -181,10 +184,61 @@ export default function SshTabFiles({ sessionId }: { sessionId: string }) {
     setDownloadProgress({});
   }, [socket]);
 
+  // "Show this in Files" requests from the terminal (path links, status bar).
+  const navRequest = useFilesNavStore((s) => s.requests[sessionId]);
+  const consumeNav = useFilesNavStore((s) => s.consume);
+  useEffect(() => {
+    if (!navRequest || !isSftpConnected) return;
+    consumeNav(sessionId);
+    handleSetCurrentDir(navRequest.dir);
+    if (navRequest.file) {
+      window.open(
+        `/ssh/sftp/editor?path=${encodeURIComponent(navRequest.file)}&tabId=${encodeURIComponent(sessionId)}&user=${encodeURIComponent(sshHost)}`,
+        '_blank',
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navRequest?.nonce, isSftpConnected]);
+
+  const terminalCwd = useTerminalStore((s) => s.cwd[sessionId]);
+  const [copied, setCopied] = useState(false);
+  const copyPath = (p: string) => {
+    void navigator.clipboard?.writeText(p).catch(() => { });
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  };
+
   if (session && isConnected && isSftpConnected && socket) {
     return (
       <SFTPContext.Provider value={{ socket, isConnected: true, tabId: sessionId }}>
         <div className="flex flex-col w-full h-full min-w-0 min-h-0 bg-[#0A0A0A]">
+          {/* Terminal ↔ Files bridge */}
+          <div className="flex items-center gap-1 px-3 py-1 border-b border-gray-800 text-[11px] text-gray-400 shrink-0">
+            <span className="truncate font-mono text-gray-300" title={session.currentDir}>{session.currentDir || '…'}</span>
+            <button
+              onClick={() => copyPath(session.currentDir)}
+              title="Copy path"
+              className="p-1 rounded hover:bg-gray-800 hover:text-gray-100"
+            >
+              {copied ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
+            </button>
+            <div className="flex-1" />
+            <button
+              onClick={() => void openTerminalFolderInFiles(sessionId)}
+              title={terminalCwd ? `Go to the terminal's folder (${terminalCwd})` : "Go to the terminal's folder (turns on folder tracking in the shell)"}
+              className="flex items-center gap-1 px-2 py-0.5 rounded hover:bg-gray-800 hover:text-gray-100"
+            >
+              <LocateFixed className="h-3.5 w-3.5" /> Terminal's folder
+            </button>
+            <button
+              onClick={() => session.currentDir && cdTerminalTo(sessionId, session.currentDir)}
+              disabled={!session.currentDir}
+              title="cd the terminal into this folder and switch to it"
+              className="flex items-center gap-1 px-2 py-0.5 rounded hover:bg-gray-800 hover:text-gray-100 disabled:opacity-40"
+            >
+              <CornerDownLeft className="h-3.5 w-3.5" /> cd here in terminal
+            </button>
+          </div>
           <div className="flex-1 min-h-0 overflow-hidden">
             <FilePane
               title={session.title || session.host || sshHost}

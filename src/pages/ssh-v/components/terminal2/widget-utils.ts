@@ -26,6 +26,25 @@ export function sendToTerminal(socket: Socket | null | undefined, line: string, 
   socket.emit(SocketEventConstants.SSH_EMIT_INPUT, run ? `${line}\r` : line);
 }
 
+/** Non-hook one-shot silent exec; resolves "" on timeout. */
+export function execOnce(socket: Socket | null | undefined, cmd: string, timeoutMs = 8000): Promise<string> {
+  if (!socket) return Promise.resolve("");
+  const requestId = `once-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return new Promise((resolve) => {
+    const done = (out: string) => {
+      clearTimeout(timer);
+      socket.off(SocketEventConstants.SSH_EXEC_SILENT_OUTPUT, onOutput);
+      resolve(out.replace(/\r/g, ""));
+    };
+    const onOutput = (p: { requestId?: string; output?: string }) => {
+      if (p?.requestId === requestId) done(p.output ?? "");
+    };
+    const timer = setTimeout(() => done(""), timeoutMs);
+    socket.on(SocketEventConstants.SSH_EXEC_SILENT_OUTPUT, onOutput);
+    socket.emit(SocketEventConstants.SSH_EXEC_SILENT, { requestId, cmd });
+  });
+}
+
 /**
  * One-shot silent exec on a side channel (never touches the xterm).
  * `run(cmd)` resolves with the command's combined output; replies are matched
