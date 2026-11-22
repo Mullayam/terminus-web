@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { z } from 'zod';
 import { useStore } from '@/store';
 import { io, Socket } from 'socket.io-client';
@@ -24,8 +24,9 @@ import { useSessionDisconnect } from '@/hooks/useSessionDisconnect';
 import { useSessionTheme } from '@/hooks/useSessionTheme';
 import { __config } from '@/lib/config';
 import { useTerminalStore } from '@/store/terminalStore';
-import { useSidebarState } from '@/store/sidebarStore';
-import SSHSftpViewer from './components/SSHSftpViewer';
+import { useSidebarState, useSessionView } from '@/store/sidebarStore';
+import SshTabFiles from './components/SshTabFiles';
+import { connectPayloads } from './connect-payloads';
 import ServerStatus from '@/components/layout/ServerStatus';
 import { ReconnectBadge } from './components/ReconnectBadge';
 import { useNavigate } from 'react-router-dom';
@@ -73,13 +74,6 @@ export const DEFAULT_FORM_VALUES: FormValues = {
     localName: '',
 }
 
-/**
- * In-memory cache of the last connect payload per session, used to spawn a
- * fresh shell on reconnect. Kept out of the persisted store so credentials
- * never touch localStorage.
- */
-const connectPayloads = new Map<string, FormValues>();
-
 /** Inline diagnostics counts for the status bar */
 function StatusBarDiagnostics({ sessionId }: { sessionId: string }) {
     const diagnosticsEnabled = useTabStore((s) => s.settings.diagnostics);
@@ -109,7 +103,8 @@ export default function TerminalTab({ sessionId }: Props) {
     const navigate = useNavigate();
     const { setActiveTabData, activeTabData } = useStore()
     const { addSharedSession, addPermissions, deletePermission, deleteSharedSession } = useTerminalStore()
-    const { activeItem } = useSidebarState();
+    const activeItem = useSessionView(sessionId);
+    const setView = useSidebarState((s) => s.setView);
 
     const { tabs, sessions, addSession, updateStatus, updateSftpStatus, activeTabId, loadSessionTheme, loadSessionFont, splitMode, splitTabId, reconnectSignals } = useSSHStore();
     const socketRef = useRef<Socket | null>(null);
@@ -119,26 +114,8 @@ export default function TerminalTab({ sessionId }: Props) {
     const pendingStartRef = useRef<(() => void) | null>(null);
     const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Check if SFTP is available on any session connected to the same host
-    // Also cross-check the independent SFTP store for same-host connections
-    const sftpSessions = useSFTPStore((s) => s.sessions);
-    const sftpAvailableForHost = useMemo(() => {
-        const host = sessions[sessionId]?.host;
-        if (!host) return false;
-        // Check SSH store sessions
-        if (Object.values(sessions).some(s => s.host === host && s.sftp_enabled)) return true;
-        // Check SFTP store sessions (independent SFTP connections)
-        return Object.values(sftpSessions).some(s => s.host === host && s.isSftpConnected);
-    }, [sessions, sftpSessions, sessionId]);
-
-    // Get the socket that has SFTP enabled (prefer current session, fall back to same-host session)
-    const sftpSocket = useMemo(() => {
-        if (sessions[sessionId]?.sftp_enabled) return null; // will use socketRef.current
-        const host = sessions[sessionId]?.host;
-        if (!host) return null;
-        const sftpSession = Object.values(sessions).find(s => s.host === host && s.sftp_enabled);
-        return sftpSession?.socket ?? null;
-    }, [sessions, sessionId]);
+    // This tab's own Files (SFTP) session, opened on demand from the sidebar / status bar.
+    const filesOpen = useSFTPStore((s) => !!s.sessions[sessionId]?.isSftpConnected);
 
     // Split view: get the split session's socket
     const splitSession = splitMode !== 'none' && splitTabId && splitTabId !== sessionId ? sessions[splitTabId] : null;
@@ -389,14 +366,7 @@ export default function TerminalTab({ sessionId }: Props) {
                                     <XTerminal sessionId={sessionId} socket={socketRef.current} />
                                 )}
                             </div>
-                            {activeItem === 'SFTP' && sftpAvailableForHost && (
-                                <SSHSftpViewer socket={(sftpSocket || socketRef.current)!} host={sessions[sessionId]?.host || 'SFTP Host'} />
-                            )}
-                            {activeItem === 'SFTP' && !sftpAvailableForHost && (
-                                <div className="flex items-center justify-center h-full text-gray-400 text-sm">
-                                    SFTP is not available for this session.
-                                </div>
-                            )}
+                            {activeItem === 'SFTP' && <SshTabFiles sessionId={sessionId} />}
                         </TerminalLayout>
                     </div>
                     {tabs.length !== 0 && sessions[sessionId] && (
@@ -408,7 +378,7 @@ export default function TerminalTab({ sessionId }: Props) {
                                         target="_blank" rel="noopener noreferrer" className="inline-block text-gray-200 dark:text-neutral-200 hover:underline" >
                                         {sessions[sessionId].host} </a></span>
                                     <span>Username: {sessions[sessionId].username}</span>
-                                    <span>SFTP:  {sftpAvailableForHost ? 'Enabled' : 'Disabled'} </span>
+                                    <span>SFTP: {filesOpen ? 'Open' : 'Closed'}</span>
                                     <StatusBarDiagnostics sessionId={sessionId} />
                                 </div>
                                 <div className="flex flex-row gap-4">
@@ -430,19 +400,17 @@ export default function TerminalTab({ sessionId }: Props) {
                                 </div>
                                 {/* Left: SSH/SFTP toggle */}
                                 <div className="flex items-center gap-1 mr-3">
-                                    <button
-                                        className="px-2 py-0.5 rounded text-[11px] font-medium transition-colors"
-                                        style={{ background: colors.foreground + '20', color: colors.foreground }}
-                                    >
-                                        SSH
-                                    </button>
-                                    <button
-                                        onClick={() => navigate('/ssh/sftp')}
-                                        className="px-2 py-0.5 rounded text-[11px] font-medium transition-colors opacity-60 hover:opacity-100"
-                                        style={{ color: colors.foreground }}
-                                    >
-                                        SFTP
-                                    </button>
+                                    {(['Terminal', 'SFTP'] as const).map((v) => (
+                                        <button
+                                            key={v}
+                                            onClick={() => setView(sessionId, v)}
+                                            title={v === 'SFTP' ? "Browse this host's files in this tab" : 'Back to the terminal'}
+                                            className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${activeItem === v ? '' : 'opacity-60 hover:opacity-100'}`}
+                                            style={{ background: activeItem === v ? colors.foreground + '20' : undefined, color: colors.foreground }}
+                                        >
+                                            {v === 'Terminal' ? 'SSH' : 'SFTP'}
+                                        </button>
+                                    ))}
                                 </div>
 
                             </div>

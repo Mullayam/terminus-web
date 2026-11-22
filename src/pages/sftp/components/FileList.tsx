@@ -699,10 +699,16 @@ export function FileList({
         break;
     }
   };
-  // Memoize sorted data — never mutate the files prop in-place
+  // Memoize sorted data — never mutate the files prop in-place.
+  // Directories first, then by name — same order as the sidebar tree.
   const sortedFiles = useMemo(
     () =>
-      [...files].sort((a, b) => (a.type === "d" && b.type !== "d" ? -1 : 1)),
+      [...files].sort((a, b) => {
+        const aDir = a?.type === "d";
+        const bDir = b?.type === "d";
+        if (aDir !== bDir) return aDir ? -1 : 1;
+        return (a?.name ?? "").localeCompare(b?.name ?? "");
+      }),
     [files],
   );
   const table = useReactTable({

@@ -38,6 +38,13 @@ export enum SocketEventConstants {
   SSH_EXEC_SILENT = "@@SSH_EXEC_SILENT",
   // Server → client: silent command output. Payload: { requestId: string, output: string }
   SSH_EXEC_SILENT_OUTPUT = "@@SSH_EXEC_SILENT_OUTPUT",
+  // Long-running exec streamed chunk by chunk (e.g. `docker logs -f`).
+  // Client → server: SSH_EXEC_STREAM { streamId, cmd } / SSH_EXEC_STREAM_STOP { streamId }
+  // Server → client: SSH_EXEC_STREAM_DATA { streamId, chunk } / SSH_EXEC_STREAM_END { streamId, code, error? }
+  SSH_EXEC_STREAM = "@@SSH_EXEC_STREAM",
+  SSH_EXEC_STREAM_DATA = "@@SSH_EXEC_STREAM_DATA",
+  SSH_EXEC_STREAM_END = "@@SSH_EXEC_STREAM_END",
+  SSH_EXEC_STREAM_STOP = "@@SSH_EXEC_STREAM_STOP",
 
   // SFTP
   SFTP_ENDED = "@@SFTP_ENDED",
