@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { HostImportExport } from './HostImportExport'
+import { WorkspacesMenu } from './WorkspacesMenu'
 import { HostEditDialog } from './HostEditDialog'
 import { useState } from 'react'
 import { HostsObject } from '../..'
@@ -30,6 +31,7 @@ const StoredHosts = ({ hosts, handleClickOnHostCard, onHostsChanged }: { hosts: 
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-white text-xl font-semibold">Hosts</h2>
                 <div className="flex items-center gap-1.5">
+                    <WorkspacesMenu variant="page" />
                     <HostImportExport onImported={onHostsChanged} />
                     <Button
                         variant={"ghost"}

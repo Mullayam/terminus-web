@@ -18,6 +18,7 @@ import { useSSHStore } from '@/store/sshStore';
 import { useTerminalStore } from '@/store/terminalStore';
 import { useActiveSessionId, useSessionView, useSidebarState } from '@/store/sidebarStore';
 import { closeFilesTab } from '../../files-link';
+import { WorkspacesMenu } from '../WorkspacesMenu';
 import { useSessionTheme } from '@/hooks/useSessionTheme';
 import { useAIChatStore } from '@/store/aiChatStore';
 import { useMonitorStore } from '@/store/monitorStore';
@@ -161,6 +162,7 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
           >
             <Home className="h-4 w-4 text-gray-400" />
           </Button>
+          <WorkspacesMenu />
           <div className="flex space-x-2">
             {tabs.map((tab) => {
               const tabSession = sessions[tab.sessionId];

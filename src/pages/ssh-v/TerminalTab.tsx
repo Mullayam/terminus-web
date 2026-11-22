@@ -28,6 +28,8 @@ import { useSidebarState, useSessionView } from '@/store/sidebarStore';
 import SshTabFiles from './components/SshTabFiles';
 import { connectPayloads } from './connect-payloads';
 import { openTerminalFolderInFiles } from './files-link';
+import { takePendingConnect, takePendingCwd } from './pending-connects';
+import { shQuote } from './components/terminal2/widget-utils';
 import ServerStatus from '@/components/layout/ServerStatus';
 import { ReconnectBadge } from './components/ReconnectBadge';
 import { useNavigate } from 'react-router-dom';
@@ -191,6 +193,9 @@ export default function TerminalTab({ sessionId }: Props) {
             if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
             updateStatus(sessionId, 'connected', data)
             setIsLoading(false);
+            // Restored from a workspace: go back to the saved folder.
+            const cwd = takePendingCwd(sessionId);
+            if (cwd) setTimeout(() => socket.emit(SocketEventConstants.SSH_EMIT_INPUT, ` cd ${shQuote(cwd)}\r`), 400);
         };
 
         const handleSSHError = (data: string) => {
@@ -262,6 +267,16 @@ export default function TerminalTab({ sessionId }: Props) {
 
 
     }, [sessionId, activeTabId]);
+
+    // Opened by "restore workspace": connect right away, or pre-fill the form
+    // when there's no saved login for the host. Runs after the socket effect.
+    React.useEffect(() => {
+        const pending = takePendingConnect(sessionId);
+        if (!pending) return;
+        if (pending.creds) void handleSubmit(pending.creds);
+        else if (pending.prefill) form.reset({ ...DEFAULT_FORM_VALUES, ...pending.prefill });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sessionId]);
 
     /**
      * Fresh-shell reconnect: reuse the existing socket (reconnecting the
