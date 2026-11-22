@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
-import { ScrollText, type LucideIcon } from "lucide-react";
+import { Cog, ScrollText, type LucideIcon } from "lucide-react";
 import LogsPanel from "./logs-panel";
+import ServicesPanel from "./services-panel";
 
 /**
  * Registry of floating panels. Each entry shows up as a toggle row in the
@@ -24,4 +25,5 @@ export interface PanelDef {
 
 export const PANELS: PanelDef[] = [
   { id: "logs", label: "Logs", description: "Follow log files or the systemd journal live", icon: ScrollText, accent: "cyan", Component: LogsPanel },
+  { id: "services", label: "Services", description: "systemd units: start/stop/restart, enable, status, live journal", icon: Cog, accent: "yellow", Component: ServicesPanel },
 ];
