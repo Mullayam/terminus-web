@@ -1,10 +1,11 @@
 import type { ComponentType } from "react";
-import { Bookmark, Cog, Network, Radio, ScrollText, type LucideIcon } from "lucide-react";
+import { Bookmark, Clapperboard, Cog, Network, Radio, ScrollText, type LucideIcon } from "lucide-react";
 import LogsPanel from "./logs-panel";
 import ServicesPanel from "./services-panel";
 import PortsPanel from "./ports-panel";
 import SnippetsPanel from "./snippets-panel";
 import BroadcastPanel from "./broadcast-panel";
+import RecorderPanel from "./recorder-panel";
 
 /**
  * Registry of floating panels. Each entry shows up as a toggle row in the
@@ -32,4 +33,5 @@ export const PANELS: PanelDef[] = [
   { id: "ports", label: "Ports & processes", description: "Listening ports and top processes, kill, details", icon: Network, accent: "magenta", Component: PortsPanel },
   { id: "snippets", label: "Snippets", description: "Saved commands per host — run, insert, fill in {{placeholders}}", icon: Bookmark, accent: "green", Component: SnippetsPanel },
   { id: "broadcast", label: "Broadcast", description: "Type once, run on several SSH tabs (with safety checks)", icon: Radio, accent: "red", Component: BroadcastPanel },
+  { id: "recorder", label: "Recorder", description: "Record the terminal, replay or download as .cast", icon: Clapperboard, accent: "red", Component: RecorderPanel },
 ];
