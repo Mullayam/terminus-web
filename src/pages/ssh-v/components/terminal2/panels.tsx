@@ -1,9 +1,10 @@
 import type { ComponentType } from "react";
-import { Bookmark, Cog, Network, ScrollText, type LucideIcon } from "lucide-react";
+import { Bookmark, Cog, Network, Radio, ScrollText, type LucideIcon } from "lucide-react";
 import LogsPanel from "./logs-panel";
 import ServicesPanel from "./services-panel";
 import PortsPanel from "./ports-panel";
 import SnippetsPanel from "./snippets-panel";
+import BroadcastPanel from "./broadcast-panel";
 
 /**
  * Registry of floating panels. Each entry shows up as a toggle row in the
@@ -30,4 +31,5 @@ export const PANELS: PanelDef[] = [
   { id: "services", label: "Services", description: "systemd units: start/stop/restart, enable, status, live journal", icon: Cog, accent: "yellow", Component: ServicesPanel },
   { id: "ports", label: "Ports & processes", description: "Listening ports and top processes, kill, details", icon: Network, accent: "magenta", Component: PortsPanel },
   { id: "snippets", label: "Snippets", description: "Saved commands per host — run, insert, fill in {{placeholders}}", icon: Bookmark, accent: "green", Component: SnippetsPanel },
+  { id: "broadcast", label: "Broadcast", description: "Type once, run on several SSH tabs (with safety checks)", icon: Radio, accent: "red", Component: BroadcastPanel },
 ];
