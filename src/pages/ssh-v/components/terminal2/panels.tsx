@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { Bookmark, CalendarClock, Clapperboard, Cog, Network, Radio, ScrollText, Shield, type LucideIcon } from "lucide-react";
+import { BellRing, Bookmark, CalendarClock, Clapperboard, Cog, Network, Radio, ScrollText, Shield, type LucideIcon } from "lucide-react";
 import LogsPanel from "./logs-panel";
 import ServicesPanel from "./services-panel";
 import PortsPanel from "./ports-panel";
@@ -8,6 +8,7 @@ import BroadcastPanel from "./broadcast-panel";
 import RecorderPanel from "./recorder-panel";
 import CronPanel from "./cron-panel";
 import FirewallPanel from "./firewall-panel";
+import AlertsPanel from "./alerts-panel";
 
 /**
  * Registry of floating panels. Each entry shows up as a toggle row in the
@@ -38,4 +39,5 @@ export const PANELS: PanelDef[] = [
   { id: "recorder", label: "Recorder", description: "Record the terminal, replay or download as .cast", icon: Clapperboard, accent: "red", Component: RecorderPanel },
   { id: "cron", label: "Cron", description: "View, add, toggle and edit crontab jobs with next-run preview", icon: CalendarClock, accent: "blue", Component: CronPanel },
   { id: "firewall", label: "Firewall", description: "ufw / firewalld / iptables rules, allow or deny ports", icon: Shield, accent: "red", Component: FirewallPanel },
+  { id: "alerts", label: "Alerts", description: "Background watchers: failed services, crashed containers, full disks, low memory, log patterns", icon: BellRing, accent: "red", Component: AlertsPanel },
 ];

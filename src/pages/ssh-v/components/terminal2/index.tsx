@@ -20,6 +20,7 @@ import { useKubernetesStore } from "@/store/kubernetesStore";
 import { useWidgetStore } from "@/store/widgetStore";
 import { usePanelStore } from "@/store/panelStore";
 import { PANELS } from "./panels";
+import WatcherRunner from "./watcher-runner";
 
 export default function TerminalLayout({ children }: { children: React.ReactNode }) {
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
@@ -100,6 +101,8 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
                     {sessionId && isComposeOpen && <ComposeWidget sessionId={sessionId} onClose={closeCompose} />}
                     {/* Floating kubernetes panel */}
                     {sessionId && isKubernetesOpen && <KubernetesWidget sessionId={sessionId} onClose={closeKubernetes} />}
+                    {/* Background alert watchers (all connected sessions) */}
+                    <WatcherRunner />
                     {/* Registry panels (logs, services, ports, …) */}
                     {sessionId && PANELS.map((p) => openPanels[p.id] && (
                         <p.Component key={`${p.id}-${sessionId}`} sessionId={sessionId} onClose={() => closePanel(p.id)} />

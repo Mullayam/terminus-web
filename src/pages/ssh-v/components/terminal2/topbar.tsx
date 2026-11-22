@@ -19,6 +19,7 @@ import { useTerminalStore } from '@/store/terminalStore';
 import { useActiveSessionId, useSessionView, useSidebarState } from '@/store/sidebarStore';
 import { closeFilesTab } from '../../files-link';
 import { WorkspacesMenu } from '../WorkspacesMenu';
+import AlertBadge from './alert-badge';
 import { useSessionTheme } from '@/hooks/useSessionTheme';
 import { useAIChatStore } from '@/store/aiChatStore';
 import { useMonitorStore } from '@/store/monitorStore';
@@ -215,6 +216,7 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
                     )}
                     {filesOpen && <SquareTerminal className="h-3.5 w-3.5 mr-1.5 shrink-0 opacity-80" />}
                     {tab.title}
+                    <AlertBadge sessionId={tab.sessionId} />
                     {tabs.length > 1 && (
                       <span
                         onClick={(e) => {
