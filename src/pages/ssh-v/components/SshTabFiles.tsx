@@ -12,6 +12,7 @@ import { idb } from '@/lib/idb';
 import { Button } from '@/components/ui/button';
 import { connectPayloads } from '../connect-payloads';
 import { useFilesNavStore } from '@/store/filesNavStore';
+import { useSidebarState } from '@/store/sidebarStore';
 import { useTerminalStore } from '@/store/terminalStore';
 import { cdTerminalTo, openTerminalFolderInFiles } from '../files-link';
 
@@ -48,6 +49,7 @@ function bindCleanup() {
     for (const id of Object.keys(prev.sessions)) {
       if (state.sessions[id]) continue;
       promptedCreds.delete(id);
+      useSidebarState.getState().forget(id);
       const sftp = useSFTPStore.getState();
       if (!sftp.sessions[id]) continue;
       destroySocket(id);

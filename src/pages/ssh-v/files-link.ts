@@ -2,6 +2,7 @@ import { useSSHStore } from '@/store/sshStore';
 import { useTerminalStore } from '@/store/terminalStore';
 import { useSidebarState } from '@/store/sidebarStore';
 import { useFilesNavStore } from '@/store/filesNavStore';
+import { useSFTPStore, destroySocket } from '@/store/sftpStore';
 import { execOnce, sendToTerminal, shQuote } from './components/terminal2/widget-utils';
 
 /**
@@ -60,6 +61,19 @@ export async function openTerminalFolderInFiles(sessionId: string) {
   if (cwd) return openPathInFiles(sessionId, cwd);
   // Shell didn't cooperate (e.g. a program is running) — just open Files.
   useSidebarState.getState().setView(sessionId, 'SFTP');
+}
+
+/**
+ * Close a session's SFTP tab: back to the terminal, and drop the SFTP
+ * connection (it reopens, without asking, the next time Files is opened).
+ */
+export function closeFilesTab(sessionId: string) {
+  useSidebarState.getState().closeFilesTab(sessionId);
+  const sftp = useSFTPStore.getState();
+  if (sftp.sessions[sessionId]) {
+    destroySocket(sessionId);
+    sftp.removeSession(sessionId);
+  }
 }
 
 /** `cd` the tab's terminal into `dir` and switch back to it. */

@@ -1,4 +1,4 @@
-import { Columns2, Copy, Home, Menu, Plus, PlusCircle, Power, RotateCcw, Rows2, Square, X, Bot, Activity, Container } from 'lucide-react';
+import { Columns2, Copy, FolderOpen, Home, Menu, Plus, PlusCircle, Power, RotateCcw, Rows2, Square, SquareTerminal, X, Bot, Activity, Container } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
@@ -10,13 +10,14 @@ import {
 } from '@/components/ui/context-menu';
 
 import { HostDialog } from './hostDialog';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 
 
 import { useSSHStore } from '@/store/sshStore';
 import { useTerminalStore } from '@/store/terminalStore';
-import { useActiveSessionId, useSessionView } from '@/store/sidebarStore';
+import { useActiveSessionId, useSessionView, useSidebarState } from '@/store/sidebarStore';
+import { closeFilesTab } from '../../files-link';
 import { useSessionTheme } from '@/hooks/useSessionTheme';
 import { useAIChatStore } from '@/store/aiChatStore';
 import { useMonitorStore } from '@/store/monitorStore';
@@ -70,6 +71,9 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
 
   const { removeLog } = useTerminalStore()
   const activeItem = useSessionView(useActiveSessionId())
+  const views = useSidebarState((s) => s.views)
+  const filesTabs = useSidebarState((s) => s.filesTabs)
+  const setView = useSidebarState((s) => s.setView)
 
   /**
    * Handle the event when a tab is removed.
@@ -158,21 +162,27 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
             <Home className="h-4 w-4 text-gray-400" />
           </Button>
           <div className="flex space-x-2">
-            {tabs.map((tab, index) => {
+            {tabs.map((tab) => {
               const tabSession = sessions[tab.sessionId];
-              const isActive = tab.id === (activeTabId || "");
+              const isCurrent = tab.id === (activeTabId || "");
+              const filesOpen = !!filesTabs[tab.sessionId];
+              const showingFiles = isCurrent && views[tab.sessionId] === 'SFTP';
+              // The SSH tab is highlighted only while its terminal is showing.
+              const isActive = isCurrent && !showingFiles;
               const isSplit = tab.id === splitTabId && splitMode !== 'none';
               // Background output arrived while this tab was not visible.
-              const hasActivity = !!sessionActivity[tab.sessionId] && !isActive && !isSplit;
+              const hasActivity = !!sessionActivity[tab.sessionId] && !isCurrent && !isSplit;
               const tabTheme = XtermTheme[sessionThemes[tab.sessionId] || 'custom'] || XtermTheme.custom;
               const activityColor = (tabTheme as any).brightYellow || (tabTheme as any).yellow || '#f59e0b';
               return (
-              <ContextMenu key={index} modal>
+              <Fragment key={tab.id}>
+              <ContextMenu modal>
                 <ContextMenuTrigger asChild>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => { setActiveTab(tab.id); setView(tab.sessionId, 'Terminal'); }}
+                    title={`${tab.title} — terminal`}
                     className={cn(
                       "px-3 h-8 transition-colors",
                       isActive
@@ -201,6 +211,7 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
                         <span className="size-1.5 rounded-full bg-green-500 mr-1.5 shrink-0" />
                       )
                     )}
+                    {filesOpen && <SquareTerminal className="h-3.5 w-3.5 mr-1.5 shrink-0 opacity-80" />}
                     {tab.title}
                     {tabs.length > 1 && (
                       <span
@@ -288,6 +299,32 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
                   </ContextMenuItem>
                 </ContextMenuContent>
               </ContextMenu>
+              {/* SFTP companion tab: same session, its Files view */}
+              {filesOpen && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setActiveTab(tab.id); setView(tab.sessionId, 'SFTP'); }}
+                  title={`${tab.title} — files (SFTP)`}
+                  className={cn(
+                    "px-3 h-8 transition-colors",
+                    showingFiles ? "text-sky-400 bg-[#24253a]" : "text-gray-400 hover:text-gray-300",
+                  )}
+                >
+                  <FolderOpen className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                  {tab.title}
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      closeFilesTab(tab.sessionId);
+                    }}
+                    title="Close SFTP tab"
+                    className="ml-2 text-red-500 cursor-pointer hover:text-red-400">
+                    <X className="h-3 w-3" />
+                  </span>
+                </Button>
+              )}
+              </Fragment>
               );
             })}
 
