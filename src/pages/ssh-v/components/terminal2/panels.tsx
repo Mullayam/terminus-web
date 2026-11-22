@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { BellRing, Bookmark, CalendarClock, Clapperboard, Cog, HardDrive, Network, Radio, ScrollText, Shield, type LucideIcon } from "lucide-react";
+import { BellRing, Bookmark, CalendarClock, Clapperboard, Cog, HardDrive, HeartPulse, Network, Radio, ScrollText, Shield, type LucideIcon } from "lucide-react";
 import LogsPanel from "./logs-panel";
 import ServicesPanel from "./services-panel";
 import PortsPanel from "./ports-panel";
@@ -10,6 +10,7 @@ import CronPanel from "./cron-panel";
 import FirewallPanel from "./firewall-panel";
 import AlertsPanel from "./alerts-panel";
 import DiskPanel from "./disk-panel";
+import HealthPanel from "./health-panel";
 
 /**
  * Registry of floating panels. Each entry shows up as a toggle row in the
@@ -42,4 +43,5 @@ export const PANELS: PanelDef[] = [
   { id: "firewall", label: "Firewall", description: "ufw / firewalld / iptables rules, allow or deny ports", icon: Shield, accent: "red", Component: FirewallPanel },
   { id: "alerts", label: "Alerts", description: "Background watchers: failed services, crashed containers, full disks, low memory, log patterns", icon: BellRing, accent: "red", Component: AlertsPanel },
   { id: "disk", label: "Disk usage", description: "What fills the disk: mounts, folders, biggest files, cleanups", icon: HardDrive, accent: "yellow", Component: DiskPanel },
+  { id: "health", label: "Host health", description: "One-page health & security check with fixes", icon: HeartPulse, accent: "green", Component: HealthPanel },
 ];
