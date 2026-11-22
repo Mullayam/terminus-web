@@ -2,7 +2,64 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, MoreHorizontal } from "lucide-react";
 
-/* Small building blocks shared by the floating Docker / Compose widgets. */
+/* Small building blocks shared by the floating infrastructure widgets. */
+
+export function IconBtn({ fg, title, onClick, disabled, children }: { fg: string; title: string; onClick: () => void; disabled?: boolean; children: React.ReactNode }) {
+  return (
+    <button
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={onClick}
+      title={title}
+      disabled={disabled}
+      style={{ display: "flex", background: "transparent", border: "none", color: disabled ? `${fg}44` : `${fg}99`, cursor: disabled ? "default" : "pointer", padding: 3, borderRadius: 4 }}
+      onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.background = `${fg}14`; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function Chip({ fg, border, accent, active, onClick, title, children }: {
+  fg: string; border: string; accent: string; active: boolean; onClick: () => void; title?: string; children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap",
+        fontSize: 10, color: active ? fg : `${fg}88`,
+        background: active ? `${accent}22` : "transparent",
+        border: `1px solid ${active ? `${accent}77` : border}`, borderRadius: 5,
+        padding: "3px 7px", cursor: "pointer",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Themed text input with a leading icon (search boxes, path fields). */
+export function SearchInput({ value, onChange, placeholder, fg, border, icon, onEnter, autoFocus }: {
+  value: string; onChange: (v: string) => void; placeholder: string; fg: string; border: string;
+  icon?: React.ReactNode; onEnter?: () => void; autoFocus?: boolean;
+}) {
+  return (
+    <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, border: `1px solid ${border}`, borderRadius: 6, padding: "3px 7px", minWidth: 0 }}>
+      {icon && <span style={{ display: "flex", color: `${fg}66`, flexShrink: 0 }}>{icon}</span>}
+      <input
+        value={value}
+        autoFocus={autoFocus}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") onEnter?.(); }}
+        placeholder={placeholder}
+        spellCheck={false}
+        style={{ flex: 1, minWidth: 0, fontSize: 11, color: fg, background: "transparent", border: "none", outline: "none" }}
+      />
+    </div>
+  );
+}
 
 export function ConfirmBar({
   text, fg, border, red, inline, onYes, onNo,

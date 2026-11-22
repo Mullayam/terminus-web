@@ -18,6 +18,8 @@ import { useDockerStore } from "@/store/dockerStore";
 import { useComposeStore } from "@/store/composeStore";
 import { useKubernetesStore } from "@/store/kubernetesStore";
 import { useWidgetStore } from "@/store/widgetStore";
+import { usePanelStore } from "@/store/panelStore";
+import { PANELS } from "./panels";
 
 export default function TerminalLayout({ children }: { children: React.ReactNode }) {
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
@@ -34,6 +36,8 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
     const closeCompose = useComposeStore((s) => s.close);
     const isKubernetesOpen = useKubernetesStore((s) => s.isOpen);
     const closeKubernetes = useKubernetesStore((s) => s.close);
+    const openPanels = usePanelStore((s) => s.open);
+    const closePanel = usePanelStore((s) => s.close);
     const widgetDefs = useWidgetStore((s) => s.defs);
     const openWidgetIds = useWidgetStore((s) => s.openIds);
     const loadWidgets = useWidgetStore((s) => s.load);
@@ -96,6 +100,10 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
                     {sessionId && isComposeOpen && <ComposeWidget sessionId={sessionId} onClose={closeCompose} />}
                     {/* Floating kubernetes panel */}
                     {sessionId && isKubernetesOpen && <KubernetesWidget sessionId={sessionId} onClose={closeKubernetes} />}
+                    {/* Registry panels (logs, services, ports, …) */}
+                    {sessionId && PANELS.map((p) => openPanels[p.id] && (
+                        <p.Component key={`${p.id}-${sessionId}`} sessionId={sessionId} onClose={() => closePanel(p.id)} />
+                    ))}
                     {/* Floating custom widgets */}
                     {sessionId && !dashboard && openWidgetIds.map((id, i) => {
                         const def = widgetDefs.find((d) => d.id === id);

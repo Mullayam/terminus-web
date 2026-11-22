@@ -18,6 +18,8 @@ import { useWidgetStore } from "@/store/widgetStore";
 import { useDockerStore } from "@/store/dockerStore";
 import { useComposeStore } from "@/store/composeStore";
 import { useKubernetesStore } from "@/store/kubernetesStore";
+import { usePanelStore } from "@/store/panelStore";
+import { PANELS } from "./panels";
 import type { WidgetDef, WidgetRender, WidgetAlert } from "@/lib/widgets/types";
 import { REFRESH_OPTIONS, RENDER_OPTIONS, WIDGET_ACCENTS, WIDGET_TEMPLATE } from "@/lib/widgets/types";
 
@@ -98,6 +100,8 @@ export default function WidgetCenter() {
   const toggleCompose = useComposeStore((s) => s.toggle);
   const isK8sOpen = useKubernetesStore((s) => s.isOpen);
   const toggleK8s = useKubernetesStore((s) => s.toggle);
+  const openPanels = usePanelStore((s) => s.open);
+  const togglePanel = usePanelStore((s) => s.toggle);
 
   const [mode, setMode] = useState<"list" | "form">("list");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -372,6 +376,17 @@ export default function WidgetCenter() {
         onToggle={toggleCompose}
         fg={fg} border={border}
       />
+      {PANELS.map((p) => (
+        <BuiltInPanelRow
+          key={p.id}
+          label={p.label} description={p.description}
+          icon={<p.icon size={16} />}
+          accentColor={colors[p.accent]}
+          isOpen={!!openPanels[p.id]}
+          onToggle={() => togglePanel(p.id)}
+          fg={fg} border={border}
+        />
+      ))}
 
       <div className="space-y-2">
         {defs.length === 0 && (

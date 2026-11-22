@@ -1,18 +1,13 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   AlertTriangle,
-  ArrowDownToLine,
-  Check,
   Clock,
   Container as ContainerIcon,
   Copy,
   Cpu,
-  Download,
   FileJson,
-  Maximize2,
   MemoryStick,
-  Minimize2,
   Pause,
   Play,
   RefreshCw,
@@ -22,15 +17,16 @@ import {
   Square,
   Terminal as TerminalIcon,
   Trash2,
-  WrapText,
   X,
   Zap,
 } from "lucide-react";
 import { useSSHStore } from "@/store/sshStore";
 import { useSessionTheme } from "@/hooks/useSessionTheme";
 import { SocketEventConstants } from "@/lib/sockets/event-constants";
-import { ActionBtn, ConfirmBar, MoreMenu, type MenuItem } from "./widget-parts";
+import { ActionBtn, Chip, ConfirmBar, IconBtn, MoreMenu, type MenuItem } from "./widget-parts";
+import { askAI } from "./widget-utils";
 import { useExecStream } from "./use-exec-stream";
+import { LogPane, TailSelect, type Tail } from "./log-pane";
 
 /**
  * One-shot command: checks for docker, then lists all containers (incl.
@@ -45,8 +41,6 @@ const LIST_CMD =
   "fi";
 
 const POLL_MS = 4000;
-const TAIL_OPTIONS = ["100", "500", "1000", "all"] as const;
-type Tail = (typeof TAIL_OPTIONS)[number];
 
 const PERM_RE = /permission denied|cannot connect to the docker daemon|is the docker daemon running/i;
 
@@ -532,30 +526,42 @@ export default function DockerWidget({ sessionId, onClose }: DockerWidgetProps) 
       </div>
 
       {/* Output pane */}
-      {pane && (
-        <OutputPane
-          pane={pane}
-          fg={fg} border={border}
-          accent={colors.blue}
-          green={colors.green} red={colors.red}
-          wide={wide}
-          onToggleWide={() => setWide((w) => !w)}
-          onClose={() => { setPane(null); setWide(false); }}
-          // logs
+      {pane && (pane.kind === "logs" ? (
+        <LogPane
+          kind="stream"
+          title="Logs" subject={pane.name} icon={<ScrollText size={12} />}
           stream={stream}
-          logsStopped={logsStopped}
-          tail={tail}
-          timestamps={timestamps}
-          onTail={setTail}
-          onTimestamps={() => setTimestamps((t) => !t)}
+          stopped={logsStopped}
           onStop={() => setLogsStopped(true)}
           onRestart={() => { setLogsStopped(false); setRunKey((k) => k + 1); }}
-          onFollowInTerminal={() => followInTerminal(pane.id)}
-          // one-shot
-          onRefresh={() => pane.kind !== "logs" && runOneShot(pane.kind, pane.id)}
-          onCopy={copyText}
+          onTerminal={() => followInTerminal(pane.id)}
+          onExplain={(text) => askAI(sessionId, `Logs from container ${pane.name}:
+${text}`)}
+          highlight
+          options={
+            <>
+              <TailSelect value={tail} onChange={setTail} />
+              <Chip fg={fg} border={border} accent={colors.blue} active={timestamps} onClick={() => setTimestamps((t) => !t)} title="Show timestamps">
+                <Clock size={11} />
+              </Chip>
+            </>
+          }
+          downloadName={`${pane.name || pane.id}-logs.log`}
+          wide={wide} onToggleWide={() => setWide((w) => !w)}
+          onClose={() => { setPane(null); setWide(false); }}
         />
-      )}
+      ) : (
+        <LogPane
+          kind="static"
+          title={pane.kind === "top" ? "Processes" : "Inspect"} subject={pane.name}
+          icon={pane.kind === "top" ? <Activity size={12} /> : <FileJson size={12} />}
+          text={pane.text}
+          onRefresh={() => runOneShot(pane.kind, pane.id)}
+          downloadName={`${pane.name || pane.id}-${pane.kind}.${pane.kind === "inspect" ? "json" : "txt"}`}
+          wide={wide} onToggleWide={() => setWide((w) => !w)}
+          onClose={() => { setPane(null); setWide(false); }}
+        />
+      ))}
 
       {result?.available && !result.error && (
         <div style={{ display: "flex", alignItems: "center", fontSize: 10, color: `${fg}55`, padding: "6px 12px", borderTop: `1px solid ${border}`, flexShrink: 0 }}>
@@ -572,253 +578,7 @@ export default function DockerWidget({ sessionId, onClose }: DockerWidgetProps) 
   );
 }
 
-/* ── Output pane ────────────────────────────────────────────── */
-
-interface OutputPaneProps {
-  pane: Pane;
-  fg: string;
-  border: string;
-  accent: string;
-  green: string;
-  red: string;
-  wide: boolean;
-  onToggleWide: () => void;
-  onClose: () => void;
-  stream: ReturnType<typeof useExecStream>;
-  logsStopped: boolean;
-  tail: Tail;
-  timestamps: boolean;
-  onTail: (t: Tail) => void;
-  onTimestamps: () => void;
-  onStop: () => void;
-  onRestart: () => void;
-  onFollowInTerminal: () => void;
-  onRefresh: () => void;
-  onCopy: (text: string) => void;
-}
-
-const PANE_TITLE: Record<Pane["kind"], string> = { logs: "Logs", inspect: "Inspect", top: "Processes" };
-
-function OutputPane(props: OutputPaneProps) {
-  const { pane, fg, border, accent, green, red, wide, stream, logsStopped, tail, timestamps } = props;
-  const isLogs = pane.kind === "logs";
-
-  const [filter, setFilter] = useState("");
-  const [wrap, setWrap] = useState(false);
-  const [atBottom, setAtBottom] = useState(true);
-  const [copied, setCopied] = useState(false);
-  const bodyRef = useRef<HTMLPreElement | null>(null);
-  const atBottomRef = useRef(true);
-
-  const allLines = useMemo(
-    () => (isLogs ? stream.lines : pane.text === null ? [] : pane.text.split("\n")),
-    [isLogs, stream.lines, pane],
-  );
-  const shown = useMemo(() => {
-    const q = filter.trim().toLowerCase();
-    return q ? allLines.filter((l) => l.toLowerCase().includes(q)) : allLines;
-  }, [allLines, filter]);
-  const text = shown.join("\n");
-
-  // Stick to the bottom like a terminal, unless the user scrolled up to read.
-  useLayoutEffect(() => {
-    const el = bodyRef.current;
-    if (el && atBottomRef.current) el.scrollTop = el.scrollHeight;
-  }, [text]);
-
-  // New target → start at the bottom again.
-  useEffect(() => {
-    atBottomRef.current = true;
-    setAtBottom(true);
-  }, [pane.id, pane.kind]);
-
-  const onScroll = () => {
-    const el = bodyRef.current;
-    if (!el) return;
-    const bottom = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
-    atBottomRef.current = bottom;
-    setAtBottom(bottom);
-  };
-  const jumpToBottom = () => {
-    const el = bodyRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
-    atBottomRef.current = true;
-    setAtBottom(true);
-  };
-
-  const copy = () => {
-    props.onCopy(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1200);
-  };
-  const download = () => {
-    const blob = new Blob([text], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${pane.name || pane.id}-${pane.kind}.${pane.kind === "inspect" ? "json" : "log"}`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  };
-
-  const live = isLogs && stream.live;
-  let statusEl: React.ReactNode;
-  if (isLogs) {
-    if (live) {
-      statusEl = (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 9.5, fontWeight: 600, color: green, letterSpacing: 0.4 }}>
-          <span style={{ width: 6, height: 6, borderRadius: "50%", background: green, animation: "dkPulse 1.4s ease-in-out infinite" }} /> LIVE
-        </span>
-      );
-    } else if (stream.error) {
-      statusEl = <span style={{ fontSize: 9.5, color: red }} title={stream.error}>error</span>;
-    } else {
-      statusEl = (
-        <span style={{ fontSize: 9.5, color: `${fg}77` }}>
-          {logsStopped ? "stopped" : stream.exitCode !== null ? `ended (exit ${stream.exitCode})` : "ended"}
-        </span>
-      );
-    }
-  }
-
-  const loading = isLogs ? live && allLines.length === 0 : pane.text === null;
-  const paneHeight = wide ? "56vh" : "36vh";
-
-  return (
-    <div style={{ borderTop: `1px solid ${border}`, display: "flex", flexDirection: "column", height: paneHeight, flexShrink: 0 }}>
-      {/* Title row */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px 6px 12px", borderBottom: `1px solid ${border}` }}>
-        {isLogs ? <ScrollText size={12} style={{ color: accent }} /> : pane.kind === "top" ? <Activity size={12} style={{ color: accent }} /> : <FileJson size={12} style={{ color: accent }} />}
-        <span style={{ fontSize: 11, fontWeight: 600, color: fg }}>{PANE_TITLE[pane.kind]}</span>
-        <span style={{ fontSize: 10.5, color: `${fg}88`, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 160 }} title={pane.name}>{pane.name}</span>
-        {statusEl}
-        <div style={{ flex: 1 }} />
-
-        {isLogs ? (
-          <>
-            {live ? (
-              <IconBtn fg={fg} title="Stop streaming" onClick={props.onStop}><Square size={12} /></IconBtn>
-            ) : (
-              <IconBtn fg={fg} title="Reconnect stream" onClick={props.onRestart}><Play size={12} /></IconBtn>
-            )}
-            <IconBtn fg={fg} title="Clear" onClick={stream.clear}><Trash2 size={12} /></IconBtn>
-            <IconBtn fg={fg} title="Follow in the terminal" onClick={props.onFollowInTerminal}><TerminalIcon size={12} /></IconBtn>
-          </>
-        ) : (
-          <IconBtn fg={fg} title="Refresh" onClick={props.onRefresh}><RefreshCw size={12} /></IconBtn>
-        )}
-        <IconBtn fg={fg} title={copied ? "Copied" : "Copy"} onClick={copy}>{copied ? <Check size={12} style={{ color: green }} /> : <Copy size={12} />}</IconBtn>
-        <IconBtn fg={fg} title="Download" onClick={download}><Download size={12} /></IconBtn>
-        <IconBtn fg={fg} title={wide ? "Shrink" : "Expand"} onClick={props.onToggleWide}>{wide ? <Minimize2 size={12} /> : <Maximize2 size={12} />}</IconBtn>
-        <IconBtn fg={fg} title="Close" onClick={props.onClose}><X size={13} /></IconBtn>
-      </div>
-
-      {/* Options row */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px 5px 12px", borderBottom: `1px solid ${border}` }}>
-        <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 5, border: `1px solid ${border}`, borderRadius: 5, padding: "2px 6px", minWidth: 0 }}>
-          <Search size={11} style={{ color: `${fg}66`, flexShrink: 0 }} />
-          <input
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="Filter lines"
-            spellCheck={false}
-            style={{ flex: 1, minWidth: 0, fontSize: 10.5, color: fg, background: "transparent", border: "none", outline: "none" }}
-          />
-          {filter && <span style={{ fontSize: 9.5, color: `${fg}77`, whiteSpace: "nowrap" }}>{shown.length}/{allLines.length}</span>}
-        </div>
-        {isLogs && (
-          <>
-            <select
-              value={tail}
-              onChange={(e) => props.onTail(e.target.value as Tail)}
-              title="Lines of history to load"
-              style={{ fontSize: 10, color: fg, background: "transparent", border: `1px solid ${border}`, borderRadius: 5, padding: "2px 4px", cursor: "pointer" }}
-            >
-              {TAIL_OPTIONS.map((t) => <option key={t} value={t} style={{ color: "#000" }}>{t === "all" ? "all" : `last ${t}`}</option>)}
-            </select>
-            <Chip fg={fg} border={border} accent={accent} active={timestamps} onClick={props.onTimestamps} title="Show timestamps">
-              <Clock size={11} />
-            </Chip>
-          </>
-        )}
-        <Chip fg={fg} border={border} accent={accent} active={wrap} onClick={() => setWrap((w) => !w)} title="Wrap long lines">
-          <WrapText size={11} />
-        </Chip>
-      </div>
-
-      {/* Body */}
-      <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
-        <pre
-          ref={bodyRef}
-          onScroll={onScroll}
-          className="scrollbar-green"
-          style={{
-            position: "absolute", inset: 0, margin: 0, padding: "8px 12px",
-            fontSize: 10.5, lineHeight: 1.5, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-            color: `${fg}cc`, overflow: "auto",
-            whiteSpace: wrap ? "pre-wrap" : "pre", wordBreak: wrap ? "break-all" : undefined,
-          }}
-        >
-          {isLogs && stream.dropped > 0 && !filter && (
-            <span style={{ color: `${fg}55` }}>… {stream.dropped} older lines dropped …{"\n"}</span>
-          )}
-          {loading ? <span style={{ color: `${fg}66` }}>{isLogs ? "Waiting for output…" : "Loading…"}</span> : text || <span style={{ color: `${fg}55` }}>{filter ? "No matching lines." : "No output."}</span>}
-          {isLogs && stream.error && <span style={{ color: red }}>{"\n"}{stream.error}</span>}
-        </pre>
-        {!atBottom && (
-          <button
-            onClick={jumpToBottom}
-            style={{
-              position: "absolute", right: 14, bottom: 10, display: "inline-flex", alignItems: "center", gap: 4,
-              fontSize: 10, color: "#fff", background: accent, border: "none", borderRadius: 12,
-              padding: "3px 9px", cursor: "pointer", boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
-            }}
-          >
-            <ArrowDownToLine size={11} /> {live ? "Jump to live" : "Bottom"}
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
 /* ── Small building blocks ──────────────────────────────────── */
-
-function IconBtn({ fg, title, onClick, children }: { fg: string; title: string; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onPointerDown={(e) => e.stopPropagation()}
-      onClick={onClick}
-      title={title}
-      style={{ display: "flex", background: "transparent", border: "none", color: `${fg}99`, cursor: "pointer", padding: 3, borderRadius: 4 }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = `${fg}14`; }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function Chip({ fg, border, accent, active, onClick, title, children }: {
-  fg: string; border: string; accent: string; active: boolean; onClick: () => void; title?: string; children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      style={{
-        display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap",
-        fontSize: 10, color: active ? fg : `${fg}88`,
-        background: active ? `${accent}22` : "transparent",
-        border: `1px solid ${active ? `${accent}77` : border}`, borderRadius: 5,
-        padding: "3px 7px", cursor: "pointer",
-      }}
-    >
-      {children}
-    </button>
-  );
-}
 
 function Meter({ icon, label, value, pct, color, fg, track }: {
   icon: React.ReactNode; label: string; value: string; pct: number | null; color: string; fg: string; track: string;
