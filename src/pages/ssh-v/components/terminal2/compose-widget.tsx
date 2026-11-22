@@ -22,9 +22,11 @@ import { useTerminalStore } from "@/store/terminalStore";
 import { useSessionTheme } from "@/hooks/useSessionTheme";
 import { SocketEventConstants } from "@/lib/sockets/event-constants";
 import { ActionBtn, ConfirmBar, MoreMenu } from "./widget-parts";
+import { useExecStream } from "./use-exec-stream";
+import { LogPane, TailSelect } from "./log-pane";
+import { askAI, type Tail } from "./widget-utils";
 
 const POLL_MS = 6000;
-const LOG_TAIL = 200;
 
 const PERM_RE = /permission denied|cannot connect to the docker daemon|is the docker daemon running/i;
 
@@ -120,10 +122,22 @@ function actionCmd(file: string, action: ComposeAction, service?: string): strin
   }
 }
 
-function logsCmd(file: string, service?: string): string {
+function logsCmd(file: string, tail: Tail, service?: string): string {
   const s = service ? ` ${shQuote(service)}` : "";
-  return `${composeBin()} -f ${shQuote(file)} logs --tail ${LOG_TAIL} --no-color${s} 2>&1`;
+  return `${composeBin()} -f ${shQuote(file)} logs -f --tail ${tail} --no-color${s} 2>&1`;
 }
+
+/** Slow actions stream their output live instead of showing a spinner. */
+const STREAMED: ComposeAction[] = ["up", "up-build", "recreate", "build", "build-nocache", "pull", "down", "down-volumes"];
+
+/** Plain progress output: TTY progress bars redraw lines and turn to noise once stripped. */
+function streamedActionCmd(file: string, action: ComposeAction, service?: string): string {
+  return `COMPOSE_PROGRESS=plain BUILDKIT_PROGRESS=plain ${actionCmd(file, action, service)}`;
+}
+
+type Pane =
+  | { kind: "logs"; service?: string }
+  | { kind: "action"; action: ComposeAction; service?: string };
 
 interface Service {
   name: string;
@@ -227,11 +241,14 @@ export default function ComposeWidget({ sessionId, onClose }: ComposeWidgetProps
   const [busy, setBusy] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ action: ComposeAction; service?: string } | null>(null);
   const [actionErr, setActionErr] = useState<string | null>(null);
-  const [logs, setLogs] = useState<{ service?: string; text: string } | null>(null);
+  const [pane, setPane] = useState<Pane | null>(null);
+  const [tail, setTail] = useState<Tail>("100");
+  const [stopped, setStopped] = useState(false);
+  const [runKey, setRunKey] = useState(0);
+  const [wide, setWide] = useState(false);
 
   const inFlightRef = useRef(false);
   const pollRef = useRef<() => void>(() => { });
-  const logBodyRef = useRef<HTMLPreElement | null>(null);
 
   const [pos, setPos] = useState(() => ({ x: Math.max(12, window.innerWidth - 420), y: 96 }));
   const dragRef = useRef<{ dx: number; dy: number } | null>(null);
@@ -277,7 +294,6 @@ export default function ComposeWidget({ sessionId, onClose }: ComposeWidgetProps
 
     const listPrefix = `cmps-${sessionId}-`;
     const actPrefix = `cmpa-${sessionId}-`;
-    const logPrefix = `cmpl-${sessionId}-`;
     let seq = 0;
 
     const onOutput = (payload: { requestId: string; output: string }) => {
@@ -286,11 +302,6 @@ export default function ComposeWidget({ sessionId, onClose }: ComposeWidgetProps
         inFlightRef.current = false;
         setResult(parseServices(payload.output ?? ""));
         setLastUpdate(Date.now());
-        return;
-      }
-      if (payload.requestId.startsWith(logPrefix)) {
-        setBusy(null);
-        setLogs((l) => ({ service: l?.service, text: payload.output ?? "" }));
         return;
       }
       if (payload.requestId.startsWith(actPrefix)) {
@@ -320,14 +331,41 @@ export default function ComposeWidget({ sessionId, onClose }: ComposeWidgetProps
     };
   }, [socket, connected, paused, sessionId, file]);
 
+  const streamCmd = pane && connected && file && !stopped
+    ? pane.kind === "logs" ? logsCmd(file, tail, pane.service) : streamedActionCmd(file, pane.action, pane.service)
+    : null;
+  const stream = useExecStream(socket, streamCmd, runKey);
+
+  // A streamed action finished: release the buttons, refresh, report failure.
+  const actionLiveRef = useRef(false);
   useEffect(() => {
-    if (logs && logBodyRef.current) logBodyRef.current.scrollTop = logBodyRef.current.scrollHeight;
-  }, [logs]);
+    if (pane?.kind !== "action") { actionLiveRef.current = false; return; }
+    if (stream.live) { actionLiveRef.current = true; return; }
+    if (!actionLiveRef.current) return;
+    actionLiveRef.current = false;
+    setBusy(null);
+    pollRef.current();
+    if (stream.error) setActionErr(stream.error);
+    else if (stream.exitCode) setActionErr(`${ACTION_LABEL[pane.action]} failed (exit ${stream.exitCode}) — see the output below`);
+  }, [stream.live, stream.exitCode, stream.error, pane]);
+
+  const actionRunning = pane?.kind === "action" && stream.live;
+  const closePane = () => {
+    if (pane?.kind === "action" && stream.live && !window.confirm(`Closing the output cancels the running "${ACTION_LABEL[pane.action]}". Cancel it?`)) return;
+    setPane(null);
+    setWide(false);
+  };
 
   const runAction = (action: ComposeAction, service?: string) => {
     if (!socket || !connected || !file) return;
     setActionErr(null);
     setBusy(service ?? "__stack__");
+    if (STREAMED.includes(action)) {
+      setStopped(false);
+      setPane({ kind: "action", action, service });
+      setRunKey((k) => k + 1);
+      return;
+    }
     socket.emit(SocketEventConstants.SSH_EXEC_SILENT, {
       requestId: `cmpa-${sessionId}-${Date.now()}`,
       cmd: actionCmd(file, action, service),
@@ -340,13 +378,10 @@ export default function ComposeWidget({ sessionId, onClose }: ComposeWidgetProps
   };
 
   const openLogs = (service?: string) => {
-    if (!socket || !connected || !file) return;
-    setBusy(service ?? "__stack__");
-    setLogs({ service, text: "" });
-    socket.emit(SocketEventConstants.SSH_EXEC_SILENT, {
-      requestId: `cmpl-${sessionId}-${Date.now()}`,
-      cmd: logsCmd(file, service),
-    });
+    if (!socket || !connected || !file || actionRunning) return;
+    if (pane?.kind === "logs" && pane.service === service) { setPane(null); return; }
+    setStopped(false);
+    setPane({ kind: "logs", service });
   };
 
   /** Live follow can't use the exec channel (never returns) — send it to the xterm. */
@@ -391,17 +426,20 @@ export default function ComposeWidget({ sessionId, onClose }: ComposeWidgetProps
   const gray = colors.brightBlack ?? `${fg}66`;
   const sc = { green: colors.green, yellow: colors.yellow, red: colors.red, gray };
 
-  const services = result?.services ?? [];
+  const services = useMemo(() => result?.services ?? [], [result]);
   const upCount = useMemo(() => services.filter((s) => s.state.startsWith("running")).length, [services]);
   const stackBusy = busy === "__stack__";
 
   const shortFile = (f: string) => f.replace(/^.*\/([^/]+\/[^/]+)$/, "$1");
+  // Widen while the output pane is open; keep the panel on-screen.
+  const width = pane ? (wide ? Math.min(980, window.innerWidth - 24) : 560) : 400;
+  const left = Math.max(0, Math.min(pos.x, window.innerWidth - width - 8));
 
   return (
     <div
       style={{
-        position: "fixed", left: pos.x, top: pos.y, zIndex: 50,
-        width: 400, maxHeight: "80vh", borderRadius: 12,
+        position: "fixed", left, top: pos.y, zIndex: 50,
+        width, maxHeight: wide ? "90vh" : "80vh", borderRadius: 12,
         background: `${bg}f2`, border: `1px solid ${border}`,
         boxShadow: "0 18px 48px rgba(0,0,0,0.45)",
         backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
@@ -487,7 +525,7 @@ export default function ComposeWidget({ sessionId, onClose }: ComposeWidgetProps
           <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
             <select
               value={file ?? ""}
-              onChange={(e) => { setFile(e.target.value); setResult(null); setLogs(null); }}
+              onChange={(e) => { setFile(e.target.value); setResult(null); if (!actionRunning) setPane(null); }}
               style={{
                 flex: 1, fontSize: 11, fontFamily: "ui-monospace, monospace",
                 background: `${fg}0a`, border: `1px solid ${border}`, borderRadius: 6,
@@ -634,34 +672,33 @@ export default function ComposeWidget({ sessionId, onClose }: ComposeWidgetProps
         )}
       </div>
 
-      {/* Log pane */}
-      {logs && (
-        <div style={{ borderTop: `1px solid ${border}`, display: "flex", flexDirection: "column", maxHeight: "34vh" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderBottom: `1px solid ${border}` }}>
-            <ScrollText size={12} style={{ color: `${fg}88` }} />
-            <span style={{ fontSize: 10.5, color: `${fg}aa` }}>
-              {logs.service ?? "all services"} · last {LOG_TAIL}
-            </span>
-            <div style={{ flex: 1 }} />
-            <button
-              onClick={() => followInTerminal(logs.service)}
-              title="Follow live in the terminal"
-              style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: `${fg}aa`, background: "transparent", border: `1px solid ${border}`, borderRadius: 5, padding: "2px 6px", cursor: "pointer" }}
-            >
-              <TerminalIcon size={11} /> Follow
-            </button>
-            <button onClick={() => setLogs(null)} title="Close logs" style={{ display: "flex", background: "transparent", border: "none", color: `${fg}88`, cursor: "pointer", padding: 2 }}>
-              <X size={13} />
-            </button>
-          </div>
-          <pre
-            ref={logBodyRef}
-            className="scrollbar-green"
-            style={{ margin: 0, padding: "8px 12px", fontSize: 10, lineHeight: 1.5, fontFamily: "ui-monospace, monospace", color: `${fg}bb`, overflow: "auto", whiteSpace: "pre" }}
-          >
-            {logs.text || "…"}
-          </pre>
-        </div>
+      {/* Output pane: live logs, or a streamed action's progress */}
+      {pane && file && (
+        <LogPane
+          kind="stream"
+          title={pane.kind === "logs" ? "Logs" : ACTION_LABEL[pane.action]}
+          subject={pane.service ?? "all services"}
+          icon={pane.kind === "logs" ? <ScrollText size={12} /> : <Hammer size={12} />}
+          stream={stream}
+          stopped={stopped}
+          onStop={() => {
+            if (pane.kind === "action" && !window.confirm(`Cancel the running "${ACTION_LABEL[pane.action]}"?`)) return;
+            setStopped(true);
+          }}
+          onRestart={() => {
+            setStopped(false);
+            setRunKey((k) => k + 1);
+            if (pane.kind === "action") setBusy(pane.service ?? "__stack__");
+          }}
+          onTerminal={pane.kind === "logs" ? () => followInTerminal(pane.service) : undefined}
+          onExplain={(text) => askAI(sessionId, `docker compose ${pane.kind === "logs" ? "logs" : ACTION_LABEL[pane.action]} output (${pane.service ?? "all services"}):\n${text}`)}
+          highlight
+          options={pane.kind === "logs" ? <TailSelect value={tail} onChange={setTail} /> : undefined}
+          downloadName={`compose-${pane.kind === "logs" ? "logs" : pane.action}-${pane.service ?? "stack"}.log`}
+          wide={wide}
+          onToggleWide={() => setWide((w) => !w)}
+          onClose={closePane}
+        />
       )}
 
       {file && result?.available && !result.error && (
