@@ -16,7 +16,7 @@ import { v4 as uuid } from 'uuid';
 
 import { useSSHStore } from '@/store/sshStore';
 import { useTerminalStore } from '@/store/terminalStore';
-import { useSidebarState } from '@/store/sidebarStore';
+import { useActiveSessionId, useSessionView } from '@/store/sidebarStore';
 import { useSessionTheme } from '@/hooks/useSessionTheme';
 import { useAIChatStore } from '@/store/aiChatStore';
 import { useMonitorStore } from '@/store/monitorStore';
@@ -69,7 +69,7 @@ export function TopBar({ onToggleSidebar, onToggleRightSidebar, isRightSidebarOp
   } = useSSHStore();
 
   const { removeLog } = useTerminalStore()
-  const { activeItem } = useSidebarState()
+  const activeItem = useSessionView(useActiveSessionId())
 
   /**
    * Handle the event when a tab is removed.

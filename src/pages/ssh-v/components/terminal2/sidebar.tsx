@@ -1,62 +1,33 @@
-import { Boxes, FileBadge, FilesIcon, Terminal } from "lucide-react";
+import { Boxes, FileBadge, FolderOpen, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import React, { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
-import { useSidebarState } from "@/store/sidebarStore";
-import { useSSHStore } from "@/store/sshStore";
+import { useActiveSessionId, useSessionView, useSidebarState, type SessionView } from "@/store/sidebarStore";
 import { useTabStore } from "@/store/rightSidebarTabStore";
 import { useSessionTheme } from "@/hooks/useSessionTheme";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 interface NavItem {
   icon: typeof Terminal;
-  label: "Terminal" | "SFTP";
-  color?: string;
-  url?: string;
-  state: boolean;
+  view: SessionView;
+  title: string;
 }
 
+/** Both views live inside the current SSH tab; switching never leaves the page. */
+const NAV_ITEMS: NavItem[] = [
+  { icon: Terminal, view: "Terminal", title: "Terminal" },
+  { icon: FolderOpen, view: "SFTP", title: "Files (SFTP) in this tab" },
+];
+
 export function Sidebar() {
-  const { sessions, activeTabId } = useSSHStore();
-  const { activeItem, setActiveItem } = useSidebarState();
+  const sessionId = useActiveSessionId();
+  const activeItem = useSessionView(sessionId);
+  const setView = useSidebarState((s) => s.setView);
   const setActiveTab = useTabStore((s) => s.setActiveTab);
   const setRightSidebarOpen = useTabStore((s) => s.setRightSidebarOpen);
   const rightSidebarOpen = useTabStore((s) => s.rightSidebarOpen);
   const activeTab = useTabStore((s) => s.activeTab);
   const { colors } = useSessionTheme();
-  const navigate = useNavigate();
-
-  const [navItems, setNavItems] = useState<NavItem[]>([
-    { icon: Terminal, label: "Terminal", state: true },
-  ]);
-
-  useEffect(() => {
-    if (sessions && activeTabId && sessions[activeTabId]) {
-      const currentHost = sessions[activeTabId]?.host;
-      // Show SFTP if any session connected to the same host has SFTP enabled
-      const anySftpEnabled = Object.values(sessions).some(
-        (s) => s.host === currentHost && s.sftp_enabled
-      );
-      const hasSftp = navItems.some((item) => item.label === "SFTP");
-      if (!hasSftp && anySftpEnabled) {
-        setNavItems((prev) => [
-          ...prev,
-          {
-            label: "SFTP",
-            icon: FilesIcon,
-            url: "/ssh/sftp",
-            state: true,
-          },
-        ]);
-      }
-    }
-  }, [sessions, activeTabId]);
-
-  const handleClick = (item: NavItem) => {
-    setActiveItem(item.label as any);
-    if (item.url) navigate(item.url);
-  };
 
   const widgetsActive = rightSidebarOpen && activeTab === "widgets";
   const openWidgets = () => {
@@ -69,34 +40,34 @@ export function Sidebar() {
       className="w-16 flex flex-col items-center py-4 border-r border-gray-800/50 shrink-0"
       style={{ backgroundColor: `${colors.background}ee` }}
     >
-      {navItems.map((item) => (
+      {NAV_ITEMS.map((item) => (
         <Button
-          key={item.label}
+          key={item.view}
           variant="ghost"
           size="icon"
-          title={item.label}
+          title={item.title}
+          disabled={!sessionId}
           className={cn(
             "mb-4 relative group",
-            activeItem === item.label && "bg-[#24253a]",
+            activeItem === item.view && "bg-[#24253a]",
           )}
-          onClick={() => handleClick(item)}
+          onClick={() => sessionId && setView(sessionId, item.view)}
         >
           <item.icon
             className={cn(
-              "h-5 w-5",
-              item.color || "text-gray-400",
-              activeItem === item.label && "text-orange-500",
+              "h-5 w-5 text-gray-400",
+              activeItem === item.view && "text-orange-500",
             )}
           />
         </Button>
       ))}
 
-      {/* Quick link to SFTP page — always visible */}
+      {/* Quick link to the standalone SFTP page — always visible */}
       <Link to="/ssh/sftp">
         <Button
           variant="ghost"
           size="icon"
-          title="Open SFTP"
+          title="Open SFTP page"
           className={cn("mb-4 relative group")}
         >
           <FileBadge className="h-5 w-5 text-gray-400" />
