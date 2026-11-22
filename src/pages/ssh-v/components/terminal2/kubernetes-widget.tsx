@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import {
   AlertTriangle,
   Box,
+  Clock,
+  History,
   ChevronDown,
   FileText,
   Image as ImageIcon,
@@ -11,7 +13,6 @@ import {
   RotateCcw,
   Scale,
   Search,
-  Square,
   Terminal,
   Trash2,
   X,
@@ -20,6 +21,10 @@ import { useSSHStore } from "@/store/sshStore";
 import { useSessionTheme } from "@/hooks/useSessionTheme";
 import { useKubernetesStore } from "@/store/kubernetesStore";
 import { SocketEventConstants } from "@/lib/sockets/event-constants";
+import { useExecStream } from "./use-exec-stream";
+import { LogPane, TailSelect } from "./log-pane";
+import { Chip } from "./widget-parts";
+import { askAI, execOnce, sendToTerminal, shQuote, type Tail } from "./widget-utils";
 
 /* ── kubectl commands ─────────────────────────────────────────────── */
 
@@ -127,16 +132,6 @@ type PodAction =
   | "scale"
   | "set-image";
 
-interface PodActionDef {
-  action: PodAction;
-  label: string;
-  icon: React.ReactNode;
-  confirm?: boolean;
-  needsInput?: boolean;
-  inputLabel?: string;
-  inputPlaceholder?: string;
-}
-
 /* ── Widget ────────────────────────────────────────────────────────── */
 
 interface KubernetesWidgetProps {
@@ -162,8 +157,18 @@ export default function KubernetesWidget({ sessionId, onClose }: KubernetesWidge
   const [filter, setFilter] = useState("");
   const [showNsDropdown, setShowNsDropdown] = useState(false);
 
-  // Logs / describe output overlay
+  // Describe output overlay
   const [outputOverlay, setOutputOverlay] = useState<{ title: string; content: string } | null>(null);
+
+  // Live logs pane
+  const [logPod, setLogPod] = useState<{ name: string; ns: string; containers: string[] } | null>(null);
+  const [logContainer, setLogContainer] = useState("");
+  const [logPrevious, setLogPrevious] = useState(false);
+  const [logTimestamps, setLogTimestamps] = useState(false);
+  const [logTail, setLogTail] = useState<Tail>("100");
+  const [logStopped, setLogStopped] = useState(false);
+  const [logRunKey, setLogRunKey] = useState(0);
+  const [logWide, setLogWide] = useState(false);
 
   // Input dialog (for scale / set-image)
   const [inputDialog, setInputDialog] = useState<{
@@ -273,12 +278,20 @@ export default function KubernetesWidget({ sessionId, onClose }: KubernetesWidge
             pod.name,
           );
           break;
-        case "logs":
-          runCmd(`kubectl logs ${pod.name} -n ${ns} --tail=200 2>&1`, pod.name, {
-            captureOutput: true,
-            outputTitle: `Logs: ${pod.name}`,
-          });
+        case "logs": {
+          if (logPod?.name === pod.name && logPod.ns === ns) { setLogPod(null); break; }
+          setLogStopped(false);
+          setLogPrevious(false);
+          setLogContainer("");
+          setLogPod({ name: pod.name, ns, containers: [] });
+          // Multi-container pods get a container picker.
+          void execOnce(socket, `kubectl get pod ${shQuote(pod.name)} -n ${shQuote(ns)} -o jsonpath='{.spec.containers[*].name}' 2>/dev/null`)
+            .then((out) => {
+              const containers = out.trim().split(/\s+/).filter(Boolean);
+              setLogPod((cur) => (cur && cur.name === pod.name && cur.ns === ns ? { ...cur, containers } : cur));
+            });
           break;
+        }
         case "describe":
           runCmd(`kubectl describe pod ${pod.name} -n ${ns} 2>&1`, pod.name, {
             captureOutput: true,
@@ -310,7 +323,7 @@ export default function KubernetesWidget({ sessionId, onClose }: KubernetesWidge
             `dep=$(kubectl get pod ${pod.name} -n ${ns} -o jsonpath='{.metadata.ownerReferences[0].name}' 2>/dev/null); ` +
             `if [ -n "$dep" ]; then rs="$dep"; dep=$(kubectl get rs "$rs" -n ${ns} -o jsonpath='{.metadata.ownerReferences[0].name}' 2>/dev/null); fi; ` +
             `ctr=$(kubectl get pod ${pod.name} -n ${ns} -o jsonpath='{.spec.containers[0].name}' 2>/dev/null); ` +
-            `if [ -n "$dep" ] && [ -n "$ctr" ]; then kubectl set image deployment "$dep" "$ctr"=${inputVal} -n ${ns} 2>&1; ` +
+            `if [ -n "$dep" ] && [ -n "$ctr" ]; then kubectl set image deployment "$dep" "$ctr"=${shQuote(inputVal)} -n ${ns} 2>&1; ` +
             `else echo "Cannot find parent deployment or container for ${pod.name}"; fi`,
             pod.name,
           );
@@ -318,7 +331,7 @@ export default function KubernetesWidget({ sessionId, onClose }: KubernetesWidge
         }
       }
     },
-    [namespace, runCmd, socket],
+    [namespace, runCmd, socket, logPod],
   );
 
   const requestAction = (pod: Pod, action: PodAction) => {
@@ -343,6 +356,16 @@ export default function KubernetesWidget({ sessionId, onClose }: KubernetesWidge
     setInputValue("");
   };
 
+  const logCmd = logPod && connected && !logStopped
+    ? `kubectl logs -f ${shQuote(logPod.name)} -n ${shQuote(logPod.ns)}` +
+      ` --tail=${logTail === "all" ? "-1" : logTail}` +
+      (logContainer ? ` -c ${shQuote(logContainer)}` : logPod.containers.length > 1 ? " --all-containers=true --prefix=true" : "") +
+      (logTimestamps ? " --timestamps" : "") +
+      (logPrevious ? " --previous" : "") +
+      " 2>&1"
+    : null;
+  const logStream = useExecStream(socket, logCmd, logRunKey);
+
   /* ── Drag ─────────────────────────────────────────────────────── */
 
   const onPointerDown = (e: React.PointerEvent) => {
@@ -366,7 +389,6 @@ export default function KubernetesWidget({ sessionId, onClose }: KubernetesWidge
   const fg = colors.foreground;
   const bg = colors.background;
   const border = `${fg}22`;
-  const track = `${fg}14`;
   const gray = colors.brightBlack ?? `${fg}66`;
   const sc = { green: colors.green, yellow: colors.yellow, red: colors.red, gray };
 
@@ -465,11 +487,13 @@ export default function KubernetesWidget({ sessionId, onClose }: KubernetesWidge
 
   /* ── Main panel ───────────────────────────────────────────────── */
 
+  const panelWidth = logPod ? (logWide ? Math.min(980, window.innerWidth - 24) : 560) : 400;
+
   return (
     <div
       style={{
-        position: "fixed", left: pos.x, top: pos.y, zIndex: 50,
-        width: 400, maxHeight: "82vh", borderRadius: 12,
+        position: "fixed", left: Math.max(0, Math.min(pos.x, window.innerWidth - panelWidth - 8)), top: pos.y, zIndex: 50,
+        width: panelWidth, maxHeight: logWide ? "90vh" : "82vh", borderRadius: 12,
         background: `${bg}f2`, border: `1px solid ${border}`,
         boxShadow: "0 18px 48px rgba(0,0,0,0.45)",
         backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
@@ -563,7 +587,7 @@ export default function KubernetesWidget({ sessionId, onClose }: KubernetesWidge
       )}
 
       {/* Body */}
-      <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 7, overflowY: "auto", flex: 1 }} className="scrollbar-green">
+      <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 7, overflowY: "auto", flex: 1, minHeight: logPod ? 90 : undefined }} className="scrollbar-green">
         {!connected ? (
           <EmptyMsg fg={fg}>Session not connected.</EmptyMsg>
         ) : !result ? (
@@ -645,6 +669,49 @@ export default function KubernetesWidget({ sessionId, onClose }: KubernetesWidge
           </div>
         )}
       </div>
+
+      {/* Live logs */}
+      {logPod && (
+        <LogPane
+          kind="stream"
+          title={logPrevious ? "Logs (previous)" : "Logs"}
+          subject={`${logPod.name}${logContainer ? ` · ${logContainer}` : ""}`}
+          icon={<FileText size={12} />}
+          stream={logStream}
+          stopped={logStopped}
+          onStop={() => setLogStopped(true)}
+          onRestart={() => { setLogStopped(false); setLogRunKey((k) => k + 1); }}
+          onTerminal={() => sendToTerminal(socket, (logCmd ?? "").replace(/ 2>&1$/, "") || `kubectl logs -f ${shQuote(logPod.name)} -n ${shQuote(logPod.ns)} --tail=100`)}
+          onExplain={(text) => askAI(sessionId, `Logs from pod ${logPod.name} (namespace ${logPod.ns}):\n${text}`)}
+          highlight
+          options={
+            <>
+              {logPod.containers.length > 1 && (
+                <select
+                  value={logContainer}
+                  onChange={(e) => setLogContainer(e.target.value)}
+                  title="Container"
+                  style={{ fontSize: 10, color: fg, background: "transparent", border: `1px solid ${border}`, borderRadius: 5, padding: "2px 4px", maxWidth: 120 }}
+                >
+                  <option value="" style={{ color: "#000" }}>all containers</option>
+                  {logPod.containers.map((c) => <option key={c} value={c} style={{ color: "#000" }}>{c}</option>)}
+                </select>
+              )}
+              <TailSelect value={logTail} onChange={setLogTail} />
+              <Chip fg={fg} border={border} accent={colors.blue} active={logTimestamps} onClick={() => setLogTimestamps((t) => !t)} title="Show timestamps">
+                <Clock size={11} />
+              </Chip>
+              <Chip fg={fg} border={border} accent={colors.yellow} active={logPrevious} onClick={() => setLogPrevious((p) => !p)} title="Logs of the previous (crashed / restarted) container">
+                <History size={11} />
+              </Chip>
+            </>
+          }
+          downloadName={`${logPod.name}${logContainer ? `-${logContainer}` : ""}.log`}
+          wide={logWide}
+          onToggleWide={() => setLogWide((w) => !w)}
+          onClose={() => { setLogPod(null); setLogWide(false); }}
+        />
+      )}
 
       {/* Footer */}
       {result?.available && !result.error && (
